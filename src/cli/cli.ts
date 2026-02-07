@@ -8,6 +8,7 @@ import { orchestrateOnce, listSpawnQueue, removeFromSpawnQueue } from "../daemon
 import { getCronSetupInstructions } from "../installer/setup-cron.js";
 import { ensureOrchestratorCron } from "../installer/gateway-api.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
+import { readRecentLogs } from "../lib/logger.js";
 
 function printUsage() {
   process.stdout.write(
@@ -27,6 +28,7 @@ function printUsage() {
       "antfarm check [--verbose]            Run orchestration check",
       "antfarm queue                        List pending spawn requests",
       "antfarm dequeue <file>               Remove a spawn request",
+      "antfarm logs [<lines>]               Show recent log entries",
     ].join("\n") + "\n",
   );
 }
@@ -91,6 +93,19 @@ async function main() {
   
   if (group === "dequeue") {
     await handleDequeue(args.slice(1));
+    return;
+  }
+  
+  if (group === "logs") {
+    const lines = parseInt(args[1], 10) || 50;
+    const logs = await readRecentLogs(lines);
+    if (logs.length === 0) {
+      console.log("No logs yet.");
+    } else {
+      for (const line of logs) {
+        console.log(line);
+      }
+    }
     return;
   }
   

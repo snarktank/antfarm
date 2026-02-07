@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { loadWorkflowSpec } from "./workflow-spec.js";
 import { resolveWorkflowDir } from "./paths.js";
 import { writeWorkflowRun } from "./run-store.js";
+import { logger } from "../lib/logger.js";
 import type { WorkflowRunRecord } from "./types.js";
 
 function resolveLeadAgentId(workflow: { id: string; agents: Array<{ id: string }> }) {
@@ -42,5 +43,12 @@ export async function runWorkflow(params: {
     updatedAt: now,
   };
   await writeWorkflowRun(record);
+  
+  await logger.info(`Run started: "${params.taskTitle}"`, {
+    workflowId: workflow.id,
+    runId,
+    stepId: workflow.steps[0]?.id,
+  });
+  
   return record;
 }

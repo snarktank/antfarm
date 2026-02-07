@@ -1,6 +1,7 @@
 import { loadWorkflowSpec } from "./workflow-spec.js";
 import { resolveWorkflowDir } from "./paths.js";
 import { readWorkflowRun, writeWorkflowRun } from "./run-store.js";
+import { logger } from "../lib/logger.js";
 import type { WorkflowRunRecord, WorkflowStep, StepResult } from "./types.js";
 
 export type NextStepResult = {
@@ -135,7 +136,27 @@ export async function completeStep(params: {
     run.updatedAt = now;
     await writeWorkflowRun(run);
 
+    await logger.info(`Step completed: ${step.id} (success)`, {
+      workflowId: run.workflowId,
+      runId: run.id,
+      stepId: step.id,
+    });
+
     const nextStep = await getNextStep(params.taskTitle);
+    
+    if (nextStep.status === "completed") {
+      await logger.info(`Workflow completed`, {
+        workflowId: run.workflowId,
+        runId: run.id,
+      });
+    } else if (nextStep.status === "ready" && nextStep.step) {
+      await logger.info(`Step started: ${nextStep.step.id}`, {
+        workflowId: run.workflowId,
+        runId: run.id,
+        stepId: nextStep.step.id,
+      });
+    }
+    
     return { status: "ok", nextStep };
   } else {
     // Step failed - check retry logic
@@ -157,6 +178,12 @@ export async function completeStep(params: {
         }
       }
 
+      await logger.warn(`Step retry ${run.retryCount}/${maxRetries}: ${step.id}`, {
+        workflowId: run.workflowId,
+        runId: run.id,
+        stepId: step.id,
+      });
+
       const nextStep = await getNextStep(params.taskTitle);
       return { status: "retry", nextStep, message: `Retry ${run.retryCount}/${maxRetries}` };
     } else {
@@ -166,11 +193,25 @@ export async function completeStep(params: {
         run.status = "blocked";
         run.updatedAt = now;
         await writeWorkflowRun(run);
+        
+        await logger.error(`Step failed, escalated to ${escalateTo}: ${step.id}`, {
+          workflowId: run.workflowId,
+          runId: run.id,
+          stepId: step.id,
+        });
+        
         return { status: "escalated", message: `Escalated to ${escalateTo}` };
       } else {
         run.status = "blocked";
         run.updatedAt = now;
         await writeWorkflowRun(run);
+        
+        await logger.error(`Step failed, workflow blocked: ${step.id}`, {
+          workflowId: run.workflowId,
+          runId: run.id,
+          stepId: step.id,
+        });
+        
         return { status: "blocked", message: "Max retries exceeded, no escalation defined" };
       }
     }
