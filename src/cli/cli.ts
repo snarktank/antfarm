@@ -2,9 +2,9 @@
 import { installWorkflow } from "../installer/install.js";
 import { uninstallAllWorkflows, uninstallWorkflow } from "../installer/uninstall.js";
 import { getWorkflowStatus } from "../installer/status.js";
-import { runWorkflow } from "../installer/run.js";
+import { runWorkflow, approveWorkflowPlan } from "../installer/run.js";
 import { getNextStep, completeStep } from "../installer/step-runner.js";
-import { orchestrateOnce, listSpawnQueue, removeFromSpawnQueue } from "../daemon/orchestrator.js";
+import { orchestrateOnce, listSpawnQueue, removeFromSpawnQueue, listPlanningQueue, removeFromPlanningQueue } from "../daemon/orchestrator.js";
 import { getCronSetupInstructions } from "../installer/setup-cron.js";
 import { ensureOrchestratorCron } from "../installer/gateway-api.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
@@ -20,7 +20,8 @@ function printUsage() {
       "antfarm workflow uninstall <name>    Uninstall a workflow",
       "antfarm workflow uninstall --all     Uninstall all workflows",
       "antfarm workflow status <task>       Check workflow run status",
-      "antfarm workflow run <name> <task>   Start a workflow run",
+      "antfarm workflow run <name> <task>   Start a workflow run (pending plan)",
+      "antfarm workflow plan <task>         Approve plan (reads from stdin JSON)",
       "antfarm workflow next <task>         Get next step info",
       "antfarm workflow complete <task> <success|fail> [output]",
       "",
@@ -28,6 +29,7 @@ function printUsage() {
       "antfarm check [--verbose]            Run orchestration check",
       "antfarm queue                        List pending spawn requests",
       "antfarm dequeue <file>               Remove a spawn request",
+      "antfarm planning                     List runs needing planning",
       "antfarm logs [<lines>]               Show recent log entries",
     ].join("\n") + "\n",
   );
@@ -93,6 +95,11 @@ async function main() {
   
   if (group === "dequeue") {
     await handleDequeue(args.slice(1));
+    return;
+  }
+  
+  if (group === "planning") {
+    await handlePlanning();
     return;
   }
   
@@ -204,12 +211,61 @@ async function main() {
     process.stdout.write(
       [
         `Run: ${run.id}`,
+        `Status: ${run.status}`,
         `Workflow: ${run.workflowName ?? run.workflowId}`,
         `Task: ${run.taskTitle}`,
-        `Lead: ${run.leadAgentId}`,
-        `Lead Session: ${run.leadSessionLabel}`,
+        ``,
+        `⏳ Waiting for plan approval.`,
+        `The orchestrator will ping the main agent to discuss planning.`,
+        `Once planned, approve with: antfarm workflow plan "${run.taskTitle}"`,
       ].join("\n") + "\n",
     );
+    return;
+  }
+
+  if (action === "plan") {
+    // Read plan from stdin as JSON
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+      chunks.push(chunk);
+    }
+    const input = Buffer.concat(chunks).toString("utf-8").trim();
+    if (!input) {
+      process.stderr.write("No plan provided on stdin. Expected JSON: {plan, acceptanceCriteria}\n");
+      process.exit(1);
+    }
+    
+    let planData: { plan: string; acceptanceCriteria: string[] };
+    try {
+      planData = JSON.parse(input);
+    } catch {
+      process.stderr.write("Invalid JSON on stdin.\n");
+      process.exit(1);
+    }
+    
+    if (!planData.plan || !Array.isArray(planData.acceptanceCriteria)) {
+      process.stderr.write("JSON must have 'plan' (string) and 'acceptanceCriteria' (array).\n");
+      process.exit(1);
+    }
+    
+    const run = await approveWorkflowPlan({
+      taskTitle: target,
+      plan: planData.plan,
+      acceptanceCriteria: planData.acceptanceCriteria,
+    });
+    
+    if (!run) {
+      process.stderr.write(`No pending_plan run found for: ${target}\n`);
+      process.exit(1);
+    }
+    
+    // Remove from planning queue
+    const config = { pollIntervalMs: 0, verbose: false };
+    await removeFromPlanningQueue(run.id, config);
+    
+    process.stdout.write(`Plan approved. Run is now: ${run.status}\n`);
+    process.stdout.write(`Plan:\n${run.plan}\n`);
+    process.stdout.write(`Acceptance Criteria:\n${run.acceptanceCriteria?.map((c) => `  - ${c}`).join("\n")}\n`);
     return;
   }
 
@@ -259,6 +315,19 @@ async function handleDequeue(args: string[]): Promise<void> {
   const config = { pollIntervalMs: 0, verbose: false };
   await removeFromSpawnQueue(file, config);
   process.stdout.write(`Removed: ${file}\n`);
+}
+
+async function handlePlanning(): Promise<void> {
+  const config = { pollIntervalMs: 0, verbose: false };
+  const queue = await listPlanningQueue(config);
+  if (queue.length === 0) {
+    process.stdout.write("No runs waiting for planning.\n");
+  } else {
+    process.stdout.write("Runs waiting for planning:\n");
+    for (const req of queue) {
+      process.stdout.write(`  ${req.workflowName ?? req.workflowId}: ${req.taskTitle}\n`);
+    }
+  }
 }
 
 main().catch((err) => {

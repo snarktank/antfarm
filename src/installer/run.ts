@@ -31,7 +31,7 @@ export async function runWorkflow(params: {
     workflowId: workflow.id,
     workflowName: workflow.name,
     taskTitle: params.taskTitle,
-    status: "running",
+    status: "pending_plan",
     leadAgentId: `${workflow.id}/${leadAgentId}`,
     leadSessionLabel,
     currentStepIndex: 0,
@@ -44,11 +44,45 @@ export async function runWorkflow(params: {
   };
   await writeWorkflowRun(record);
   
-  await logger.info(`Run started: "${params.taskTitle}"`, {
+  await logger.info(`Run created (pending plan): "${params.taskTitle}"`, {
     workflowId: workflow.id,
     runId,
-    stepId: workflow.steps[0]?.id,
   });
   
   return record;
+}
+
+export async function approveWorkflowPlan(params: {
+  taskTitle: string;
+  plan: string;
+  acceptanceCriteria: string[];
+}): Promise<WorkflowRunRecord | null> {
+  const { findRunByTaskTitle } = await import("./run-store.js");
+  const run = await findRunByTaskTitle(params.taskTitle);
+  if (!run) {
+    return null;
+  }
+  if (run.status !== "pending_plan") {
+    throw new Error(`Run status is "${run.status}", not "pending_plan"`);
+  }
+  
+  const now = new Date().toISOString();
+  run.status = "running";
+  run.plan = params.plan;
+  run.acceptanceCriteria = params.acceptanceCriteria;
+  run.plannedAt = now;
+  run.plannedBy = "main";
+  run.context.plan = params.plan;
+  run.context.acceptance = params.acceptanceCriteria.join("\n");
+  run.updatedAt = now;
+  
+  await writeWorkflowRun(run);
+  
+  await logger.info(`Plan approved, run started: "${params.taskTitle}"`, {
+    workflowId: run.workflowId,
+    runId: run.id,
+    stepId: run.currentStepId,
+  });
+  
+  return run;
 }

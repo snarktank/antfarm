@@ -53,7 +53,7 @@ export type WorkflowRunRecord = {
   workflowId: string;
   workflowName?: string;
   taskTitle: string;
-  status: "running" | "paused" | "blocked" | "completed" | "canceled";
+  status: "pending_plan" | "running" | "paused" | "blocked" | "completed" | "canceled";
   leadAgentId: string;
   leadSessionLabel: string;
   currentStepIndex: number;
@@ -61,6 +61,13 @@ export type WorkflowRunRecord = {
   stepResults: StepResult[];
   retryCount: number;
   context: Record<string, string>;
+  // Planning fields - required before execution
+  plan?: string;
+  acceptanceCriteria?: string[];
+  plannedAt?: string;
+  plannedBy?: string;
+  // Tracking for planning pings
+  lastPlanPingAt?: string;
   createdAt: string;
   updatedAt: string;
 };

@@ -307,9 +307,99 @@ async function spawnAgent(
 }
 
 /**
+ * Write a planning request to the planning queue.
+ * The main agent checks this queue and initiates planning conversations.
+ */
+async function writePlanningRequest(run: WorkflowRunRecord, config: OrchestratorConfig): Promise<boolean> {
+  const openclawRoot = getOpenclawRoot(config);
+  const queueDir = path.join(openclawRoot, "antfarm", "planning-queue");
+  await fs.mkdir(queueDir, { recursive: true });
+  
+  const request = {
+    runId: run.id,
+    workflowId: run.workflowId,
+    workflowName: run.workflowName,
+    taskTitle: run.taskTitle,
+    createdAt: new Date().toISOString(),
+  };
+  
+  // Use runId as filename to avoid duplicates
+  const filename = `${run.id}.json`;
+  const filePath = path.join(queueDir, filename);
+  
+  try {
+    // Check if already exists
+    try {
+      await fs.access(filePath);
+      log(config, `Planning request already exists for: ${run.taskTitle}`);
+      return true;
+    } catch {
+      // File doesn't exist, create it
+    }
+    
+    await fs.writeFile(filePath, JSON.stringify(request, null, 2));
+    log(config, `Wrote planning request: ${filename}`);
+    return true;
+  } catch (err) {
+    log(config, `Failed to write planning request: ${err}`);
+    return false;
+  }
+}
+
+/**
+ * Read pending planning requests from the queue.
+ */
+export async function listPlanningQueue(config: OrchestratorConfig): Promise<
+  Array<{ file: string; runId: string; workflowId: string; workflowName?: string; taskTitle: string; createdAt: string }>
+> {
+  const openclawRoot = getOpenclawRoot(config);
+  const queueDir = path.join(openclawRoot, "antfarm", "planning-queue");
+  
+  try {
+    const files = await fs.readdir(queueDir);
+    const requests = [];
+    
+    for (const file of files.filter((f) => f.endsWith(".json"))) {
+      try {
+        const content = await fs.readFile(path.join(queueDir, file), "utf-8");
+        const request = JSON.parse(content);
+        requests.push({ file, ...request });
+      } catch {
+        // Skip malformed files
+      }
+    }
+    
+    return requests.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Remove a planning request from the queue (after planning is complete).
+ */
+export async function removeFromPlanningQueue(runId: string, config: OrchestratorConfig): Promise<void> {
+  const openclawRoot = getOpenclawRoot(config);
+  const queueDir = path.join(openclawRoot, "antfarm", "planning-queue");
+  
+  try {
+    await fs.unlink(path.join(queueDir, `${runId}.json`));
+  } catch {
+    // Already removed
+  }
+}
+
+/**
  * Process a single workflow run - check status, advance if needed.
  */
 async function processRun(run: WorkflowRunRecord, config: OrchestratorConfig): Promise<void> {
+  // Handle pending_plan runs - write to planning queue
+  if (run.status === "pending_plan") {
+    log(config, `Run needs planning: ${run.taskTitle}`);
+    await writePlanningRequest(run, config);
+    return;
+  }
+  
   if (run.status !== "running") {
     return;
   }
@@ -419,7 +509,7 @@ export async function runOrchestrator(config: OrchestratorConfig): Promise<void>
   const poll = async () => {
     try {
       const runs = await listWorkflowRuns();
-      const activeRuns = runs.filter((r) => r.status === "running");
+      const activeRuns = runs.filter((r) => r.status === "running" || r.status === "pending_plan");
       
       if (activeRuns.length > 0) {
         log(config, `Found ${activeRuns.length} active run(s)`);
@@ -448,7 +538,7 @@ export async function runOrchestrator(config: OrchestratorConfig): Promise<void>
  */
 export async function orchestrateOnce(config: OrchestratorConfig): Promise<void> {
   const runs = await listWorkflowRuns();
-  const activeRuns = runs.filter((r) => r.status === "running");
+  const activeRuns = runs.filter((r) => r.status === "running" || r.status === "pending_plan");
   
   console.log(`[orchestrator] Found ${activeRuns.length} active run(s)`);
   
