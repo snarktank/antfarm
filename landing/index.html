@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antfarm - Multi-Agent Workflow Orchestration for OpenClaw</title>
+  <meta name="description" content="Antfarm orchestrates multi-agent workflows for OpenClaw. Define workflows, spawn agents on cron, and coordinate complex tasks with ease.">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-container">
+      <a href="#" class="nav-logo">
+        <img src="../assets/logo.jpeg" alt="Antfarm" class="nav-logo-img">
+        <span>Antfarm</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#quickstart">Quickstart</a>
+        <a href="https://github.com/openclaw/antfarm" class="btn btn-outline" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-container">
+      <div class="hero-content">
+        <div class="hero-badge">Multi-Agent Orchestration</div>
+        <h1>Coordinate AI agents like a well-oiled colony</h1>
+        <p class="hero-description">
+          Antfarm is a workflow orchestration tool for <a href="https://openclaw.dev" target="_blank">OpenClaw</a>. 
+          Define multi-agent workflows, spawn agents on schedule, and let them collaborate to ship complex tasks.
+        </p>
+        <div class="hero-actions">
+          <a href="#quickstart" class="btn btn-primary">Get Started</a>
+          <a href="#how-it-works" class="btn btn-secondary">Learn More</a>
+        </div>
+        <div class="hero-code">
+          <pre><code>npm install -g antfarm
+antfarm workflow install ./workflows/feature-dev
+antfarm workflow run feature-dev "Ship the login page"</code></pre>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img src="../assets/logo.jpeg" alt="Antfarm - Multi-agent workflow orchestration" class="hero-logo">
+      </div>
+    </div>
+  </header>
+
+  <section id="features" class="features">
+    <div class="container">
+      <div class="section-header">
+        <h2>Why Antfarm?</h2>
+        <p>Everything you need to orchestrate multi-agent workflows</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">⏰</div>
+          <h3>Cron-Based Orchestration</h3>
+          <p>Schedule workflow runs with cron expressions. Antfarm monitors pending tasks and spawns the right agents at the right time.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3>Agent Spawning</h3>
+          <p>Automatically provision agents with isolated workspaces, custom prompts, and the skills they need to do their job.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📋</div>
+          <h3>Workflow Definitions</h3>
+          <p>Define workflows as YAML files. Specify agents, their roles, handoff conditions, and how they coordinate.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Run Tracking</h3>
+          <p>Track workflow runs by task title. Query status, see which step is active, and debug issues easily.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔄</div>
+          <h3>Clean Lifecycle</h3>
+          <p>Install, update, or uninstall workflows without manual cleanup. Antfarm manages agent configs, workspaces, and state.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🌐</div>
+          <h3>Multiple Sources</h3>
+          <p>Install workflows from local paths, GitHub repos, or raw URLs. Share workflows across teams.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how-it-works" class="how-it-works">
+    <div class="container">
+      <div class="section-header">
+        <h2>How It Works</h2>
+        <p>From workflow definition to coordinated execution</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Define Your Workflow</h3>
+            <p>Create a <code>workflow.yml</code> that specifies your agents, their roles, and how they hand off work. Each agent gets its own workspace with custom instructions.</p>
+            <div class="code-block">
+              <pre><code class="language-yaml">id: feature-dev
+name: Feature Development
+agents:
+  - id: lead
+    role: Plans and coordinates the feature
+  - id: developer  
+    role: Implements the feature
+  - id: reviewer
+    role: Reviews the code
+steps:
+  - agent: lead
+    prompt: "Plan the implementation"
+  - agent: developer
+    prompt: "Implement the plan"
+  - agent: reviewer
+    prompt: "Review the changes"</code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Install the Workflow</h3>
+            <p>Antfarm provisions agent workspaces, wires them into OpenClaw, and sets up the cron orchestrator. One command does it all.</p>
+            <div class="code-block">
+              <pre><code class="language-bash">antfarm workflow install ./workflows/feature-dev
+
+# Or install from GitHub
+antfarm workflow install https://github.com/team/workflows/tree/main/feature-dev</code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Run the Workflow</h3>
+            <p>Start a workflow run with a task title. The orchestrator kicks off the first agent and tracks progress through each step.</p>
+            <div class="code-block">
+              <pre><code class="language-bash">antfarm workflow run feature-dev "Add user authentication"
+
+# Check status anytime
+antfarm workflow status "Add user authentication"</code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-number">4</div>
+          <div class="step-content">
+            <h3>Agents Collaborate</h3>
+            <p>Each agent does its part and signals completion. The orchestrator monitors via cron, spawning the next agent when the previous step finishes.</p>
+            <div class="diagram">
+              <div class="diagram-flow">
+                <div class="diagram-node">Lead Agent</div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-node">Developer Agent</div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-node">Reviewer Agent</div>
+                <div class="diagram-arrow">→</div>
+                <div class="diagram-node done">Done ✓</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="quickstart" class="quickstart">
+    <div class="container">
+      <div class="section-header">
+        <h2>Quickstart</h2>
+        <p>Get up and running in minutes</p>
+      </div>
+      <div class="quickstart-content">
+        <div class="quickstart-step">
+          <h3>Prerequisites</h3>
+          <p>You'll need <a href="https://openclaw.dev" target="_blank">OpenClaw</a> installed and configured.</p>
+        </div>
+        <div class="quickstart-step">
+          <h3>Install Antfarm</h3>
+          <div class="code-block">
+            <pre><code class="language-bash">npm install -g antfarm</code></pre>
+          </div>
+        </div>
+        <div class="quickstart-step">
+          <h3>Install a Workflow</h3>
+          <div class="code-block">
+            <pre><code class="language-bash"># Use the built-in feature-dev workflow
+antfarm workflow install antfarm/workflows/feature-dev
+
+# Or create your own workflow.yml and install it
+antfarm workflow install ./my-workflows/custom-flow</code></pre>
+          </div>
+        </div>
+        <div class="quickstart-step">
+          <h3>Run Your First Task</h3>
+          <div class="code-block">
+            <pre><code class="language-bash">antfarm workflow run feature-dev "Build the settings page"
+
+# The orchestrator will spawn agents and coordinate the work
+# Check status anytime:
+antfarm workflow status "Build the settings page"</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="commands">
+    <div class="container">
+      <div class="section-header">
+        <h2>Commands Reference</h2>
+        <p>Everything Antfarm can do</p>
+      </div>
+      <div class="commands-grid">
+        <div class="command-card">
+          <code>antfarm workflow install &lt;source&gt;</code>
+          <p>Install a workflow from a local path, GitHub repo, or URL</p>
+        </div>
+        <div class="command-card">
+          <code>antfarm workflow run &lt;id&gt; &lt;task&gt;</code>
+          <p>Start a workflow run with the given task title</p>
+        </div>
+        <div class="command-card">
+          <code>antfarm workflow status &lt;task&gt;</code>
+          <p>Check the status of a workflow run</p>
+        </div>
+        <div class="command-card">
+          <code>antfarm workflow update &lt;id&gt;</code>
+          <p>Update a workflow to the latest version</p>
+        </div>
+        <div class="command-card">
+          <code>antfarm workflow uninstall &lt;id&gt;</code>
+          <p>Remove a workflow and clean up its agents</p>
+        </div>
+        <div class="command-card">
+          <code>antfarm workflow uninstall --all</code>
+          <p>Remove all Antfarm-installed workflows</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="container">
+      <div class="cta-content">
+        <h2>Ready to orchestrate your agents?</h2>
+        <p>Install Antfarm and start building multi-agent workflows today.</p>
+        <div class="cta-actions">
+          <a href="https://github.com/openclaw/antfarm" class="btn btn-primary" target="_blank">View on GitHub</a>
+          <a href="https://openclaw.dev/docs/antfarm" class="btn btn-secondary" target="_blank">Read the Docs</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <img src="../assets/logo.jpeg" alt="Antfarm" class="footer-logo">
+          <p>Multi-agent workflow orchestration for OpenClaw</p>
+        </div>
+        <div class="footer-links">
+          <div class="footer-column">
+            <h4>Product</h4>
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#quickstart">Quickstart</a>
+          </div>
+          <div class="footer-column">
+            <h4>Resources</h4>
+            <a href="https://github.com/openclaw/antfarm" target="_blank">GitHub</a>
+            <a href="https://openclaw.dev/docs/antfarm" target="_blank">Documentation</a>
+            <a href="https://openclaw.dev" target="_blank">OpenClaw</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>Built for the <a href="https://openclaw.dev" target="_blank">OpenClaw</a> ecosystem</p>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
