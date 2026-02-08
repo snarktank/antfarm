@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Antfarm — Multi-Agent Workflows for OpenClaw</title>
-  <meta name="description" content="Antfarm installs and runs multi-agent workflows for OpenClaw. Spin up agent teams, track runs, and ship complex tasks.">
+  <title>Antfarm -- Multi-Agent Workflows for OpenClaw</title>
+  <meta name="description" content="Multi-agent workflow orchestration for OpenClaw. Define pipelines in YAML, let agents execute autonomously.">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,59 +14,25 @@
         <img src="../assets/logo.jpeg" alt="Antfarm logo" class="nav-logo">
         <span class="nav-name">Antfarm</span>
       </div>
-      <div class="nav-links">
-        <a href="#features">Features</a>
-        <a href="#quickstart">Quickstart</a>
-        <a href="#commands">Commands</a>
-        <a href="https://github.com/openclaw/openclaw" class="btn btn-outline">GitHub</a>
-      </div>
+      <a href="https://github.com/snarktank/antfarm" class="nav-github">GitHub</a>
     </nav>
-
-    <div class="hero-content">
-      <h1>Multi-agent workflows,<br>made simple.</h1>
-      <p class="hero-sub">Antfarm gives your OpenClaw agents a repeatable way to collaborate. Install a workflow, run a task, and let your agents do the rest.</p>
-      <div class="hero-actions">
-        <a href="#quickstart" class="btn btn-primary">Get Started</a>
-        <a href="https://docs.openclaw.ai" class="btn btn-secondary">Read the Docs</a>
-      </div>
-    </div>
   </header>
 
-  <section id="features" class="section features">
-    <h2>Why Antfarm?</h2>
-    <div class="feature-grid">
-      <div class="feature-card">
-        <div class="feature-icon">🐜</div>
-        <h3>Workflow-First</h3>
-        <p>Define multi-agent pipelines in a simple YAML spec. Each agent gets its own workspace, skills, and role.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🔄</div>
-        <h3>Repeatable Runs</h3>
-        <p>Every task is tracked from start to finish. Query status, inspect context, and replay when needed.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">📦</div>
-        <h3>Install From Anywhere</h3>
-        <p>Local paths, GitHub repos, or raw URLs. Install workflows the same way you install packages.</p>
-      </div>
-      <div class="feature-card">
-        <div class="feature-icon">🧹</div>
-        <h3>Clean Uninstall</h3>
-        <p>Remove workflows, workspaces, and agent configs in one command. No leftovers.</p>
-      </div>
-    </div>
-  </section>
+  <main>
+    <section class="description">
+      <p>Multi-agent workflow orchestration for OpenClaw. Define pipelines in YAML, let agents execute autonomously.</p>
+    </section>
 
-  <section id="quickstart" class="section quickstart">
-    <h2>Quickstart</h2>
-    <div class="code-block">
-      <div class="code-header">
-        <span class="code-dot red"></span>
-        <span class="code-dot yellow"></span>
-        <span class="code-dot green"></span>
-        <span class="code-title">Terminal</span>
+    <section id="features" class="section">
+      <h2>Install</h2>
+      <div class="install-block">
+        <pre><code>Install GitHub.com/snarktank/antfarm</code></pre>
       </div>
+      <p class="install-note">Tell your OpenClaw agent to install Antfarm. That's it.</p>
+    </section>
+
+    <section id="quickstart" class="section">
+      <h2>Example</h2>
       <pre><code><span class="comment"># Install a workflow</span>
 antfarm workflow install ./workflows/feature-dev
 
@@ -75,71 +41,57 @@ antfarm workflow run feature-dev "Ship the onboarding prompt"
 
 <span class="comment"># Check status</span>
 antfarm workflow status "Ship the onboarding prompt"</code></pre>
-    </div>
-  </section>
+    </section>
 
-  <section id="how-it-works" class="section how-it-works">
-    <h2>How It Works</h2>
-    <div class="steps">
-      <div class="step">
-        <div class="step-number">1</div>
-        <div class="step-content">
-          <h3>Define your workflow</h3>
-          <p>Write a <code>workflow.yml</code> with agents, steps, and context. Each agent gets a role, skills, and workspace files.</p>
-        </div>
+    <section class="section dashboard">
+      <h2>Dashboard</h2>
+      <div class="dashboard-frame">
+        <img src="../assets/dashboard-screenshot.png" alt="Task dashboard showing workflow runs and step status">
       </div>
-      <div class="step">
-        <div class="step-number">2</div>
-        <div class="step-content">
-          <h3>Install it</h3>
-          <p>Antfarm provisions agent workspaces, installs skills, and registers the workflow. One command.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-number">3</div>
-        <div class="step-content">
-          <h3>Run a task</h3>
-          <p>Give it a task title. Antfarm creates a run, passes context between steps, and each agent picks up work on its own schedule.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div class="step-number">4</div>
-        <div class="step-content">
-          <h3>Ship it</h3>
-          <p>Agents execute their steps — planning, implementing, reviewing — passing context forward until the pipeline completes.</p>
-        </div>
-      </div>
-    </div>
-  </section>
+      <p class="dashboard-caption">Task dashboard showing workflow runs and step status</p>
+    </section>
 
-  <section id="commands" class="section commands">
-    <h2>Commands</h2>
-    <div class="command-list">
-      <div class="command">
-        <code>antfarm workflow install &lt;source&gt;</code>
-        <p>Install a workflow from a local path, GitHub repo, or raw URL.</p>
-      </div>
-      <div class="command">
-        <code>antfarm workflow run &lt;id&gt; &lt;task&gt;</code>
-        <p>Start a new run with the given task title.</p>
-      </div>
-      <div class="command">
-        <code>antfarm workflow status &lt;task&gt;</code>
-        <p>Check the status of a running or completed task.</p>
-      </div>
-      <div class="command">
-        <code>antfarm workflow update &lt;id&gt;</code>
-        <p>Update a workflow to the latest version from its source.</p>
-      </div>
-      <div class="command">
-        <code>antfarm workflow uninstall &lt;id&gt;</code>
-        <p>Remove a workflow and all its associated resources.</p>
-      </div>
-    </div>
-  </section>
+    <section id="commands" class="section">
+      <h2>Commands</h2>
+      <table class="command-table">
+        <thead>
+          <tr>
+            <th>Command</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>antfarm workflow install &lt;source&gt;</code></td>
+            <td>Install a workflow from a local path, GitHub repo, or URL</td>
+          </tr>
+          <tr>
+            <td><code>antfarm workflow run &lt;id&gt; &lt;task&gt;</code></td>
+            <td>Start a new run with the given task</td>
+          </tr>
+          <tr>
+            <td><code>antfarm workflow status &lt;task&gt;</code></td>
+            <td>Check status of a running or completed task</td>
+          </tr>
+          <tr>
+            <td><code>antfarm workflow update &lt;id&gt;</code></td>
+            <td>Update a workflow to the latest version</td>
+          </tr>
+          <tr>
+            <td><code>antfarm workflow uninstall &lt;id&gt;</code></td>
+            <td>Remove a workflow and all associated resources</td>
+          </tr>
+          <tr>
+            <td><code>antfarm workflow logs &lt;task&gt;</code></td>
+            <td>View logs for a workflow run</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
 
   <footer class="footer">
-    <p>Part of the <a href="https://docs.openclaw.ai">OpenClaw</a> ecosystem. Built for agents that work together.</p>
+    <p>Part of the <a href="https://docs.openclaw.ai">OpenClaw</a> ecosystem.</p>
   </footer>
 </body>
 </html>
