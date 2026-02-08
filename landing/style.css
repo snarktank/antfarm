@@ -23,7 +23,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+a { color: var(--accent); text-decoration: none; }
 a:hover { color: var(--accent-hover); text-decoration: underline; }
 
 code, pre {
@@ -147,6 +147,8 @@ code {
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--bg-card);
+  max-width: 720px;
+  margin: 0 auto;
 }
 
 .dashboard-frame img {
