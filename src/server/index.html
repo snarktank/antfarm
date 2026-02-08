@@ -59,6 +59,8 @@ select:focus{outline:none;border-color:#8ECFC0}
 .empty{color:#8b8072;font-size:12px;text-align:center;padding:24px 8px}
 .refresh-note{color:rgba(255,255,255,.6);font-size:11px;margin-left:auto}
 @media(max-width:768px){.board{flex-direction:column}.column{min-width:unset}}
+.story-open{display:block!important}
+.story-chevron-open{transform:rotate(90deg)}
 </style>
 </head>
 <body>
@@ -149,6 +151,7 @@ function renderBoard(wf, runs) {
 }
 
 const stepIcons = {done:'✓',running:'●',pending:'○',waiting:'◌',failed:'✗',error:'✗'};
+function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 async function openRun(id) {
   const run = await fetchJSON(`/api/runs/${id}`);
@@ -168,7 +171,7 @@ async function openRun(id) {
   panel.innerHTML = `
     <button class="panel-close" onclick="closePanel()">✕</button>
     <h2>${run.workflow_id}</h2>
-    <div class="panel-task">${run.task}</div>
+    <div class="panel-task">${esc(run.task)}</div>
     <div class="panel-meta">
       <span><span class="badge badge-${run.status}">${run.status}</span></span>
       <span>Created: ${created}</span>
@@ -191,23 +194,40 @@ async function loadStories(runId) {
   const panel = document.getElementById('stories-panel');
   if (!stories || stories.length === 0) { panel.innerHTML = ''; return; }
   const done = stories.filter(s => s.status === 'done').length;
+  const pct = Math.round((done / stories.length) * 100);
   panel.innerHTML = `
-    <h3 style="margin-top:20px;font-size:14px;font-weight:600;color:#3A3226">Stories (${done}/${stories.length})</h3>
-    <div class="steps-list" style="margin-top:8px">
-      ${stories.map(s => {
-        const st = s.status || 'pending';
-        const icon = stepIcons[st] || '○';
-        const ac = JSON.parse(s.acceptance_criteria || '[]');
-        const retryInfo = s.retry_count > 0 ? ` <span style="color:#E8845C;font-size:10px">(retry ${s.retry_count})</span>` : '';
-        return `<div class="step-row" style="flex-direction:column;align-items:flex-start;gap:4px">
-          <div style="display:flex;align-items:center;gap:8px;width:100%">
-            <div class="step-icon ${st}">${icon}</div>
-            <div class="step-name">${s.story_id}: ${s.title}${retryInfo}</div>
-            <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
-          </div>
-          <div style="font-size:11px;color:#8b8072;padding-left:32px">${ac.map(c => '✓ ' + c).join(' · ')}</div>
-        </div>`;
-      }).join('')}
+    <div style="margin-top:24px;border-top:1px solid #D4C4A0;padding-top:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:15px;font-weight:600;color:#3A3226">Stories</h3>
+        <span style="font-size:13px;font-weight:600;color:#6B7F3B">${done} / ${stories.length} done</span>
+      </div>
+      <div style="background:#D4C4A044;border-radius:4px;height:8px;margin-bottom:16px;overflow:hidden">
+        <div style="background:#6B7F3B;height:100%;width:${pct}%;border-radius:4px;transition:width .3s"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${stories.map((s, i) => {
+          const st = s.status || 'pending';
+          const icon = stepIcons[st] || '○';
+          let ac = [];
+          try { ac = JSON.parse(s.acceptance_criteria || '[]'); } catch { ac = [s.acceptance_criteria]; }
+          const retryInfo = s.retry_count > 0 ? ` <span style="color:#E8845C;font-size:10px">(retry ${s.retry_count})</span>` : '';
+          const hasDetails = s.description || ac.length > 0 || s.output;
+          const toggleAttr = hasDetails ? `onclick="this.querySelector('.story-details').classList.toggle('story-open');this.querySelector('.story-chevron').classList.toggle('story-chevron-open')" style="cursor:pointer"` : '';
+          return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
+              <div class="step-icon ${st}">${icon}</div>
+              <div class="step-name" style="flex:1">${s.story_id}: ${s.title}${retryInfo}</div>
+              <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
+              ${hasDetails ? '<span class="story-chevron" style="color:#8b8072;font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
+            </div>
+            ${hasDetails ? `<div class="story-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:#5a5045;line-height:1.6">
+              ${s.description ? `<div style="margin-bottom:8px">${esc(s.description)}</div>` : ''}
+              ${ac.length > 0 ? `<div style="margin-bottom:8px"><div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#6B7F3B;margin-bottom:4px">Acceptance Criteria</div>${ac.map(c => `<label style="display:flex;align-items:flex-start;gap:6px;margin-bottom:3px;cursor:default"><span style="color:${st==='done'?'#6B7F3B':'#D4C4A0'};flex-shrink:0">${st==='done'?'☑':'☐'}</span><span>${esc(c)}</span></label>`).join('')}</div>` : ''}
+              ${s.output ? `<details style="margin-top:4px" onclick="event.stopPropagation()"><summary style="font-size:11px;color:#8b8072;cursor:pointer;font-weight:500">Output</summary><pre style="margin-top:6px;padding:8px;background:#FAF8F5;border:1px solid #D4C4A0;border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto">${esc(s.output)}</pre></details>` : ''}
+            </div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
     </div>
   `;
 }
