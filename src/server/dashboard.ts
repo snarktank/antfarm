@@ -88,6 +88,17 @@ export function startDashboard(port = 3333): http.Server {
       return json(res, getRuns(wf));
     }
 
+    // Serve logo
+    if (p === "/logo.jpeg") {
+      const logoPath = path.resolve(__dirname, "..", "..", "assets", "logo.jpeg");
+      const srcLogoPath = path.resolve(__dirname, "..", "..", "src", "..", "assets", "logo.jpeg");
+      const resolvedLogo = fs.existsSync(logoPath) ? logoPath : srcLogoPath;
+      if (fs.existsSync(resolvedLogo)) {
+        res.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=86400" });
+        return res.end(fs.readFileSync(resolvedLogo));
+      }
+    }
+
     // Serve frontend
     serveHTML(res);
   });

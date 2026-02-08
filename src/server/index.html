@@ -6,57 +6,61 @@
 <title>Antfarm Dashboard</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh}
-header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-header h1{font-size:18px;font-weight:600;color:#e6edf3}
-header h1 span{color:#58a6ff}
-select{background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer}
-select:focus{outline:none;border-color:#58a6ff}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAF8F5;color:#3A3226;min-height:100vh}
+header{background:#6B7F3B;border-bottom:2px solid #5a6b32;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header img{height:36px;border-radius:6px}
+header h1{font-size:18px;font-weight:600;color:#fff}
+header h1 span{color:#D4E8A0}
+select{background:#5a6b32;color:#fff;border:1px solid #4a5a28;border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer}
+select option{background:#5a6b32;color:#fff}
+select:focus{outline:none;border-color:#8ECFC0}
 .board{display:flex;gap:16px;padding:24px;overflow-x:auto;min-height:calc(100vh - 65px)}
-.column{min-width:240px;flex:1;background:#161b22;border:1px solid #30363d;border-radius:8px;display:flex;flex-direction:column}
-.column-header{padding:12px 16px;border-bottom:1px solid #30363d;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#8b949e}
-.column-header .count{background:#30363d;color:#c9d1d9;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px}
+.column{min-width:240px;flex:1;background:#fff;border:1px solid #D4C4A0;border-radius:8px;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(58,50,38,.08)}
+.column-header{padding:12px 16px;border-bottom:1px solid #D4C4A0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#6B7F3B;background:#f5f0e8}
+.column-header .count{background:#6B7F3B;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px}
 .cards{padding:8px;flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
-.card{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s}
-.card:hover{border-color:#58a6ff}
-.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s}
+.card{background:#FAF8F5;border:1px solid #D4C4A0;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.card:hover{border-color:#E8845C;box-shadow:0 2px 8px rgba(232,132,92,.15)}
+.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(58,50,38,.5);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s}
 .overlay.open{opacity:1;pointer-events:auto}
-.panel{background:#161b22;border:1px solid #30363d;border-radius:12px;width:90%;max-width:640px;max-height:85vh;overflow-y:auto;padding:24px;position:relative}
-.panel-close{position:absolute;top:12px;right:16px;background:none;border:none;color:#8b949e;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px}
-.panel-close:hover{color:#e6edf3;background:#30363d}
-.panel h2{font-size:16px;font-weight:600;color:#e6edf3;margin-bottom:4px;padding-right:40px}
-.panel-task{font-size:13px;color:#8b949e;margin-bottom:16px;white-space:pre-wrap;word-break:break-word;max-height:120px;overflow-y:auto;line-height:1.5}
-.panel-meta{display:flex;gap:12px;margin-bottom:20px;font-size:12px;color:#8b949e;flex-wrap:wrap}
+.panel{background:#fff;border:1px solid #D4C4A0;border-radius:12px;width:90%;max-width:640px;max-height:85vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 32px rgba(58,50,38,.15)}
+.panel-close{position:absolute;top:12px;right:16px;background:none;border:none;color:#8b8072;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px}
+.panel-close:hover{color:#3A3226;background:#f5f0e8}
+.panel h2{font-size:16px;font-weight:600;color:#3A3226;margin-bottom:4px;padding-right:40px}
+.panel-task{font-size:13px;color:#8b8072;margin-bottom:16px;white-space:pre-wrap;word-break:break-word;max-height:120px;overflow-y:auto;line-height:1.5}
+.panel-meta{display:flex;gap:12px;margin-bottom:20px;font-size:12px;color:#8b8072;flex-wrap:wrap}
 .panel-meta span{display:flex;align-items:center;gap:4px}
 .steps-list{display:flex;flex-direction:column;gap:8px}
-.step-row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:#0d1117;border:1px solid #30363d;border-radius:6px}
+.step-row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:#FAF8F5;border:1px solid #D4C4A0;border-radius:6px}
 .step-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.step-icon.done{background:#23863633;color:#3fb950}
-.step-icon.running{background:#1f6feb33;color:#58a6ff}
-.step-icon.pending{background:#30363d;color:#8b949e}
-.step-icon.waiting{background:#30363d;color:#8b949e}
-.step-icon.failed,.step-icon.error{background:#da363333;color:#f85149}
-.step-name{font-size:13px;font-weight:500;color:#e6edf3;flex:1}
-.step-agent{font-size:11px;color:#484f58}
+.step-icon.done{background:#6B7F3B22;color:#6B7F3B}
+.step-icon.running{background:#8ECFC033;color:#3a9e8a}
+.step-icon.pending{background:#D4C4A044;color:#8b8072}
+.step-icon.waiting{background:#D4C4A044;color:#8b8072}
+.step-icon.failed,.step-icon.error{background:#E8845C22;color:#d4603a}
+.step-name{font-size:13px;font-weight:500;color:#3A3226;flex:1}
+.step-agent{font-size:11px;color:#8b8072}
 .step-status{font-size:11px;text-transform:uppercase;font-weight:600}
-.card-title{font-size:13px;font-weight:500;color:#e6edf3;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-meta{font-size:11px;color:#8b949e;display:flex;justify-content:space-between;align-items:center}
+.card-title{font-size:13px;font-weight:500;color:#3A3226;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-meta{font-size:11px;color:#8b8072;display:flex;justify-content:space-between;align-items:center}
 .badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;text-transform:uppercase}
-.badge-running{background:#1f6feb33;color:#58a6ff}
-.badge-done{background:#23863633;color:#3fb950}
-.badge-failed,.badge-error{background:#da363333;color:#f85149}
-.badge-waiting{background:#30363d;color:#8b949e}
-.badge-blocked{background:#6e401033;color:#d29922}
-.card.done{border-left:3px solid #3fb950}
-.card.failed,.card.error{border-left:3px solid #f85149}
-.empty{color:#484f58;font-size:12px;text-align:center;padding:24px 8px}
-.refresh-note{color:#484f58;font-size:11px;margin-left:auto}
+.badge-running{background:#8ECFC033;color:#3a9e8a}
+.badge-done,.badge-completed{background:#6B7F3B22;color:#6B7F3B}
+.badge-failed,.badge-error{background:#E8845C22;color:#d4603a}
+.badge-waiting{background:#D4C4A044;color:#8b8072}
+.badge-pending{background:#D4C4A044;color:#8b8072}
+.badge-blocked{background:#E8845C11;color:#E8845C}
+.card.done{border-left:3px solid #6B7F3B}
+.card.failed,.card.error{border-left:3px solid #E8845C}
+.empty{color:#8b8072;font-size:12px;text-align:center;padding:24px 8px}
+.refresh-note{color:rgba(255,255,255,.6);font-size:11px;margin-left:auto}
 @media(max-width:768px){.board{flex-direction:column}.column{min-width:unset}}
 </style>
 </head>
 <body>
 <header>
-  <h1>🐜 <span>antfarm</span> dashboard</h1>
+  <img src="/logo.jpeg" alt="Antfarm">
+  <h1><span>antfarm</span> dashboard</h1>
   <select id="wf-select"><option value="">Loading...</option></select>
   <span class="refresh-note" id="refresh-note">Auto-refresh: 30s</span>
 </header>
