@@ -88,6 +88,18 @@ export function startDashboard(port = 3333): http.Server {
       return json(res, getRuns(wf));
     }
 
+    // Serve fonts
+    if (p.startsWith("/fonts/")) {
+      const fontName = path.basename(p);
+      const fontPath = path.resolve(__dirname, "..", "..", "assets", "fonts", fontName);
+      const srcFontPath = path.resolve(__dirname, "..", "..", "src", "..", "assets", "fonts", fontName);
+      const resolvedFont = fs.existsSync(fontPath) ? fontPath : srcFontPath;
+      if (fs.existsSync(resolvedFont)) {
+        res.writeHead(200, { "Content-Type": "font/woff2", "Cache-Control": "public, max-age=31536000", "Access-Control-Allow-Origin": "*" });
+        return res.end(fs.readFileSync(resolvedFont));
+      }
+    }
+
     // Serve logo
     if (p === "/logo.jpeg") {
       const logoPath = path.resolve(__dirname, "..", "..", "assets", "logo.jpeg");

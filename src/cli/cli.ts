@@ -6,6 +6,7 @@ import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
+import { claimStep, completeStep, failStep } from "../installer/step-ops.js";
 
 function printUsage() {
   process.stdout.write(
@@ -23,6 +24,10 @@ function printUsage() {
       "antfarm dashboard [start] [--port N]   Start dashboard daemon (default: 3333)",
       "antfarm dashboard stop                  Stop dashboard daemon",
       "antfarm dashboard status                Check dashboard status",
+      "",
+      "antfarm step claim <agent-id>       Claim pending step, output resolved input as JSON",
+      "antfarm step complete <step-id>      Complete step (reads output from stdin)",
+      "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "",
       "antfarm logs [<lines>]               Show recent log entries",
     ].join("\n") + "\n",
@@ -106,6 +111,37 @@ async function main() {
     console.log(`Dashboard started (PID ${result.pid})`);
     console.log(`  http://localhost:${result.port}`);
     return;
+  }
+
+  if (group === "step") {
+    if (action === "claim") {
+      if (!target) { process.stderr.write("Missing agent-id.\n"); process.exit(1); }
+      const result = claimStep(target);
+      if (!result.found) {
+        process.stdout.write("NO_WORK\n");
+      } else {
+        process.stdout.write(JSON.stringify({ stepId: result.stepId, runId: result.runId, input: result.resolvedInput }) + "\n");
+      }
+      return;
+    }
+    if (action === "complete") {
+      if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
+      // Read output from remaining args or stdin
+      const output = args.slice(3).join(" ").trim() || "";
+      const result = completeStep(target, output);
+      process.stdout.write(JSON.stringify(result) + "\n");
+      return;
+    }
+    if (action === "fail") {
+      if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
+      const error = args.slice(3).join(" ").trim() || "Unknown error";
+      const result = failStep(target, error);
+      process.stdout.write(JSON.stringify(result) + "\n");
+      return;
+    }
+    process.stderr.write(`Unknown step action: ${action}\n`);
+    printUsage();
+    process.exit(1);
   }
 
   if (group === "logs") {

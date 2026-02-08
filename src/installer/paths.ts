@@ -53,3 +53,8 @@ export function resolveWorkflowWorkspaceDir(workflowId: string): string {
 export function resolveRunRoot(): string {
   return path.join(resolveAntfarmRoot(), "runs");
 }
+
+export function resolveAntfarmCli(): string {
+  // From dist/installer/paths.js -> ../../dist/cli/cli.js
+  return path.resolve(__dirname, "..", "cli", "cli.js");
+}
