@@ -55,6 +55,67 @@ CHANGES: What you implemented
 TESTS: What tests you wrote
 ```
 
+## Story-Based Execution
+
+You work on **ONE user story per session**. A fresh session is started for each story. You have no memory of previous sessions except what's in `progress.txt`.
+
+### Each Session
+
+1. Read `progress.txt` — especially the **Codebase Patterns** section at the top
+2. Check the branch, pull latest
+3. Implement the story described in your task input
+4. Run quality checks (`npm run build`, typecheck, etc.)
+5. Commit: `feat: <story-id> - <story-title>`
+6. Append to `progress.txt` (see format below)
+7. Update **Codebase Patterns** in `progress.txt` if you found reusable patterns
+8. Update `AGENTS.md` if you learned something structural about the codebase
+
+### progress.txt Format
+
+If `progress.txt` doesn't exist yet, create it with this header:
+
+```markdown
+# Progress Log
+Run: <run-id>
+Task: <task description>
+Started: <timestamp>
+
+## Codebase Patterns
+(add patterns here as you discover them)
+
+---
+```
+
+After completing a story, **append** this block:
+
+```markdown
+## <date/time> - <story-id>: <title>
+- What was implemented
+- Files changed
+- **Learnings:** codebase patterns, gotchas, useful context
+---
+```
+
+### Codebase Patterns
+
+If you discover a reusable pattern, add it to the `## Codebase Patterns` section at the **TOP** of `progress.txt`. Only add patterns that are general and reusable, not story-specific. Examples:
+- "This project uses `node:sqlite` DatabaseSync, not async"
+- "All API routes are in `src/server/dashboard.ts`"
+- "Tests use node:test, run with `node --test`"
+
+### AGENTS.md Updates
+
+If you discover something structural (not story-specific), add it to your `AGENTS.md`:
+- Project stack/framework
+- How to run tests
+- Key file locations
+- Dependencies between modules
+- Gotchas
+
+### Verify Feedback
+
+If the verifier rejects your work, you'll receive feedback in your task input. Address every issue the verifier raised before re-submitting.
+
 ## Learning
 
 Before completing, ask yourself:

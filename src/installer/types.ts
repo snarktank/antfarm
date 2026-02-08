@@ -18,13 +18,37 @@ export type WorkflowStepFailure = {
   escalate_to?: string;
 };
 
+export type LoopConfig = {
+  over: "stories";
+  completion: "all_done";
+  freshSession?: boolean;
+  verifyEach?: boolean;
+  verifyStep?: string;
+};
+
 export type WorkflowStep = {
   id: string;
   agent: string;
+  type?: "single" | "loop";
+  loop?: LoopConfig;
   input: string;
   expects: string;
   max_retries?: number;
   on_fail?: WorkflowStepFailure;
+};
+
+export type Story = {
+  id: string;
+  runId: string;
+  storyIndex: number;
+  storyId: string;
+  title: string;
+  description: string;
+  acceptanceCriteria: string[];
+  status: "pending" | "running" | "done" | "failed";
+  output?: string;
+  retryCount: number;
+  maxRetries: number;
 };
 
 export type WorkflowSpec = {

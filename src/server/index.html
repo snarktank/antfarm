@@ -175,14 +175,42 @@ async function openRun(id) {
       <span>Updated: ${updated}</span>
     </div>
     <div class="steps-list">${stepsHTML}</div>
+    <div id="stories-panel"></div>
   `;
   document.getElementById('overlay').classList.add('open');
+  loadStories(id);
 }
 
 function closePanel() {
   document.getElementById('overlay').classList.remove('open');
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+async function loadStories(runId) {
+  const stories = await fetchJSON(`/api/runs/${runId}/stories`);
+  const panel = document.getElementById('stories-panel');
+  if (!stories || stories.length === 0) { panel.innerHTML = ''; return; }
+  const done = stories.filter(s => s.status === 'done').length;
+  panel.innerHTML = `
+    <h3 style="margin-top:20px;font-size:14px;font-weight:600;color:#3A3226">Stories (${done}/${stories.length})</h3>
+    <div class="steps-list" style="margin-top:8px">
+      ${stories.map(s => {
+        const st = s.status || 'pending';
+        const icon = stepIcons[st] || '○';
+        const ac = JSON.parse(s.acceptance_criteria || '[]');
+        const retryInfo = s.retry_count > 0 ? ` <span style="color:#E8845C;font-size:10px">(retry ${s.retry_count})</span>` : '';
+        return `<div class="step-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+          <div style="display:flex;align-items:center;gap:8px;width:100%">
+            <div class="step-icon ${st}">${icon}</div>
+            <div class="step-name">${s.story_id}: ${s.title}${retryInfo}</div>
+            <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
+          </div>
+          <div style="font-size:11px;color:#8b8072;padding-left:32px">${ac.map(c => '✓ ' + c).join(' · ')}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+}
 
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();

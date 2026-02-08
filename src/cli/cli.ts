@@ -6,7 +6,7 @@ import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
-import { claimStep, completeStep, failStep } from "../installer/step-ops.js";
+import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 
 function printUsage() {
   process.stdout.write(
@@ -28,6 +28,7 @@ function printUsage() {
       "antfarm step claim <agent-id>       Claim pending step, output resolved input as JSON",
       "antfarm step complete <step-id>      Complete step (reads output from stdin)",
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
+      "antfarm step stories <run-id>       List stories for a run",
       "",
       "antfarm logs [<lines>]               Show recent log entries",
     ].join("\n") + "\n",
@@ -139,6 +140,16 @@ async function main() {
       process.stdout.write(JSON.stringify(result) + "\n");
       return;
     }
+    if (action === "stories") {
+      if (!target) { process.stderr.write("Missing run-id.\n"); process.exit(1); }
+      const stories = getStories(target);
+      if (stories.length === 0) { console.log("No stories found for this run."); return; }
+      for (const s of stories) {
+        const retryInfo = s.retryCount > 0 ? ` (retry ${s.retryCount})` : "";
+        console.log(`${s.storyId.padEnd(8)} [${s.status.padEnd(7)}] ${s.title}${retryInfo}`);
+      }
+      return;
+    }
     process.stderr.write(`Unknown step action: ${action}\n`);
     printUsage();
     process.exit(1);
@@ -193,19 +204,28 @@ async function main() {
     const result = getWorkflowStatus(query);
     if (result.status === "not_found") { process.stdout.write(`${result.message}\n`); return; }
     const { run, steps } = result;
-    process.stdout.write(
-      [
-        `Run: ${run.id}`,
-        `Workflow: ${run.workflow_id}`,
-        `Task: ${run.task.slice(0, 120)}${run.task.length > 120 ? "..." : ""}`,
-        `Status: ${run.status}`,
-        `Created: ${run.created_at}`,
-        `Updated: ${run.updated_at}`,
-        "",
-        "Steps:",
-        ...steps.map((s) => `  [${s.status}] ${s.step_id} (${s.agent_id})`),
-      ].join("\n") + "\n",
-    );
+    const lines = [
+      `Run: ${run.id}`,
+      `Workflow: ${run.workflow_id}`,
+      `Task: ${run.task.slice(0, 120)}${run.task.length > 120 ? "..." : ""}`,
+      `Status: ${run.status}`,
+      `Created: ${run.created_at}`,
+      `Updated: ${run.updated_at}`,
+      "",
+      "Steps:",
+      ...steps.map((s) => `  [${s.status}] ${s.step_id} (${s.agent_id})`),
+    ];
+    const stories = getStories(run.id);
+    if (stories.length > 0) {
+      const done = stories.filter((s) => s.status === "done").length;
+      const running = stories.filter((s) => s.status === "running").length;
+      const failed = stories.filter((s) => s.status === "failed").length;
+      lines.push("", `Stories: ${done}/${stories.length} done${running ? `, ${running} running` : ""}${failed ? `, ${failed} failed` : ""}`);
+      for (const s of stories) {
+        lines.push(`  ${s.storyId.padEnd(8)} [${s.status.padEnd(7)}] ${s.title}`);
+      }
+    }
+    process.stdout.write(lines.join("\n") + "\n");
     return;
   }
 

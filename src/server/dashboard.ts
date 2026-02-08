@@ -77,6 +77,15 @@ export function startDashboard(port = 3333): http.Server {
       return json(res, loadWorkflows());
     }
 
+    const storiesMatch = p.match(/^\/api\/runs\/([^/]+)\/stories$/);
+    if (storiesMatch) {
+      const db = getDb();
+      const stories = db.prepare(
+        "SELECT * FROM stories WHERE run_id = ? ORDER BY story_index ASC"
+      ).all(storiesMatch[1]);
+      return json(res, stories);
+    }
+
     const runMatch = p.match(/^\/api\/runs\/(.+)$/);
     if (runMatch) {
       const run = getRunById(runMatch[1]);

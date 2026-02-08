@@ -2,7 +2,7 @@ import { createAgentCronJob, deleteAgentCronJobs } from "./gateway-api.js";
 import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 
-const EVERY_MS = 900_000; // 15 minutes
+const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 
 function buildAgentPrompt(workflowId: string, agentId: string): string {
   const fullAgentId = `${workflowId}/${agentId}`;
@@ -42,6 +42,8 @@ This handles retry logic automatically (retries up to max_retries, then fails th
 
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
   const agents = workflow.agents;
+  // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
+  const everyMs = (workflow as any).cron?.interval_ms ?? DEFAULT_EVERY_MS;
   for (let i = 0; i < agents.length; i++) {
     const agent = agents[i];
     const anchorMs = i * 60_000; // stagger by 1 minute each
@@ -51,7 +53,7 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
 
     await createAgentCronJob({
       name: cronName,
-      schedule: { kind: "every", everyMs: EVERY_MS, anchorMs },
+      schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
       agentId,
       payload: { kind: "agentTurn", message: prompt },

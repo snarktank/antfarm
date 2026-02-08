@@ -1,12 +1,22 @@
 id: feature-dev
 name: Feature Development Workflow
-version: 3
+version: 4
 description: |
-  Executes a well-specified plan from the main agent.
-  Main agent handles planning interactively with the human.
-  This workflow handles execution: implement, verify, test, PR, review.
+  Story-based execution pipeline. Planner decomposes tasks into user stories.
+  Developer implements each story in a fresh session. Verifier checks each story.
+  Then full testing, PR creation, and code review.
 
 agents:
+  - id: planner
+    name: Planner
+    description: Decomposes tasks into ordered user stories.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
   - id: developer
     name: Developer
     description: Implements features, writes tests, creates PRs.
@@ -48,31 +58,77 @@ agents:
         IDENTITY.md: agents/reviewer/IDENTITY.md
 
 steps:
-  - id: implement
-    agent: developer
+  - id: plan
+    agent: planner
     input: |
-      Implement the following plan. The main agent has already discussed this with the human.
-      
+      Decompose the following task into ordered user stories for autonomous execution.
+
       TASK:
       {{task}}
-      
-      Requirements:
-      1. Find the relevant codebase
-      2. Create a feature branch
-      3. Implement each subtask
-      4. Write tests for your changes
-      5. Commit with clear messages
-      
-      Before completing, update your AGENTS.md and memory if you learned anything useful for future tasks.
-      
+
+      Instructions:
+      1. Explore the codebase to understand the stack, conventions, and patterns
+      2. Break the task into small user stories (max 20)
+      3. Order by dependency: schema/DB first, backend, frontend, integration
+      4. Each story must fit in one developer session (one context window)
+      5. Every acceptance criterion must be mechanically verifiable
+      6. Always include "Typecheck passes" as the last criterion in every story
+
       Reply with:
       STATUS: done
-      
       REPO: /path/to/repo
-      BRANCH: branch-name
-      COMMITS: list of commit hashes
+      BRANCH: feature-branch-name
+      STORIES_JSON: [ ... array of story objects ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: implement
+    agent: developer
+    type: loop
+    loop:
+      over: stories
+      completion: all_done
+      fresh_session: true
+      verify_each: true
+      verify_step: verify
+    input: |
+      Implement the following user story. You are working on ONE story in a fresh session.
+
+      TASK (overall):
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      COMPLETED STORIES:
+      {{completed_stories}}
+
+      STORIES REMAINING: {{stories_remaining}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions:
+      1. Read progress.txt — especially the Codebase Patterns section
+      2. Pull latest on the branch
+      3. Implement this story only
+      4. Run typecheck / build
+      5. Commit: feat: {{current_story_id}} - {{current_story_title}}
+      6. Append to progress.txt
+      7. Update Codebase Patterns if you found reusable patterns
+
+      Reply with:
+      STATUS: done
       CHANGES: what you implemented
-      TESTS: what tests you wrote
+      TESTS: what tests you wrote (if any)
     expects: "STATUS: done"
     max_retries: 2
     on_fail:
@@ -81,28 +137,31 @@ steps:
   - id: verify
     agent: verifier
     input: |
-      Quick verification: Did the developer actually complete the work?
-      
-      TASK:
+      Verify the developer's work on this story.
+
+      TASK (overall):
       {{task}}
-      
+
       REPO: {{repo}}
       BRANCH: {{branch}}
       CHANGES: {{changes}}
-      
+
+      CURRENT STORY:
+      {{current_story}}
+
+      PROGRESS LOG:
+      {{progress}}
+
       Check:
       1. Code exists (not just TODOs or placeholders)
-      2. Each part of the task was addressed
+      2. Each acceptance criterion for the story is met
       3. No obvious incomplete work
-      
-      This is a quick sanity check, not deep testing.
-      
-      Before completing, update your AGENTS.md and memory if you learned anything useful.
-      
+      4. Typecheck passes
+
       Reply with:
       STATUS: done
       VERIFIED: What you confirmed
-      
+
       Or if incomplete:
       STATUS: retry
       ISSUES:
@@ -118,30 +177,30 @@ steps:
     agent: tester
     input: |
       Thorough testing of the implementation.
-      
+
       TASK:
       {{task}}
-      
+
       REPO: {{repo}}
       BRANCH: {{branch}}
       CHANGES: {{changes}}
-      TESTS: {{tests}}
-      
+
+      PROGRESS LOG:
+      {{progress}}
+
       Your job:
       1. Run the existing test suite
-      2. Run the new tests
+      2. Run any new tests
       3. Look for edge cases
       4. If this is a UI feature, use agent-browser to test it
       5. Check error handling
-      
+
       Decide what testing approach makes sense for this task.
-      
-      Before completing, update your AGENTS.md and memory if you learned anything useful.
-      
+
       Reply with:
       STATUS: done
       RESULTS: What you tested and the outcomes
-      
+
       Or if issues found:
       STATUS: retry
       FAILURES:
@@ -157,22 +216,25 @@ steps:
     agent: developer
     input: |
       Create a pull request for your changes.
-      
+
       TASK:
       {{task}}
-      
+
       REPO: {{repo}}
       BRANCH: {{branch}}
       CHANGES: {{changes}}
       RESULTS: {{results}}
-      
+
+      PROGRESS LOG:
+      {{progress}}
+
       Create a PR with:
       - Clear title summarizing the change
       - Description explaining what and why
       - Reference to what was tested
-      
+
       Use: gh pr create
-      
+
       Reply with:
       STATUS: done
       PR: URL to the pull request
@@ -184,27 +246,28 @@ steps:
     agent: reviewer
     input: |
       Review the pull request.
-      
+
       PR: {{pr}}
       TASK: {{task}}
       CHANGES: {{changes}}
-      
+
+      PROGRESS LOG:
+      {{progress}}
+
       Review for:
       - Code quality and clarity
       - Potential bugs or issues
       - Test coverage
       - Follows project conventions
-      
+
       Use: gh pr view, gh pr diff
-      
+
       If changes needed, add comments to the PR explaining what needs to change.
-      
-      Before completing, update your AGENTS.md and memory if you learned anything useful.
-      
+
       Reply with:
       STATUS: done
       DECISION: approved
-      
+
       Or if changes needed:
       STATUS: retry
       DECISION: changes_requested
