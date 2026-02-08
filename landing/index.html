@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Antfarm — Multi-Agent Workflows for OpenClaw</title>
+  <meta name="description" content="Antfarm installs and runs multi-agent workflows for OpenClaw. Spin up agent teams, track runs, and ship complex tasks.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <nav class="nav">
+      <div class="nav-brand">
+        <img src="../assets/logo.jpeg" alt="Antfarm logo" class="nav-logo">
+        <span class="nav-name">Antfarm</span>
+      </div>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#quickstart">Quickstart</a>
+        <a href="#commands">Commands</a>
+        <a href="https://github.com/openclaw/openclaw" class="btn btn-outline">GitHub</a>
+      </div>
+    </nav>
+
+    <div class="hero-content">
+      <h1>Multi-agent workflows,<br>made simple.</h1>
+      <p class="hero-sub">Antfarm gives your OpenClaw agents a repeatable way to collaborate. Install a workflow, run a task, and let your agents do the rest.</p>
+      <div class="hero-actions">
+        <a href="#quickstart" class="btn btn-primary">Get Started</a>
+        <a href="https://docs.openclaw.ai" class="btn btn-secondary">Read the Docs</a>
+      </div>
+    </div>
+  </header>
+
+  <section id="features" class="section features">
+    <h2>Why Antfarm?</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🐜</div>
+        <h3>Workflow-First</h3>
+        <p>Define multi-agent pipelines in a simple YAML spec. Each agent gets its own workspace, skills, and role.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔄</div>
+        <h3>Repeatable Runs</h3>
+        <p>Every task is tracked from start to finish. Query status, inspect context, and replay when needed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📦</div>
+        <h3>Install From Anywhere</h3>
+        <p>Local paths, GitHub repos, or raw URLs. Install workflows the same way you install packages.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🧹</div>
+        <h3>Clean Uninstall</h3>
+        <p>Remove workflows, workspaces, and agent configs in one command. No leftovers.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="quickstart" class="section quickstart">
+    <h2>Quickstart</h2>
+    <div class="code-block">
+      <div class="code-header">
+        <span class="code-dot red"></span>
+        <span class="code-dot yellow"></span>
+        <span class="code-dot green"></span>
+        <span class="code-title">Terminal</span>
+      </div>
+      <pre><code><span class="comment"># Install a workflow</span>
+antfarm workflow install ./workflows/feature-dev
+
+<span class="comment"># Run a task</span>
+antfarm workflow run feature-dev "Ship the onboarding prompt"
+
+<span class="comment"># Check status</span>
+antfarm workflow status "Ship the onboarding prompt"</code></pre>
+    </div>
+  </section>
+
+  <section id="how-it-works" class="section how-it-works">
+    <h2>How It Works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-number">1</div>
+        <div class="step-content">
+          <h3>Define your workflow</h3>
+          <p>Write a <code>workflow.yml</code> with agents, steps, and context. Each agent gets a role, skills, and workspace files.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">2</div>
+        <div class="step-content">
+          <h3>Install it</h3>
+          <p>Antfarm provisions agent workspaces, installs skills, and registers the workflow. One command.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">3</div>
+        <div class="step-content">
+          <h3>Run a task</h3>
+          <p>Give it a task title. Antfarm creates a run, passes context between steps, and each agent picks up work on its own schedule.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-number">4</div>
+        <div class="step-content">
+          <h3>Ship it</h3>
+          <p>Agents execute their steps — planning, implementing, reviewing — passing context forward until the pipeline completes.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="commands" class="section commands">
+    <h2>Commands</h2>
+    <div class="command-list">
+      <div class="command">
+        <code>antfarm workflow install &lt;source&gt;</code>
+        <p>Install a workflow from a local path, GitHub repo, or raw URL.</p>
+      </div>
+      <div class="command">
+        <code>antfarm workflow run &lt;id&gt; &lt;task&gt;</code>
+        <p>Start a new run with the given task title.</p>
+      </div>
+      <div class="command">
+        <code>antfarm workflow status &lt;task&gt;</code>
+        <p>Check the status of a running or completed task.</p>
+      </div>
+      <div class="command">
+        <code>antfarm workflow update &lt;id&gt;</code>
+        <p>Update a workflow to the latest version from its source.</p>
+      </div>
+      <div class="command">
+        <code>antfarm workflow uninstall &lt;id&gt;</code>
+        <p>Remove a workflow and all its associated resources.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>Part of the <a href="https://docs.openclaw.ai">OpenClaw</a> ecosystem. Built for agents that work together.</p>
+  </footer>
+</body>
+</html>
