@@ -1,0 +1,22 @@
+# Progress Log
+Run: redesign-landing-page
+Task: Redesign the Antfarm landing page to utilitarian repo-style
+Started: 2026-02-08 16:16 ET
+
+## Codebase Patterns
+- Tests in `landing/__tests__/landing.test.js` check for: id="features", id="quickstart", id="commands", `.hero` and `.feature-grid` in CSS, `@media` in CSS, and that all `href="#x"` have matching `id="x"`
+- Tests use `node:test` + `node:assert/strict`, run with `node --test`
+- Landing page is pure HTML+CSS, no JS, no build step
+
+---
+
+## 2026-02-08 16:16 - US-001: Rewrite landing page HTML with utilitarian repo-style layout
+- Replaced marketing-style landing page with GitHub-repo-aesthetic utilitarian layout
+- 7 sections: header (logo + GitHub link), description, install (id="features"), example (id="quickstart"), dashboard placeholder, commands table (id="commands"), footer
+- Dark theme using GitHub-like color palette (#0d1117 bg, #58a6ff accent)
+- Zero emoji anywhere
+- Kept .hero class on header, .feature-grid in CSS for test compat
+- Responsive with @media breakpoint at 640px
+- Files changed: landing/index.html, landing/style.css
+- **Learnings:** Tests check CSS for class names (.hero, .feature-grid) even if not used in HTML, so keep them in the stylesheet
+---
