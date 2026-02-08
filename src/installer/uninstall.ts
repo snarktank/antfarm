@@ -37,6 +37,22 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
+function getActiveRuns(workflowId?: string): Array<{ id: string; workflow_id: string; task: string }> {
+  try {
+    const db = getDb();
+    if (workflowId) {
+      return db.prepare("SELECT id, workflow_id, task FROM runs WHERE workflow_id = ? AND status = 'running'").all(workflowId) as Array<{ id: string; workflow_id: string; task: string }>;
+    }
+    return db.prepare("SELECT id, workflow_id, task FROM runs WHERE status = 'running'").all() as Array<{ id: string; workflow_id: string; task: string }>;
+  } catch {
+    return [];
+  }
+}
+
+export function checkActiveRuns(workflowId?: string): Array<{ id: string; workflow_id: string; task: string }> {
+  return getActiveRuns(workflowId);
+}
+
 function removeRunRecords(workflowId: string): void {
   try {
     const db = getDb();

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { installWorkflow } from "../installer/install.js";
-import { uninstallAllWorkflows, uninstallWorkflow } from "../installer/uninstall.js";
+import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../installer/uninstall.js";
 import { getWorkflowStatus, listRuns } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
@@ -15,8 +15,8 @@ function printUsage() {
       "",
       "antfarm workflow list                List available workflows",
       "antfarm workflow install <name>      Install a workflow",
-      "antfarm workflow uninstall <name>    Uninstall a workflow",
-      "antfarm workflow uninstall --all     Uninstall all workflows",
+      "antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
+      "antfarm workflow uninstall --all     Uninstall all workflows (--force to override)",
       "antfarm workflow run <name> <task>   Start a workflow run",
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
       "antfarm workflow runs                List all workflow runs",
@@ -194,7 +194,18 @@ async function main() {
   }
 
   if (action === "uninstall") {
-    if (target === "--all" || target === "all") { await uninstallAllWorkflows(); } else { await uninstallWorkflow({ workflowId: target }); }
+    const force = args.includes("--force");
+    const isAll = target === "--all" || target === "all";
+    const activeRuns = checkActiveRuns(isAll ? undefined : target);
+    if (activeRuns.length > 0 && !force) {
+      process.stderr.write(`Cannot uninstall: ${activeRuns.length} active run(s):\n`);
+      for (const run of activeRuns) {
+        process.stderr.write(`  - ${run.id} (${run.workflow_id}): ${run.task}\n`);
+      }
+      process.stderr.write(`\nUse --force to uninstall anyway.\n`);
+      process.exit(1);
+    }
+    if (isAll) { await uninstallAllWorkflows(); } else { await uninstallWorkflow({ workflowId: target }); }
     return;
   }
 
