@@ -10,7 +10,7 @@
     "antfarm": "dist/cli/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp src/server/index.html dist/server/index.html",
+    "build": "tsc -p tsconfig.json && cp src/server/index.html dist/server/index.html && chmod +x dist/cli/cli.js",
     "start": "node dist/cli/cli.js"
   },
   "dependencies": {

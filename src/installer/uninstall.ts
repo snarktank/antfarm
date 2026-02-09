@@ -199,6 +199,10 @@ export async function uninstallAllWorkflows(): Promise<void> {
     }
   }
 
+  // Remove CLI symlink from ~/.local/bin
+  const { removeCliSymlink } = await import("./symlink.js");
+  removeCliSymlink();
+
   // Remove npm link, build output, and node_modules.
   // Note: this deletes dist/ which contains the currently running code.
   // Safe because this is the final operation in the function.
