@@ -24,9 +24,9 @@ agents:
     workspace:
       baseDir: agents/setup
       files:
-        AGENTS.md: agents/setup/AGENTS.md
-        SOUL.md: agents/setup/SOUL.md
-        IDENTITY.md: agents/setup/IDENTITY.md
+        AGENTS.md: ../../agents/shared/setup/AGENTS.md
+        SOUL.md: ../../agents/shared/setup/SOUL.md
+        IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
 
   - id: developer
     name: Developer
@@ -44,9 +44,9 @@ agents:
     workspace:
       baseDir: agents/verifier
       files:
-        AGENTS.md: agents/verifier/AGENTS.md
-        SOUL.md: agents/verifier/SOUL.md
-        IDENTITY.md: agents/verifier/IDENTITY.md
+        AGENTS.md: ../../agents/shared/verifier/AGENTS.md
+        SOUL.md: ../../agents/shared/verifier/SOUL.md
+        IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
 
   - id: tester
     name: Tester

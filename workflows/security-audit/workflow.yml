@@ -34,9 +34,9 @@ agents:
     workspace:
       baseDir: agents/setup
       files:
-        AGENTS.md: agents/setup/AGENTS.md
-        SOUL.md: agents/setup/SOUL.md
-        IDENTITY.md: agents/setup/IDENTITY.md
+        AGENTS.md: ../../agents/shared/setup/AGENTS.md
+        SOUL.md: ../../agents/shared/setup/SOUL.md
+        IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
 
   - id: fixer
     name: Fixer
@@ -54,9 +54,9 @@ agents:
     workspace:
       baseDir: agents/verifier
       files:
-        AGENTS.md: agents/verifier/AGENTS.md
-        SOUL.md: agents/verifier/SOUL.md
-        IDENTITY.md: agents/verifier/IDENTITY.md
+        AGENTS.md: ../../agents/shared/verifier/AGENTS.md
+        SOUL.md: ../../agents/shared/verifier/SOUL.md
+        IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
 
   - id: tester
     name: Tester
@@ -74,9 +74,9 @@ agents:
     workspace:
       baseDir: agents/pr
       files:
-        AGENTS.md: agents/pr/AGENTS.md
-        SOUL.md: agents/pr/SOUL.md
-        IDENTITY.md: agents/pr/IDENTITY.md
+        AGENTS.md: ../../agents/shared/pr/AGENTS.md
+        SOUL.md: ../../agents/shared/pr/SOUL.md
+        IDENTITY.md: ../../agents/shared/pr/IDENTITY.md
 
 steps:
   - id: scan
@@ -256,9 +256,16 @@ steps:
       1. Run the full test suite with {{test_cmd}}
       2. Confirm the regression test exists and tests the right thing
       3. Review the fix — does it actually address the vulnerability?
-      4. Try to think of bypass scenarios — could the vulnerability still be exploited?
-      5. Check for unintended side effects
-      6. Verify the regression test would fail without the fix
+      4. Check for unintended side effects
+      5. Verify the regression test would fail without the fix
+
+      Security-specific verification — think about bypass scenarios:
+      - SQL Injection: Does it handle all query patterns, not just the one found?
+      - XSS: Does sanitization cover all output contexts (HTML, attributes, JS, URLs)?
+      - Path traversal: Does it handle URL-encoded sequences (%2e%2e), null bytes?
+      - Auth bypass: Does it cover all HTTP methods (GET, POST, PUT, DELETE)?
+      - CSRF: Does it validate the token server-side?
+      - If the fix only blocks one payload variant, it's insufficient — STATUS: retry
 
       Reply with:
       STATUS: done
@@ -337,15 +344,35 @@ steps:
       PROGRESS LOG:
       {{progress}}
 
-      Create a PR with:
-      - Title: fix(security): audit and remediation YYYY-MM-DD
-      - Description including:
-        - Summary of vulnerabilities found (count by severity)
-        - What was fixed (list each fix)
-        - What was deferred (if any medium/low issues were skipped)
-        - Regression tests added
-        - Before/after audit comparison
-      - Label: security
+      PR title format: fix(security): audit and remediation YYYY-MM-DD
+
+      PR body structure:
+      ```
+      ## Security Audit Summary
+
+      **Scan Date**: YYYY-MM-DD
+      **Vulnerabilities Found**: {{vulnerability_count}} ({{critical_count}} critical, {{high_count}} high)
+      **Vulnerabilities Fixed**: <count from changes>
+      **Vulnerabilities Deferred**: <count from deferred>
+
+      ## Fixes Applied
+
+      | # | Severity | Description | Files |
+      |---|----------|-------------|-------|
+      (list each fix from {{changes}})
+
+      ## Deferred Items
+      {{deferred}}
+
+      ## Regression Tests Added
+      (list from progress log)
+
+      ## Audit Comparison
+      **Before**: <from findings>
+      **After**: {{audit_after}}
+      ```
+
+      Label: security
 
       Use: gh pr create
 

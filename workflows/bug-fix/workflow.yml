@@ -34,9 +34,9 @@ agents:
     workspace:
       baseDir: agents/setup
       files:
-        AGENTS.md: agents/setup/AGENTS.md
-        SOUL.md: agents/setup/SOUL.md
-        IDENTITY.md: agents/setup/IDENTITY.md
+        AGENTS.md: ../../agents/shared/setup/AGENTS.md
+        SOUL.md: ../../agents/shared/setup/SOUL.md
+        IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
 
   - id: fixer
     name: Fixer
@@ -54,9 +54,9 @@ agents:
     workspace:
       baseDir: agents/verifier
       files:
-        AGENTS.md: agents/verifier/AGENTS.md
-        SOUL.md: agents/verifier/SOUL.md
-        IDENTITY.md: agents/verifier/IDENTITY.md
+        AGENTS.md: ../../agents/shared/verifier/AGENTS.md
+        SOUL.md: ../../agents/shared/verifier/SOUL.md
+        IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
 
   - id: pr
     name: PR Creator
@@ -64,9 +64,9 @@ agents:
     workspace:
       baseDir: agents/pr
       files:
-        AGENTS.md: agents/pr/AGENTS.md
-        SOUL.md: agents/pr/SOUL.md
-        IDENTITY.md: agents/pr/IDENTITY.md
+        AGENTS.md: ../../agents/shared/pr/AGENTS.md
+        SOUL.md: ../../agents/shared/pr/SOUL.md
+        IDENTITY.md: ../../agents/shared/pr/IDENTITY.md
 
 steps:
   - id: triage
@@ -211,6 +211,12 @@ steps:
       4. Check for unintended side effects
       5. Verify the regression test would fail without the fix (review the diff logic)
 
+      Bug-fix specific checks:
+      - The regression test MUST test the specific bug scenario (not just a generic test)
+      - The regression test assertions must fail if the fix were reverted
+      - The fix should be minimal and targeted — not a refactor disguised as a bugfix
+      - Check that the fix addresses the ROOT CAUSE, not just a symptom
+
       Reply with:
       STATUS: done
       VERIFIED: what was confirmed
@@ -240,10 +246,27 @@ steps:
       REGRESSION_TEST: {{regression_test}}
       VERIFIED: {{verified}}
 
-      Create a PR with:
-      - Title: fix: brief description
-      - Description including: bug description, root cause, fix explanation, regression test info
-      - Severity label
+      PR title format: fix: brief description of what was fixed
+
+      PR body structure:
+      ```
+      ## Bug Description
+      {{problem_statement}}
+
+      **Severity:** {{severity}}
+
+      ## Root Cause
+      {{root_cause}}
+
+      ## Fix
+      {{changes}}
+
+      ## Regression Test
+      {{regression_test}}
+
+      ## Verification
+      {{verified}}
+      ```
 
       Use: gh pr create
 

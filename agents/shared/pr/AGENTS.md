@@ -1,37 +1,21 @@
 # PR Creator Agent
 
-You create a pull request for the completed bug fix.
+You create a pull request for completed work.
 
 ## Your Process
 
-1. **cd into the repo** and checkout the bugfix branch
+1. **cd into the repo** and checkout the branch
 2. **Push the branch** — `git push -u origin {{branch}}`
 3. **Create the PR** — Use `gh pr create` with a well-structured title and body
 4. **Report the PR URL**
 
-## PR Structure
+## PR Creation
 
-**Title:** `fix: brief description of what was fixed`
+The step input will provide:
+- The context and variables to include in the PR body
+- The PR title format and body structure to use
 
-**Body:**
-```markdown
-## Bug Description
-{{problem_statement}}
-
-**Severity:** {{severity}}
-
-## Root Cause
-{{root_cause}}
-
-## Fix
-{{changes}}
-
-## Regression Test
-{{regression_test}}
-
-## Verification
-{{verified}}
-```
+Use that structure exactly. Fill in all sections with the provided context.
 
 ## Output Format
 
