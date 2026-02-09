@@ -8,11 +8,13 @@ user-invocable: false
 
 Multi-agent workflow pipelines on OpenClaw. Each workflow is a sequence of specialized agents (planner, developer, verifier, tester, reviewer) that execute autonomously via cron jobs polling a shared SQLite database.
 
-All CLI commands run from `{baseDir}/../../` (the antfarm repo root):
+All CLI commands use the full path to avoid PATH issues:
 
 ```bash
-cd ~/.openclaw/workspace/antfarm && node dist/cli/cli.js <command>
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js <command>
 ```
+
+Shorthand used below: `antfarm-cli` means `node ~/.openclaw/workspace/antfarm/dist/cli/cli.js`.
 
 ## Workflows
 
@@ -26,29 +28,29 @@ cd ~/.openclaw/workspace/antfarm && node dist/cli/cli.js <command>
 
 ```bash
 # Install all workflows (creates agents + starts dashboard)
-antfarm install
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js install
 
 # Full uninstall (workflows, agents, crons, DB, dashboard)
-antfarm uninstall [--force]
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js uninstall [--force]
 
 # Start a run
-antfarm workflow run <workflow-id> "<detailed task with acceptance criteria>"
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow run <workflow-id> "<detailed task with acceptance criteria>"
 
 # Check a run
-antfarm workflow status "<task or run-id prefix>"
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow status "<task or run-id prefix>"
 
 # List all runs
-antfarm workflow runs
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow runs
 
 # Resume a failed run from the failed step
-antfarm workflow resume <run-id>
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow resume <run-id>
 
 # View logs
-antfarm logs [lines]
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js logs [lines]
 
 # Dashboard
-antfarm dashboard [start] [--port N]
-antfarm dashboard stop
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js dashboard [start] [--port N]
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js dashboard stop
 ```
 
 ## Before Starting a Run
@@ -77,12 +79,12 @@ To skip the 15-min cron wait, use the `cron` tool with `action: "run"` and the a
 
 ```bash
 # List available workflows
-antfarm workflow list
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow list
 
 # Install/uninstall individual workflows
-antfarm workflow install <name>
-antfarm workflow uninstall <name>
-antfarm workflow uninstall --all [--force]
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow install <name>
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow uninstall <name>
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow uninstall --all [--force]
 ```
 
 ## Creating Custom Workflows
@@ -92,8 +94,8 @@ See `{baseDir}/../../docs/creating-workflows.md` for the full guide on writing w
 ## Agent Step Operations (used by agent cron jobs, not typically manual)
 
 ```bash
-antfarm step claim <agent-id>        # Claim pending step
-antfarm step complete <step-id>      # Complete step (output from stdin)
-antfarm step fail <step-id> <error>  # Fail step with retry
-antfarm step stories <run-id>        # List stories for a run
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js step claim <agent-id>        # Claim pending step
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js step complete <step-id>      # Complete step (output from stdin)
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js step fail <step-id> <error>  # Fail step with retry
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js step stories <run-id>        # List stories for a run
 ```
