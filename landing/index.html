@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Antfarm -- Multi-Agent Workflows for OpenClaw</title>
-  <meta name="description" content="Multi-agent workflow orchestration for OpenClaw. Define pipelines in YAML, let agents execute autonomously.">
+  <title>Antfarm — Build your agent team with one command</title>
+  <meta name="description" content="Build your agent team in OpenClaw with one command. Deterministic multi-agent pipelines defined in YAML. Zero infrastructure.">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -29,15 +29,98 @@
     <section class="hero">
       <div class="hero-row">
         <img src="logo.jpeg" alt="Antfarm" class="hero-logo">
-        <h1>Multi-agent workflow orchestration for <a href="https://docs.openclaw.ai">OpenClaw</a></h1>
+        <h1>Build your agent team in <a href="https://docs.openclaw.ai">OpenClaw</a> with one command</h1>
       </div>
-      <p class="hero-sub">Define pipelines in YAML. Install with one command. Let coordinated AI agents plan, implement, verify, test, and ship — autonomously.</p>
+      <p class="hero-sub">You don't need to hire a dev team. You need to define one. Antfarm gives you a team of specialized AI agents — planner, developer, verifier, tester, reviewer — that work together in reliable, repeatable pipelines. One install. Zero infrastructure.</p>
       <div class="hero-actions">
         <div class="install-cmd">
           <code><span class="cmd-prompt">$</span> install github.com/snarktank/antfarm</code>
           <button class="copy-btn" onclick="navigator.clipboard.writeText('install github.com/snarktank/antfarm').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" title="Copy to clipboard">Copy</button>
         </div>
-        <p class="install-hint">Tell your OpenClaw agent to install Antfarm. That's it.</p>
+        <p class="install-hint">Tell your OpenClaw agent. That's it.</p>
+      </div>
+    </section>
+
+    <!-- The problem -->
+    <section class="section problem-section">
+      <p class="problem-text">You've got agents that can code. But a single agent juggling planning, implementation, testing, and review in one session? That's how you get skipped tests, lost context, and PRs you don't trust.</p>
+      <p class="problem-text">The real unlock isn't better agents. It's agents that specialize, verify each other, and run the same playbook every time.</p>
+    </section>
+
+    <!-- Bundled workflows -->
+    <section id="workflows" class="section">
+      <h2>What you get</h2>
+      <div class="workflow-grid">
+        <div class="wf-card">
+          <div class="wf-header">
+            <h3>feature-dev</h3>
+            <span class="wf-badge">7 agents</span>
+          </div>
+          <p>Drop in a feature request. Get back a tested PR. The planner decomposes your task into stories. Each story gets implemented, verified, and tested in isolation. Failures retry automatically. Nothing ships without a code review.</p>
+          <div class="wf-pipeline">
+            <span>plan</span><span class="wf-arrow">&rarr;</span>
+            <span>setup</span><span class="wf-arrow">&rarr;</span>
+            <span>implement</span><span class="wf-arrow">&rarr;</span>
+            <span>verify</span><span class="wf-arrow">&rarr;</span>
+            <span>test</span><span class="wf-arrow">&rarr;</span>
+            <span>PR</span><span class="wf-arrow">&rarr;</span>
+            <span>review</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-header">
+            <h3>security-audit</h3>
+            <span class="wf-badge">7 agents</span>
+          </div>
+          <p>Point it at a repo. Get back a security fix PR with regression tests. Scans for vulnerabilities, ranks by severity, patches each one, re-audits after all fixes are applied.</p>
+          <div class="wf-pipeline">
+            <span>scan</span><span class="wf-arrow">&rarr;</span>
+            <span>prioritize</span><span class="wf-arrow">&rarr;</span>
+            <span>setup</span><span class="wf-arrow">&rarr;</span>
+            <span>fix</span><span class="wf-arrow">&rarr;</span>
+            <span>verify</span><span class="wf-arrow">&rarr;</span>
+            <span>test</span><span class="wf-arrow">&rarr;</span>
+            <span>PR</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-header">
+            <h3>bug-fix</h3>
+            <span class="wf-badge">6 agents</span>
+          </div>
+          <p>Paste a bug report. Get back a fix with a regression test. Triager reproduces it, investigator finds root cause, fixer patches, verifier confirms. Zero babysitting.</p>
+          <div class="wf-pipeline">
+            <span>triage</span><span class="wf-arrow">&rarr;</span>
+            <span>investigate</span><span class="wf-arrow">&rarr;</span>
+            <span>setup</span><span class="wf-arrow">&rarr;</span>
+            <span>fix</span><span class="wf-arrow">&rarr;</span>
+            <span>verify</span><span class="wf-arrow">&rarr;</span>
+            <span>PR</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why it works -->
+    <section class="section">
+      <h2>Why it works</h2>
+      <div class="steps-grid">
+        <div class="step-card">
+          <h3>Deterministic pipelines</h3>
+          <p>Same workflow, same steps, same order. Not "hopefully the agent remembers to test."</p>
+        </div>
+        <div class="step-card">
+          <h3>Agents verify each other</h3>
+          <p>The developer doesn't mark their own homework. A separate verifier checks every story against acceptance criteria.</p>
+        </div>
+        <div class="step-card">
+          <h3>Fresh context, every step</h3>
+          <p>Each agent gets a clean session. No context window bloat. No hallucinated state from 50 messages ago.</p>
+        </div>
+        <div class="step-card">
+          <h3>Retry and escalate</h3>
+          <p>Failed steps retry automatically. If retries exhaust, it escalates to you. Nothing fails silently.</p>
+        </div>
       </div>
     </section>
 
@@ -48,19 +131,25 @@
         <div class="step-card">
           <div class="step-num">1</div>
           <h3>Define</h3>
-          <p>Write a <code>workflow.yml</code> with agents and steps. Each agent gets its own persona, instructions, and workspace.</p>
+          <p>Agents and steps in YAML. Each agent gets a persona, workspace, and strict acceptance criteria. No ambiguity about who does what.</p>
         </div>
         <div class="step-card">
           <div class="step-num">2</div>
           <h3>Install</h3>
-          <p>One command provisions agent workspaces, registers them in OpenClaw, and starts cron polling.</p>
+          <p>One command provisions everything: agent workspaces, cron polling, subagent permissions. No Docker, no queues, no external services.</p>
         </div>
         <div class="step-card">
           <div class="step-num">3</div>
           <h3>Run</h3>
-          <p>Give it a task. Agents claim steps, do the work in isolated sessions, pass context forward, and hand off to the next agent.</p>
+          <p>Agents poll for work independently. Claim a step, do the work, pass context to the next agent. SQLite tracks state. Cron keeps it moving.</p>
         </div>
       </div>
+    </section>
+
+    <!-- Minimal by design -->
+    <section class="section minimal-section">
+      <h2>Minimal by design</h2>
+      <p class="section-desc">YAML + SQLite + cron. That's it. No Redis, no Kafka, no container orchestrator. Antfarm is a TypeScript CLI with zero external dependencies. It runs wherever OpenClaw runs.</p>
     </section>
 
     <!-- Ralph loop -->
@@ -103,64 +192,38 @@
       </div>
     </section>
 
-    <!-- Workflows -->
-    <section id="workflows" class="section">
-      <h2>Bundled workflows</h2>
-      <div class="workflow-grid">
-        <div class="wf-card">
-          <div class="wf-header">
-            <h3>feature-dev</h3>
-            <span class="wf-badge">7 agents</span>
-          </div>
-          <p>Full development pipeline. A planner decomposes tasks into user stories, then agents implement each one in isolated sessions — verify after every story, integration tests at the end, automatic PR and code review.</p>
-          <div class="wf-pipeline">
-            <span>plan</span><span class="wf-arrow">&rarr;</span>
-            <span>setup</span><span class="wf-arrow">&rarr;</span>
-            <span>implement</span><span class="wf-arrow">&rarr;</span>
-            <span>verify</span><span class="wf-arrow">&rarr;</span>
-            <span>test</span><span class="wf-arrow">&rarr;</span>
-            <span>PR</span><span class="wf-arrow">&rarr;</span>
-            <span>review</span>
-          </div>
+    <!-- Build your own -->
+    <section class="section">
+      <h2>Build your own</h2>
+      <p class="section-desc">The bundled workflows are starting points. Define your own agents, steps, retry logic, and verification gates in plain YAML and Markdown. If you can write a prompt, you can build a workflow.</p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-tab active">workflow.yml</span>
         </div>
-        <div class="wf-card">
-          <div class="wf-header">
-            <h3>bug-fix</h3>
-            <span class="wf-badge">6 agents</span>
-          </div>
-          <p>End-to-end bug resolution. Triager reproduces the issue, investigator traces root cause, fixer writes the patch with a regression test, verifier confirms it, PR agent ships it. Verify failures loop back automatically.</p>
-          <div class="wf-pipeline">
-            <span>triage</span><span class="wf-arrow">&rarr;</span>
-            <span>investigate</span><span class="wf-arrow">&rarr;</span>
-            <span>setup</span><span class="wf-arrow">&rarr;</span>
-            <span>fix</span><span class="wf-arrow">&rarr;</span>
-            <span>verify</span><span class="wf-arrow">&rarr;</span>
-            <span>PR</span>
-          </div>
-        </div>
-        <div class="wf-card">
-          <div class="wf-header">
-            <h3>security-audit</h3>
-            <span class="wf-badge">7 agents</span>
-          </div>
-          <p>Automated security scanning and patching. Scanner checks for vulnerabilities, prioritizer ranks findings, fixer patches each one with tests, verifier confirms, then integration tests and a PR with the full audit report.</p>
-          <div class="wf-pipeline">
-            <span>scan</span><span class="wf-arrow">&rarr;</span>
-            <span>prioritize</span><span class="wf-arrow">&rarr;</span>
-            <span>setup</span><span class="wf-arrow">&rarr;</span>
-            <span>fix</span><span class="wf-arrow">&rarr;</span>
-            <span>verify</span><span class="wf-arrow">&rarr;</span>
-            <span>test</span><span class="wf-arrow">&rarr;</span>
-            <span>PR</span>
-          </div>
-        </div>
+        <pre><code><span class="c-key">id:</span> my-workflow
+<span class="c-key">name:</span> My Custom Pipeline
+<span class="c-key">agents:</span>
+  - <span class="c-key">id:</span> researcher
+    <span class="c-key">name:</span> Researcher
+    <span class="c-key">workspace:</span>
+      <span class="c-key">files:</span>
+        <span class="c-key">AGENTS.md:</span> agents/researcher/AGENTS.md
+
+<span class="c-key">steps:</span>
+  - <span class="c-key">id:</span> research
+    <span class="c-key">agent:</span> researcher
+    <span class="c-key">input:</span> <span class="c-str">|</span>
+      <span class="c-str">Research {{task}} and report findings.</span>
+      <span class="c-str">Reply with STATUS: done and FINDINGS: ...</span>
+    <span class="c-key">expects:</span> <span class="c-str">"STATUS: done"</span></code></pre>
       </div>
+      <p class="section-link">Full guide: <a href="https://github.com/snarktank/antfarm/blob/main/docs/creating-workflows.md">docs/creating-workflows.md</a></p>
     </section>
 
     <!-- Security -->
     <section id="security" class="section">
       <h2>Security</h2>
-      <p class="section-desc">Workflows run agents on your machine. We take that seriously.</p>
+      <p class="section-desc">You're installing agent teams that run code on your machine. We take that seriously.</p>
       <div class="security-grid">
         <div class="security-item">
           <h4>Curated repo only</h4>
@@ -168,11 +231,11 @@
         </div>
         <div class="security-item">
           <h4>Reviewed for prompt injection</h4>
-          <p>Every workflow is reviewed for prompt injection attacks and malicious SKILL.md or AGENTS.md files before merging.</p>
+          <p>Every workflow is reviewed for prompt injection attacks and malicious agent files before merging.</p>
         </div>
         <div class="security-item">
           <h4>Community contributions welcome</h4>
-          <p>Want to add a workflow? Submit a PR. We encourage it. All submissions go through careful security review before they ship.</p>
+          <p>Want to add a workflow? Submit a PR. All submissions go through careful security review before they ship.</p>
         </div>
         <div class="security-item">
           <h4>Transparent by default</h4>
@@ -215,57 +278,6 @@
           <div class="cmd-row"><code>antfarm logs</code><span>View recent log entries</span></div>
         </div>
       </div>
-    </section>
-
-    <!-- Architecture -->
-    <section class="section">
-      <h2>Architecture</h2>
-      <div class="arch-block">
-        <pre><code><span class="c-dim">Agents poll for work via OpenClaw cron jobs (every 15 min, staggered).</span>
-<span class="c-dim">No central orchestrator. Each agent is autonomous.</span>
-
-                ┌─────────┐
-                │  SQLite  │  Runs, steps, stories, context
-                └────┬────┘
-                     │
-        ┌────────────┼────────────┐
-        │            │            │
-   ┌────┴────┐ ┌────┴────┐ ┌────┴────┐
-   │ Agent A │ │ Agent B │ │ Agent C │  Each in isolated OpenClaw session
-   │ (cron)  │ │ (cron)  │ │ (cron)  │  Fresh context per step/story
-   └─────────┘ └─────────┘ └─────────┘
-
-<span class="c-dim">Context flows forward via KEY: value pairs in agent output,</span>
-<span class="c-dim">stored as JSON in the run record and templated into the next step.</span></code></pre>
-      </div>
-    </section>
-
-    <!-- Custom workflows -->
-    <section class="section">
-      <h2>Create your own</h2>
-      <p class="section-desc">Define agents and steps in YAML. Antfarm handles provisioning, scheduling, and orchestration.</p>
-      <div class="code-block">
-        <div class="code-header">
-          <span class="code-tab active">workflow.yml</span>
-        </div>
-        <pre><code><span class="c-key">id:</span> my-workflow
-<span class="c-key">name:</span> My Custom Pipeline
-<span class="c-key">agents:</span>
-  - <span class="c-key">id:</span> researcher
-    <span class="c-key">name:</span> Researcher
-    <span class="c-key">workspace:</span>
-      <span class="c-key">files:</span>
-        <span class="c-key">AGENTS.md:</span> agents/researcher/AGENTS.md
-
-<span class="c-key">steps:</span>
-  - <span class="c-key">id:</span> research
-    <span class="c-key">agent:</span> researcher
-    <span class="c-key">input:</span> <span class="c-str">|</span>
-      <span class="c-str">Research {{task}} and report findings.</span>
-      <span class="c-str">Reply with STATUS: done and FINDINGS: ...</span>
-    <span class="c-key">expects:</span> <span class="c-str">"STATUS: done"</span></code></pre>
-      </div>
-      <p class="section-link">Full guide: <a href="https://github.com/snarktank/antfarm/blob/main/docs/creating-workflows.md">docs/creating-workflows.md</a></p>
     </section>
   </main>
 

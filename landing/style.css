@@ -196,6 +196,19 @@ code {
   border-bottom: 1px solid var(--border-light);
 }
 
+.problem-text {
+  font-size: 1.05rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 680px;
+}
+
+.problem-text + .problem-text {
+  margin-top: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
 .ralph-row {
   display: flex;
   align-items: center;
