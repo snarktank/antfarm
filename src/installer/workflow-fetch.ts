@@ -47,7 +47,7 @@ export async function listBundledWorkflows(): Promise<string[]> {
  * Fetch a bundled workflow by name.
  * Copies from the antfarm package's workflows/ directory to the user's installed workflows.
  */
-export async function fetchWorkflow(workflowId: string): Promise<{ workflowDir: string }> {
+export async function fetchWorkflow(workflowId: string): Promise<{ workflowDir: string; bundledSourceDir: string }> {
   const bundledDir = resolveBundledWorkflowDir(workflowId);
   const workflowYml = path.join(bundledDir, "workflow.yml");
   
@@ -61,5 +61,5 @@ export async function fetchWorkflow(workflowId: string): Promise<{ workflowDir: 
   const destination = resolveWorkflowDir(workflowId);
   await copyDirectory(bundledDir, destination);
   
-  return { workflowDir: destination };
+  return { workflowDir: destination, bundledSourceDir: bundledDir };
 }

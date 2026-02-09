@@ -35,6 +35,7 @@ function resolveWorkspaceDir(params: {
 export async function provisionAgents(params: {
   workflow: WorkflowSpec;
   workflowDir: string;
+  bundledSourceDir?: string;
   overwriteFiles?: boolean;
   installSkill?: boolean;
 }): Promise<ProvisionedAgent[]> {
@@ -51,11 +52,22 @@ export async function provisionAgents(params: {
     await ensureDir(workspaceDir);
 
     for (const [fileName, relativePath] of Object.entries(agent.workspace.files)) {
-      const source = path.join(params.workflowDir, relativePath);
+      // Try the installed workflow dir first, then fall back to the bundled source
+      // (handles relative paths like ../../agents/shared/ that escape the workflow dir)
+      let source = path.resolve(params.workflowDir, relativePath);
       try {
         await fs.access(source);
       } catch {
-        throw new Error(`Missing bootstrap file for agent "${agent.id}": ${relativePath}`);
+        if (params.bundledSourceDir) {
+          source = path.resolve(params.bundledSourceDir, relativePath);
+          try {
+            await fs.access(source);
+          } catch {
+            throw new Error(`Missing bootstrap file for agent "${agent.id}": ${relativePath}`);
+          }
+        } else {
+          throw new Error(`Missing bootstrap file for agent "${agent.id}": ${relativePath}`);
+        }
       }
       const destination = path.join(workspaceDir, fileName);
       await writeWorkflowFile({ destination, source, overwrite });

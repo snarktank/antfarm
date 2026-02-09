@@ -48,9 +48,9 @@ async function writeWorkflowMetadata(params: { workflowDir: string; workflowId: 
 }
 
 export async function installWorkflow(params: { workflowId: string }): Promise<WorkflowInstallResult> {
-  const { workflowDir } = await fetchWorkflow(params.workflowId);
+  const { workflowDir, bundledSourceDir } = await fetchWorkflow(params.workflowId);
   const workflow = await loadWorkflowSpec(workflowDir);
-  const provisioned = await provisionAgents({ workflow, workflowDir });
+  const provisioned = await provisionAgents({ workflow, workflowDir, bundledSourceDir });
 
   const { path: configPath, config } = await readOpenClawConfig();
   const list = ensureAgentList(config);
