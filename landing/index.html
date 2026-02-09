@@ -34,7 +34,7 @@
     <section id="quickstart" class="section">
       <h2>Example</h2>
       <pre><code><span class="comment"># Install a workflow</span>
-antfarm workflow install ./workflows/feature-dev
+antfarm workflow install feature-dev
 
 <span class="comment"># Run a task</span>
 antfarm workflow run feature-dev "Ship the onboarding prompt"
@@ -62,8 +62,8 @@ antfarm workflow status "Ship the onboarding prompt"</code></pre>
         </thead>
         <tbody>
           <tr>
-            <td><code>antfarm workflow install &lt;source&gt;</code></td>
-            <td>Install a workflow from a local path, GitHub repo, or URL</td>
+            <td><code>antfarm workflow install &lt;id&gt;</code></td>
+            <td>Install a bundled workflow by ID</td>
           </tr>
           <tr>
             <td><code>antfarm workflow run &lt;id&gt; &lt;task&gt;</code></td>
