@@ -85,16 +85,17 @@ code {
 }
 
 .description-logo {
-  width: 90px;
-  height: 90px;
-  border-radius: 12px;
+  width: 140px;
+  height: 140px;
+  border-radius: 16px;
   flex-shrink: 0;
 }
 
 .description p {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   color: var(--text-muted);
   max-width: 640px;
+  line-height: 1.7;
 }
 
 /* === Sections === */
@@ -230,8 +231,8 @@ code {
     gap: 16px;
   }
   .description-logo {
-    width: 64px;
-    height: 64px;
+    width: 100px;
+    height: 100px;
   }
   .description p {
     font-size: 1rem;
@@ -268,8 +269,8 @@ code {
 @media (max-width: 400px) {
   .nav-name { font-size: 1.1rem; }
   .description-logo {
-    width: 56px;
-    height: 56px;
+    width: 80px;
+    height: 80px;
   }
   .command-table { font-size: 0.8rem; }
 }
