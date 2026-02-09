@@ -1,4 +1,4 @@
-import { createAgentCronJob, deleteAgentCronJobs, listCronJobs } from "./gateway-api.js";
+import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAvailable } from "./gateway-api.js";
 import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
@@ -58,7 +58,7 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const agentId = `${workflow.id}/${agent.id}`;
     const prompt = buildAgentPrompt(workflow.id, agent.id);
 
-    await createAgentCronJob({
+    const result = await createAgentCronJob({
       name: cronName,
       schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
@@ -67,6 +67,10 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
       delivery: { mode: "none" },
       enabled: true,
     });
+
+    if (!result.ok) {
+      throw new Error(`Failed to create cron job for agent "${agent.id}": ${result.error}`);
+    }
   }
 }
 
@@ -103,6 +107,13 @@ async function workflowCronsExist(workflowId: string): Promise<boolean> {
  */
 export async function ensureWorkflowCrons(workflow: WorkflowSpec): Promise<void> {
   if (await workflowCronsExist(workflow.id)) return;
+
+  // Preflight: verify cron tool is accessible before attempting to create jobs
+  const preflight = await checkCronToolAvailable();
+  if (!preflight.ok) {
+    throw new Error(preflight.error!);
+  }
+
   await setupAgentCrons(workflow);
 }
 

@@ -49,7 +49,15 @@ export async function runWorkflow(params: {
   }
 
   // Start crons for this workflow (no-op if already running from another run)
-  await ensureWorkflowCrons(workflow);
+  try {
+    await ensureWorkflowCrons(workflow);
+  } catch (err) {
+    // Roll back the run since it can't advance without crons
+    const db2 = getDb();
+    db2.prepare("UPDATE runs SET status = 'failed', updated_at = ? WHERE id = ?").run(new Date().toISOString(), runId);
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Cannot start workflow run: cron setup failed. ${message}`);
+  }
 
   await logger.info(`Run started: "${params.taskTitle}"`, {
     workflowId: workflow.id,
