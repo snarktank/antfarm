@@ -50,6 +50,10 @@ antfarm workflow status "Ship the onboarding prompt"</code></pre>
         <p>Full feature development pipeline. A planner decomposes your task into user stories, then a developer implements each one in a fresh session — verify after every story, integration tests at the end, automatic PR and code review.</p>
         <p>Built on the <a href="https://github.com/snarktank/ralph">Ralph loop</a> pattern: stories execute one at a time in fresh context windows, using files and git as memory. Each iteration is isolated, verified, and committed before moving on.</p>
       </div>
+      <div class="workflow-card">
+        <h3>bug-fix</h3>
+        <p>End-to-end bug resolution. A triager reproduces the issue and identifies the affected area, an investigator traces root cause, a fixer writes the patch with a regression test, a verifier confirms it works, and a PR agent opens a clean pull request. Verify failures loop back to the fixer automatically.</p>
+      </div>
     </section>
 
     <section class="section dashboard">
