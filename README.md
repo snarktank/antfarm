@@ -1,6 +1,6 @@
 # Antfarm
 
-<img src="landing/logo.jpeg" alt="Antfarm" width="80">
+<img src="https://raw.githubusercontent.com/snarktank/antfarm/main/landing/logo.jpeg" alt="Antfarm" width="80">
 
 **Build your agent team in [OpenClaw](https://docs.openclaw.ai) with one command.**
 
@@ -137,7 +137,9 @@ You're installing agent teams that run code on your machine. We take that seriou
 
 Monitor runs, track step progress, and view agent output in real time.
 
-![Antfarm dashboard](landing/dashboard-screenshot.png)
+![Antfarm dashboard](https://raw.githubusercontent.com/snarktank/antfarm/main/assets/dashboard-screenshot.png)
+
+![Antfarm dashboard detail](https://raw.githubusercontent.com/snarktank/antfarm/main/assets/dashboard-detail-screenshot.png)
 
 ```bash
 antfarm dashboard              # Start on port 3333
