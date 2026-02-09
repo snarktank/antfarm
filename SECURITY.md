@@ -40,7 +40,7 @@ See [docs/creating-workflows.md](docs/creating-workflows.md) for the full guide.
 
 If you find a security issue in Antfarm, please report it responsibly:
 
-- **Email:** security@ryancarson.com
+- **Email:** Ryan@ryancarson.com
 - **Do not** open a public issue for security vulnerabilities
 
 We'll acknowledge receipt within 48 hours and work with you on a fix.
