@@ -29,6 +29,9 @@ function getVersion(): string {
 function printUsage() {
   process.stdout.write(
     [
+      "antfarm hello                        Print a greeting",
+      "antfarm goodbye                      Print a farewell",
+      "",
       "antfarm install                      Install all bundled workflows",
       "antfarm uninstall [--force]          Full uninstall (workflows, agents, crons, DB)",
       "",
@@ -64,6 +67,16 @@ async function main() {
 
   if (group === "version" || group === "--version" || group === "-v") {
     console.log(`antfarm v${getVersion()}`);
+    return;
+  }
+
+  if (group === "hello") {
+    console.log("Hello from Antfarm!");
+    return;
+  }
+
+  if (group === "goodbye") {
+    console.log("Goodbye from Antfarm!");
     return;
   }
 
