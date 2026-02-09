@@ -221,9 +221,55 @@ code {
 }
 
 /* === Responsive === */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .section { padding: 32px 16px; }
-  .description { padding: 24px 16px 0; flex-direction: column; align-items: flex-start; }
+  .description {
+    padding: 24px 16px 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .description-logo {
+    width: 64px;
+    height: 64px;
+  }
+  .description p {
+    font-size: 1rem;
+  }
   .nav { padding: 16px 16px 0; }
-  .command-table td code { font-size: 0.75rem; }
+  .hero { padding-bottom: 16px; }
+  .section h2 { font-size: 1.1rem; }
+
+  /* Stack command table on small screens */
+  .command-table td code {
+    font-size: 0.75rem;
+    white-space: normal;
+    word-break: break-all;
+  }
+  .command-table th,
+  .command-table td {
+    padding: 8px 8px;
+  }
+
+  /* Dashboard image */
+  .dashboard-frame {
+    max-width: 100%;
+    border-radius: 4px;
+  }
+
+  /* Code blocks */
+  .install-block pre,
+  #quickstart pre {
+    padding: 12px 14px;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .nav-name { font-size: 1.1rem; }
+  .description-logo {
+    width: 56px;
+    height: 56px;
+  }
+  .command-table { font-size: 0.8rem; }
 }
