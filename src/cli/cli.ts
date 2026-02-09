@@ -12,6 +12,7 @@ function printUsage() {
   process.stdout.write(
     [
       "antfarm install                      Install all bundled workflows",
+      "antfarm uninstall [--force]          Full uninstall (workflows, agents, crons, DB)",
       "",
       "antfarm workflow list                List available workflows",
       "antfarm workflow install <name>      Install a workflow",
@@ -39,6 +40,29 @@ function printUsage() {
 async function main() {
   const args = process.argv.slice(2);
   const [group, action, target] = args;
+
+  if (group === "uninstall" && !args[1]) {
+    const force = args.includes("--force");
+    const activeRuns = checkActiveRuns();
+    if (activeRuns.length > 0 && !force) {
+      process.stderr.write(`Cannot uninstall: ${activeRuns.length} active run(s):\n`);
+      for (const run of activeRuns) {
+        process.stderr.write(`  - ${run.id} (${run.workflow_id}): ${run.task}\n`);
+      }
+      process.stderr.write(`\nUse --force to uninstall anyway.\n`);
+      process.exit(1);
+    }
+
+    // Stop dashboard if running
+    if (isRunning().running) {
+      stopDaemon();
+      console.log("Dashboard stopped.");
+    }
+
+    await uninstallAllWorkflows();
+    console.log("Antfarm fully uninstalled (workflows, agents, crons, database, skill).");
+    return;
+  }
 
   if (group === "install" && !args[1]) {
     const workflows = await listBundledWorkflows();

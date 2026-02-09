@@ -82,9 +82,12 @@ antfarm workflow status "<task>"
 # View logs
 antfarm logs
 
-# Uninstall
+# Uninstall a single workflow
 antfarm workflow uninstall <workflow-id>
 antfarm workflow uninstall --all
+
+# Full uninstall (all workflows, agents, crons, DB, skill)
+antfarm uninstall [--force]
 ```
 
 ## Checking Status
