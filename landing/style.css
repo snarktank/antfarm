@@ -116,8 +116,12 @@ code {
 
 .hero-row {
   display: flex;
-  align-items: flex-start;
-  gap: 40px;
+  align-items: center;
+  gap: 24px;
+}
+
+.hero-sub {
+  margin-top: 16px;
 }
 
 .hero-logo {
@@ -139,7 +143,6 @@ code {
 .hero h1 a { text-decoration: underline; text-underline-offset: 3px; }
 
 .hero-sub {
-  margin-top: 16px;
   font-size: 1.1rem;
   color: var(--text-secondary);
   max-width: 640px;
