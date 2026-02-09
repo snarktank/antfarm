@@ -206,6 +206,7 @@ code {
   height: 80px;
   border-radius: 12px;
   flex-shrink: 0;
+  object-fit: cover;
 }
 .ralph-row h3 { margin: 0 0 8px; }
 .ralph-row p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
