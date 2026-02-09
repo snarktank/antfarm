@@ -51,6 +51,7 @@ Bug triage and fix: triage → investigate → setup → fix → verify → PR. 
 
 ```
 antfarm install                        Install all bundled workflows + agent crons
+antfarm uninstall [--force]            Full uninstall (workflows, agents, crons, DB)
 
 antfarm workflow list                  List available workflows
 antfarm workflow install <name>        Install a workflow

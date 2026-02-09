@@ -85,6 +85,10 @@ antfarm workflow uninstall <name>
 antfarm workflow uninstall --all [--force]
 ```
 
+## Creating Custom Workflows
+
+See `{baseDir}/../../docs/creating-workflows.md` for the full guide on writing workflow YAML, agent workspaces, step templates, and verification loops.
+
 ## Agent Step Operations (used by agent cron jobs, not typically manual)
 
 ```bash
