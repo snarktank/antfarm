@@ -187,7 +187,7 @@ antfarm dashboard status       # Check status
 
 ## License
 
-Private.
+[MIT](LICENSE)
 
 ---
 
