@@ -8,6 +8,23 @@ import { readRecentLogs } from "../lib/logger.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const pkgPath = join(__dirname, "..", "..", "package.json");
+
+function getVersion(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    return pkg.version ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 
 function printUsage() {
   process.stdout.write(
@@ -34,6 +51,9 @@ function printUsage() {
       "antfarm step stories <run-id>       List stories for a run",
       "",
       "antfarm logs [<lines>]               Show recent log entries",
+      "",
+      "antfarm version                      Show installed version",
+      "antfarm update                       Pull latest, rebuild, and reinstall workflows",
     ].join("\n") + "\n",
   );
 }
@@ -41,6 +61,43 @@ function printUsage() {
 async function main() {
   const args = process.argv.slice(2);
   const [group, action, target] = args;
+
+  if (group === "version" || group === "--version" || group === "-v") {
+    console.log(`antfarm v${getVersion()}`);
+    return;
+  }
+
+  if (group === "update") {
+    const repoRoot = join(__dirname, "..", "..");
+    console.log("Pulling latest...");
+    try {
+      execSync("git pull", { cwd: repoRoot, stdio: "inherit" });
+    } catch {
+      process.stderr.write("Failed to git pull. Are you in the antfarm repo?\n");
+      process.exit(1);
+    }
+    console.log("Installing dependencies...");
+    execSync("npm install", { cwd: repoRoot, stdio: "inherit" });
+    console.log("Building...");
+    execSync("npm run build", { cwd: repoRoot, stdio: "inherit" });
+
+    // Reinstall workflows
+    const workflows = await listBundledWorkflows();
+    if (workflows.length > 0) {
+      console.log(`Reinstalling ${workflows.length} workflow(s)...`);
+      for (const workflowId of workflows) {
+        try {
+          await installWorkflow({ workflowId });
+          console.log(`  ✓ ${workflowId}`);
+        } catch (err) {
+          console.log(`  ✗ ${workflowId}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+    ensureCliSymlink();
+    console.log(`\nUpdated to v${getVersion()}.`);
+    return;
+  }
 
   if (group === "uninstall" && (!args[1] || args[1] === "--force")) {
     const force = args.includes("--force");
