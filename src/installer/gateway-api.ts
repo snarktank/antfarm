@@ -48,7 +48,7 @@ export async function createAgentCronJob(job: {
     const response = await fetch(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "add", job } }),
+      body: JSON.stringify({ tool: "cron", args: { action: "add", job }, sessionKey: "global" }),
     });
 
     if (!response.ok) {
@@ -119,7 +119,7 @@ export async function listCronJobs(): Promise<{ ok: boolean; jobs?: Array<{ id: 
     const response = await fetch(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "list" } }),
+      body: JSON.stringify({ tool: "cron", args: { action: "list" }, sessionKey: "global" }),
     });
 
     if (!response.ok) {
@@ -160,7 +160,7 @@ export async function deleteCronJob(jobId: string): Promise<{ ok: boolean; error
     const response = await fetch(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "remove", id: jobId } }),
+      body: JSON.stringify({ tool: "cron", args: { action: "remove", id: jobId }, sessionKey: "global" }),
     });
 
     if (!response.ok) {
