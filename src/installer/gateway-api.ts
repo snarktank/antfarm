@@ -7,6 +7,17 @@ interface GatewayConfig {
   token?: string;
 }
 
+/** Sanitize error messages to avoid leaking internal URLs, tokens, or port config */
+export function sanitizeError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  // Strip URLs (http/https), IP addresses, port numbers in host:port patterns, and Bearer tokens
+  return message
+    .replace(/https?:\/\/[^\s,)]+/gi, "[redacted-url]")
+    .replace(/\b\d{1,3}(\.\d{1,3}){3}(:\d+)?\b/g, "[redacted-host]")
+    .replace(/Bearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/token[=:]\s*\S+/gi, "token=[redacted]");
+}
+
 async function readOpenClawConfig(): Promise<{ port?: number; token?: string }> {
   const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
   try {
@@ -53,7 +64,7 @@ export async function createAgentCronJob(job: {
 
     if (!response.ok) {
       const text = await response.text();
-      return { ok: false, error: `Gateway returned ${response.status}: ${text}` };
+      return { ok: false, error: `Gateway returned HTTP ${response.status}` };
     }
 
     const result = await response.json();
@@ -62,7 +73,7 @@ export async function createAgentCronJob(job: {
     }
     return { ok: true, id: result.result?.id };
   } catch (err) {
-    return { ok: false, error: `Failed to call gateway: ${err}` };
+    return { ok: false, error: `Failed to call gateway: ${sanitizeError(err)}` };
   }
 }
 
@@ -103,7 +114,7 @@ export async function listCronJobs(): Promise<{ ok: boolean; jobs?: Array<{ id: 
     }
     return { ok: true, jobs };
   } catch (err) {
-    return { ok: false, error: `Failed to call gateway: ${err}` };
+    return { ok: false, error: `Failed to call gateway: ${sanitizeError(err)}` };
   }
 }
 
@@ -127,7 +138,7 @@ export async function deleteCronJob(jobId: string): Promise<{ ok: boolean; error
     const result = await response.json();
     return result.ok ? { ok: true } : { ok: false, error: result.error?.message ?? "Unknown error" };
   } catch (err) {
-    return { ok: false, error: `Failed to call gateway: ${err}` };
+    return { ok: false, error: `Failed to call gateway: ${sanitizeError(err)}` };
   }
 }
 
