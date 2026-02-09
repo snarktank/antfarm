@@ -54,6 +54,10 @@ antfarm workflow status "Ship the onboarding prompt"</code></pre>
         <h3>bug-fix</h3>
         <p>End-to-end bug resolution. A triager reproduces the issue and identifies the affected area, an investigator traces root cause, a fixer writes the patch with a regression test, a verifier confirms it works, and a PR agent opens a clean pull request. Verify failures loop back to the fixer automatically.</p>
       </div>
+      <div class="workflow-card">
+        <h3>security-audit</h3>
+        <p>Automated security scanning and patching. A scanner checks for SQL injection, XSS, CSRF, hardcoded secrets, insecure dependencies, and more. A prioritizer ranks findings by exploitability and groups them into fix stories. Each vulnerability is patched and verified individually, then a final integration test confirms nothing broke. Opens a PR with the full audit report.</p>
+      </div>
     </section>
 
     <section class="section dashboard">
