@@ -20,6 +20,7 @@ function printUsage() {
       "antfarm workflow run <name> <task>   Start a workflow run",
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
       "antfarm workflow runs                List all workflow runs",
+      "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
       "",
       "antfarm dashboard [start] [--port N]   Start dashboard daemon (default: 3333)",
       "antfarm dashboard stop                  Stop dashboard daemon",
@@ -237,6 +238,57 @@ async function main() {
       }
     }
     process.stdout.write(lines.join("\n") + "\n");
+    return;
+  }
+
+  if (action === "resume") {
+    if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+    const db = (await import("../db.js")).getDb();
+
+    // Find the run (support prefix match)
+    const run = db.prepare(
+      "SELECT id, status FROM runs WHERE id = ? OR id LIKE ?"
+    ).get(target, `${target}%`) as { id: string; status: string } | undefined;
+
+    if (!run) { process.stderr.write(`Run not found: ${target}\n`); process.exit(1); }
+    if (run.status !== "failed") {
+      process.stderr.write(`Run ${run.id.slice(0, 8)} is "${run.status}", not "failed". Nothing to resume.\n`);
+      process.exit(1);
+    }
+
+    // Find the failed step (or first non-done step)
+    const failedStep = db.prepare(
+      "SELECT id, step_id, type, current_story_id FROM steps WHERE run_id = ? AND status = 'failed' ORDER BY step_index ASC LIMIT 1"
+    ).get(run.id) as { id: string; step_id: string; type: string; current_story_id: string | null } | undefined;
+
+    if (!failedStep) {
+      process.stderr.write(`No failed step found in run ${run.id.slice(0, 8)}.\n`);
+      process.exit(1);
+    }
+
+    // If it's a loop step with a failed story, reset that story to pending
+    if (failedStep.type === "loop") {
+      const failedStory = db.prepare(
+        "SELECT id FROM stories WHERE run_id = ? AND status = 'failed' ORDER BY story_index ASC LIMIT 1"
+      ).get(run.id) as { id: string } | undefined;
+      if (failedStory) {
+        db.prepare(
+          "UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+        ).run(failedStory.id);
+      }
+    }
+
+    // Reset step to pending
+    db.prepare(
+      "UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+    ).run(failedStep.id);
+
+    // Reset run to running
+    db.prepare(
+      "UPDATE runs SET status = 'running', updated_at = datetime('now') WHERE id = ?"
+    ).run(run.id);
+
+    console.log(`Resumed run ${run.id.slice(0, 8)} from step "${failedStep.step_id}"`);
     return;
   }
 

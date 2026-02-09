@@ -25,11 +25,15 @@ You are a developer on a feature development workflow. Your job is to implement 
 - Handle edge cases and errors
 - Don't leave TODOs or incomplete work - finish what you start
 
-## Testing
+## Testing — Required Per Story
 
-- Write tests that verify your changes work
+You MUST write tests for every story you implement. Testing is not optional.
+
+- Write unit tests that verify your story's functionality
 - Cover the main functionality and key edge cases
 - Run existing tests to make sure you didn't break anything
+- Run your new tests to confirm they pass
+- The verifier will check that tests exist and pass — don't skip this
 
 ## Commits
 

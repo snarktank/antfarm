@@ -63,8 +63,12 @@ Each criterion must be something that can be checked mechanically, not something
 - "Good UX"
 - "Handles edge cases"
 
-### Always include as final criterion
-Every story MUST include **"Typecheck passes"** as its last acceptance criterion.
+### Always include test criteria
+Every story MUST include:
+- **"Tests for [feature] pass"** — the developer writes tests as part of each story
+- **"Typecheck passes"** as the final acceptance criterion
+
+The developer is expected to write unit tests alongside the implementation. The verifier will run these tests. Do NOT defer testing to a later story — each story must be independently tested.
 
 ## Max Stories
 
@@ -86,6 +90,7 @@ STORIES_JSON: [
     "acceptanceCriteria": [
       "Specific verifiable criterion 1",
       "Specific verifiable criterion 2",
+      "Tests for [feature] pass",
       "Typecheck passes"
     ]
   },
