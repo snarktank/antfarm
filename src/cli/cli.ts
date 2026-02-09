@@ -41,7 +41,7 @@ async function main() {
   const args = process.argv.slice(2);
   const [group, action, target] = args;
 
-  if (group === "uninstall" && !args[1]) {
+  if (group === "uninstall" && (!args[1] || args[1] === "--force")) {
     const force = args.includes("--force");
     const activeRuns = checkActiveRuns();
     if (activeRuns.length > 0 && !force) {
