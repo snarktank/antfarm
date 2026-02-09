@@ -1,3 +1,4 @@
+# Ralph loop (https://github.com/snarktank/ralph) — fresh context per agent session
 id: security-audit
 name: Security Audit & Fix
 version: 1

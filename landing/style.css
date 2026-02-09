@@ -196,6 +196,21 @@ code {
   border-bottom: 1px solid var(--border-light);
 }
 
+.ralph-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.ralph-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.ralph-row h3 { margin: 0 0 8px; }
+.ralph-row p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+.ralph-row a { color: var(--coral); }
+
 .section h2 {
   font-size: 1.3rem;
   font-weight: 600;

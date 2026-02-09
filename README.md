@@ -8,6 +8,10 @@ Multi-agent workflow orchestration for [OpenClaw](https://github.com/openclaw/op
 
 Antfarm takes a task description and runs it through a pipeline of specialized AI agents. Each agent handles one concern — planning, setup, implementation, verification, testing, PR creation, code review — and hands off to the next. Agents run in isolated sessions with fresh context, communicate through a SQLite database, and poll for work via cron jobs.
 
+Built on the [Ralph loop](https://github.com/snarktank/ralph) — autonomous AI agent iterations with fresh context and persistent memory.
+
+<img src="https://raw.githubusercontent.com/snarktank/ralph/main/ralph.webp" alt="Ralph" width="120">
+
 **Key features:**
 - Story-based execution: tasks are decomposed into small, verifiable user stories
 - Loop steps with per-story verification and automatic retry on failure
