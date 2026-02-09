@@ -23,13 +23,19 @@ The "input" field contains your FULLY RESOLVED task instructions. All template v
 
 Step 3 — After completing the work, format your output with KEY: value lines (e.g., STATUS: done, REPO: /path, BRANCH: name, etc.) as specified in the task instructions.
 
-Step 4 — Report completion. Pass your full output text:
+Step 4 — Report completion. Write your full output to a temp file, then pipe it:
 \`\`\`
-node ${cli} step complete "<stepId>" "STATUS: done
+cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
+STATUS: done
 REPO: /path/to/repo
 BRANCH: feature-branch
-..."
+KEY: value
+...
+ANTFARM_EOF
+cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
+
+IMPORTANT: Always write output to a file first, then pipe via stdin. Do NOT pass output as a command-line argument — complex output (JSON, multi-line text) gets mangled by shell escaping.
 
 This automatically: saves your output, merges KEY: value pairs into the run context, and advances the pipeline to the next step.
 

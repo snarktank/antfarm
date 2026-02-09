@@ -154,8 +154,16 @@ async function main() {
     }
     if (action === "complete") {
       if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
-      // Read output from remaining args or stdin
-      const output = args.slice(3).join(" ").trim() || "";
+      // Read output from args or stdin
+      let output = args.slice(3).join(" ").trim();
+      if (!output) {
+        // Read from stdin (piped input)
+        const chunks: Buffer[] = [];
+        for await (const chunk of process.stdin) {
+          chunks.push(chunk);
+        }
+        output = Buffer.concat(chunks).toString("utf-8").trim();
+      }
       const result = completeStep(target, output);
       process.stdout.write(JSON.stringify(result) + "\n");
       return;
