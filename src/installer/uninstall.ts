@@ -58,6 +58,7 @@ function removeRunRecords(workflowId: string): void {
     const db = getDb();
     const runs = db.prepare("SELECT id FROM runs WHERE workflow_id = ?").all(workflowId) as Array<{ id: string }>;
     for (const run of runs) {
+      db.prepare("DELETE FROM stories WHERE run_id = ?").run(run.id);
       db.prepare("DELETE FROM steps WHERE run_id = ?").run(run.id);
     }
     db.prepare("DELETE FROM runs WHERE workflow_id = ?").run(workflowId);
