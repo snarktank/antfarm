@@ -152,6 +152,34 @@ code {
 
 .comment { color: var(--text-muted); }
 
+/* === Workflows === */
+.workflow-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  max-width: 720px;
+}
+
+.workflow-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 8px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.workflow-card p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.workflow-card p:last-child {
+  margin-bottom: 0;
+}
+
 /* === Dashboard === */
 .dashboard-frame {
   border: 1px solid var(--border);
