@@ -152,11 +152,29 @@ code {
 .hero-actions { margin-top: 32px; }
 
 .install-cmd {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
   background: var(--bg-code);
   border-radius: var(--radius);
   padding: 12px 20px;
   box-shadow: var(--shadow-md);
+}
+
+.copy-btn {
+  background: transparent;
+  border: 1px solid rgba(232, 223, 208, 0.3);
+  color: #E8DFD0;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.copy-btn:hover {
+  background: rgba(232, 223, 208, 0.1);
+  border-color: rgba(232, 223, 208, 0.5);
 }
 
 .install-cmd code {
