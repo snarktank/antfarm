@@ -27,7 +27,7 @@ const ALWAYS_DENY = ["gateway", "cron", "message", "nodes", "canvas", "sessions_
  *
  * Roles without a profile entry use allow-lists for tighter control.
  */
-const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; allow?: string[]; deny: string[] }> = {
+const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[]; deny: string[] }> = {
   // analysis: read code, run git/grep, reason — no writing, no web, no browser
   analysis: {
     profile: "coding",
@@ -63,7 +63,7 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; allow?: string[]
   // testing: read + exec + browser/web for E2E, NO write
   testing: {
     profile: "coding",
-    allow: ["browser", "web_search", "web_fetch"],
+    alsoAllow: ["browser", "web_search", "web_fetch"],
     deny: [
       ...ALWAYS_DENY,
       "write", "edit", "apply_patch",  // testers don't write production code
@@ -85,7 +85,7 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; allow?: string[]
   // scanning: read + exec + web (CVE lookups), NO write
   scanning: {
     profile: "coding",
-    allow: ["web_search", "web_fetch"],
+    alsoAllow: ["web_search", "web_fetch"],
     deny: [
       ...ALWAYS_DENY,
       "write", "edit", "apply_patch",  // scanners don't modify code
@@ -117,7 +117,7 @@ function buildToolsConfig(role: AgentRole): Record<string, unknown> {
   const policy = ROLE_TOOL_POLICIES[role];
   const tools: Record<string, unknown> = {};
   if (policy.profile) tools.profile = policy.profile;
-  if (policy.allow?.length) tools.allow = policy.allow;
+  if (policy.alsoAllow?.length) tools.alsoAllow = policy.alsoAllow;
   tools.deny = policy.deny;
   return tools;
 }
