@@ -100,6 +100,10 @@ antfarm/
 └── skills/           OpenClaw skills for workflow agents
 ```
 
+## Creating Custom Workflows
+
+See [docs/creating-workflows.md](docs/creating-workflows.md) for a complete guide on writing your own workflow definitions, agent workspaces, and step templates.
+
 ## Requirements
 
 - Node.js >= 22
