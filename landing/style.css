@@ -114,6 +114,20 @@ code {
   border-bottom: 1px solid var(--border-light);
 }
 
+.hero-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+.hero-logo {
+  width: 120px;
+  height: 120px;
+  border-radius: var(--radius-lg);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-md);
+}
+
 .hero h1 {
   font-size: 2rem;
   font-weight: 600;
@@ -441,6 +455,8 @@ code {
   .topbar-links a:not(.topbar-gh) { display: none; }
 
   .hero { padding: 48px 0 40px; }
+  .hero-row { flex-direction: row; gap: 24px; align-items: flex-start; }
+  .hero-logo { width: 80px; height: 80px; }
   .hero h1 { font-size: 1.5rem; }
   .hero-sub { font-size: 1rem; }
 
@@ -462,6 +478,8 @@ code {
 }
 
 @media (max-width: 480px) {
+  .hero-row { gap: 16px; }
+  .hero-logo { width: 64px; height: 64px; }
   .hero h1 { font-size: 1.3rem; }
   .install-cmd { padding: 10px 14px; }
   .install-cmd code { font-size: 0.8rem; }
