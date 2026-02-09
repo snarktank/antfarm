@@ -18,8 +18,8 @@ select{background:#5a6b32;color:#fff;border:1px solid #4a5a28;border-radius:6px;
 select option{background:#5a6b32;color:#fff}
 select:focus{outline:none;border-color:#8ECFC0}
 .board{display:flex;gap:16px;padding:24px;overflow-x:auto;min-height:calc(100vh - 65px)}
-.column{min-width:240px;flex:1;background:#fff;border:1px solid #D4C4A0;border-radius:8px;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(58,50,38,.08)}
-.column-header{padding:12px 16px;border-bottom:1px solid #D4C4A0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#6B7F3B;background:#f5f0e8}
+.column{min-width:240px;flex:1;background:#fff;border:none;border-radius:8px;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(58,50,38,.1)}
+.column-header{padding:12px 16px;border-bottom:1px solid #eee;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#6B7F3B;background:#f5f0e8;border-radius:8px 8px 0 0}
 .column-header .count{background:#6B7F3B;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px}
 .cards{padding:8px;flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
 .card{background:#FAF8F5;border:1px solid #D4C4A0;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
@@ -91,6 +91,15 @@ async function loadWorkflows() {
   if (workflows.length === 1) {
     sel.value = workflows[0].id;
     selectWorkflow(workflows[0].id);
+  } else if (workflows.length > 1) {
+    // Auto-select workflow with active runs
+    try {
+      for (const w of workflows) {
+        const runs = await fetchJSON(`/api/runs?workflow=${w.id}`);
+        const active = runs.find(r => r.status === 'running' || r.status === 'pending');
+        if (active) { sel.value = w.id; selectWorkflow(w.id); break; }
+      }
+    } catch {}
   }
 }
 

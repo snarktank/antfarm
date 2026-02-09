@@ -1,0 +1,1 @@
+fix-004: Added SYSTEM_CONTEXT_KEYS allowlist to prevent agents from overwriting system-defined context keys (task, repo, branch, etc.) during output merging. Regression test verifies malicious KEY: value injection is blocked.
