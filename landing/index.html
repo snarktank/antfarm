@@ -8,112 +8,235 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="hero">
-    <nav class="nav">
-      <div class="nav-brand">
-        <span class="nav-name">Antfarm</span>
+  <div class="topbar">
+    <div class="topbar-inner">
+      <a href="#" class="topbar-brand">
+        <img src="logo.jpeg" alt="Antfarm" class="topbar-logo">
+        <span class="topbar-name">Antfarm</span>
+      </a>
+      <div class="topbar-links">
+        <a href="#workflows">Workflows</a>
+        <a href="#commands">Commands</a>
+        <a href="https://github.com/snarktank/antfarm" class="topbar-gh">
+          <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        </a>
       </div>
-      <a href="https://github.com/snarktank/antfarm" class="nav-github">GitHub</a>
-    </nav>
-  </header>
+    </div>
+  </div>
 
-  <main>
-    <section class="description">
-      <img src="logo.jpeg" alt="Antfarm logo" class="description-logo">
-      <p>Multi-agent workflow orchestration for OpenClaw. Define pipelines in YAML, let agents execute autonomously.</p>
-    </section>
-
-    <section id="features" class="section">
-      <h2>Install</h2>
-      <div class="install-block">
-        <pre><code>Install GitHub.com/snarktank/antfarm</code></pre>
-      </div>
-      <p class="install-note">Tell your OpenClaw agent to install Antfarm. That's it.</p>
-    </section>
-
-    <section id="quickstart" class="section">
-      <h2>Example</h2>
-      <pre><code><span class="comment"># Install a workflow</span>
-antfarm workflow install feature-dev
-
-<span class="comment"># Run a task</span>
-antfarm workflow run feature-dev "Ship the onboarding prompt"
-
-<span class="comment"># Check status</span>
-antfarm workflow status "Ship the onboarding prompt"</code></pre>
-    </section>
-
-    <section class="section workflows">
-      <h2>Workflows</h2>
-      <div class="workflow-card">
-        <h3>feature-dev</h3>
-        <p>Full feature development pipeline. A planner decomposes your task into user stories, then a developer implements each one in a fresh session — verify after every story, integration tests at the end, automatic PR and code review.</p>
-        <p>Built on the <a href="https://github.com/snarktank/ralph">Ralph loop</a> pattern: stories execute one at a time in fresh context windows, using files and git as memory. Each iteration is isolated, verified, and committed before moving on.</p>
-      </div>
-      <div class="workflow-card">
-        <h3>bug-fix</h3>
-        <p>End-to-end bug resolution. A triager reproduces the issue and identifies the affected area, an investigator traces root cause, a fixer writes the patch with a regression test, a verifier confirms it works, and a PR agent opens a clean pull request. Verify failures loop back to the fixer automatically.</p>
-      </div>
-      <div class="workflow-card">
-        <h3>security-audit</h3>
-        <p>Automated security scanning and patching. A scanner checks for SQL injection, XSS, CSRF, hardcoded secrets, insecure dependencies, and more. A prioritizer ranks findings by exploitability and groups them into fix stories. Each vulnerability is patched and verified individually, then a final integration test confirms nothing broke. Opens a PR with the full audit report.</p>
+  <main class="container">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-text">
+        <h1>Multi-agent workflow orchestration for <a href="https://docs.openclaw.ai">OpenClaw</a></h1>
+        <p class="hero-sub">Define pipelines in YAML. Install with one command. Let coordinated AI agents plan, implement, verify, test, and ship — autonomously.</p>
+        <div class="hero-actions">
+          <div class="install-cmd">
+            <code><span class="cmd-prompt">$</span> Install GitHub.com/snarktank/antfarm</code>
+          </div>
+          <p class="install-hint">Tell your OpenClaw agent to install Antfarm. That's it.</p>
+        </div>
       </div>
     </section>
 
-    <section class="section dashboard">
+    <!-- How it works -->
+    <section class="section">
+      <h2>How it works</h2>
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-num">1</div>
+          <h3>Define</h3>
+          <p>Write a <code>workflow.yml</code> with agents and steps. Each agent gets its own persona, instructions, and workspace.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">2</div>
+          <h3>Install</h3>
+          <p>One command provisions agent workspaces, registers them in OpenClaw, and starts cron polling.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-num">3</div>
+          <h3>Run</h3>
+          <p>Give it a task. Agents claim steps, do the work in isolated sessions, pass context forward, and hand off to the next agent.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick example -->
+    <section class="section">
+      <h2>Quick example</h2>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-tab active">Terminal</span>
+        </div>
+        <pre><code><span class="c-prompt">$</span> antfarm workflow install feature-dev
+<span class="c-ok">✓</span> Installed workflow: feature-dev
+
+<span class="c-prompt">$</span> antfarm workflow run feature-dev <span class="c-str">"Add user authentication with OAuth"</span>
+<span class="c-dim">Run: a1fdf573</span>
+<span class="c-dim">Workflow: feature-dev</span>
+<span class="c-dim">Status: running</span>
+
+<span class="c-prompt">$</span> antfarm workflow status <span class="c-str">"OAuth"</span>
+<span class="c-dim">Run: a1fdf573</span>
+<span class="c-dim">Workflow: feature-dev</span>
+<span class="c-dim">Steps:</span>
+  <span class="c-ok">[done   ]</span> plan (planner)
+  <span class="c-ok">[done   ]</span> setup (setup)
+  <span class="c-run">[running]</span> implement (developer)  <span class="c-dim">Stories: 3/7 done</span>
+  <span class="c-pend">[pending]</span> verify (verifier)
+  <span class="c-pend">[pending]</span> test (tester)
+  <span class="c-pend">[pending]</span> pr (developer)
+  <span class="c-pend">[pending]</span> review (reviewer)</code></pre>
+      </div>
+    </section>
+
+    <!-- Workflows -->
+    <section id="workflows" class="section">
+      <h2>Bundled workflows</h2>
+      <div class="workflow-grid">
+        <div class="wf-card">
+          <div class="wf-header">
+            <h3>feature-dev</h3>
+            <span class="wf-badge">7 agents</span>
+          </div>
+          <p>Full development pipeline. A planner decomposes tasks into user stories, then agents implement each one in isolated sessions — verify after every story, integration tests at the end, automatic PR and code review.</p>
+          <div class="wf-pipeline">
+            <span>plan</span><span class="wf-arrow">&rarr;</span>
+            <span>setup</span><span class="wf-arrow">&rarr;</span>
+            <span>implement</span><span class="wf-arrow">&rarr;</span>
+            <span>verify</span><span class="wf-arrow">&rarr;</span>
+            <span>test</span><span class="wf-arrow">&rarr;</span>
+            <span>PR</span><span class="wf-arrow">&rarr;</span>
+            <span>review</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-header">
+            <h3>bug-fix</h3>
+            <span class="wf-badge">6 agents</span>
+          </div>
+          <p>End-to-end bug resolution. Triager reproduces the issue, investigator traces root cause, fixer writes the patch with a regression test, verifier confirms it, PR agent ships it. Verify failures loop back automatically.</p>
+          <div class="wf-pipeline">
+            <span>triage</span><span class="wf-arrow">&rarr;</span>
+            <span>investigate</span><span class="wf-arrow">&rarr;</span>
+            <span>setup</span><span class="wf-arrow">&rarr;</span>
+            <span>fix</span><span class="wf-arrow">&rarr;</span>
+            <span>verify</span><span class="wf-arrow">&rarr;</span>
+            <span>PR</span>
+          </div>
+        </div>
+        <div class="wf-card">
+          <div class="wf-header">
+            <h3>security-audit</h3>
+            <span class="wf-badge">7 agents</span>
+          </div>
+          <p>Automated security scanning and patching. Scanner checks for vulnerabilities, prioritizer ranks findings, fixer patches each one with tests, verifier confirms, then integration tests and a PR with the full audit report.</p>
+          <div class="wf-pipeline">
+            <span>scan</span><span class="wf-arrow">&rarr;</span>
+            <span>prioritize</span><span class="wf-arrow">&rarr;</span>
+            <span>setup</span><span class="wf-arrow">&rarr;</span>
+            <span>fix</span><span class="wf-arrow">&rarr;</span>
+            <span>verify</span><span class="wf-arrow">&rarr;</span>
+            <span>test</span><span class="wf-arrow">&rarr;</span>
+            <span>PR</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard -->
+    <section class="section">
       <h2>Dashboard</h2>
+      <p class="section-desc">Monitor runs, track step progress, and view agent output in real time.</p>
       <div class="dashboard-frame">
-        <img src="dashboard-screenshot.png" alt="Task dashboard showing workflow runs and step status">
+        <img src="dashboard-screenshot.png" alt="Antfarm dashboard showing workflow runs and step status">
       </div>
-      <p class="dashboard-caption">Task dashboard showing workflow runs and step status</p>
     </section>
 
+    <!-- Commands -->
     <section id="commands" class="section">
       <h2>Commands</h2>
-      <table class="command-table">
-        <thead>
-          <tr>
-            <th>Command</th>
-            <th>Description</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>antfarm workflow install &lt;id&gt;</code></td>
-            <td>Install a bundled workflow by ID</td>
-          </tr>
-          <tr>
-            <td><code>antfarm workflow run &lt;id&gt; &lt;task&gt;</code></td>
-            <td>Start a new run with the given task</td>
-          </tr>
-          <tr>
-            <td><code>antfarm workflow status &lt;task&gt;</code></td>
-            <td>Check status of a running or completed task</td>
-          </tr>
-          <tr>
-            <td><code>antfarm workflow update &lt;id&gt;</code></td>
-            <td>Update a workflow to the latest version</td>
-          </tr>
-          <tr>
-            <td><code>antfarm workflow uninstall &lt;id&gt;</code></td>
-            <td>Remove a workflow and all associated resources</td>
-          </tr>
-          <tr>
-            <td><code>antfarm uninstall</code></td>
-            <td>Full uninstall — workflows, agents, crons, DB, dashboard</td>
-          </tr>
-          <tr>
-            <td><code>antfarm workflow logs &lt;task&gt;</code></td>
-            <td>View logs for a workflow run</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="cmd-grid">
+        <div class="cmd-group">
+          <h4>Lifecycle</h4>
+          <div class="cmd-row"><code>antfarm install</code><span>Install all bundled workflows</span></div>
+          <div class="cmd-row"><code>antfarm uninstall</code><span>Full teardown (agents, crons, DB)</span></div>
+        </div>
+        <div class="cmd-group">
+          <h4>Workflows</h4>
+          <div class="cmd-row"><code>antfarm workflow run &lt;id&gt; &lt;task&gt;</code><span>Start a run</span></div>
+          <div class="cmd-row"><code>antfarm workflow status &lt;query&gt;</code><span>Check run status</span></div>
+          <div class="cmd-row"><code>antfarm workflow runs</code><span>List all runs</span></div>
+          <div class="cmd-row"><code>antfarm workflow resume &lt;run-id&gt;</code><span>Resume a failed run</span></div>
+        </div>
+        <div class="cmd-group">
+          <h4>Management</h4>
+          <div class="cmd-row"><code>antfarm workflow list</code><span>List available workflows</span></div>
+          <div class="cmd-row"><code>antfarm workflow install &lt;id&gt;</code><span>Install a single workflow</span></div>
+          <div class="cmd-row"><code>antfarm workflow uninstall &lt;id&gt;</code><span>Remove a single workflow</span></div>
+          <div class="cmd-row"><code>antfarm dashboard</code><span>Start the web dashboard</span></div>
+          <div class="cmd-row"><code>antfarm logs</code><span>View recent log entries</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="section">
+      <h2>Architecture</h2>
+      <div class="arch-block">
+        <pre><code><span class="c-dim">Agents poll for work via OpenClaw cron jobs (every 15 min, staggered).</span>
+<span class="c-dim">No central orchestrator. Each agent is autonomous.</span>
+
+                ┌─────────┐
+                │  SQLite  │  Runs, steps, stories, context
+                └────┬────┘
+                     │
+        ┌────────────┼────────────┐
+        │            │            │
+   ┌────┴────┐ ┌────┴────┐ ┌────┴────┐
+   │ Agent A │ │ Agent B │ │ Agent C │  Each in isolated OpenClaw session
+   │ (cron)  │ │ (cron)  │ │ (cron)  │  Fresh context per step/story
+   └─────────┘ └─────────┘ └─────────┘
+
+<span class="c-dim">Context flows forward via KEY: value pairs in agent output,</span>
+<span class="c-dim">stored as JSON in the run record and templated into the next step.</span></code></pre>
+      </div>
+    </section>
+
+    <!-- Custom workflows -->
+    <section class="section">
+      <h2>Create your own</h2>
+      <p class="section-desc">Define agents and steps in YAML. Antfarm handles provisioning, scheduling, and orchestration.</p>
+      <div class="code-block">
+        <div class="code-header">
+          <span class="code-tab active">workflow.yml</span>
+        </div>
+        <pre><code><span class="c-key">id:</span> my-workflow
+<span class="c-key">name:</span> My Custom Pipeline
+<span class="c-key">agents:</span>
+  - <span class="c-key">id:</span> researcher
+    <span class="c-key">name:</span> Researcher
+    <span class="c-key">workspace:</span>
+      <span class="c-key">files:</span>
+        <span class="c-key">AGENTS.md:</span> agents/researcher/AGENTS.md
+
+<span class="c-key">steps:</span>
+  - <span class="c-key">id:</span> research
+    <span class="c-key">agent:</span> researcher
+    <span class="c-key">input:</span> <span class="c-str">|</span>
+      <span class="c-str">Research {{task}} and report findings.</span>
+      <span class="c-str">Reply with STATUS: done and FINDINGS: ...</span>
+    <span class="c-key">expects:</span> <span class="c-str">"STATUS: done"</span></code></pre>
+      </div>
+      <p class="section-link">Full guide: <a href="https://github.com/snarktank/antfarm/blob/main/docs/creating-workflows.md">docs/creating-workflows.md</a></p>
     </section>
   </main>
 
   <footer class="footer">
-    <p>Part of the <a href="https://docs.openclaw.ai">OpenClaw</a> ecosystem.</p>
-    <p>Built by <a href="https://ryancarson.com">Ryan Carson</a> · <a href="https://x.com/ryancarson">@ryancarson</a></p>
+    <div class="footer-inner">
+      <p>Part of the <a href="https://docs.openclaw.ai">OpenClaw</a> ecosystem</p>
+      <p>Built by <a href="https://ryancarson.com">Ryan Carson</a></p>
+    </div>
   </footer>
 </body>
 </html>
