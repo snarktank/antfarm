@@ -243,14 +243,34 @@ code {
   .section h2 { font-size: 1.1rem; }
 
   /* Stack command table on small screens */
+  .command-table thead { display: none; }
+  .command-table,
+  .command-table tbody,
+  .command-table tr,
+  .command-table td {
+    display: block;
+    width: 100%;
+  }
+  .command-table tr {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .command-table tr:last-child { border-bottom: none; }
+  .command-table td {
+    padding: 2px 0;
+    border: none;
+  }
   .command-table td code {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     white-space: normal;
     word-break: break-all;
+    color: var(--coral);
+    display: block;
+    margin-bottom: 4px;
   }
-  .command-table th,
-  .command-table td {
-    padding: 8px 8px;
+  .command-table td:last-child {
+    font-size: 0.8rem;
+    color: var(--text-muted);
   }
 
   /* Dashboard image */
