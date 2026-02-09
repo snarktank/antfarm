@@ -7,6 +7,7 @@ import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
+import { ensureCliSymlink, removeCliSymlink } from "../installer/symlink.js";
 
 function printUsage() {
   process.stdout.write(
@@ -60,6 +61,7 @@ async function main() {
     }
 
     await uninstallAllWorkflows();
+    removeCliSymlink();
     console.log("Antfarm fully uninstalled (workflows, agents, crons, database, skill).");
     return;
   }
@@ -77,6 +79,7 @@ async function main() {
         console.log(`  ✗ ${workflowId}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
+    ensureCliSymlink();
     console.log(`\nDone. Start a workflow with: antfarm workflow run <name> "your task"`);
 
     // Auto-start dashboard if not already running
