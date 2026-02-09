@@ -8,7 +8,6 @@ This guide covers how to create your own Antfarm workflow.
 workflows/
 └── my-workflow/
     ├── workflow.yml          # Workflow definition (required)
-    ├── metadata.json         # Display metadata (optional)
     └── agents/
         ├── agent-a/
         │   ├── AGENTS.md     # Agent instructions
@@ -33,6 +32,7 @@ description: What this workflow does.
 agents:
   - id: researcher
     name: Researcher
+    role: analysis
     description: Researches the topic and gathers information.
     workspace:
       baseDir: agents/researcher
@@ -43,6 +43,7 @@ agents:
 
   - id: writer
     name: Writer
+    role: coding
     description: Writes content based on research.
     workspace:
       baseDir: agents/writer
@@ -94,6 +95,7 @@ steps:
 agents:
   - id: my-agent            # Unique within this workflow
     name: My Agent           # Display name
+    role: coding             # Controls tool access (see Agent Roles below)
     description: What it does.
     workspace:
       baseDir: agents/my-agent
@@ -101,6 +103,8 @@ agents:
         AGENTS.md: agents/my-agent/AGENTS.md
         SOUL.md: agents/my-agent/SOUL.md
         IDENTITY.md: agents/my-agent/IDENTITY.md
+      skills:                # Optional: skills to install into the workspace
+        - antfarm-workflows
 ```
 
 File paths are relative to the workflow directory. You can reference shared agents:
@@ -110,6 +114,19 @@ workspace:
   files:
     AGENTS.md: ../../agents/shared/setup/AGENTS.md
 ```
+
+### Agent Roles
+
+Roles control what tools each agent has access to during execution:
+
+| Role | Access | Typical agents |
+|------|--------|----------------|
+| `analysis` | Read-only code exploration | planner, prioritizer, reviewer, investigator, triager |
+| `coding` | Full read/write/exec for implementation | developer, fixer, setup |
+| `verification` | Read + exec but NO write — preserves verification integrity | verifier |
+| `testing` | Read + exec + browser/web for E2E testing, NO write | tester |
+| `pr` | Read + exec only — runs `gh pr create` | pr |
+| `scanning` | Read + exec + web search for CVE lookups, NO write | scanner |
 
 ### Step Definition
 
@@ -163,22 +180,84 @@ A step can retry a previous step on failure:
       escalate_to: human
 ```
 
-When verification fails with `STATUS: retry`, the `implement` step runs again with `{{verify_feedback}}` populated.
+When verification fails with `STATUS: retry`, the `implement` step runs again with `{{verify_feedback}}` populated from the verifier's `ISSUES:` output.
 
 ### Loop Steps (Story-Based)
 
-For steps that iterate over a list of stories (like implementing multiple features):
+For steps that iterate over a list of stories (like implementing multiple features or fixes):
 
 ```yaml
 - id: implement
   agent: developer
-  type: loop                 # Enables story-based iteration
+  type: loop
+  loop:
+    over: stories            # Iterates over stories created by a planner step
+    completion: all_done     # Step completes when all stories are done
+    fresh_session: true      # Each story gets a fresh agent session
+    verify_each: true        # Run a verify step after each story (optional)
+    verify_step: verify      # Which step to use for per-story verification (optional)
   input: |
     Implement story {{current_story}}...
   expects: "STATUS: done"
+  max_retries: 2
+  on_fail:
+    escalate_to: human
 ```
 
-Stories are created by a planner step that outputs them in a structured format. Each story gets a fresh agent session.
+#### Loop Template Variables
+
+These variables are automatically injected for loop steps:
+
+| Variable | Description |
+|----------|-------------|
+| `{{current_story}}` | Full story details (title, description, acceptance criteria) |
+| `{{current_story_id}}` | Story ID (e.g., `S-1`) |
+| `{{current_story_title}}` | Story title |
+| `{{completed_stories}}` | List of already-completed stories |
+| `{{stories_remaining}}` | Number of pending/running stories |
+| `{{progress}}` | Contents of progress.txt from the agent workspace |
+| `{{verify_feedback}}` | Feedback from a failed verification (empty if not retrying) |
+
+#### STORIES_JSON Format
+
+A planner step creates stories by including `STORIES_JSON:` in its output. The value must be a JSON array of story objects:
+
+```json
+STORIES_JSON: [
+  {
+    "id": "S-1",
+    "title": "Create database schema",
+    "description": "Add the users table with email, password_hash, and created_at columns.",
+    "acceptanceCriteria": [
+      "Migration file exists",
+      "Schema includes all required columns",
+      "Typecheck passes"
+    ]
+  },
+  {
+    "id": "S-2",
+    "title": "Add user registration endpoint",
+    "description": "POST /api/register that creates a new user.",
+    "acceptanceCriteria": [
+      "Endpoint returns 201 on success",
+      "Validates email format",
+      "Tests pass",
+      "Typecheck passes"
+    ]
+  }
+]
+```
+
+Required fields per story:
+
+| Field | Description |
+|-------|-------------|
+| `id` | Unique story ID (e.g., `S-1`, `fix-001`) |
+| `title` | Short description |
+| `description` | What needs to be done |
+| `acceptanceCriteria` | Array of verifiable criteria (also accepts `acceptance_criteria`) |
+
+Maximum 20 stories per run. Each story gets a fresh agent session and independent retry tracking (default 2 retries per story).
 
 ## Agent Workspace Files
 
@@ -217,9 +296,12 @@ Reference them from your workflow:
 ```yaml
 - id: setup
   agent: setup
+  role: coding
   workspace:
     files:
       AGENTS.md: ../../agents/shared/setup/AGENTS.md
+      SOUL.md: ../../agents/shared/setup/SOUL.md
+      IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
 ```
 
 ## Installing Your Workflow
@@ -238,4 +320,5 @@ This provisions agent workspaces, registers agents in OpenClaw config, and sets 
 - **Include output format in every step.** Agents need to know exactly what KEY: value pairs to return.
 - **Use verification steps.** A verify -> retry loop catches most quality issues automatically.
 - **Keep agents focused.** One agent, one job. Don't combine triaging and fixing in the same agent.
+- **Set appropriate roles.** Use `analysis` for read-only agents and `verification` for verifiers to prevent them from modifying code they're reviewing.
 - **Test with small tasks first.** Run a simple test task before throwing a complex feature at the pipeline.
