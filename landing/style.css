@@ -196,17 +196,13 @@ code {
   border-bottom: 1px solid var(--border-light);
 }
 
-.problem-text {
-  font-size: 1.05rem;
-  color: var(--text-secondary);
-  line-height: 1.7;
-  max-width: 680px;
-}
-
-.problem-text + .problem-text {
-  margin-top: 12px;
-  font-weight: 500;
+h2.problem-text {
+  font-size: 1.3rem;
+  font-weight: 600;
   color: var(--text);
+  line-height: 1.5;
+  letter-spacing: -0.015em;
+  max-width: 680px;
 }
 
 .ralph-row {
