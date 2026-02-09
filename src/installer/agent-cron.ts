@@ -1,6 +1,7 @@
-import { createAgentCronJob, deleteAgentCronJobs } from "./gateway-api.js";
+import { createAgentCronJob, deleteAgentCronJobs, listCronJobs } from "./gateway-api.js";
 import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
+import { getDb } from "../db.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 
@@ -65,4 +66,46 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
 
 export async function removeAgentCrons(workflowId: string): Promise<void> {
   await deleteAgentCronJobs(`antfarm/${workflowId}/`);
+}
+
+// ── Run-scoped cron lifecycle ───────────────────────────────────────
+
+/**
+ * Count active (running) runs for a given workflow.
+ */
+function countActiveRuns(workflowId: string): number {
+  const db = getDb();
+  const row = db.prepare(
+    "SELECT COUNT(*) as cnt FROM runs WHERE workflow_id = ? AND status = 'running'"
+  ).get(workflowId) as { cnt: number };
+  return row.cnt;
+}
+
+/**
+ * Check if crons already exist for a workflow.
+ */
+async function workflowCronsExist(workflowId: string): Promise<boolean> {
+  const result = await listCronJobs();
+  if (!result.ok || !result.jobs) return false;
+  const prefix = `antfarm/${workflowId}/`;
+  return result.jobs.some((j) => j.name.startsWith(prefix));
+}
+
+/**
+ * Start crons for a workflow when a run begins.
+ * No-ops if crons already exist (another run of the same workflow is active).
+ */
+export async function ensureWorkflowCrons(workflow: WorkflowSpec): Promise<void> {
+  if (await workflowCronsExist(workflow.id)) return;
+  await setupAgentCrons(workflow);
+}
+
+/**
+ * Tear down crons for a workflow when a run ends.
+ * Only removes if no other active runs exist for this workflow.
+ */
+export async function teardownWorkflowCronsIfIdle(workflowId: string): Promise<void> {
+  const active = countActiveRuns(workflowId);
+  if (active > 0) return;
+  await removeAgentCrons(workflowId);
 }

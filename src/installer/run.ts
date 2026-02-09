@@ -3,6 +3,7 @@ import { loadWorkflowSpec } from "./workflow-spec.js";
 import { resolveWorkflowDir } from "./paths.js";
 import { getDb } from "../db.js";
 import { logger } from "../lib/logger.js";
+import { ensureWorkflowCrons } from "./agent-cron.js";
 
 export async function runWorkflow(params: {
   workflowId: string;
@@ -46,6 +47,9 @@ export async function runWorkflow(params: {
     db.exec("ROLLBACK");
     throw err;
   }
+
+  // Start crons for this workflow (no-op if already running from another run)
+  await ensureWorkflowCrons(workflow);
 
   await logger.info(`Run started: "${params.taskTitle}"`, {
     workflowId: workflow.id,

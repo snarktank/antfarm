@@ -7,7 +7,6 @@ import { readOpenClawConfig, writeOpenClawConfig } from "./openclaw-config.js";
 import { updateMainAgentGuidance } from "./main-agent-guidance.js";
 import { addSubagentAllowlist } from "./subagent-allowlist.js";
 import { installAntfarmSkill } from "./skill-install.js";
-import { setupAgentCrons } from "./agent-cron.js";
 import type { WorkflowInstallResult } from "./types.js";
 
 function ensureAgentList(config: { agents?: { list?: Array<Record<string, unknown>> } }) {
@@ -61,9 +60,6 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
   await updateMainAgentGuidance();
   await installAntfarmSkill();
   await writeWorkflowMetadata({ workflowDir, workflowId: workflow.id, source: `bundled:${params.workflowId}` });
-
-  // Set up per-agent cron jobs
-  await setupAgentCrons(workflow);
 
   return { workflowId: workflow.id, workflowDir };
 }

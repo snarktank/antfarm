@@ -4,6 +4,23 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
+import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
+
+/**
+ * Fire-and-forget cron teardown when a run ends.
+ * Looks up the workflow_id for the run and tears down crons if no other active runs.
+ */
+function scheduleRunCronTeardown(runId: string): void {
+  try {
+    const db = getDb();
+    const run = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(runId) as { workflow_id: string } | undefined;
+    if (run) {
+      teardownWorkflowCronsIfIdle(run.workflow_id).catch(() => {});
+    }
+  } catch {
+    // best-effort
+  }
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -392,6 +409,7 @@ function handleVerifyEachCompletion(
         db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, lastDoneStory.id);
         db.prepare("UPDATE steps SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
         db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(verifyStep.run_id);
+        scheduleRunCronTeardown(verifyStep.run_id);
         return { advanced: false, runCompleted: false };
       }
 
@@ -471,6 +489,7 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
       "UPDATE runs SET status = 'completed', updated_at = datetime('now') WHERE id = ?"
     ).run(runId);
     archiveRunProgress(runId);
+    scheduleRunCronTeardown(runId);
     return { advanced: false, runCompleted: true };
   }
 }
@@ -523,6 +542,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
         db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
         db.prepare("UPDATE steps SET status = 'failed', output = ?, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(error, stepId);
         db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(step.run_id);
+        scheduleRunCronTeardown(step.run_id);
         return { retrying: false, runFailed: true };
       }
 
@@ -543,6 +563,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     db.prepare(
       "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
     ).run(step.run_id);
+    scheduleRunCronTeardown(step.run_id);
     return { retrying: false, runFailed: true };
   } else {
     db.prepare(

@@ -11,7 +11,7 @@ import { claimStep, completeStep, failStep, getStories } from "../installer/step
 function printUsage() {
   process.stdout.write(
     [
-      "antfarm install                      Install all bundled workflows + agent crons",
+      "antfarm install                      Install all bundled workflows",
       "",
       "antfarm workflow list                List available workflows",
       "antfarm workflow install <name>      Install a workflow",
@@ -189,7 +189,7 @@ async function main() {
 
   if (action === "install") {
     const result = await installWorkflow({ workflowId: target });
-    process.stdout.write(`Installed workflow: ${result.workflowId}\nAgent cron jobs created.\n`);
+    process.stdout.write(`Installed workflow: ${result.workflowId}\nAgent crons will start when a run begins.\n`);
     process.stdout.write(`\nStart with: antfarm workflow run ${result.workflowId} "your task"\n`);
     return;
   }
@@ -247,8 +247,8 @@ async function main() {
 
     // Find the run (support prefix match)
     const run = db.prepare(
-      "SELECT id, status FROM runs WHERE id = ? OR id LIKE ?"
-    ).get(target, `${target}%`) as { id: string; status: string } | undefined;
+      "SELECT id, workflow_id, status FROM runs WHERE id = ? OR id LIKE ?"
+    ).get(target, `${target}%`) as { id: string; workflow_id: string; status: string } | undefined;
 
     if (!run) { process.stderr.write(`Run not found: ${target}\n`); process.exit(1); }
     if (run.status !== "failed") {
@@ -287,6 +287,18 @@ async function main() {
     db.prepare(
       "UPDATE runs SET status = 'running', updated_at = datetime('now') WHERE id = ?"
     ).run(run.id);
+
+    // Ensure crons are running for this workflow
+    const { loadWorkflowSpec } = await import("../installer/workflow-spec.js");
+    const { resolveWorkflowDir } = await import("../installer/paths.js");
+    const { ensureWorkflowCrons } = await import("../installer/agent-cron.js");
+    try {
+      const workflowDir = resolveWorkflowDir(run.workflow_id);
+      const workflow = await loadWorkflowSpec(workflowDir);
+      await ensureWorkflowCrons(workflow);
+    } catch (err) {
+      process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
+    }
 
     console.log(`Resumed run ${run.id.slice(0, 8)} from step "${failedStep.step_id}"`);
     return;
