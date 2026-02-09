@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Antfarm Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#FAF8F5;color:#3A3226;min-height:100vh}
+header{background:#6B7F3B;border-bottom:2px solid #5a6b32;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{font-family:'Inter',sans-serif;font-size:22px;font-weight:600;color:#fff;letter-spacing:0}
+header h1 span{color:#D4E8A0}
+select{background:#5a6b32;color:#fff;border:1px solid #4a5a28;border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer}
+select:focus{outline:none;border-color:#8ECFC0}
+.board{display:flex;gap:16px;padding:24px;overflow-x:auto;min-height:calc(100vh - 65px)}
+.column{min-width:220px;flex:1;background:#fff;border:none;border-radius:8px;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(58,50,38,.1)}
+.column-header{padding:12px 16px;border-bottom:1px solid #eee;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#6B7F3B;background:#f5f0e8;border-radius:8px 8px 0 0}
+.column-header .count{background:#6B7F3B;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px}
+.cards{padding:8px;flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+.card{background:#FAF8F5;border:1px solid #D4C4A0;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.card:hover{border-color:#E8845C;box-shadow:0 2px 8px rgba(232,132,92,.15)}
+.card.done{border-left:3px solid #6B7F3B}
+.card.failed{border-left:3px solid #E8845C}
+.card-title{font-size:13px;font-weight:500;color:#3A3226;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-meta{font-size:11px;color:#8b8072;display:flex;justify-content:space-between;align-items:center}
+.badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;text-transform:uppercase}
+.badge-running{background:#8ECFC033;color:#3a9e8a}
+.badge-done{background:#6B7F3B22;color:#6B7F3B}
+.badge-failed{background:#E8845C22;color:#d4603a}
+.badge-pending{background:#D4C4A044;color:#8b8072}
+.empty{color:#8b8072;font-size:12px;text-align:center;padding:24px 8px}
+.refresh-note{color:rgba(255,255,255,.6);font-size:11px;margin-left:auto}
+</style>
+</head>
+<body>
+<header>
+  <h1><span>antfarm</span> dashboard</h1>
+  <select><option>feature-dev</option></select>
+  <span class="refresh-note">Auto-refresh: 30s</span>
+</header>
+<div class="board">
+
+  <!-- plan column -->
+  <div class="column">
+    <div class="column-header">plan<span class="count">3</span></div>
+    <div class="cards">
+      <div class="card done">
+        <div class="card-title">Add user authentication with OAuth</div>
+        <div class="card-meta"><span class="badge badge-done">done</span><span>Feb 9, 10:02 AM</span></div>
+      </div>
+      <div class="card done">
+        <div class="card-title">Refactor payment processing pipeline</div>
+        <div class="card-meta"><span class="badge badge-done">done</span><span>Feb 9, 9:45 AM</span></div>
+      </div>
+      <div class="card done">
+        <div class="card-title">Add webhook retry with exponential backoff</div>
+        <div class="card-meta"><span class="badge badge-done">done</span><span>Feb 9, 8:30 AM</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- setup column -->
+  <div class="column">
+    <div class="column-header">setup<span class="count">2</span></div>
+    <div class="cards">
+      <div class="card done">
+        <div class="card-title">Add user authentication with OAuth</div>
+        <div class="card-meta"><span class="badge badge-done">done</span><span>Feb 9, 10:14 AM</span></div>
+      </div>
+      <div class="card done">
+        <div class="card-title">Refactor payment processing pipeline</div>
+        <div class="card-meta"><span class="badge badge-done">done</span><span>Feb 9, 9:58 AM</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- implement column -->
+  <div class="column">
+    <div class="column-header">implement<span class="count">3</span></div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">Add user authentication with OAuth</div>
+        <div class="card-meta"><span class="badge badge-running">running</span><span>Stories: 5/7</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Refactor payment processing pipeline</div>
+        <div class="card-meta"><span class="badge badge-running">running</span><span>Stories: 2/5</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Add webhook retry with exponential backoff</div>
+        <div class="card-meta"><span class="badge badge-pending">pending</span><span>Feb 9, 8:31 AM</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- verify column -->
+  <div class="column">
+    <div class="column-header">verify<span class="count">2</span></div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">Migrate database to connection pooling</div>
+        <div class="card-meta"><span class="badge badge-running">running</span><span>Feb 9, 9:22 AM</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Add rate limiting to public API endpoints</div>
+        <div class="card-meta"><span class="badge badge-pending">pending</span><span>Feb 9, 9:10 AM</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- test column -->
+  <div class="column">
+    <div class="column-header">test<span class="count">2</span></div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">Add real-time notifications via WebSockets</div>
+        <div class="card-meta"><span class="badge badge-running">running</span><span>Feb 9, 8:55 AM</span></div>
+      </div>
+      <div class="card failed">
+        <div class="card-title">Implement team invitation flow</div>
+        <div class="card-meta"><span class="badge badge-failed">failed</span><span>Retry 2/3</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PR column -->
+  <div class="column">
+    <div class="column-header">PR<span class="count">2</span></div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">Add CSV export for billing reports</div>
+        <div class="card-meta"><span class="badge badge-running">running</span><span>Feb 9, 8:40 AM</span></div>
+      </div>
+      <div class="card done">
+        <div class="card-title">Add audit logging for admin actions</div>
+        <div class="card-meta"><span class="badge badge-done">done</span><span>Feb 9, 7:15 AM</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- review column -->
+  <div class="column">
+    <div class="column-header">review<span class="count">3</span></div>
+    <div class="cards">
+      <div class="card">
+        <div class="card-title">Add RBAC with role hierarchy</div>
+        <div class="card-meta"><span class="badge badge-running">running</span><span>Feb 9, 7:50 AM</span></div>
+      </div>
+      <div class="card done">
+        <div class="card-title">Implement SSO with SAML 2.0</div>
+        <div class="card-meta"><span class="badge badge-done">done</span><span>Feb 9, 6:30 AM</span></div>
+      </div>
+      <div class="card done">
+        <div class="card-title">Add dark mode support</div>
+        <div class="card-meta"><span class="badge badge-done">done</span><span>Feb 8, 11:45 PM</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
