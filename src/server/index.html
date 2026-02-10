@@ -226,6 +226,21 @@ select:focus{outline:none;border-color:#8ECFC0}
 .model-filter-select{background:var(--bg-surface);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;min-width:180px}
 .model-filter-select:focus{outline:none;border-color:var(--accent-green)}
 .model-filter-select option{background:var(--bg-surface);color:var(--text-primary)}
+
+/* ── Daily Usage Chart ─────────────────────────────────────────── */
+.daily-chart-container{margin-bottom:24px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:20px;box-shadow:0 2px 8px var(--shadow);position:relative}
+.daily-chart-title{font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:16px}
+.daily-chart-svg{width:100%;height:200px;display:block}
+.daily-chart-bar{fill:var(--accent-green);cursor:pointer;transition:fill .15s}
+.daily-chart-bar:hover{fill:var(--accent-teal)}
+.daily-chart-axis-line{stroke:var(--border);stroke-width:1}
+.daily-chart-axis-label{fill:var(--text-secondary);font-size:10px;font-family:'Inter',sans-serif}
+.daily-chart-grid-line{stroke:var(--border-light);stroke-width:1;stroke-dasharray:4,4}
+.daily-chart-tooltip{position:absolute;background:var(--bg-surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:12px;color:var(--text-primary);box-shadow:0 4px 12px var(--shadow-heavy);pointer-events:none;z-index:10;white-space:nowrap}
+.daily-chart-tooltip-date{font-weight:500;margin-bottom:2px}
+.daily-chart-tooltip-value{color:var(--accent-green);font-family:'Geist Mono',monospace}
+.daily-chart-empty{text-align:center;padding:40px 20px;color:var(--text-secondary);font-size:14px}
+.daily-chart-loading{text-align:center;padding:40px 20px;color:var(--text-secondary);font-size:14px}
 </style>
 </head>
 <body>
@@ -276,6 +291,10 @@ select:focus{outline:none;border-color:#8ECFC0}
       <div class="summary-card-label">Total Requests</div>
       <div class="summary-card-value" id="card-total-requests">—</div>
     </div>
+  </div>
+  <div class="daily-chart-container" id="daily-chart-container">
+    <div class="daily-chart-title">Daily Usage Trend</div>
+    <div id="daily-chart-content" class="daily-chart-loading">Loading...</div>
   </div>
   <div class="model-breakdown" id="model-breakdown">
     <div class="model-breakdown-title">Cost by Model</div>
@@ -626,7 +645,8 @@ async function loadCostsSummary() {
   // Refresh model options (in case new models were added)
   loadModelOptions();
 
-  // Also load breakdown tables
+  // Also load chart and breakdown tables
+  loadDailyChart();
   loadModelBreakdown();
   loadAgentBreakdown();
 }
@@ -696,6 +716,135 @@ async function loadAgentBreakdown() {
 function escapeHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── Daily Usage Chart ─────────────────────────────────────────────
+async function loadDailyChart() {
+  const container = document.getElementById('daily-chart-content');
+  container.innerHTML = '<div class="daily-chart-loading">Loading...</div>';
+
+  try {
+    const filterParams = getFilterParams();
+    const separator = filterParams ? '&' : '';
+    const data = await fetchJSON('/api/usage?group_by=day' + separator + filterParams);
+
+    if (!data || data.length === 0) {
+      container.innerHTML = '<div class="daily-chart-empty">No usage data for selected period</div>';
+      return;
+    }
+
+    // Sort by date ascending
+    data.sort((a, b) => (a.groupKey || '').localeCompare(b.groupKey || ''));
+
+    renderDailyChart(container, data);
+  } catch (e) {
+    container.innerHTML = '<div class="daily-chart-empty">Error loading chart data</div>';
+  }
+}
+
+function renderDailyChart(container, data) {
+  const margin = { top: 20, right: 20, bottom: 40, left: 60 };
+  const width = container.clientWidth || 600;
+  const height = 200;
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+
+  // Find max cost for y-axis scale
+  const maxCost = Math.max(...data.map(d => d.totalCostUsd || 0), 0.01);
+  
+  // Bar width with gap
+  const barCount = data.length;
+  const barGap = Math.max(2, Math.min(8, chartWidth / barCount / 4));
+  const barWidth = Math.max(4, (chartWidth - (barCount - 1) * barGap) / barCount);
+
+  // Y-axis scale
+  function yScale(value) {
+    return chartHeight - (value / maxCost) * chartHeight;
+  }
+
+  // Format date for display (shorter format)
+  function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length >= 3) {
+      return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+    }
+    return dateStr;
+  }
+
+  // Generate Y-axis ticks
+  function generateYTicks(max, tickCount = 5) {
+    const step = max / (tickCount - 1);
+    const ticks = [];
+    for (let i = 0; i < tickCount; i++) {
+      ticks.push(step * i);
+    }
+    return ticks;
+  }
+
+  const yTicks = generateYTicks(maxCost);
+
+  // Build SVG
+  let svg = `<svg class="daily-chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">`;
+
+  // Y-axis grid lines and labels
+  yTicks.forEach(tick => {
+    const y = margin.top + yScale(tick);
+    svg += `<line class="daily-chart-grid-line" x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" />`;
+    svg += `<text class="daily-chart-axis-label" x="${margin.left - 8}" y="${y + 3}" text-anchor="end">$${tick.toFixed(2)}</text>`;
+  });
+
+  // X-axis line
+  svg += `<line class="daily-chart-axis-line" x1="${margin.left}" y1="${margin.top + chartHeight}" x2="${width - margin.right}" y2="${margin.top + chartHeight}" />`;
+
+  // Bars
+  data.forEach((d, i) => {
+    const x = margin.left + i * (barWidth + barGap);
+    const barHeight = (d.totalCostUsd || 0) / maxCost * chartHeight;
+    const y = margin.top + chartHeight - barHeight;
+    
+    svg += `<rect class="daily-chart-bar" x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" data-date="${escapeHtml(d.groupKey)}" data-cost="${(d.totalCostUsd || 0).toFixed(4)}" />`;
+  });
+
+  // X-axis labels (show every Nth to avoid overlap)
+  const labelStep = Math.max(1, Math.ceil(data.length / 10));
+  data.forEach((d, i) => {
+    if (i % labelStep === 0 || i === data.length - 1) {
+      const x = margin.left + i * (barWidth + barGap) + barWidth / 2;
+      const y = margin.top + chartHeight + 16;
+      svg += `<text class="daily-chart-axis-label" x="${x}" y="${y}" text-anchor="middle">${formatDate(d.groupKey)}</text>`;
+    }
+  });
+
+  svg += '</svg>';
+  
+  // Add tooltip container
+  svg += '<div class="daily-chart-tooltip" id="daily-chart-tooltip" style="display:none"></div>';
+  
+  container.innerHTML = svg;
+
+  // Add hover handlers
+  const tooltip = document.getElementById('daily-chart-tooltip');
+  const bars = container.querySelectorAll('.daily-chart-bar');
+  
+  bars.forEach(bar => {
+    bar.addEventListener('mouseenter', (e) => {
+      const date = bar.getAttribute('data-date');
+      const cost = parseFloat(bar.getAttribute('data-cost'));
+      tooltip.innerHTML = `<div class="daily-chart-tooltip-date">${date}</div><div class="daily-chart-tooltip-value">${formatCurrency(cost)}</div>`;
+      tooltip.style.display = 'block';
+    });
+
+    bar.addEventListener('mousemove', (e) => {
+      const containerRect = container.getBoundingClientRect();
+      tooltip.style.left = (e.clientX - containerRect.left + 12) + 'px';
+      tooltip.style.top = (e.clientY - containerRect.top - 40) + 'px';
+    });
+
+    bar.addEventListener('mouseleave', () => {
+      tooltip.style.display = 'none';
+    });
+  });
 }
 
 // ── Theme toggle ──────────────────────────────────────────────────

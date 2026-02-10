@@ -1019,3 +1019,126 @@ describe("Date Filter UI", () => {
     assert.ok(match[0].includes("getFilterParams()"), "loadAgentBreakdown should call getFilterParams");
   });
 });
+
+describe("Daily Usage Chart UI", () => {
+  let server: http.Server;
+  const TEST_PORT = 33346;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("costs-view contains daily-chart-container between summary cards and tables", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="daily-chart-container"'), "Should have daily-chart-container");
+    assert.ok(html.includes('class="daily-chart-container"'), "Should have daily-chart-container class");
+    
+    // Chart should appear after summary-cards and before model-breakdown
+    const summaryCardsPos = html.indexOf('id="summary-cards"');
+    const chartPos = html.indexOf('id="daily-chart-container"');
+    const modelBreakdownPos = html.indexOf('id="model-breakdown"');
+    
+    assert.ok(summaryCardsPos < chartPos, "Chart should appear after summary cards");
+    assert.ok(chartPos < modelBreakdownPos, "Chart should appear before model breakdown");
+  });
+
+  test("has chart title 'Daily Usage Trend'", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('class="daily-chart-title"'), "Should have chart title element");
+    assert.ok(html.includes('>Daily Usage Trend</div>'), "Should have 'Daily Usage Trend' title text");
+  });
+
+  test("has chart content container", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="daily-chart-content"'), "Should have daily-chart-content container");
+  });
+
+  test("has CSS styles for daily chart", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.daily-chart-container{'), "Should have .daily-chart-container style");
+    assert.ok(html.includes('.daily-chart-title{'), "Should have .daily-chart-title style");
+    assert.ok(html.includes('.daily-chart-svg{'), "Should have .daily-chart-svg style");
+    assert.ok(html.includes('.daily-chart-bar{'), "Should have .daily-chart-bar style");
+  });
+
+  test("chart bars use green theme color", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.daily-chart-bar{fill:var(--accent-green)'), "Bar fill should use --accent-green");
+    assert.ok(html.includes('.daily-chart-bar:hover{fill:var(--accent-teal)'), "Bar hover should use --accent-teal");
+  });
+
+  test("has tooltip styles", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.daily-chart-tooltip{'), "Should have .daily-chart-tooltip style");
+    assert.ok(html.includes('.daily-chart-tooltip-date{'), "Should have .daily-chart-tooltip-date style");
+    assert.ok(html.includes('.daily-chart-tooltip-value{'), "Should have .daily-chart-tooltip-value style");
+  });
+
+  test("has loadDailyChart function", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('async function loadDailyChart()'), "Should have loadDailyChart function");
+  });
+
+  test("loadDailyChart fetches from group_by=day endpoint", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const match = html.match(/async function loadDailyChart[\s\S]*?^\}/m);
+    assert.ok(match, "Should find loadDailyChart function");
+    assert.ok(match[0].includes("group_by=day"), "loadDailyChart should fetch with group_by=day");
+    assert.ok(match[0].includes("getFilterParams()"), "loadDailyChart should use filter params");
+  });
+
+  test("has renderDailyChart function that creates SVG", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('function renderDailyChart(container, data)'), "Should have renderDailyChart function");
+    assert.ok(html.includes('class="daily-chart-svg"'), "Should create SVG with correct class");
+    assert.ok(html.includes('class="daily-chart-bar"'), "Should create bar elements");
+  });
+
+  test("chart includes x-axis and y-axis elements", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.daily-chart-axis-line{'), "Should have axis line style");
+    assert.ok(html.includes('.daily-chart-axis-label{'), "Should have axis label style");
+    assert.ok(html.includes('.daily-chart-grid-line{'), "Should have grid line style");
+  });
+
+  test("loadCostsSummary calls loadDailyChart", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Find loadCostsSummary and verify it calls loadDailyChart
+    const match = html.match(/async function loadCostsSummary[\s\S]*?loadAgentBreakdown\(\);[\s\S]*?\}/);
+    assert.ok(match, "Should find loadCostsSummary function");
+    assert.ok(match[0].includes("loadDailyChart()"), "loadCostsSummary should call loadDailyChart");
+  });
+
+  test("chart bars have hover event handlers", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes("bar.addEventListener('mouseenter'"), "Should add mouseenter listener");
+    assert.ok(html.includes("bar.addEventListener('mousemove'"), "Should add mousemove listener");
+    assert.ok(html.includes("bar.addEventListener('mouseleave'"), "Should add mouseleave listener");
+  });
+
+  test("tooltip displays date and formatted cost", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('daily-chart-tooltip-date'), "Tooltip should show date");
+    assert.ok(html.includes('daily-chart-tooltip-value'), "Tooltip should show value");
+    assert.ok(html.includes("formatCurrency(cost)"), "Should format cost as currency in tooltip");
+  });
+});
