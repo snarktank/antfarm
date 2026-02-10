@@ -8,54 +8,174 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono&display=swap" rel="stylesheet">
 <style>
+/* ── Theme tokens ──────────────────────────────────────────────── */
+:root {
+  --bg-page: #FAF8F5;
+  --bg-surface: #fff;
+  --bg-surface-alt: #FAF8F5;
+  --bg-column-header: #f5f0e8;
+  --text-primary: #3A3226;
+  --text-secondary: #8b8072;
+  --text-tertiary: #5a5045;
+  --border: #D4C4A0;
+  --border-light: #eee;
+  --shadow: rgba(58, 50, 38, .1);
+  --shadow-heavy: rgba(58, 50, 38, .15);
+  --overlay: rgba(58, 50, 38, .5);
+
+  /* Header */
+  --header-bg: #6B7F3B;
+  --header-border: #5a6b32;
+  --header-select-bg: #5a6b32;
+  --header-select-border: #4a5a28;
+
+  /* Accents — shared across themes */
+  --accent-green: #6B7F3B;
+  --accent-green-subtle: #6B7F3B22;
+  --accent-teal: #3a9e8a;
+  --accent-teal-subtle: #8ECFC033;
+  --accent-orange: #E8845C;
+  --accent-orange-subtle: #E8845C22;
+  --accent-muted: #D4C4A044;
+  --accent-orange-faint: #E8845C11;
+  --accent-highlight: #D4E8A0;
+
+  /* Pre/code */
+  --bg-code: #FAF8F5;
+}
+
+[data-theme="dark"] {
+  --bg-page: #1a1917;
+  --bg-surface: #262521;
+  --bg-surface-alt: #1f1e1b;
+  --bg-column-header: #2a2926;
+  --text-primary: #e0d8ce;
+  --text-secondary: #9a9088;
+  --text-tertiary: #b0a89e;
+  --border: #3d3a34;
+  --border-light: #333;
+  --shadow: rgba(0, 0, 0, .25);
+  --shadow-heavy: rgba(0, 0, 0, .4);
+  --overlay: rgba(0, 0, 0, .6);
+
+  --header-bg: #2d3320;
+  --header-border: #3a4228;
+  --header-select-bg: #3a4228;
+  --header-select-border: #4a5438;
+
+  --accent-green: #8fa74e;
+  --accent-green-subtle: rgba(143, 167, 78, .15);
+  --accent-teal: #6bc4b0;
+  --accent-teal-subtle: rgba(107, 196, 176, .15);
+  --accent-orange: #e8955f;
+  --accent-orange-subtle: rgba(232, 149, 95, .15);
+  --accent-muted: rgba(255, 255, 255, .06);
+  --accent-orange-faint: rgba(232, 149, 95, .08);
+  --accent-highlight: #b5cc80;
+
+  --bg-code: #1f1e1b;
+}
+
+/* ── Auto dark mode when no explicit preference ───────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-page: #1a1917;
+    --bg-surface: #262521;
+    --bg-surface-alt: #1f1e1b;
+    --bg-column-header: #2a2926;
+    --text-primary: #e0d8ce;
+    --text-secondary: #9a9088;
+    --text-tertiary: #b0a89e;
+    --border: #3d3a34;
+    --border-light: #333;
+    --shadow: rgba(0, 0, 0, .25);
+    --shadow-heavy: rgba(0, 0, 0, .4);
+    --overlay: rgba(0, 0, 0, .6);
+
+    --header-bg: #2d3320;
+    --header-border: #3a4228;
+    --header-select-bg: #3a4228;
+    --header-select-border: #4a5438;
+
+    --accent-green: #8fa74e;
+    --accent-green-subtle: rgba(143, 167, 78, .15);
+    --accent-teal: #6bc4b0;
+    --accent-teal-subtle: rgba(107, 196, 176, .15);
+    --accent-orange: #e8955f;
+    --accent-orange-subtle: rgba(232, 149, 95, .15);
+    --accent-muted: rgba(255, 255, 255, .06);
+    --accent-orange-faint: rgba(232, 149, 95, .08);
+    --accent-highlight: #b5cc80;
+
+    --bg-code: #1f1e1b;
+  }
+}
+
+/* ── Base ──────────────────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:#FAF8F5;color:#3A3226;min-height:100vh}
-header{background:#6B7F3B;border-bottom:2px solid #5a6b32;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg-page);color:var(--text-primary);min-height:100vh}
+header{background:var(--header-bg);border-bottom:2px solid var(--header-border);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 header img{height:36px;border-radius:6px}
 header h1{font-family:'Inter',sans-serif;font-size:22px;font-weight:600;color:#fff;letter-spacing:0}
-header h1 span{color:#D4E8A0}
-select{background:#5a6b32;color:#fff;border:1px solid #4a5a28;border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer}
-select option{background:#5a6b32;color:#fff}
+header h1 span{color:var(--accent-highlight)}
+select{background:var(--header-select-bg);color:#fff;border:1px solid var(--header-select-border);border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer}
+select option{background:var(--header-select-bg);color:#fff}
 select:focus{outline:none;border-color:#8ECFC0}
+
+/* ── Theme toggle ─────────────────────────────────────────────── */
+.theme-toggle{background:none;border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;cursor:pointer;padding:5px 8px;font-size:16px;line-height:1;transition:border-color .15s}
+.theme-toggle:hover{border-color:rgba(255,255,255,.5)}
+
+/* ── Board ─────────────────────────────────────────────────────── */
 .board{display:flex;gap:16px;padding:24px;overflow-x:auto;min-height:calc(100vh - 65px)}
-.column{min-width:240px;flex:1;background:#fff;border:none;border-radius:8px;display:flex;flex-direction:column;box-shadow:0 2px 8px rgba(58,50,38,.1)}
-.column-header{padding:12px 16px;border-bottom:1px solid #eee;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:#6B7F3B;background:#f5f0e8;border-radius:8px 8px 0 0}
-.column-header .count{background:#6B7F3B;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px}
+.column{min-width:240px;flex:1;background:var(--bg-surface);border:none;border-radius:8px;display:flex;flex-direction:column;box-shadow:0 2px 8px var(--shadow)}
+.column-header{padding:12px 16px;border-bottom:1px solid var(--border-light);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--accent-green);background:var(--bg-column-header);border-radius:8px 8px 0 0}
+.column-header .count{background:var(--accent-green);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px}
 .cards{padding:8px;flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
-.card{background:#FAF8F5;border:1px solid #D4C4A0;border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
-.card:hover{border-color:#E8845C;box-shadow:0 2px 8px rgba(232,132,92,.15)}
-.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(58,50,38,.5);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s}
+
+/* ── Cards ─────────────────────────────────────────────────────── */
+.card{background:var(--bg-surface-alt);border:1px solid var(--border);border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.card:hover{border-color:var(--accent-orange);box-shadow:0 2px 8px var(--accent-orange-subtle)}
+.card-title{font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card-meta{font-size:11px;color:var(--text-secondary);display:flex;justify-content:space-between;align-items:center}
+.card.done{border-left:3px solid var(--accent-green)}
+.card.failed,.card.error{border-left:3px solid var(--accent-orange)}
+
+/* ── Overlay / Panel ───────────────────────────────────────────── */
+.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s}
 .overlay.open{opacity:1;pointer-events:auto}
-.panel{background:#fff;border:1px solid #D4C4A0;border-radius:12px;width:90%;max-width:640px;max-height:85vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 32px rgba(58,50,38,.15)}
-.panel-close{position:absolute;top:12px;right:16px;background:none;border:none;color:#8b8072;font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px}
-.panel-close:hover{color:#3A3226;background:#f5f0e8}
-.panel h2{font-size:16px;font-weight:600;color:#3A3226;margin-bottom:4px;padding-right:40px}
-.panel-task{font-size:13px;color:#8b8072;margin-bottom:16px;white-space:pre-wrap;word-break:break-word;max-height:120px;overflow-y:auto;line-height:1.5}
-.panel-meta{display:flex;gap:12px;margin-bottom:20px;font-size:12px;color:#8b8072;flex-wrap:wrap}
+.panel{background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;width:90%;max-width:640px;max-height:85vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 32px var(--shadow-heavy)}
+.panel-close{position:absolute;top:12px;right:16px;background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px}
+.panel-close:hover{color:var(--text-primary);background:var(--bg-column-header)}
+.panel h2{font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:4px;padding-right:40px}
+.panel-task{font-size:13px;color:var(--text-secondary);margin-bottom:16px;white-space:pre-wrap;word-break:break-word;max-height:120px;overflow-y:auto;line-height:1.5}
+.panel-meta{display:flex;gap:12px;margin-bottom:20px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap}
 .panel-meta span{display:flex;align-items:center;gap:4px}
+
+/* ── Steps ─────────────────────────────────────────────────────── */
 .steps-list{display:flex;flex-direction:column;gap:8px}
-.step-row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:#FAF8F5;border:1px solid #D4C4A0;border-radius:6px}
+.step-row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-surface-alt);border:1px solid var(--border);border-radius:6px}
 .step-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.step-icon.done{background:#6B7F3B22;color:#6B7F3B}
-.step-icon.running{background:#8ECFC033;color:#3a9e8a}
-.step-icon.pending{background:#D4C4A044;color:#8b8072}
-.step-icon.waiting{background:#D4C4A044;color:#8b8072}
-.step-icon.failed,.step-icon.error{background:#E8845C22;color:#d4603a}
-.step-name{font-size:13px;font-weight:500;color:#3A3226;flex:1}
-.step-agent{font-size:11px;color:#8b8072;font-family:'Geist Mono',monospace}
+.step-icon.done{background:var(--accent-green-subtle);color:var(--accent-green)}
+.step-icon.running{background:var(--accent-teal-subtle);color:var(--accent-teal)}
+.step-icon.pending{background:var(--accent-muted);color:var(--text-secondary)}
+.step-icon.waiting{background:var(--accent-muted);color:var(--text-secondary)}
+.step-icon.failed,.step-icon.error{background:var(--accent-orange-subtle);color:var(--accent-orange)}
+.step-name{font-size:13px;font-weight:500;color:var(--text-primary);flex:1}
+.step-agent{font-size:11px;color:var(--text-secondary);font-family:'Geist Mono',monospace}
 .step-status{font-size:11px;text-transform:uppercase;font-weight:600}
-.card-title{font-size:13px;font-weight:500;color:#3A3226;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-meta{font-size:11px;color:#8b8072;display:flex;justify-content:space-between;align-items:center}
+
+/* ── Badges ────────────────────────────────────────────────────── */
 .badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;text-transform:uppercase}
-.badge-running{background:#8ECFC033;color:#3a9e8a}
-.badge-done,.badge-completed{background:#6B7F3B22;color:#6B7F3B}
-.badge-failed,.badge-error{background:#E8845C22;color:#d4603a}
-.badge-waiting{background:#D4C4A044;color:#8b8072}
-.badge-pending{background:#D4C4A044;color:#8b8072}
-.badge-blocked{background:#E8845C11;color:#E8845C}
-.card.done{border-left:3px solid #6B7F3B}
-.card.failed,.card.error{border-left:3px solid #E8845C}
-.empty{color:#8b8072;font-size:12px;text-align:center;padding:24px 8px}
+.badge-running{background:var(--accent-teal-subtle);color:var(--accent-teal)}
+.badge-done,.badge-completed{background:var(--accent-green-subtle);color:var(--accent-green)}
+.badge-failed,.badge-error{background:var(--accent-orange-subtle);color:var(--accent-orange)}
+.badge-waiting{background:var(--accent-muted);color:var(--text-secondary)}
+.badge-pending{background:var(--accent-muted);color:var(--text-secondary)}
+.badge-blocked{background:var(--accent-orange-faint);color:var(--accent-orange)}
+
+/* ── Misc ──────────────────────────────────────────────────────── */
+.empty{color:var(--text-secondary);font-size:12px;text-align:center;padding:24px 8px}
 .refresh-note{color:rgba(255,255,255,.6);font-size:11px;margin-left:auto}
 @media(max-width:768px){.board{flex-direction:column}.column{min-width:unset}}
 .story-open{display:block!important}
@@ -66,6 +186,7 @@ select:focus{outline:none;border-color:#8ECFC0}
 <header>
   <h1><span>antfarm</span> dashboard</h1>
   <select id="wf-select"><option value="">Loading...</option></select>
+  <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
   <span class="refresh-note" id="refresh-note">Auto-refresh: 30s</span>
 </header>
 <div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
@@ -204,13 +325,13 @@ async function loadStories(runId) {
   const done = stories.filter(s => s.status === 'done').length;
   const pct = Math.round((done / stories.length) * 100);
   panel.innerHTML = `
-    <div style="margin-top:24px;border-top:1px solid #D4C4A0;padding-top:20px">
+    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h3 style="font-size:15px;font-weight:600;color:#3A3226">Stories</h3>
-        <span style="font-size:13px;font-weight:600;color:#6B7F3B">${done} / ${stories.length} done</span>
+        <h3 style="font-size:15px;font-weight:600;color:var(--text-primary)">Stories</h3>
+        <span style="font-size:13px;font-weight:600;color:var(--accent-green)">${done} / ${stories.length} done</span>
       </div>
-      <div style="background:#D4C4A044;border-radius:4px;height:8px;margin-bottom:16px;overflow:hidden">
-        <div style="background:#6B7F3B;height:100%;width:${pct}%;border-radius:4px;transition:width .3s"></div>
+      <div style="background:var(--accent-muted);border-radius:4px;height:8px;margin-bottom:16px;overflow:hidden">
+        <div style="background:var(--accent-green);height:100%;width:${pct}%;border-radius:4px;transition:width .3s"></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         ${stories.map((s, i) => {
@@ -218,7 +339,7 @@ async function loadStories(runId) {
           const icon = stepIcons[st] || '○';
           let ac = [];
           try { ac = JSON.parse(s.acceptance_criteria || '[]'); } catch { ac = [s.acceptance_criteria]; }
-          const retryInfo = s.retry_count > 0 ? ` <span style="color:#E8845C;font-size:10px">(retry ${s.retry_count})</span>` : '';
+          const retryInfo = s.retry_count > 0 ? ` <span style="color:var(--accent-orange);font-size:10px">(retry ${s.retry_count})</span>` : '';
           const hasDetails = s.description || ac.length > 0 || s.output;
           const toggleAttr = hasDetails ? `onclick="this.querySelector('.story-details').classList.toggle('story-open');this.querySelector('.story-chevron').classList.toggle('story-chevron-open')" style="cursor:pointer"` : '';
           return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
@@ -226,12 +347,12 @@ async function loadStories(runId) {
               <div class="step-icon ${st}">${icon}</div>
               <div class="step-name" style="flex:1">${s.story_id}: ${s.title}${retryInfo}</div>
               <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
-              ${hasDetails ? '<span class="story-chevron" style="color:#8b8072;font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
+              ${hasDetails ? '<span class="story-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
             </div>
-            ${hasDetails ? `<div class="story-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:#5a5045;line-height:1.6">
+            ${hasDetails ? `<div class="story-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6">
               ${s.description ? `<div style="margin-bottom:8px">${esc(s.description)}</div>` : ''}
-              ${ac.length > 0 ? `<div style="margin-bottom:8px"><div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:#6B7F3B;margin-bottom:4px">Acceptance Criteria</div>${ac.map(c => `<label style="display:flex;align-items:flex-start;gap:6px;margin-bottom:3px;cursor:default"><span style="color:${st==='done'?'#6B7F3B':'#D4C4A0'};flex-shrink:0">${st==='done'?'☑':'☐'}</span><span>${esc(c)}</span></label>`).join('')}</div>` : ''}
-              ${s.output ? `<details style="margin-top:4px" onclick="event.stopPropagation()"><summary style="font-size:11px;color:#8b8072;cursor:pointer;font-weight:500">Output</summary><pre style="margin-top:6px;padding:8px;background:#FAF8F5;border:1px solid #D4C4A0;border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto">${esc(s.output)}</pre></details>` : ''}
+              ${ac.length > 0 ? `<div style="margin-bottom:8px"><div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--accent-green);margin-bottom:4px">Acceptance Criteria</div>${ac.map(c => `<label style="display:flex;align-items:flex-start;gap:6px;margin-bottom:3px;cursor:default"><span style="color:var(${st==='done'?'--accent-green':'--border'});flex-shrink:0">${st==='done'?'☑':'☐'}</span><span>${esc(c)}</span></label>`).join('')}</div>` : ''}
+              ${s.output ? `<details style="margin-top:4px" onclick="event.stopPropagation()"><summary style="font-size:11px;color:var(--text-secondary);cursor:pointer;font-weight:500">Output</summary><pre style="margin-top:6px;padding:8px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto">${esc(s.output)}</pre></details>` : ''}
             </div>` : ''}
           </div>`;
         }).join('')}
@@ -243,6 +364,39 @@ async function loadStories(runId) {
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();
 setInterval(() => { if (currentWf) loadRuns(); }, 30000);
+
+// ── Theme toggle ──────────────────────────────────────────────────
+(function initTheme() {
+  const btn = document.getElementById('theme-toggle');
+  const root = document.documentElement;
+  const STORAGE_KEY = 'antfarm-theme';
+
+  function getEffectiveTheme() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme) {
+    root.setAttribute('data-theme', theme);
+    btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+    btn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+
+  applyTheme(getEffectiveTheme());
+
+  btn.addEventListener('click', () => {
+    const current = root.getAttribute('data-theme') || getEffectiveTheme();
+    const next = current === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(STORAGE_KEY, next);
+    applyTheme(next);
+  });
+
+  // Update if system preference changes and no manual override
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (!localStorage.getItem(STORAGE_KEY)) applyTheme(getEffectiveTheme());
+  });
+})();
 </script>
 </body>
 </html>
