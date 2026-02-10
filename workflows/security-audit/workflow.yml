@@ -75,6 +75,17 @@ agents:
         SOUL.md: agents/tester/SOUL.md
         IDENTITY.md: agents/tester/IDENTITY.md
 
+  - id: compound
+    name: Compound
+    role: coding
+    description: Captures learnings from the security-audit workflow run, extracts patterns, and writes them to the repo for continuous improvement.
+    workspace:
+      baseDir: agents/compound
+      files:
+        AGENTS.md: ../../agents/shared/compound/AGENTS.md
+        SOUL.md: ../../agents/shared/compound/SOUL.md
+        IDENTITY.md: ../../agents/shared/compound/IDENTITY.md
+
   - id: pr
     name: PR Creator
     role: pr
@@ -388,5 +399,48 @@ steps:
       STATUS: done
       PR: URL to the pull request
     expects: "STATUS: done"
+    on_fail:
+      escalate_to: human
+
+  - id: compound
+    agent: compound
+    input: |
+      Analyze the security-audit workflow run and capture learnings.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      FINDINGS:
+      {{findings}}
+
+      FIX PLAN:
+      {{fix_plan}}
+
+      CHANGES:
+      {{changes}}
+
+      TEST RESULTS:
+      {{results}}
+
+      VULNERABILITY COUNT: {{vulnerability_count}}
+      CRITICAL COUNT: {{critical_count}}
+      DEFERRED: {{deferred}}
+
+      Instructions:
+      1. Analyze the entire security-audit workflow run — what went well, what failed, what was retried
+      2. Extract patterns and lessons learned: Were the right vulnerabilities prioritized? Were fixes effective? Were any bypasses missed?
+      3. Write learnings to docs/learnings/ in the repo with YAML frontmatter (tags, date, workflow: security-audit, category, severity)
+      4. Consolidate with existing learnings to avoid duplication
+      5. Optionally update the repo's CLAUDE.md or AGENTS.md with new security rules/patterns discovered
+      6. Commit your changes
+
+      Reply with:
+      STATUS: done
+      LEARNINGS: summary of what was captured
+    expects: "STATUS: done"
+    max_retries: 1
     on_fail:
       escalate_to: human
