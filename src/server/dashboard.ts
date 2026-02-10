@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb } from "../db.js";
 import { resolveBundledWorkflowsDir } from "../installer/paths.js";
+import { getAggregatedUsage, getUsageLog, ingestUsageFromSessions, insertUsage } from "../installer/usage.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
@@ -69,6 +70,12 @@ function serveHTML(res: http.ServerResponse) {
 }
 
 export function startDashboard(port = 3333): http.Server {
+  try {
+    ingestUsageFromSessions();
+  } catch (err) {
+    console.warn(`Usage ingestion failed at startup: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
@@ -95,6 +102,61 @@ export function startDashboard(port = 3333): http.Server {
     if (p === "/api/runs") {
       const wf = url.searchParams.get("workflow") ?? undefined;
       return json(res, getRuns(wf));
+    }
+
+    if (p === "/api/usage" && req.method === "GET") {
+      const groupBy = url.searchParams.get("group_by") ?? undefined;
+      if (groupBy && !["agent", "model", "task", "day"].includes(groupBy)) {
+        return json(res, { error: "invalid group_by" }, 400);
+      }
+
+      return json(res, getAggregatedUsage({
+        fromDate: url.searchParams.get("from_date") ?? undefined,
+        toDate: url.searchParams.get("to_date") ?? undefined,
+        agentId: url.searchParams.get("agent_id") ?? undefined,
+        model: url.searchParams.get("model") ?? undefined,
+        groupBy: groupBy as "agent" | "model" | "task" | "day" | undefined,
+      }));
+    }
+
+    if (p === "/api/usage" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += String(chunk);
+      });
+      req.on("end", () => {
+        try {
+          const parsed = JSON.parse(body || "{}");
+          if (!parsed.agentId || !parsed.model) {
+            return json(res, { error: "agentId and model are required" }, 400);
+          }
+          const id = insertUsage(parsed);
+          return json(res, { id }, 201);
+        } catch {
+          return json(res, { error: "invalid json" }, 400);
+        }
+      });
+      return;
+    }
+
+    if (p === "/api/usage/log" && req.method === "GET") {
+      const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+      const offset = parseInt(url.searchParams.get("offset") ?? "0", 10);
+      if (!Number.isFinite(limit) || limit < 1 || limit > 500) {
+        return json(res, { error: "limit must be between 1 and 500" }, 400);
+      }
+      if (!Number.isFinite(offset) || offset < 0) {
+        return json(res, { error: "offset must be >= 0" }, 400);
+      }
+
+      return json(res, getUsageLog({
+        limit,
+        offset,
+        fromDate: url.searchParams.get("from_date") ?? undefined,
+        toDate: url.searchParams.get("to_date") ?? undefined,
+        agentId: url.searchParams.get("agent_id") ?? undefined,
+        model: url.searchParams.get("model") ?? undefined,
+      }));
     }
 
     // Serve fonts
