@@ -1142,3 +1142,266 @@ describe("Daily Usage Chart UI", () => {
     assert.ok(html.includes("formatCurrency(cost)"), "Should format cost as currency in tooltip");
   });
 });
+
+describe("Usage Log API", () => {
+  let server: http.Server;
+  const TEST_PORT = 33347;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Insert test data
+    const { insertUsage } = await import("../installer/usage.js");
+    for (let i = 0; i < 75; i++) {
+      insertUsage({
+        agentId: `test-log-agent-${i % 3}`,
+        model: "gpt-4o",
+        inputTokens: 1000 + i,
+        outputTokens: 500 + i,
+        costUsd: 0.05 + (i * 0.001),
+        taskLabel: `task-${i}`,
+        createdAt: new Date(Date.now() - i * 60000).toISOString(),
+      });
+    }
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  async function fetchJSON(path: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      http.get(`http://127.0.0.1:${TEST_PORT}${path}`, (res) => {
+        let data = "";
+        res.on("data", chunk => { data += chunk; });
+        res.on("end", () => {
+          try {
+            resolve({ status: res.statusCode, data: JSON.parse(data) });
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on("error", reject);
+    });
+  }
+
+  test("GET /api/usage/log returns paginated records", async () => {
+    const result = await fetchJSON("/api/usage/log");
+    
+    assert.strictEqual(result.status, 200);
+    assert.ok(Array.isArray(result.data.records), "Should return records array");
+    assert.ok(typeof result.data.total === "number", "Should return total count");
+    assert.strictEqual(result.data.limit, 50, "Default limit should be 50");
+    assert.strictEqual(result.data.offset, 0, "Default offset should be 0");
+  });
+
+  test("GET /api/usage/log supports limit parameter", async () => {
+    const result = await fetchJSON("/api/usage/log?limit=10");
+    
+    assert.strictEqual(result.status, 200);
+    assert.ok(result.data.records.length <= 10, "Should respect limit parameter");
+    assert.strictEqual(result.data.limit, 10, "Should return requested limit");
+  });
+
+  test("GET /api/usage/log supports offset parameter", async () => {
+    const result = await fetchJSON("/api/usage/log?limit=10&offset=10");
+    
+    assert.strictEqual(result.status, 200);
+    assert.strictEqual(result.data.offset, 10, "Should return requested offset");
+    assert.ok(result.data.records.length > 0, "Should return records at offset");
+  });
+
+  test("GET /api/usage/log validates limit range", async () => {
+    const tooSmall = await fetchJSON("/api/usage/log?limit=0");
+    assert.strictEqual(tooSmall.status, 400);
+    assert.ok(tooSmall.data.error.includes("limit"), "Should reject limit < 1");
+
+    const tooLarge = await fetchJSON("/api/usage/log?limit=600");
+    assert.strictEqual(tooLarge.status, 400);
+    assert.ok(tooLarge.data.error.includes("limit"), "Should reject limit > 500");
+  });
+
+  test("GET /api/usage/log validates offset", async () => {
+    const negative = await fetchJSON("/api/usage/log?offset=-1");
+    assert.strictEqual(negative.status, 400);
+    assert.ok(negative.data.error.includes("offset"), "Should reject negative offset");
+  });
+
+  test("GET /api/usage/log records contain expected fields", async () => {
+    const result = await fetchJSON("/api/usage/log?limit=1");
+    
+    assert.strictEqual(result.status, 200);
+    assert.ok(result.data.records.length > 0, "Should have at least one record");
+    
+    const record = result.data.records[0];
+    assert.ok("id" in record, "Record should have id");
+    assert.ok("agentId" in record, "Record should have agentId");
+    assert.ok("model" in record, "Record should have model");
+    assert.ok("createdAt" in record, "Record should have createdAt");
+  });
+
+  test("GET /api/usage/log supports date filters", async () => {
+    const today = new Date().toISOString().split("T")[0];
+    const result = await fetchJSON(`/api/usage/log?from_date=${today}`);
+    
+    assert.strictEqual(result.status, 200);
+    assert.ok(Array.isArray(result.data.records), "Should return filtered records");
+  });
+
+  test("GET /api/usage/log supports model filter", async () => {
+    const result = await fetchJSON("/api/usage/log?model=gpt-4o");
+    
+    assert.strictEqual(result.status, 200);
+    result.data.records.forEach((r: any) => {
+      assert.strictEqual(r.model, "gpt-4o", "All records should match model filter");
+    });
+  });
+
+  test("GET /api/usage/log returns records ordered by created_at DESC", async () => {
+    const result = await fetchJSON("/api/usage/log?limit=10");
+    
+    assert.strictEqual(result.status, 200);
+    const records = result.data.records;
+    for (let i = 0; i < records.length - 1; i++) {
+      const current = new Date(records[i].createdAt).getTime();
+      const next = new Date(records[i + 1].createdAt).getTime();
+      assert.ok(current >= next, "Records should be sorted by createdAt DESC");
+    }
+  });
+});
+
+describe("Usage Log UI", () => {
+  let server: http.Server;
+  const TEST_PORT = 33348;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("costs-view contains usage-log-section below agent-breakdown", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="usage-log-section"'), "Should have usage-log-section");
+    
+    // Usage log should appear after agent breakdown
+    const agentBreakdownPos = html.indexOf('id="agent-breakdown"');
+    const usageLogPos = html.indexOf('id="usage-log-section"');
+    assert.ok(agentBreakdownPos < usageLogPos, "Usage log should appear after agent breakdown");
+  });
+
+  test("has collapsible header with chevron and title", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="usage-log-header"'), "Should have usage-log-header");
+    assert.ok(html.includes('class="usage-log-chevron"'), "Should have chevron indicator");
+    assert.ok(html.includes('class="usage-log-title"'), "Should have title");
+    assert.ok(html.includes('>Usage Log</span>'), "Should have 'Usage Log' title text");
+    assert.ok(html.includes('id="usage-log-count"'), "Should have count element");
+  });
+
+  test("usage log content is collapsed by default", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Content should have class but not .open class initially
+    assert.ok(html.includes('class="usage-log-content" id="usage-log-content"'), 
+      "Content should not have 'open' class initially");
+    assert.ok(html.includes('.usage-log-content{display:none'), "Content should be hidden by default in CSS");
+    assert.ok(html.includes('.usage-log-content.open{display:block}'), "Content should show when open class added");
+  });
+
+  test("has usage log table with correct columns", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const tableMatch = html.match(/id="usage-log-table"[\s\S]*?<\/table>/);
+    assert.ok(tableMatch, "Should find usage-log-table");
+    
+    const table = tableMatch[0];
+    assert.ok(table.includes('<th>Timestamp</th>'), "Should have Timestamp column");
+    assert.ok(table.includes('<th>Agent</th>'), "Should have Agent column");
+    assert.ok(table.includes('<th>Model</th>'), "Should have Model column");
+    assert.ok(table.includes('>Input</th>'), "Should have Input column");
+    assert.ok(table.includes('>Output</th>'), "Should have Output column");
+    assert.ok(table.includes('>Cost</th>'), "Should have Cost column");
+    assert.ok(table.includes('<th>Task</th>'), "Should have Task column");
+  });
+
+  test("has pagination controls", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="usage-log-pagination"'), "Should have pagination container");
+    assert.ok(html.includes('id="usage-log-pagination-info"'), "Should have pagination info");
+    assert.ok(html.includes('id="usage-log-prev"'), "Should have prev button");
+    assert.ok(html.includes('id="usage-log-next"'), "Should have next button");
+    assert.ok(html.includes('← Prev</button>'), "Prev button should have correct text");
+    assert.ok(html.includes('Next →</button>'), "Next button should have correct text");
+  });
+
+  test("has CSS styles for usage log components", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.usage-log-section{'), "Should have usage-log-section style");
+    assert.ok(html.includes('.usage-log-header{'), "Should have usage-log-header style");
+    assert.ok(html.includes('.usage-log-chevron{'), "Should have usage-log-chevron style");
+    assert.ok(html.includes('.usage-log-table{'), "Should have usage-log-table style");
+    assert.ok(html.includes('.usage-log-pagination{'), "Should have usage-log-pagination style");
+    assert.ok(html.includes('.usage-log-pagination-btn{'), "Should have pagination button style");
+  });
+
+  test("header is clickable and toggles content", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes("header.addEventListener('click'"), "Header should have click handler");
+    assert.ok(html.includes("content.classList.toggle('open'"), "Click should toggle open class on content");
+    assert.ok(html.includes("chevron.classList.toggle('open'"), "Click should toggle open class on chevron");
+  });
+
+  test("has loadUsageLog function", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('async function loadUsageLog()'), "Should have loadUsageLog function");
+  });
+
+  test("loadUsageLog fetches from /api/usage/log with pagination params", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const match = html.match(/async function loadUsageLog[\s\S]*?^\}/m);
+    assert.ok(match, "Should find loadUsageLog function");
+    assert.ok(match[0].includes("/api/usage/log"), "Should fetch from /api/usage/log");
+    assert.ok(match[0].includes("limit"), "Should include limit param");
+    assert.ok(match[0].includes("offset"), "Should include offset param");
+    assert.ok(match[0].includes("getFilterParams()"), "Should include date/model filters");
+  });
+
+  test("pagination buttons navigate pages", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes("prevBtn.addEventListener('click'"), "Prev button should have click handler");
+    assert.ok(html.includes("nextBtn.addEventListener('click'"), "Next button should have click handler");
+    assert.ok(html.includes("usageLogOffset - usageLogLimit"), "Prev should decrease offset");
+    assert.ok(html.includes("usageLogOffset += usageLogLimit"), "Next should increase offset");
+  });
+
+  test("pagination controls disable when at boundaries", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes("prevBtn.disabled = data.offset === 0"), "Prev should disable at start");
+    assert.ok(html.includes("nextBtn.disabled = data.offset + data.limit >= data.total"), "Next should disable at end");
+  });
+
+  test("opening usage log triggers initial load", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // When opened, should reset offset and load
+    assert.ok(html.includes("usageLogOffset = 0"), "Should reset offset to 0 when opened");
+    assert.ok(html.includes("if (usageLogOpen)"), "Should check if open");
+    assert.ok(html.match(/if \(usageLogOpen\)[\s\S]*?loadUsageLog\(\)/), "Should call loadUsageLog when opened");
+  });
+});

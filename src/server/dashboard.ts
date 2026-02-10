@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb } from "../db.js";
 import { resolveBundledWorkflowsDir } from "../installer/paths.js";
-import { insertUsage, getAggregatedUsage } from "../installer/usage.js";
+import { insertUsage, getAggregatedUsage, getUsageLog } from "../installer/usage.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
@@ -88,6 +88,35 @@ export function startDashboard(port = 3333): http.Server {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
+
+    // GET /api/usage/log - paginated raw usage records
+    if (req.method === "GET" && p === "/api/usage/log") {
+      const limit = parseInt(url.searchParams.get("limit") ?? "50", 10);
+      const offset = parseInt(url.searchParams.get("offset") ?? "0", 10);
+      const fromDate = url.searchParams.get("from_date") ?? undefined;
+      const toDate = url.searchParams.get("to_date") ?? undefined;
+      const agentId = url.searchParams.get("agent_id") ?? undefined;
+      const model = url.searchParams.get("model") ?? undefined;
+
+      // Validate limit and offset
+      if (isNaN(limit) || limit < 1 || limit > 500) {
+        return json(res, { error: "limit must be between 1 and 500" }, 400);
+      }
+      if (isNaN(offset) || offset < 0) {
+        return json(res, { error: "offset must be >= 0" }, 400);
+      }
+
+      const result = getUsageLog({
+        limit,
+        offset,
+        fromDate,
+        toDate,
+        agentId,
+        model,
+      });
+
+      return json(res, result);
+    }
 
     // GET /api/usage - query aggregated usage data
     if (req.method === "GET" && p === "/api/usage") {

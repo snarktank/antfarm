@@ -241,6 +241,33 @@ select:focus{outline:none;border-color:#8ECFC0}
 .daily-chart-tooltip-value{color:var(--accent-green);font-family:'Geist Mono',monospace}
 .daily-chart-empty{text-align:center;padding:40px 20px;color:var(--text-secondary);font-size:14px}
 .daily-chart-loading{text-align:center;padding:40px 20px;color:var(--text-secondary);font-size:14px}
+
+/* ── Usage Log ─────────────────────────────────────────────────── */
+.usage-log-section{margin-top:24px}
+.usage-log-header{display:flex;align-items:center;gap:12px;padding:16px;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:background .15s}
+.usage-log-header:hover{background:var(--bg-surface-alt)}
+.usage-log-chevron{color:var(--text-secondary);font-size:12px;transition:transform .2s}
+.usage-log-chevron.open{transform:rotate(90deg)}
+.usage-log-title{font-size:15px;font-weight:600;color:var(--text-primary);flex:1}
+.usage-log-count{font-size:12px;color:var(--text-secondary)}
+.usage-log-content{display:none;margin-top:-1px;background:var(--bg-surface);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;overflow:hidden}
+.usage-log-content.open{display:block}
+.usage-log-table{width:100%;border-collapse:collapse}
+.usage-log-table th{background:var(--bg-column-header);padding:10px 12px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary);border-bottom:1px solid var(--border)}
+.usage-log-table td{padding:10px 12px;font-size:12px;color:var(--text-primary);border-bottom:1px solid var(--border-light)}
+.usage-log-table tr:last-child td{border-bottom:none}
+.usage-log-table tr:hover td{background:var(--bg-surface-alt)}
+.usage-log-table .numeric{text-align:right;font-family:'Geist Mono','Inter',monospace}
+.usage-log-table .timestamp{font-family:'Geist Mono','Inter',monospace;font-size:11px;color:var(--text-secondary);white-space:nowrap}
+.usage-log-table .task-cell{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.usage-log-empty{padding:24px;text-align:center;color:var(--text-secondary);font-size:13px}
+.usage-log-loading{padding:24px;text-align:center;color:var(--text-secondary);font-size:13px}
+.usage-log-pagination{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-column-header);border-top:1px solid var(--border)}
+.usage-log-pagination-info{font-size:12px;color:var(--text-secondary)}
+.usage-log-pagination-controls{display:flex;gap:8px}
+.usage-log-pagination-btn{background:var(--bg-surface);border:1px solid var(--border);border-radius:4px;padding:6px 12px;font-size:12px;color:var(--text-primary);cursor:pointer;transition:background .15s,border-color .15s}
+.usage-log-pagination-btn:hover:not(:disabled){background:var(--bg-surface-alt);border-color:var(--accent-green)}
+.usage-log-pagination-btn:disabled{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -329,6 +356,38 @@ select:focus{outline:none;border-color:#8ECFC0}
         <tr><td colspan="5" class="model-table-loading">Loading...</td></tr>
       </tbody>
     </table>
+  </div>
+  <div class="usage-log-section" id="usage-log-section">
+    <div class="usage-log-header" id="usage-log-header">
+      <span class="usage-log-chevron" id="usage-log-chevron">▶</span>
+      <span class="usage-log-title">Usage Log</span>
+      <span class="usage-log-count" id="usage-log-count"></span>
+    </div>
+    <div class="usage-log-content" id="usage-log-content">
+      <table class="usage-log-table" id="usage-log-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Agent</th>
+            <th>Model</th>
+            <th class="numeric">Input</th>
+            <th class="numeric">Output</th>
+            <th class="numeric">Cost</th>
+            <th>Task</th>
+          </tr>
+        </thead>
+        <tbody id="usage-log-body">
+          <tr><td colspan="7" class="usage-log-loading">Loading...</td></tr>
+        </tbody>
+      </table>
+      <div class="usage-log-pagination" id="usage-log-pagination">
+        <div class="usage-log-pagination-info" id="usage-log-pagination-info">—</div>
+        <div class="usage-log-pagination-controls">
+          <button class="usage-log-pagination-btn" id="usage-log-prev" disabled>← Prev</button>
+          <button class="usage-log-pagination-btn" id="usage-log-next" disabled>Next →</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
@@ -845,6 +904,106 @@ function renderDailyChart(container, data) {
       tooltip.style.display = 'none';
     });
   });
+}
+
+// ── Usage Log ─────────────────────────────────────────────────────
+let usageLogOffset = 0;
+const usageLogLimit = 50;
+let usageLogTotal = 0;
+let usageLogOpen = false;
+
+(function initUsageLog() {
+  const header = document.getElementById('usage-log-header');
+  const content = document.getElementById('usage-log-content');
+  const chevron = document.getElementById('usage-log-chevron');
+  const prevBtn = document.getElementById('usage-log-prev');
+  const nextBtn = document.getElementById('usage-log-next');
+
+  header.addEventListener('click', () => {
+    usageLogOpen = !usageLogOpen;
+    content.classList.toggle('open', usageLogOpen);
+    chevron.classList.toggle('open', usageLogOpen);
+    if (usageLogOpen) {
+      usageLogOffset = 0;
+      loadUsageLog();
+    }
+  });
+
+  prevBtn.addEventListener('click', () => {
+    if (usageLogOffset > 0) {
+      usageLogOffset = Math.max(0, usageLogOffset - usageLogLimit);
+      loadUsageLog();
+    }
+  });
+
+  nextBtn.addEventListener('click', () => {
+    if (usageLogOffset + usageLogLimit < usageLogTotal) {
+      usageLogOffset += usageLogLimit;
+      loadUsageLog();
+    }
+  });
+})();
+
+async function loadUsageLog() {
+  const tbody = document.getElementById('usage-log-body');
+  const countEl = document.getElementById('usage-log-count');
+  const infoEl = document.getElementById('usage-log-pagination-info');
+  const prevBtn = document.getElementById('usage-log-prev');
+  const nextBtn = document.getElementById('usage-log-next');
+
+  tbody.innerHTML = '<tr><td colspan="7" class="usage-log-loading">Loading...</td></tr>';
+
+  try {
+    const filterParams = getFilterParams();
+    const params = new URLSearchParams(filterParams);
+    params.set('limit', usageLogLimit.toString());
+    params.set('offset', usageLogOffset.toString());
+    
+    const data = await fetchJSON('/api/usage/log?' + params.toString());
+    usageLogTotal = data.total;
+
+    countEl.textContent = `${formatNumber(data.total)} records`;
+
+    if (!data.records || data.records.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="usage-log-empty">No usage records</td></tr>';
+      infoEl.textContent = 'No records';
+      prevBtn.disabled = true;
+      nextBtn.disabled = true;
+      return;
+    }
+
+    tbody.innerHTML = data.records.map(r => {
+      const ts = r.createdAt ? new Date(r.createdAt).toLocaleString() : '—';
+      const inputTokens = r.inputTokens != null ? formatNumber(r.inputTokens) : '—';
+      const outputTokens = r.outputTokens != null ? formatNumber(r.outputTokens) : '—';
+      const cost = r.costUsd != null ? formatCurrency(r.costUsd) : '—';
+      return `
+        <tr>
+          <td class="timestamp">${escapeHtml(ts)}</td>
+          <td>${escapeHtml(r.agentId || '—')}</td>
+          <td>${escapeHtml(r.model || '—')}</td>
+          <td class="numeric">${inputTokens}</td>
+          <td class="numeric">${outputTokens}</td>
+          <td class="numeric">${cost}</td>
+          <td class="task-cell" title="${escapeHtml(r.taskLabel || '')}">${escapeHtml(r.taskLabel || '—')}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Update pagination info
+    const start = data.offset + 1;
+    const end = Math.min(data.offset + data.records.length, data.total);
+    infoEl.textContent = `Showing ${start}–${end} of ${formatNumber(data.total)}`;
+
+    // Update button states
+    prevBtn.disabled = data.offset === 0;
+    nextBtn.disabled = data.offset + data.limit >= data.total;
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="7" class="usage-log-empty">Error loading data</td></tr>';
+    infoEl.textContent = 'Error';
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+  }
 }
 
 // ── Theme toggle ──────────────────────────────────────────────────

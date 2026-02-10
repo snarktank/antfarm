@@ -98,6 +98,73 @@ export type AggregateQueryOptions = {
  * When groupBy is not specified, returns a single UsageAggregate with totals.
  * When groupBy is specified, returns an array of GroupedUsageAggregate.
  */
+export type UsageLogOptions = {
+  limit?: number;
+  offset?: number;
+  fromDate?: string;
+  toDate?: string;
+  agentId?: string;
+  model?: string;
+};
+
+export type UsageLogResult = {
+  records: UsageRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+/**
+ * Get paginated raw usage records with optional filtering.
+ * Returns records ordered by created_at DESC (newest first).
+ */
+export function getUsageLog(options: UsageLogOptions = {}): UsageLogResult {
+  const db = getDb();
+  const limit = options.limit ?? 50;
+  const offset = options.offset ?? 0;
+  const whereClauses: string[] = [];
+  const params: (string | number)[] = [];
+
+  // Build WHERE clauses for filters
+  if (options.fromDate) {
+    whereClauses.push("created_at >= ?");
+    params.push(options.fromDate);
+  }
+  if (options.toDate) {
+    whereClauses.push("created_at <= ?");
+    params.push(options.toDate);
+  }
+  if (options.agentId) {
+    whereClauses.push("agent_id = ?");
+    params.push(options.agentId);
+  }
+  if (options.model) {
+    whereClauses.push("model = ?");
+    params.push(options.model);
+  }
+
+  const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+  // Get total count
+  const countRow = db.prepare(`SELECT COUNT(*) as total FROM usage ${whereSQL}`).get(...params) as { total: number };
+  const total = countRow.total;
+
+  // Get paginated records
+  const rows = db.prepare(`
+    SELECT * FROM usage
+    ${whereSQL}
+    ORDER BY created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...params, limit, offset) as any[];
+
+  return {
+    records: rows.map(mapRowToUsageRecord),
+    total,
+    limit,
+    offset,
+  };
+}
+
 export function getAggregatedUsage(options: AggregateQueryOptions): UsageAggregate | GroupedUsageAggregate[] {
   const db = getDb();
   const whereClauses: string[] = [];

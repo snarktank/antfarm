@@ -135,3 +135,16 @@ Started: 2026-02-09T21:12:00-05:00
 - Files changed: src/server/index.html, src/server/dashboard.test.ts
 - **Learnings:** When adding filters, create a combined getFilterParams() function instead of chaining individual param functions. Refresh filter options on data reload to capture newly added values.
 ---
+
+## 2026-02-09 22:52 - US-011: Add daily usage trend chart
+- Added daily-chart-container with inline SVG bar chart between summary cards and breakdown tables
+- Fetches from GET /api/usage?group_by=day with date and model filter params
+- Chart features: X-axis dates, Y-axis cost in USD, green themed bars
+- Hover tooltips show exact date and formatted cost value
+- Chart updates automatically when any filter (date range or model) changes
+- Added loadDailyChart() and renderDailyChart() functions
+- CSS: .daily-chart-container, .daily-chart-bar, .daily-chart-tooltip, axis/grid styles
+- Added 13 tests verifying chart HTML structure, CSS, JavaScript, and data binding
+- Files changed: src/server/index.html, src/server/dashboard.test.ts
+- **Learnings:** For inline SVG charts, use viewBox for responsive scaling. Position tooltip container with relative parent, use mouseenter/mousemove/mouseleave for smooth hover behavior.
+---
