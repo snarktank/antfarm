@@ -29,3 +29,11 @@ Started: 2026-02-09T21:12:00-08:00
 - Files changed: workflows/bug-fix/workflow.yml, workflows/bug-fix/__tests__/compound-step.test.js
 - **Learnings:** Bug-fix workflow has different context variables than feature-dev (root_cause, severity, regression_test, problem_statement vs progress, results). Compound step input should be tailored to each workflow's context.
 ---
+
+## 2026-02-09 21:42 - US-004: Add compound agent and step to security-audit workflow
+- Added compound agent definition (role: coding) to workflows/security-audit/workflow.yml
+- Added compound step after pr step with security-specific input template including {{task}}, {{repo}}, {{branch}}, {{findings}}, {{fix_plan}}, {{changes}}, {{results}}, {{vulnerability_count}}, {{critical_count}}, {{deferred}}
+- Step has expects: "STATUS: done", max_retries: 1, on_fail: escalate_to: human
+- Files changed: workflows/security-audit/workflow.yml, workflows/security-audit/__tests__/compound-step.test.js
+- **Learnings:** Security-audit workflow has more context variables than other workflows due to scan/prioritize phases producing findings, fix_plan, vulnerability_count, critical_count, and deferred data.
+---
