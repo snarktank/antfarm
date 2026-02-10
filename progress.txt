@@ -78,3 +78,16 @@ Started: 2026-02-09T21:12:00-05:00
 - Files changed: src/server/index.html, src/server/dashboard.test.ts
 - **Learnings:** For loading state in cards, toggle a .loading class for different styling. Use toLocaleString('en-US') for consistent number formatting.
 ---
+
+## 2026-02-09 22:12 - US-007: Add costs breakdown by model table
+- Added model breakdown table below summary cards in costs-view
+- Table columns: Model, Input Tokens, Output Tokens, Cost, Requests
+- Fetches data from GET /api/usage?group_by=model
+- Sorts by total cost descending (highest cost models first)
+- Added CSS styling matching dashboard theme (borders, hover states, numeric alignment)
+- Added escapeHtml() helper for XSS protection on model names
+- loadCostsSummary() now also calls loadModelBreakdown()
+- Added 10 tests verifying table structure, CSS, and JavaScript functionality
+- Files changed: src/server/index.html, src/server/dashboard.test.ts
+- **Learnings:** Use colspan on placeholder rows for loading/empty states. Escape user-controlled content (model names) before rendering to HTML.
+---

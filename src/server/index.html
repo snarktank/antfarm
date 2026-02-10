@@ -263,6 +263,23 @@ select:focus{outline:none;border-color:#8ECFC0}
       </tbody>
     </table>
   </div>
+  <div class="model-breakdown" id="agent-breakdown">
+    <div class="model-breakdown-title">Cost by Agent</div>
+    <table class="model-table" id="agent-table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th class="numeric">Input Tokens</th>
+          <th class="numeric">Output Tokens</th>
+          <th class="numeric">Cost</th>
+          <th class="numeric">Requests</th>
+        </tr>
+      </thead>
+      <tbody id="agent-table-body">
+        <tr><td colspan="5" class="model-table-loading">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
   <div class="panel" id="panel"></div>
@@ -498,8 +515,9 @@ async function loadCostsSummary() {
     el.classList.remove('loading');
   });
 
-  // Also load model breakdown
+  // Also load breakdown tables
   loadModelBreakdown();
+  loadAgentBreakdown();
 }
 
 async function loadModelBreakdown() {
@@ -508,6 +526,35 @@ async function loadModelBreakdown() {
 
   try {
     const data = await fetchJSON('/api/usage?group_by=model');
+    
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="model-table-empty">No usage data</td></tr>';
+      return;
+    }
+
+    // Sort by total cost descending
+    data.sort((a, b) => (b.totalCostUsd || 0) - (a.totalCostUsd || 0));
+
+    tbody.innerHTML = data.map(row => `
+      <tr>
+        <td class="model-name">${escapeHtml(row.groupKey)}</td>
+        <td class="numeric">${formatNumber(row.totalInputTokens)}</td>
+        <td class="numeric">${formatNumber(row.totalOutputTokens)}</td>
+        <td class="numeric">${formatCurrency(row.totalCostUsd)}</td>
+        <td class="numeric">${formatNumber(row.recordCount)}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="5" class="model-table-empty">Error loading data</td></tr>';
+  }
+}
+
+async function loadAgentBreakdown() {
+  const tbody = document.getElementById('agent-table-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="model-table-loading">Loading...</td></tr>';
+
+  try {
+    const data = await fetchJSON('/api/usage?group_by=agent');
     
     if (!data || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="model-table-empty">No usage data</td></tr>';

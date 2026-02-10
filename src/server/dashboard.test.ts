@@ -23,6 +23,118 @@ async function fetchHTML(port: number, path: string): Promise<string> {
   });
 }
 
+describe("Agent Breakdown Table UI", () => {
+  let server: http.Server;
+  const TEST_PORT = 33340;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("costs-view contains agent-breakdown section", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="agent-breakdown"'), "Should have agent-breakdown container");
+    assert.ok(html.includes('class="model-breakdown" id="agent-breakdown"'), "Should reuse model-breakdown class for styling");
+  });
+
+  test("has agent breakdown title", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('>Cost by Agent</div>'), "Should have correct title text");
+  });
+
+  test("has agent table with correct structure", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="agent-table"'), "Should have agent-table");
+    assert.ok(html.includes('class="model-table" id="agent-table"'), "Should reuse model-table class for styling");
+    assert.ok(html.includes('id="agent-table-body"'), "Should have tbody id for JS targeting");
+  });
+
+  test("agent table has correct column headers", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Find the agent-table section and verify it has Agent column header
+    const agentTableMatch = html.match(/id="agent-table"[\s\S]*?<\/table>/);
+    assert.ok(agentTableMatch, "Should find agent-table");
+    assert.ok(agentTableMatch[0].includes('<th>Agent</th>'), "Should have Agent column");
+    assert.ok(agentTableMatch[0].includes('>Input Tokens</th>'), "Should have Input Tokens column");
+    assert.ok(agentTableMatch[0].includes('>Output Tokens</th>'), "Should have Output Tokens column");
+    assert.ok(agentTableMatch[0].includes('>Cost</th>'), "Should have Cost column");
+    assert.ok(agentTableMatch[0].includes('>Requests</th>'), "Should have Requests column");
+  });
+
+  test("has JavaScript for loading agent breakdown", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('loadAgentBreakdown'), "Should have loadAgentBreakdown function");
+    assert.ok(html.includes("group_by=agent"), "Should fetch with group_by=agent parameter");
+  });
+
+  test("loadCostsSummary calls loadAgentBreakdown", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(
+      html.includes("loadAgentBreakdown()"),
+      "loadCostsSummary should call loadAgentBreakdown"
+    );
+  });
+
+  test("agent breakdown sorts by cost descending", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Find loadAgentBreakdown function and check sorting
+    const agentFuncMatch = html.match(/async function loadAgentBreakdown[\s\S]*?^}/m);
+    assert.ok(agentFuncMatch, "Should find loadAgentBreakdown function");
+    assert.ok(
+      agentFuncMatch[0].includes("sort((a, b) => (b.totalCostUsd"),
+      "Should sort data by totalCostUsd descending in loadAgentBreakdown"
+    );
+  });
+
+  test("agent breakdown uses escapeHtml for XSS protection", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Find loadAgentBreakdown function and check escaping
+    const agentFuncMatch = html.match(/async function loadAgentBreakdown[\s\S]*?^}/m);
+    assert.ok(agentFuncMatch, "Should find loadAgentBreakdown function");
+    assert.ok(
+      agentFuncMatch[0].includes("escapeHtml(row.groupKey)"),
+      "Should use escapeHtml on agent name"
+    );
+  });
+
+  test("agent breakdown displays agent IDs", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // The loadAgentBreakdown function should render row.groupKey which contains agent IDs
+    const agentFuncMatch = html.match(/async function loadAgentBreakdown[\s\S]*?^}/m);
+    assert.ok(agentFuncMatch, "Should find loadAgentBreakdown function");
+    assert.ok(
+      agentFuncMatch[0].includes('class="model-name"'),
+      "Should render agent ID with model-name class for styling"
+    );
+  });
+
+  test("agent breakdown appears after model breakdown in costs-view", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const modelPos = html.indexOf('id="model-breakdown"');
+    const agentPos = html.indexOf('id="agent-breakdown"');
+    
+    assert.ok(modelPos > 0, "Should find model-breakdown");
+    assert.ok(agentPos > 0, "Should find agent-breakdown");
+    assert.ok(agentPos > modelPos, "agent-breakdown should appear after model-breakdown");
+  });
+});
+
 describe("Model Breakdown Table UI", () => {
   let server: http.Server;
   const TEST_PORT = 33339;
@@ -74,9 +186,12 @@ describe("Model Breakdown Table UI", () => {
   test("numeric columns have numeric class", async () => {
     const html = await fetchHTML(TEST_PORT, "/");
     
-    // Check that the th elements for numeric columns have the numeric class
-    const numericHeaderMatches = (html.match(/<th class="numeric">/g) || []).length;
-    assert.strictEqual(numericHeaderMatches, 4, "Should have 4 numeric column headers (Input, Output, Cost, Requests)");
+    // Find the model-table specifically and check its numeric columns
+    const modelTableMatch = html.match(/id="model-table"[\s\S]*?<\/table>/);
+    assert.ok(modelTableMatch, "Should find model-table");
+    
+    const numericHeaderMatches = (modelTableMatch[0].match(/<th class="numeric">/g) || []).length;
+    assert.strictEqual(numericHeaderMatches, 4, "Should have 4 numeric column headers in model table (Input, Output, Cost, Requests)");
   });
 
   test("has CSS styles for model table", async () => {
