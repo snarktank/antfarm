@@ -603,7 +603,12 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   for (const line of output.split("\n")) {
     const match = line.match(/^([A-Z_]+):\s*(.+)$/);
     if (match && !match[1].startsWith("STORIES_JSON")) {
-      context[match[1].toLowerCase()] = match[2].trim();
+      const key = match[1];
+      const value = match[2].trim();
+      // Store with simple lowercase key for backward compatibility
+      context[key.toLowerCase()] = value;
+      // Also store with steps.<step_id>.<KEY> format for condition template resolution
+      context[`steps.${step.step_id}.${key}`] = value;
     }
   }
 
