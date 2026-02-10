@@ -148,3 +148,19 @@ Started: 2026-02-09T21:12:00-05:00
 - Files changed: src/server/index.html, src/server/dashboard.test.ts
 - **Learnings:** For inline SVG charts, use viewBox for responsive scaling. Position tooltip container with relative parent, use mouseenter/mousemove/mouseleave for smooth hover behavior.
 ---
+
+## 2026-02-09 23:05 - US-012: Add detailed usage log table with pagination
+- Added `getUsageLog()` function to src/installer/usage.ts with types UsageLogOptions and UsageLogResult
+- Returns paginated raw records (default 50 per page, max 500) ordered by created_at DESC
+- Added GET /api/usage/log endpoint to dashboard.ts with limit/offset/filter params
+- Validates limit (1-500) and offset (>=0), returns error for invalid values
+- Added collapsible 'Usage Log' section at bottom of costs-view in index.html
+- Section is collapsed by default, opens on click with chevron rotation animation
+- Table columns: Timestamp, Agent, Model, Input, Output, Cost, Task
+- Pagination controls with prev/next buttons and "Showing X-Y of Z" info
+- Buttons disable at boundaries (prev at start, next at end)
+- Uses existing filter params (date range, model) when fetching
+- Added 22 tests covering API validation, pagination, filtering, and UI structure
+- Files changed: src/installer/usage.ts, src/server/dashboard.ts, src/server/index.html, src/server/dashboard.test.ts
+- **Learnings:** For collapsible sections, use CSS display:none/block with classList.toggle('open'). Reset pagination offset to 0 when opening collapsed section to start fresh.
+---

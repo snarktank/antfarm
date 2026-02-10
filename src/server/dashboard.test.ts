@@ -1405,3 +1405,173 @@ describe("Usage Log UI", () => {
     assert.ok(html.match(/if \(usageLogOpen\)[\s\S]*?loadUsageLog\(\)/), "Should call loadUsageLog when opened");
   });
 });
+
+describe("CSV Export UI", () => {
+  let server: http.Server;
+  const TEST_PORT = 33345;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("export CSV button exists in date-filter section", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="export-csv-btn"'), "Should have export-csv-btn");
+    assert.ok(html.includes('class="export-csv-btn"'), "Should have export-csv-btn class");
+    assert.ok(html.includes('Export CSV'), "Button should contain 'Export CSV' text");
+  });
+
+  test("export button is in the date-filter container", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Find the date-filter section and verify export button is inside it
+    const dateFilterMatch = html.match(/class="date-filter"[\s\S]*?<\/div>\s*<div class="summary-cards"/);
+    assert.ok(dateFilterMatch, "Should find date-filter section");
+    assert.ok(dateFilterMatch[0].includes('id="export-csv-btn"'), "Export button should be inside date-filter");
+  });
+
+  test("export button has download icon SVG", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const btnMatch = html.match(/id="export-csv-btn"[\s\S]*?<\/button>/);
+    assert.ok(btnMatch, "Should find export button");
+    assert.ok(btnMatch[0].includes('<svg'), "Button should contain SVG icon");
+    assert.ok(btnMatch[0].includes('viewBox='), "SVG should have viewBox");
+  });
+
+  test("has CSS styles for export button", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.export-csv-btn{'), "Should have export-csv-btn style");
+    assert.ok(html.includes('.export-csv-btn:hover{'), "Should have hover style");
+    assert.ok(html.includes('.export-csv-btn:disabled{'), "Should have disabled style");
+  });
+
+  test("export button has margin-left auto for right alignment", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const styleMatch = html.match(/\.export-csv-btn\{[^}]+\}/);
+    assert.ok(styleMatch, "Should find export-csv-btn style");
+    assert.ok(styleMatch[0].includes('margin-left:auto'), "Should have margin-left:auto for right alignment");
+  });
+
+  test("has initCsvExport initialization function", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('function initCsvExport()'), "Should have initCsvExport function");
+    assert.ok(html.includes("getElementById('export-csv-btn')"), "Should get export button by ID");
+  });
+
+  test("export button has click handler", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes("btn.addEventListener('click'"), "Export button should have click handler");
+  });
+
+  test("export fetches from /api/usage/log with high limit", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Find the export click handler
+    const exportMatch = html.match(/function initCsvExport[\s\S]*?^\}\)\(\);/m);
+    assert.ok(exportMatch, "Should find initCsvExport function");
+    assert.ok(exportMatch[0].includes("/api/usage/log"), "Should fetch from /api/usage/log");
+    assert.ok(exportMatch[0].includes("limit"), "Should include limit param");
+    assert.ok(exportMatch[0].includes("'10000'") || exportMatch[0].includes('"10000"'), "Should use high limit to get all records");
+  });
+
+  test("export uses current filter params", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const exportMatch = html.match(/function initCsvExport[\s\S]*?^\}\)\(\);/m);
+    assert.ok(exportMatch, "Should find initCsvExport function");
+    assert.ok(exportMatch[0].includes("getFilterParams()"), "Should use getFilterParams for date/model filters");
+  });
+
+  test("has generateCsv function", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('function generateCsv(records)'), "Should have generateCsv function");
+  });
+
+  test("generateCsv includes correct headers", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const csvMatch = html.match(/function generateCsv[\s\S]*?^}/m);
+    assert.ok(csvMatch, "Should find generateCsv function");
+    
+    // Check required headers
+    assert.ok(csvMatch[0].includes("'timestamp'"), "Should have timestamp header");
+    assert.ok(csvMatch[0].includes("'agent'"), "Should have agent header");
+    assert.ok(csvMatch[0].includes("'model'"), "Should have model header");
+    assert.ok(csvMatch[0].includes("'input_tokens'"), "Should have input_tokens header");
+    assert.ok(csvMatch[0].includes("'output_tokens'"), "Should have output_tokens header");
+    assert.ok(csvMatch[0].includes("'cost'"), "Should have cost header");
+    assert.ok(csvMatch[0].includes("'task'"), "Should have task header");
+    assert.ok(csvMatch[0].includes("'run_id'"), "Should have run_id header");
+  });
+
+  test("generateCsv has escape function for special characters", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const csvMatch = html.match(/function generateCsv[\s\S]*?^}/m);
+    assert.ok(csvMatch, "Should find generateCsv function");
+    assert.ok(csvMatch[0].includes('escapeCsvValue'), "Should have escapeCsvValue helper");
+    assert.ok(csvMatch[0].includes('includes('), "Should check for special characters");
+    assert.ok(csvMatch[0].includes('replace(/"/g'), "Should escape double quotes");
+  });
+
+  test("has downloadCsv function", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('function downloadCsv(content, filename)'), "Should have downloadCsv function");
+  });
+
+  test("downloadCsv creates blob and triggers download", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const downloadMatch = html.match(/function downloadCsv[\s\S]*?^}/m);
+    assert.ok(downloadMatch, "Should find downloadCsv function");
+    assert.ok(downloadMatch[0].includes('new Blob'), "Should create Blob");
+    assert.ok(downloadMatch[0].includes("'text/csv"), "Should use text/csv MIME type");
+    assert.ok(downloadMatch[0].includes('.download ='), "Should set download attribute");
+    assert.ok(downloadMatch[0].includes('.click()'), "Should trigger click to download");
+  });
+
+  test("filename includes date range", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const exportMatch = html.match(/function initCsvExport[\s\S]*?^\}\)\(\);/m);
+    assert.ok(exportMatch, "Should find initCsvExport function");
+    
+    // Check that filename uses date range from filter
+    assert.ok(exportMatch[0].includes("date-from"), "Should get from date for filename");
+    assert.ok(exportMatch[0].includes("date-to"), "Should get to date for filename");
+    assert.ok(exportMatch[0].includes("usage_"), "Filename should start with 'usage_'");
+    assert.ok(exportMatch[0].includes(".csv"), "Filename should end with .csv");
+  });
+
+  test("button shows loading state during export", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const exportMatch = html.match(/function initCsvExport[\s\S]*?^\}\)\(\);/m);
+    assert.ok(exportMatch, "Should find initCsvExport function");
+    assert.ok(exportMatch[0].includes("btn.disabled = true"), "Should disable button during export");
+    assert.ok(exportMatch[0].includes("'Exporting...'") || exportMatch[0].includes('"Exporting..."'), "Should show loading text");
+  });
+
+  test("button re-enables after export completes", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const exportMatch = html.match(/function initCsvExport[\s\S]*?^\}\)\(\);/m);
+    assert.ok(exportMatch, "Should find initCsvExport function");
+    assert.ok(exportMatch[0].includes("finally"), "Should have finally block");
+    assert.ok(exportMatch[0].includes("btn.disabled = false"), "Should re-enable button in finally");
+  });
+});

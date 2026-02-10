@@ -268,6 +268,12 @@ select:focus{outline:none;border-color:#8ECFC0}
 .usage-log-pagination-btn{background:var(--bg-surface);border:1px solid var(--border);border-radius:4px;padding:6px 12px;font-size:12px;color:var(--text-primary);cursor:pointer;transition:background .15s,border-color .15s}
 .usage-log-pagination-btn:hover:not(:disabled){background:var(--bg-surface-alt);border-color:var(--accent-green)}
 .usage-log-pagination-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Export CSV Button ─────────────────────────────────────────── */
+.export-csv-btn{background:var(--accent-green);color:#fff;border:none;border-radius:6px;padding:8px 16px;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:6px;margin-left:auto}
+.export-csv-btn:hover{background:var(--header-bg)}
+.export-csv-btn:disabled{opacity:.6;cursor:not-allowed}
+.export-csv-btn svg{width:14px;height:14px;fill:currentColor}
 </style>
 </head>
 <body>
@@ -300,6 +306,10 @@ select:focus{outline:none;border-color:#8ECFC0}
         <option value="">All Models</option>
       </select>
     </div>
+    <button class="export-csv-btn" id="export-csv-btn" title="Export usage data to CSV">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+      Export CSV
+    </button>
   </div>
   <div class="summary-cards" id="summary-cards">
     <div class="summary-card">
@@ -1004,6 +1014,96 @@ async function loadUsageLog() {
     prevBtn.disabled = true;
     nextBtn.disabled = true;
   }
+}
+
+// ── CSV Export ────────────────────────────────────────────────────
+(function initCsvExport() {
+  const btn = document.getElementById('export-csv-btn');
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Exporting...';
+
+    try {
+      // Fetch all records matching current filters (use high limit to get all)
+      const filterParams = getFilterParams();
+      const params = new URLSearchParams(filterParams);
+      params.set('limit', '10000'); // Fetch up to 10k records
+      params.set('offset', '0');
+
+      const data = await fetchJSON('/api/usage/log?' + params.toString());
+      const records = data.records || [];
+
+      if (records.length === 0) {
+        alert('No usage data to export');
+        return;
+      }
+
+      // Generate CSV content
+      const csv = generateCsv(records);
+
+      // Create filename with date range
+      const dateFrom = document.getElementById('date-from').value || 'start';
+      const dateTo = document.getElementById('date-to').value || 'end';
+      const filename = `usage_${dateFrom}_${dateTo}.csv`;
+
+      // Trigger download
+      downloadCsv(csv, filename);
+    } catch (e) {
+      console.error('CSV export failed:', e);
+      alert('Failed to export CSV');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Export CSV';
+    }
+  });
+})();
+
+function generateCsv(records) {
+  // CSV headers matching required fields
+  const headers = ['timestamp', 'agent', 'model', 'input_tokens', 'output_tokens', 'cost', 'task', 'run_id'];
+  
+  // Escape CSV value (wrap in quotes if contains comma, quote, or newline)
+  function escapeCsvValue(val) {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+  }
+
+  // Build CSV rows
+  const rows = [headers.join(',')];
+  
+  for (const r of records) {
+    const row = [
+      escapeCsvValue(r.createdAt || ''),
+      escapeCsvValue(r.agentId || ''),
+      escapeCsvValue(r.model || ''),
+      r.inputTokens != null ? r.inputTokens : '',
+      r.outputTokens != null ? r.outputTokens : '',
+      r.costUsd != null ? r.costUsd : '',
+      escapeCsvValue(r.taskLabel || ''),
+      escapeCsvValue(r.runId || '')
+    ];
+    rows.push(row.join(','));
+  }
+
+  return rows.join('\n');
+}
+
+function downloadCsv(content, filename) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 // ── Theme toggle ──────────────────────────────────────────────────
