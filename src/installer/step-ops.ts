@@ -323,6 +323,10 @@ export function claimStep(agentId: string): ClaimResult {
 
   if (!step) return { found: false };
 
+  // Guard: don't claim work for a failed run
+  const runStatus = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
+  if (runStatus?.status === "failed") return { found: false };
+
   // Get run context
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string } | undefined;
   const context: Record<string, string> = run ? JSON.parse(run.context) : {};
@@ -442,6 +446,12 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
+
+  // Guard: don't process completions for failed runs
+  const runCheck = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
+  if (runCheck?.status === "failed") {
+    return { advanced: false, runCompleted: false };
+  }
 
   // Merge KEY: value lines into run context
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string };
@@ -644,11 +654,12 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
 
 /**
  * Advance the pipeline: find the next waiting step and make it pending, or complete the run.
+ * Respects terminal run states — a failed run cannot be advanced or completed.
  */
 function advancePipeline(runId: string): { advanced: boolean; runCompleted: boolean } {
   const db = getDb();
 
-  // Guard: don't advance or complete a run that's already failed (#38)
+  // Guard: don't advance or complete a run that's already failed/cancelled
   const runStatus = db.prepare("SELECT status FROM runs WHERE id = ?").get(runId) as { status: string } | undefined;
   if (runStatus?.status === "failed" || runStatus?.status === "cancelled") {
     return { advanced: false, runCompleted: false };
