@@ -93,6 +93,14 @@ Steps:
   [pending] review (reviewer)
 ```
 
+### Library usage
+
+```ts
+import { multiply } from "antfarm";
+
+console.log(multiply(2, 3)); // 6
+```
+
 ---
 
 ## Build Your Own
