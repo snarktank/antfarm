@@ -20,3 +20,12 @@ Started: 2026-02-09T21:12:00-08:00
 - Files changed: agents/shared/compound/{AGENTS.md, SOUL.md, IDENTITY.md, __tests__/compound.test.js}
 - **Learnings:** Agent persona pattern is consistent — AGENTS.md for instructions, SOUL.md for personality, IDENTITY.md for name/role. Tests follow node:test + assert/strict pattern.
 ---
+
+## 2026-02-09 21:32 - US-003: Add compound agent and step to bug-fix workflow
+- Added compound agent definition (role: coding) to workflows/bug-fix/workflow.yml referencing ../../agents/shared/compound/ files
+- Added compound step after pr step with bug-fix-specific template variables: {{task}}, {{repo}}, {{branch}}, {{root_cause}}, {{severity}}, {{changes}}, {{regression_test}}, {{problem_statement}}
+- Step has expects: "STATUS: done", max_retries: 1, on_fail: escalate_to: human
+- Created workflows/bug-fix/__tests__/compound-step.test.js with 9 tests (all passing)
+- Files changed: workflows/bug-fix/workflow.yml, workflows/bug-fix/__tests__/compound-step.test.js
+- **Learnings:** Bug-fix workflow has different context variables than feature-dev (root_cause, severity, regression_test, problem_statement vs progress, results). Compound step input should be tailored to each workflow's context.
+---
