@@ -468,12 +468,59 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string };
   const context: Record<string, string> = JSON.parse(run.context);
 
-  for (const line of output.split("\n")) {
+  // Parse KEY: value lines, with support for multi-line JSON values.
+  // When a value starts with [ or {, accumulate lines until the JSON is complete.
+  const lines = output.split("\n");
+  let pendingKey: string | null = null;
+  let pendingValue = "";
+  let bracketDepth = 0;
+
+  function commitPending() {
+    if (pendingKey && !pendingKey.startsWith("STORIES_JSON")) {
+      context[pendingKey.toLowerCase()] = pendingValue.trim();
+    }
+    pendingKey = null;
+    pendingValue = "";
+    bracketDepth = 0;
+  }
+
+  for (const line of lines) {
+    if (pendingKey) {
+      // Accumulating multi-line JSON value
+      pendingValue += "\n" + line;
+      for (const ch of line) {
+        if (ch === "[" || ch === "{") bracketDepth++;
+        else if (ch === "]" || ch === "}") bracketDepth--;
+      }
+      if (bracketDepth <= 0) {
+        commitPending();
+      }
+      continue;
+    }
+
     const match = line.match(/^([A-Z_]+):\s*(.+)$/);
-    if (match && !match[1].startsWith("STORIES_JSON")) {
-      context[match[1].toLowerCase()] = match[2].trim();
+    if (match) {
+      const key = match[1];
+      const value = match[2].trim();
+      // Check if value starts a multi-line JSON block
+      if ((value.startsWith("[") || value.startsWith("{")) && !value.endsWith("]") && !value.endsWith("}")) {
+        pendingKey = key;
+        pendingValue = value;
+        bracketDepth = 0;
+        for (const ch of value) {
+          if (ch === "[" || ch === "{") bracketDepth++;
+          else if (ch === "]" || ch === "}") bracketDepth--;
+        }
+        if (bracketDepth <= 0) {
+          commitPending();
+        }
+      } else if (!key.startsWith("STORIES_JSON")) {
+        context[key.toLowerCase()] = value;
+      }
     }
   }
+  // Flush any remaining pending value
+  commitPending();
 
   db.prepare(
     "UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?"
