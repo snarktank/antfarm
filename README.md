@@ -182,7 +182,8 @@ antfarm dashboard status       # Check status
 ## Requirements
 
 - Node.js >= 22
-- [OpenClaw](https://github.com/openclaw/openclaw) running on the host
+- [OpenClaw](https://github.com/openclaw/openclaw) **v2026.2.9+** running on the host
+  - Antfarm uses cron jobs for workflow orchestration. Older OpenClaw versions may not expose the cron tool via `/tools/invoke`. Antfarm will automatically fall back to the `openclaw` CLI, but keeping OpenClaw up to date is recommended: `npm update -g openclaw`
 - `gh` CLI for PR creation steps
 
 ---
