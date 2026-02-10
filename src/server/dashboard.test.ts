@@ -2,6 +2,109 @@ import { test, describe, before, after } from "node:test";
 import assert from "node:assert";
 import http from "node:http";
 
+// HTML request helper for UI tests
+async function fetchHTML(port: number, path: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: "127.0.0.1",
+      port,
+      path,
+      method: "GET",
+    };
+
+    const req = http.request(options, (res) => {
+      let data = "";
+      res.on("data", (chunk) => { data += chunk; });
+      res.on("end", () => resolve(data));
+    });
+
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+describe("Tab Navigation UI", () => {
+  let server: http.Server;
+  const TEST_PORT = 33337;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("serves HTML with tab bar containing Runs and Costs tabs", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Tab bar exists
+    assert.ok(html.includes('class="tab-bar"'), "Should have tab-bar element");
+    assert.ok(html.includes('id="tab-bar"'), "Tab bar should have id");
+    
+    // Both tabs exist
+    assert.ok(html.includes('data-tab="runs"'), "Should have Runs tab with data attribute");
+    assert.ok(html.includes('data-tab="costs"'), "Should have Costs tab with data attribute");
+    assert.ok(html.includes('>Runs</button>'), "Should have Runs button text");
+    assert.ok(html.includes('>Costs</button>'), "Should have Costs button text");
+  });
+
+  test("Runs tab is active by default", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Runs tab should have 'active' class
+    const runsTabMatch = html.match(/<button[^>]*data-tab="runs"[^>]*>/);
+    assert.ok(runsTabMatch, "Should find Runs tab button");
+    assert.ok(runsTabMatch[0].includes('class="tab-btn active"'), "Runs tab should be active by default");
+    
+    // Costs tab should NOT have 'active' class
+    const costsTabMatch = html.match(/<button[^>]*data-tab="costs"[^>]*>/);
+    assert.ok(costsTabMatch, "Should find Costs tab button");
+    assert.ok(!costsTabMatch[0].includes('active'), "Costs tab should not be active by default");
+  });
+
+  test("has runs-view and costs-view containers", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="runs-view"'), "Should have runs-view container");
+    assert.ok(html.includes('id="costs-view"'), "Should have costs-view container");
+    assert.ok(html.includes('class="view-container active"'), "Should have one active view container");
+  });
+
+  test("runs-view is active by default, costs-view is not", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Check runs-view has active class
+    const runsViewMatch = html.match(/<div[^>]*id="runs-view"[^>]*>/);
+    assert.ok(runsViewMatch, "Should find runs-view container");
+    assert.ok(runsViewMatch[0].includes('active'), "runs-view should be active by default");
+    
+    // Check costs-view does NOT have active class
+    const costsViewMatch = html.match(/<div[^>]*id="costs-view"[^>]*>/);
+    assert.ok(costsViewMatch, "Should find costs-view container");
+    assert.ok(!costsViewMatch[0].includes('active'), "costs-view should not be active by default");
+  });
+
+  test("has CSS styles for tab navigation", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.tab-bar'), "Should have .tab-bar CSS rule");
+    assert.ok(html.includes('.tab-btn'), "Should have .tab-btn CSS rule");
+    assert.ok(html.includes('.tab-btn.active'), "Should have .tab-btn.active CSS rule");
+    assert.ok(html.includes('.view-container'), "Should have .view-container CSS rule");
+  });
+
+  test("has JavaScript for tab switching", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('initTabs'), "Should have initTabs function");
+    assert.ok(html.includes('switchTab'), "Should have switchTab function");
+    assert.ok(html.includes("dataset.tab"), "Should use data-tab attribute in JS");
+  });
+});
+
 // HTTP request helper
 async function request(
   port: number,

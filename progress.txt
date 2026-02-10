@@ -45,3 +45,13 @@ Started: 2026-02-09T21:12:00-05:00
 - Created src/server/dashboard.test.ts with 10 tests covering validation, success cases, and error handling
 - **Learnings:** Dashboard uses raw http.createServer with manual routing. Use async handler and parseBody helper. FK constraints on usage.run_id mean client must provide valid run_id or omit it.
 ---
+
+## 2026-02-09 21:42 - US-004: Add GET /api/usage endpoint with aggregation
+- Added GET /api/usage handler to src/server/dashboard.ts
+- Added `getAggregatedUsage()` function to src/installer/usage.ts with types `UsageAggregate` and `GroupedUsageAggregate`
+- Supports query params: group_by (agent|model|task|day), from_date, to_date, agent_id, model
+- Returns aggregated totals: totalInputTokens, totalOutputTokens, totalCostUsd, recordCount
+- When group_by is specified, returns array with groupKey field for each group
+- Added 10 tests to dashboard.test.ts covering all aggregation and filtering scenarios
+- **Learnings:** Use COALESCE(SUM(...), 0) in SQLite to return 0 instead of null for empty aggregates. DATE() function extracts date portion from ISO timestamps. Use unique test data prefixes (timestamps) to isolate tests from persisted DB data.
+---

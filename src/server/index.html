@@ -180,6 +180,17 @@ select:focus{outline:none;border-color:#8ECFC0}
 @media(max-width:768px){.board{flex-direction:column}.column{min-width:unset}}
 .story-open{display:block!important}
 .story-chevron-open{transform:rotate(90deg)}
+
+/* ── Tab Navigation ────────────────────────────────────────────── */
+.tab-bar{display:flex;gap:0;background:var(--bg-surface);border-bottom:1px solid var(--border);padding:0 24px}
+.tab-btn{background:none;border:none;padding:12px 20px;font-family:'Inter',sans-serif;font-size:14px;font-weight:500;color:var(--text-secondary);cursor:pointer;position:relative;transition:color .15s}
+.tab-btn:hover{color:var(--text-primary)}
+.tab-btn.active{color:var(--accent-green)}
+.tab-btn.active::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent-green);border-radius:2px 2px 0 0}
+.view-container{display:none;min-height:calc(100vh - 110px)}
+.view-container.active{display:block}
+#costs-view{padding:24px}
+#costs-view .empty{color:var(--text-secondary);font-size:14px;text-align:center;padding:48px 24px}
 </style>
 </head>
 <body>
@@ -189,7 +200,16 @@ select:focus{outline:none;border-color:#8ECFC0}
   <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
   <span class="refresh-note" id="refresh-note">Auto-refresh: 30s</span>
 </header>
-<div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
+<div class="tab-bar" id="tab-bar">
+  <button class="tab-btn active" data-tab="runs">Runs</button>
+  <button class="tab-btn" data-tab="costs">Costs</button>
+</div>
+<div id="runs-view" class="view-container active">
+  <div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
+</div>
+<div id="costs-view" class="view-container">
+  <div class="empty">Cost tracking coming soon</div>
+</div>
 <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
   <div class="panel" id="panel"></div>
 </div>
@@ -364,6 +384,25 @@ async function loadStories(runId) {
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();
 setInterval(() => { if (currentWf) loadRuns(); }, 30000);
+
+// ── Tab Navigation ────────────────────────────────────────────────
+(function initTabs() {
+  const tabBar = document.getElementById('tab-bar');
+  const tabs = tabBar.querySelectorAll('.tab-btn');
+  const runsView = document.getElementById('runs-view');
+  const costsView = document.getElementById('costs-view');
+
+  function switchTab(tabName) {
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+    runsView.classList.toggle('active', tabName === 'runs');
+    costsView.classList.toggle('active', tabName === 'costs');
+  }
+
+  tabBar.addEventListener('click', e => {
+    const btn = e.target.closest('.tab-btn');
+    if (btn && btn.dataset.tab) switchTab(btn.dataset.tab);
+  });
+})();
 
 // ── Theme toggle ──────────────────────────────────────────────────
 (function initTheme() {
