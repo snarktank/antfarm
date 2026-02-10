@@ -23,6 +23,95 @@ async function fetchHTML(port: number, path: string): Promise<string> {
   });
 }
 
+describe("Costs Summary Cards UI", () => {
+  let server: http.Server;
+  const TEST_PORT = 33338;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("costs-view contains summary-cards container", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="summary-cards"'), "Should have summary-cards container");
+    assert.ok(html.includes('class="summary-cards"'), "Should have summary-cards class");
+  });
+
+  test("has 4 summary cards with correct labels", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Check all 4 card labels exist
+    assert.ok(html.includes('>Total Input Tokens</div>'), "Should have Total Input Tokens card");
+    assert.ok(html.includes('>Total Output Tokens</div>'), "Should have Total Output Tokens card");
+    assert.ok(html.includes('>Total Cost (USD)</div>'), "Should have Total Cost (USD) card");
+    assert.ok(html.includes('>Total Requests</div>'), "Should have Total Requests card");
+  });
+
+  test("each card has value element with correct id", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="card-input-tokens"'), "Should have card-input-tokens element");
+    assert.ok(html.includes('id="card-output-tokens"'), "Should have card-output-tokens element");
+    assert.ok(html.includes('id="card-total-cost"'), "Should have card-total-cost element");
+    assert.ok(html.includes('id="card-total-requests"'), "Should have card-total-requests element");
+  });
+
+  test("summary cards have proper structure with label and value", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Each card should have both summary-card-label and summary-card-value classes
+    const cardCount = (html.match(/class="summary-card"/g) || []).length;
+    assert.strictEqual(cardCount, 4, "Should have exactly 4 summary cards");
+    
+    const labelCount = (html.match(/class="summary-card-label"/g) || []).length;
+    assert.strictEqual(labelCount, 4, "Should have exactly 4 card labels");
+    
+    const valueCount = (html.match(/class="summary-card-value"/g) || []).length;
+    assert.strictEqual(valueCount, 4, "Should have exactly 4 card values");
+  });
+
+  test("has CSS styles for summary cards grid layout", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.summary-cards'), "Should have .summary-cards CSS rule");
+    assert.ok(html.includes('grid-template-columns'), "Should use grid layout");
+    assert.ok(html.includes('.summary-card{'), "Should have .summary-card CSS rule");
+    assert.ok(html.includes('.summary-card-label'), "Should have .summary-card-label CSS rule");
+    assert.ok(html.includes('.summary-card-value'), "Should have .summary-card-value CSS rule");
+  });
+
+  test("has JavaScript for loading costs summary", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('loadCostsSummary'), "Should have loadCostsSummary function");
+    assert.ok(html.includes('formatNumber'), "Should have formatNumber helper");
+    assert.ok(html.includes('formatCurrency'), "Should have formatCurrency helper");
+  });
+
+  test("tab switching calls loadCostsSummary when costs tab is activated", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // The switchTab function should call loadCostsSummary when tabName is 'costs'
+    assert.ok(
+      html.includes("if (tabName === 'costs') loadCostsSummary()"),
+      "Should call loadCostsSummary when costs tab is activated"
+    );
+  });
+
+  test("formatNumber uses locale string with thousands separators", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes("toLocaleString('en-US')"), "formatNumber should use toLocaleString for thousands separators");
+  });
+});
+
 describe("Tab Navigation UI", () => {
   let server: http.Server;
   const TEST_PORT = 33337;

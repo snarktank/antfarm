@@ -191,6 +191,13 @@ select:focus{outline:none;border-color:#8ECFC0}
 .view-container.active{display:block}
 #costs-view{padding:24px}
 #costs-view .empty{color:var(--text-secondary);font-size:14px;text-align:center;padding:48px 24px}
+
+/* ── Summary Cards ─────────────────────────────────────────────── */
+.summary-cards{display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;margin-bottom:24px}
+.summary-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;padding:20px;box-shadow:0 2px 8px var(--shadow)}
+.summary-card-label{font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary);margin-bottom:8px}
+.summary-card-value{font-size:28px;font-weight:600;color:var(--text-primary);font-family:'Geist Mono','Inter',monospace}
+.summary-card-value.loading{color:var(--text-secondary);font-size:14px;font-weight:400}
 </style>
 </head>
 <body>
@@ -208,7 +215,24 @@ select:focus{outline:none;border-color:#8ECFC0}
   <div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
 </div>
 <div id="costs-view" class="view-container">
-  <div class="empty">Cost tracking coming soon</div>
+  <div class="summary-cards" id="summary-cards">
+    <div class="summary-card">
+      <div class="summary-card-label">Total Input Tokens</div>
+      <div class="summary-card-value" id="card-input-tokens">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-label">Total Output Tokens</div>
+      <div class="summary-card-value" id="card-output-tokens">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-label">Total Cost (USD)</div>
+      <div class="summary-card-value" id="card-total-cost">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-label">Total Requests</div>
+      <div class="summary-card-value" id="card-total-requests">—</div>
+    </div>
+  </div>
 </div>
 <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
   <div class="panel" id="panel"></div>
@@ -396,6 +420,7 @@ setInterval(() => { if (currentWf) loadRuns(); }, 30000);
     tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
     runsView.classList.toggle('active', tabName === 'runs');
     costsView.classList.toggle('active', tabName === 'costs');
+    if (tabName === 'costs') loadCostsSummary();
   }
 
   tabBar.addEventListener('click', e => {
@@ -403,6 +428,46 @@ setInterval(() => { if (currentWf) loadRuns(); }, 30000);
     if (btn && btn.dataset.tab) switchTab(btn.dataset.tab);
   });
 })();
+
+// ── Costs Summary ─────────────────────────────────────────────────
+function formatNumber(n) {
+  if (n === null || n === undefined) return '—';
+  return n.toLocaleString('en-US');
+}
+
+function formatCurrency(n) {
+  if (n === null || n === undefined) return '—';
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function loadCostsSummary() {
+  const cardInputTokens = document.getElementById('card-input-tokens');
+  const cardOutputTokens = document.getElementById('card-output-tokens');
+  const cardTotalCost = document.getElementById('card-total-cost');
+  const cardTotalRequests = document.getElementById('card-total-requests');
+
+  // Show loading state
+  [cardInputTokens, cardOutputTokens, cardTotalCost, cardTotalRequests].forEach(el => {
+    el.textContent = 'Loading...';
+    el.classList.add('loading');
+  });
+
+  try {
+    const data = await fetchJSON('/api/usage');
+    cardInputTokens.textContent = formatNumber(data.totalInputTokens);
+    cardOutputTokens.textContent = formatNumber(data.totalOutputTokens);
+    cardTotalCost.textContent = formatCurrency(data.totalCostUsd);
+    cardTotalRequests.textContent = formatNumber(data.recordCount);
+  } catch (e) {
+    [cardInputTokens, cardOutputTokens, cardTotalCost, cardTotalRequests].forEach(el => {
+      el.textContent = 'Error';
+    });
+  }
+
+  [cardInputTokens, cardOutputTokens, cardTotalCost, cardTotalRequests].forEach(el => {
+    el.classList.remove('loading');
+  });
+}
 
 // ── Theme toggle ──────────────────────────────────────────────────
 (function initTheme() {

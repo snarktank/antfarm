@@ -15,6 +15,8 @@ Started: 2026-02-09T21:12:00-05:00
 - Dashboard uses raw `http.createServer` with manual routing in src/server/dashboard.ts
 - API endpoints use `json(res, data, status)` helper for JSON responses
 - For POST endpoints: parse body with async `parseBody(req)` helper, then validate
+- For UI structure tests: use fetchHTML helper, verify HTML with includes() and regex matching
+- Tab navigation pattern: data-tab attributes, classList.toggle for active states, view-container active/inactive
 
 ---
 
@@ -54,4 +56,15 @@ Started: 2026-02-09T21:12:00-05:00
 - When group_by is specified, returns array with groupKey field for each group
 - Added 10 tests to dashboard.test.ts covering all aggregation and filtering scenarios
 - **Learnings:** Use COALESCE(SUM(...), 0) in SQLite to return 0 instead of null for empty aggregates. DATE() function extracts date portion from ISO timestamps. Use unique test data prefixes (timestamps) to isolate tests from persisted DB data.
+---
+
+## 2026-02-09 21:52 - US-005: Add tab navigation UI to dashboard
+- Added tab bar below header in index.html with 'Runs' and 'Costs' tabs
+- Added CSS for .tab-bar, .tab-btn, .tab-btn.active, .view-container styles matching green/cream theme
+- Active tab gets green underline via ::after pseudo-element
+- Wrapped board in #runs-view container, added #costs-view container
+- Added initTabs() IIFE for tab switching via data-tab attributes and classList.toggle
+- Added 6 tests to dashboard.test.ts verifying HTML structure, default state, CSS rules, and JS presence
+- Files changed: src/server/index.html, src/server/dashboard.test.ts
+- **Learnings:** For UI tests without browser DOM, fetch HTML and use string matching/regex to verify structure. Use fetchHTML helper separate from JSON request helper.
 ---
