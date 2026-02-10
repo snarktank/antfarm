@@ -76,6 +76,17 @@ agents:
         SOUL.md: agents/reviewer/SOUL.md
         IDENTITY.md: agents/reviewer/IDENTITY.md
 
+  - id: compound
+    name: Compound
+    role: coding
+    description: Captures learnings from the workflow run, extracts patterns, and writes them to the repo for continuous improvement.
+    workspace:
+      baseDir: agents/compound
+      files:
+        AGENTS.md: ../../agents/shared/compound/AGENTS.md
+        SOUL.md: ../../agents/shared/compound/SOUL.md
+        IDENTITY.md: ../../agents/shared/compound/IDENTITY.md
+
 steps:
   - id: plan
     agent: planner
@@ -337,3 +348,39 @@ steps:
       max_retries: 3
       on_exhausted:
         escalate_to: human
+
+  - id: compound
+    agent: compound
+    input: |
+      Analyze the workflow run and capture learnings.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      CHANGES:
+      {{changes}}
+
+      TEST RESULTS:
+      {{results}}
+
+      Instructions:
+      1. Analyze the entire workflow run — what went well, what failed, what was retried
+      2. Extract patterns and lessons learned from progress.txt, git history, and run context
+      3. Write learnings to docs/learnings/ in the repo with YAML frontmatter (tags, date, workflow, category)
+      4. Consolidate with existing learnings to avoid duplication
+      5. Optionally update the repo's CLAUDE.md or AGENTS.md with new rules/patterns discovered
+      6. Commit your changes
+
+      Reply with:
+      STATUS: done
+      LEARNINGS: summary of what was captured
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
