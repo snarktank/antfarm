@@ -524,10 +524,57 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null } | undefined;
+    "SELECT id, step_id, run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE id = ?"
+  ).get(stepId) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
+
+  // T9b: Verify-each aware failure — if this is a verify step being used by a
+  // loop's verifyEach, route the failure back through the loop retry logic
+  // instead of treating it as a standalone step failure.
+  if (step.type !== "loop") {
+    const loopStepRow = db.prepare(
+      "SELECT id, loop_config, run_id FROM steps WHERE run_id = ? AND type = 'loop' AND status = 'running' LIMIT 1"
+    ).get(step.run_id) as { id: string; loop_config: string | null; run_id: string } | undefined;
+
+    if (loopStepRow?.loop_config) {
+      const lc: LoopConfig = JSON.parse(loopStepRow.loop_config);
+      if (lc.verifyEach && lc.verifyStep === step.step_id) {
+        // This is a verify step in a verify-each loop — find the last completed story and retry it
+        const lastDoneStory = db.prepare(
+          "SELECT id, retry_count, max_retries FROM stories WHERE run_id = ? AND status = 'done' ORDER BY updated_at DESC LIMIT 1"
+        ).get(step.run_id) as { id: string; retry_count: number; max_retries: number } | undefined;
+
+        // Reset verify step back to waiting (ready for next verify-each cycle)
+        db.prepare("UPDATE steps SET status = 'waiting', output = ?, updated_at = datetime('now') WHERE id = ?").run(error, stepId);
+
+        if (lastDoneStory) {
+          const newRetry = lastDoneStory.retry_count + 1;
+          if (newRetry >= lastDoneStory.max_retries) {
+            // Story retries exhausted — fail everything
+            db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, lastDoneStory.id);
+            db.prepare("UPDATE steps SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(loopStepRow.id);
+            db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(step.run_id);
+            scheduleRunCronTeardown(step.run_id);
+            return { retrying: false, runFailed: true };
+          }
+
+          // Set story back to pending for retry
+          db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, lastDoneStory.id);
+
+          // Store verify feedback in run context
+          const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string };
+          const context = JSON.parse(run.context);
+          context["verify_feedback"] = error;
+          db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), step.run_id);
+        }
+
+        // Set loop step back to pending so developer can claim the retry
+        db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(loopStepRow.id);
+        return { retrying: true, runFailed: false };
+      }
+    }
+  }
 
   // T9: Loop step failure — per-story retry
   if (step.type === "loop" && step.current_story_id) {
