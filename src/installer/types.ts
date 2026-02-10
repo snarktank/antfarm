@@ -1,3 +1,12 @@
+export type NotificationsConfig = {
+  enabled?: boolean;
+  channel?: string;
+  url?: string;
+  sessionTarget?: string;
+  on_success?: boolean;
+  on_failure?: boolean;
+};
+
 export type WorkflowAgentFiles = {
   baseDir: string;
   files: Record<string, string>;
@@ -72,10 +81,7 @@ export type WorkflowSpec = {
   agents: WorkflowAgent[];
   steps: WorkflowStep[];
   context?: Record<string, string>;
-  notifications?: {
-    url?: string;
-    sessionTarget?: string;
-  };
+  notifications?: NotificationsConfig;
 };
 
 export type WorkflowInstallResult = {
