@@ -67,6 +67,23 @@ function migrate(db: DatabaseSync): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS usage (
+      id TEXT PRIMARY KEY,
+      run_id TEXT REFERENCES runs(id),
+      step_id TEXT,
+      agent_id TEXT NOT NULL,
+      model TEXT NOT NULL,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      cost_usd REAL,
+      task_label TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_usage_agent_id ON usage(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_usage_model ON usage(model);
+    CREATE INDEX IF NOT EXISTS idx_usage_created_at ON usage(created_at);
   `);
 
   // Add columns to steps table for backwards compat
