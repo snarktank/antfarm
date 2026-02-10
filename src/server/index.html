@@ -198,6 +198,19 @@ select:focus{outline:none;border-color:#8ECFC0}
 .summary-card-label{font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary);margin-bottom:8px}
 .summary-card-value{font-size:28px;font-weight:600;color:var(--text-primary);font-family:'Geist Mono','Inter',monospace}
 .summary-card-value.loading{color:var(--text-secondary);font-size:14px;font-weight:400}
+
+/* ── Model Breakdown Table ─────────────────────────────────────── */
+.model-breakdown{margin-bottom:24px}
+.model-breakdown-title{font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:12px}
+.model-table{width:100%;border-collapse:collapse;background:var(--bg-surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;box-shadow:0 2px 8px var(--shadow)}
+.model-table th{background:var(--bg-column-header);padding:12px 16px;text-align:left;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-secondary);border-bottom:1px solid var(--border)}
+.model-table td{padding:12px 16px;font-size:13px;color:var(--text-primary);border-bottom:1px solid var(--border-light)}
+.model-table tr:last-child td{border-bottom:none}
+.model-table tr:hover td{background:var(--bg-surface-alt)}
+.model-table .numeric{text-align:right;font-family:'Geist Mono','Inter',monospace}
+.model-table .model-name{font-weight:500}
+.model-table-loading{padding:24px;text-align:center;color:var(--text-secondary);font-size:14px}
+.model-table-empty{padding:24px;text-align:center;color:var(--text-secondary);font-size:14px}
 </style>
 </head>
 <body>
@@ -232,6 +245,23 @@ select:focus{outline:none;border-color:#8ECFC0}
       <div class="summary-card-label">Total Requests</div>
       <div class="summary-card-value" id="card-total-requests">—</div>
     </div>
+  </div>
+  <div class="model-breakdown" id="model-breakdown">
+    <div class="model-breakdown-title">Cost by Model</div>
+    <table class="model-table" id="model-table">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th class="numeric">Input Tokens</th>
+          <th class="numeric">Output Tokens</th>
+          <th class="numeric">Cost</th>
+          <th class="numeric">Requests</th>
+        </tr>
+      </thead>
+      <tbody id="model-table-body">
+        <tr><td colspan="5" class="model-table-loading">Loading...</td></tr>
+      </tbody>
+    </table>
   </div>
 </div>
 <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
@@ -467,6 +497,43 @@ async function loadCostsSummary() {
   [cardInputTokens, cardOutputTokens, cardTotalCost, cardTotalRequests].forEach(el => {
     el.classList.remove('loading');
   });
+
+  // Also load model breakdown
+  loadModelBreakdown();
+}
+
+async function loadModelBreakdown() {
+  const tbody = document.getElementById('model-table-body');
+  tbody.innerHTML = '<tr><td colspan="5" class="model-table-loading">Loading...</td></tr>';
+
+  try {
+    const data = await fetchJSON('/api/usage?group_by=model');
+    
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="model-table-empty">No usage data</td></tr>';
+      return;
+    }
+
+    // Sort by total cost descending
+    data.sort((a, b) => (b.totalCostUsd || 0) - (a.totalCostUsd || 0));
+
+    tbody.innerHTML = data.map(row => `
+      <tr>
+        <td class="model-name">${escapeHtml(row.groupKey)}</td>
+        <td class="numeric">${formatNumber(row.totalInputTokens)}</td>
+        <td class="numeric">${formatNumber(row.totalOutputTokens)}</td>
+        <td class="numeric">${formatCurrency(row.totalCostUsd)}</td>
+        <td class="numeric">${formatNumber(row.recordCount)}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="5" class="model-table-empty">Error loading data</td></tr>';
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 // ── Theme toggle ──────────────────────────────────────────────────

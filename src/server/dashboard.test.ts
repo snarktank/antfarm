@@ -23,6 +23,107 @@ async function fetchHTML(port: number, path: string): Promise<string> {
   });
 }
 
+describe("Model Breakdown Table UI", () => {
+  let server: http.Server;
+  const TEST_PORT = 33339;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("costs-view contains model-breakdown section", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="model-breakdown"'), "Should have model-breakdown container");
+    assert.ok(html.includes('class="model-breakdown"'), "Should have model-breakdown class");
+  });
+
+  test("has model breakdown title", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('class="model-breakdown-title"'), "Should have title element");
+    assert.ok(html.includes('>Cost by Model</div>'), "Should have correct title text");
+  });
+
+  test("has model table with correct structure", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="model-table"'), "Should have model-table");
+    assert.ok(html.includes('class="model-table"'), "Should have model-table class");
+    assert.ok(html.includes('<thead>'), "Should have thead");
+    assert.ok(html.includes('<tbody'), "Should have tbody");
+    assert.ok(html.includes('id="model-table-body"'), "Should have tbody id for JS targeting");
+  });
+
+  test("table has correct column headers", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('<th>Model</th>'), "Should have Model column");
+    assert.ok(html.includes('>Input Tokens</th>'), "Should have Input Tokens column");
+    assert.ok(html.includes('>Output Tokens</th>'), "Should have Output Tokens column");
+    assert.ok(html.includes('>Cost</th>'), "Should have Cost column");
+    assert.ok(html.includes('>Requests</th>'), "Should have Requests column");
+  });
+
+  test("numeric columns have numeric class", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Check that the th elements for numeric columns have the numeric class
+    const numericHeaderMatches = (html.match(/<th class="numeric">/g) || []).length;
+    assert.strictEqual(numericHeaderMatches, 4, "Should have 4 numeric column headers (Input, Output, Cost, Requests)");
+  });
+
+  test("has CSS styles for model table", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.model-breakdown{'), "Should have .model-breakdown CSS rule");
+    assert.ok(html.includes('.model-table{'), "Should have .model-table CSS rule");
+    assert.ok(html.includes('.model-table th{'), "Should have .model-table th CSS rule");
+    assert.ok(html.includes('.model-table td{'), "Should have .model-table td CSS rule");
+    assert.ok(html.includes('.model-table tr:hover'), "Should have hover state for rows");
+  });
+
+  test("has JavaScript for loading model breakdown", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('loadModelBreakdown'), "Should have loadModelBreakdown function");
+    assert.ok(html.includes("group_by=model"), "Should fetch with group_by=model parameter");
+  });
+
+  test("loadCostsSummary calls loadModelBreakdown", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // The loadCostsSummary function should call loadModelBreakdown
+    assert.ok(
+      html.includes("loadModelBreakdown()"),
+      "loadCostsSummary should call loadModelBreakdown"
+    );
+  });
+
+  test("model breakdown sorts by cost descending", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Check that the sorting logic exists
+    assert.ok(
+      html.includes("sort((a, b) => (b.totalCostUsd"),
+      "Should sort data by totalCostUsd descending"
+    );
+  });
+
+  test("has escapeHtml helper for XSS protection", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes("function escapeHtml"), "Should have escapeHtml helper function");
+    assert.ok(html.includes("escapeHtml(row.groupKey)"), "Should use escapeHtml on model name");
+  });
+});
+
 describe("Costs Summary Cards UI", () => {
   let server: http.Server;
   const TEST_PORT = 33338;

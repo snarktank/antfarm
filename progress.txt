@@ -68,3 +68,13 @@ Started: 2026-02-09T21:12:00-05:00
 - Files changed: src/server/index.html, src/server/dashboard.test.ts
 - **Learnings:** For UI tests without browser DOM, fetch HTML and use string matching/regex to verify structure. Use fetchHTML helper separate from JSON request helper.
 ---
+
+## 2026-02-09 22:05 - US-006: Add costs summary cards to costs view
+- Added 4 summary cards to costs-view: Total Input Tokens, Total Output Tokens, Total Cost (USD), Total Requests
+- Added CSS grid layout for cards matching dashboard theme (bg-surface, border, box-shadow, Geist Mono font for values)
+- Added loadCostsSummary() function called when Costs tab is activated
+- Added formatNumber() and formatCurrency() helpers with locale-based thousands separators
+- Added 8 tests verifying card structure, CSS, and JavaScript functionality
+- Files changed: src/server/index.html, src/server/dashboard.test.ts
+- **Learnings:** For loading state in cards, toggle a .loading class for different styling. Use toLocaleString('en-US') for consistent number formatting.
+---
