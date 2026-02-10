@@ -682,6 +682,16 @@ function formatCurrency(n) {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatAgentRole(agentId) {
+  if (!agentId) return '—';
+  const slashParts = String(agentId).split('/').filter(Boolean);
+  const lastPathSegment = slashParts.length > 0 ? slashParts[slashParts.length - 1] : String(agentId);
+  const dashParts = lastPathSegment.split('-').filter(Boolean);
+  const role = dashParts.length > 0 ? dashParts[dashParts.length - 1] : lastPathSegment;
+  if (!role) return '—';
+  return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
 async function loadCostsSummary() {
   const cardInputTokens = document.getElementById('card-input-tokens');
   const cardOutputTokens = document.getElementById('card-output-tokens');
@@ -770,7 +780,7 @@ async function loadAgentBreakdown() {
 
     tbody.innerHTML = data.map(row => `
       <tr>
-        <td class="model-name">${escapeHtml(row.groupKey)}</td>
+        <td class="model-name">${escapeHtml(formatAgentRole(row.groupKey))}</td>
         <td class="numeric">${formatNumber(row.totalInputTokens)}</td>
         <td class="numeric">${formatNumber(row.totalOutputTokens)}</td>
         <td class="numeric">${formatCurrency(row.totalCostUsd)}</td>
@@ -990,7 +1000,7 @@ async function loadUsageLog() {
       return `
         <tr>
           <td class="timestamp">${escapeHtml(ts)}</td>
-          <td>${escapeHtml(r.agentId || '—')}</td>
+          <td>${escapeHtml(formatAgentRole(r.agentId))}</td>
           <td>${escapeHtml(r.model || '—')}</td>
           <td class="numeric">${inputTokens}</td>
           <td class="numeric">${outputTokens}</td>

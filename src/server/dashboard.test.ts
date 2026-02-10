@@ -99,27 +99,18 @@ describe("Agent Breakdown Table UI", () => {
     );
   });
 
-  test("agent breakdown uses escapeHtml for XSS protection", async () => {
+  test("agent breakdown formats agent IDs into friendly role labels", async () => {
     const html = await fetchHTML(TEST_PORT, "/");
-    
-    // Find loadAgentBreakdown function and check escaping
-    const agentFuncMatch = html.match(/async function loadAgentBreakdown[\s\S]*?^}/m);
-    assert.ok(agentFuncMatch, "Should find loadAgentBreakdown function");
-    assert.ok(
-      agentFuncMatch[0].includes("escapeHtml(row.groupKey)"),
-      "Should use escapeHtml on agent name"
-    );
-  });
 
-  test("agent breakdown displays agent IDs", async () => {
-    const html = await fetchHTML(TEST_PORT, "/");
-    
-    // The loadAgentBreakdown function should render row.groupKey which contains agent IDs
     const agentFuncMatch = html.match(/async function loadAgentBreakdown[\s\S]*?^}/m);
     assert.ok(agentFuncMatch, "Should find loadAgentBreakdown function");
     assert.ok(
-      agentFuncMatch[0].includes('class="model-name"'),
-      "Should render agent ID with model-name class for styling"
+      agentFuncMatch[0].includes("formatAgentRole(row.groupKey)"),
+      "Should format agent ID to friendly role label before rendering"
+    );
+    assert.ok(
+      agentFuncMatch[0].includes("escapeHtml(formatAgentRole(row.groupKey))"),
+      "Should escape formatted agent label for XSS protection"
     );
   });
 
@@ -132,6 +123,16 @@ describe("Agent Breakdown Table UI", () => {
     assert.ok(modelPos > 0, "Should find model-breakdown");
     assert.ok(agentPos > 0, "Should find agent-breakdown");
     assert.ok(agentPos > modelPos, "agent-breakdown should appear after model-breakdown");
+  });
+
+  test("has shared formatter that extracts and capitalizes final role segment", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+
+    const formatterMatch = html.match(/function formatAgentRole[\s\S]*?^}/m);
+    assert.ok(formatterMatch, "Should define formatAgentRole helper");
+    assert.ok(formatterMatch[0].includes("split('/')"), "Should split on '/' first");
+    assert.ok(formatterMatch[0].includes("split('-')"), "Should split on '-' for final segment extraction");
+    assert.ok(formatterMatch[0].includes("charAt(0).toUpperCase()"), "Should capitalize role label");
   });
 });
 
@@ -1367,6 +1368,21 @@ describe("Usage Log UI", () => {
     const html = await fetchHTML(TEST_PORT, "/");
     
     assert.ok(html.includes('async function loadUsageLog()'), "Should have loadUsageLog function");
+  });
+
+  test("usage log formats agent IDs into friendly role labels", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+
+    const match = html.match(/async function loadUsageLog[\s\S]*?^}/m);
+    assert.ok(match, "Should find loadUsageLog function");
+    assert.ok(
+      match[0].includes("formatAgentRole(r.agentId)"),
+      "Usage log should format raw agent IDs to friendly labels"
+    );
+    assert.ok(
+      match[0].includes("escapeHtml(formatAgentRole(r.agentId))"),
+      "Usage log should escape formatted agent labels"
+    );
   });
 
   test("loadUsageLog fetches from /api/usage/log with pagination params", async () => {
