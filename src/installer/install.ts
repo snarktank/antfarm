@@ -101,7 +101,7 @@ const SUBAGENT_POLICY = { allowAgents: [] as string[] };
  * Infer an agent's role from its id when not explicitly set in workflow YAML.
  * Matches common agent id patterns across all bundled workflows.
  */
-function inferRole(agentId: string): AgentRole {
+export function inferRole(agentId: string): AgentRole {
   const id = agentId.toLowerCase();
   if (id.includes("planner") || id.includes("prioritizer") || id.includes("reviewer")
       || id.includes("investigator") || id.includes("triager")) return "analysis";
@@ -109,6 +109,7 @@ function inferRole(agentId: string): AgentRole {
   if (id.includes("tester")) return "testing";
   if (id.includes("scanner")) return "scanning";
   if (id === "pr" || id.includes("/pr")) return "pr";
+  if (id.includes("compound")) return "coding";
   // developer, fixer, setup → coding
   return "coding";
 }

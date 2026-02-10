@@ -75,6 +75,17 @@ agents:
         SOUL.md: ../../agents/shared/pr/SOUL.md
         IDENTITY.md: ../../agents/shared/pr/IDENTITY.md
 
+  - id: compound
+    name: Compound
+    role: coding
+    description: Captures learnings from the bug-fix workflow run, extracts patterns, and writes them to the repo for continuous improvement.
+    workspace:
+      baseDir: agents/compound
+      files:
+        AGENTS.md: ../../agents/shared/compound/AGENTS.md
+        SOUL.md: ../../agents/shared/compound/SOUL.md
+        IDENTITY.md: ../../agents/shared/compound/IDENTITY.md
+
 steps:
   - id: triage
     agent: triager
@@ -281,5 +292,46 @@ steps:
       STATUS: done
       PR: URL to the pull request
     expects: "STATUS: done"
+    on_fail:
+      escalate_to: human
+
+  - id: compound
+    agent: compound
+    input: |
+      Analyze the bug-fix workflow run and capture learnings.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      PROBLEM STATEMENT:
+      {{problem_statement}}
+
+      SEVERITY: {{severity}}
+
+      ROOT CAUSE:
+      {{root_cause}}
+
+      CHANGES:
+      {{changes}}
+
+      REGRESSION TEST:
+      {{regression_test}}
+
+      Instructions:
+      1. Analyze the entire bug-fix workflow run — what went well, what failed, what was retried
+      2. Extract patterns and lessons learned: Was the root cause analysis accurate? Was the fix minimal and targeted?
+      3. Write learnings to docs/learnings/ in the repo with YAML frontmatter (tags, date, workflow: bug-fix, category, severity)
+      4. Consolidate with existing learnings to avoid duplication
+      5. Optionally update the repo's CLAUDE.md or AGENTS.md with new rules/patterns discovered
+      6. Commit your changes
+
+      Reply with:
+      STATUS: done
+      LEARNINGS: summary of what was captured
+    expects: "STATUS: done"
+    max_retries: 1
     on_fail:
       escalate_to: human

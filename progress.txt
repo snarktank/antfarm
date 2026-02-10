@@ -1,0 +1,39 @@
+# Progress Log
+Run: 3ddb9b16-aead-48fc-a454-c0fbc1d54c48
+Task: Add compound step to all workflows
+Started: 2026-02-09T21:12:00-08:00
+
+## Codebase Patterns
+- Agent persona files live in agents/shared/<name>/ with AGENTS.md, SOUL.md, IDENTITY.md
+- Tests use node:test with assert/strict, run with `node --test <path>`
+- Build: `npm run build` (tsc + copy html + chmod)
+- No test script in package.json — run tests directly with node --test
+- tsconfig only compiles src/**/*.ts — test .js files outside src/ are not typechecked
+
+---
+
+## 2026-02-09 21:12 - US-001: Create shared compound agent persona files
+- Created agents/shared/compound/AGENTS.md with full compound agent instructions
+- Created agents/shared/compound/SOUL.md with knowledge curator persona
+- Created agents/shared/compound/IDENTITY.md with name/role
+- Created agents/shared/compound/__tests__/compound.test.js with 9 tests covering all acceptance criteria
+- Files changed: agents/shared/compound/{AGENTS.md, SOUL.md, IDENTITY.md, __tests__/compound.test.js}
+- **Learnings:** Agent persona pattern is consistent — AGENTS.md for instructions, SOUL.md for personality, IDENTITY.md for name/role. Tests follow node:test + assert/strict pattern.
+---
+
+## 2026-02-09 21:32 - US-003: Add compound agent and step to bug-fix workflow
+- Added compound agent definition (role: coding) to workflows/bug-fix/workflow.yml referencing ../../agents/shared/compound/ files
+- Added compound step after pr step with bug-fix-specific template variables: {{task}}, {{repo}}, {{branch}}, {{root_cause}}, {{severity}}, {{changes}}, {{regression_test}}, {{problem_statement}}
+- Step has expects: "STATUS: done", max_retries: 1, on_fail: escalate_to: human
+- Created workflows/bug-fix/__tests__/compound-step.test.js with 9 tests (all passing)
+- Files changed: workflows/bug-fix/workflow.yml, workflows/bug-fix/__tests__/compound-step.test.js
+- **Learnings:** Bug-fix workflow has different context variables than feature-dev (root_cause, severity, regression_test, problem_statement vs progress, results). Compound step input should be tailored to each workflow's context.
+---
+
+## 2026-02-09 21:42 - US-004: Add compound agent and step to security-audit workflow
+- Added compound agent definition (role: coding) to workflows/security-audit/workflow.yml
+- Added compound step after pr step with security-specific input template including {{task}}, {{repo}}, {{branch}}, {{findings}}, {{fix_plan}}, {{changes}}, {{results}}, {{vulnerability_count}}, {{critical_count}}, {{deferred}}
+- Step has expects: "STATUS: done", max_retries: 1, on_fail: escalate_to: human
+- Files changed: workflows/security-audit/workflow.yml, workflows/security-audit/__tests__/compound-step.test.js
+- **Learnings:** Security-audit workflow has more context variables than other workflows due to scan/prioritize phases producing findings, fix_plan, vulnerability_count, critical_count, and deferred data.
+---
