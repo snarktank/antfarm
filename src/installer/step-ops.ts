@@ -263,6 +263,9 @@ export function claimStep(agentId: string): ClaimResult {
         context["verify_feedback"] = "";
       }
 
+      // Persist story context vars to DB so verify_each steps can access them
+      db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), step.run_id);
+
       const resolvedInput = resolveTemplate(step.input_template, context);
       return { found: true, stepId: step.id, runId: step.run_id, resolvedInput };
     }

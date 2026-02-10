@@ -369,6 +369,49 @@ async function main() {
       }
     }
 
+    // Check if the failed step is a verify step linked to a loop step's verify_each
+    const loopStep = db.prepare(
+      "SELECT id, loop_config FROM steps WHERE run_id = ? AND type = 'loop' AND status IN ('running', 'failed') LIMIT 1"
+    ).get(run.id) as { id: string; loop_config: string | null } | undefined;
+
+    if (loopStep?.loop_config) {
+      const lc = JSON.parse(loopStep.loop_config);
+      if (lc.verifyEach && lc.verifyStep === failedStep.step_id) {
+        // Reset the loop step (developer) to pending so it re-claims the story and populates context
+        db.prepare(
+          "UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+        ).run(loopStep.id);
+        // Reset verify step to waiting (fires after developer completes)
+        db.prepare(
+          "UPDATE steps SET status = 'waiting', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+        ).run(failedStep.id);
+        // Reset any failed stories to pending
+        db.prepare(
+          "UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE run_id = ? AND status = 'failed'"
+        ).run(run.id);
+
+        // Reset run to running
+        db.prepare(
+          "UPDATE runs SET status = 'running', updated_at = datetime('now') WHERE id = ?"
+        ).run(run.id);
+
+        // Ensure crons are running for this workflow
+        const { loadWorkflowSpec } = await import("../installer/workflow-spec.js");
+        const { resolveWorkflowDir } = await import("../installer/paths.js");
+        const { ensureWorkflowCrons } = await import("../installer/agent-cron.js");
+        try {
+          const workflowDir = resolveWorkflowDir(run.workflow_id);
+          const workflow = await loadWorkflowSpec(workflowDir);
+          await ensureWorkflowCrons(workflow);
+        } catch (err) {
+          process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
+        }
+
+        console.log(`Resumed run ${run.id.slice(0, 8)} — reset loop step "${loopStep.id.slice(0, 8)}" to pending, verify step "${failedStep.step_id}" to waiting`);
+        process.exit(0);
+      }
+    }
+
     // Reset step to pending
     db.prepare(
       "UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
