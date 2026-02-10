@@ -5,6 +5,7 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
+import { emitEvent } from "./events.js";
 
 /**
  * Fire-and-forget cron teardown when a run ends.
@@ -20,6 +21,14 @@ function scheduleRunCronTeardown(runId: string): void {
   } catch {
     // best-effort
   }
+}
+
+function getWorkflowId(runId: string): string | undefined {
+  try {
+    const db = getDb();
+    const row = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(runId) as { workflow_id: string } | undefined;
+    return row?.workflow_id;
+  } catch { return undefined; }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -210,12 +219,17 @@ function cleanupAbandonedSteps(): void {
       db.prepare(
         "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
       ).run(step.run_id);
+      const wfId = getWorkflowId(step.run_id);
+      emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: `Retries exhausted — step failed` });
+      emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: "Agent abandoned step without completing" });
+      emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Step abandoned and retries exhausted" });
       scheduleRunCronTeardown(step.run_id);
     } else {
       // Reset to pending for retry
       db.prepare(
         "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
       ).run(newRetry, step.id);
+      emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.step_id, detail: `Reset to pending (retry ${newRetry})` });
     }
   }
 
@@ -275,6 +289,7 @@ export function claimStep(agentId: string): ClaimResult {
         db.prepare(
           "UPDATE steps SET status = 'done', updated_at = datetime('now') WHERE id = ?"
         ).run(step.id);
+        emitEvent({ ts: new Date().toISOString(), event: "step.done", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, agentId: agentId });
         advancePipeline(step.run_id);
         return { found: false };
       }
@@ -286,6 +301,10 @@ export function claimStep(agentId: string): ClaimResult {
       db.prepare(
         "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now') WHERE id = ?"
       ).run(nextStory.id, step.id);
+
+      const wfId = getWorkflowId(step.run_id);
+      emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: wfId, stepId: step.id, agentId: agentId });
+      emitEvent({ ts: new Date().toISOString(), event: "story.started", runId: step.run_id, workflowId: wfId, stepId: step.id, agentId: agentId, storyId: nextStory.story_id, storyTitle: nextStory.title });
 
       // Build story template vars
       const story: Story = {
@@ -328,6 +347,7 @@ export function claimStep(agentId: string): ClaimResult {
   db.prepare(
     "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
   ).run(step.id);
+  emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, agentId: agentId });
 
   // Inject progress for any step in a run that has stories
   const hasStories = db.prepare(
@@ -381,10 +401,14 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
 
   // T7: Loop step completion
   if (step.type === "loop" && step.current_story_id) {
+    // Look up story info for event
+    const storyRow = db.prepare("SELECT story_id, title FROM stories WHERE id = ?").get(step.current_story_id) as { story_id: string; title: string } | undefined;
+
     // Mark current story done
     db.prepare(
       "UPDATE stories SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(output, step.current_story_id);
+    emitEvent({ ts: new Date().toISOString(), event: "story.done", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, storyId: storyRow?.story_id, storyTitle: storyRow?.title });
 
     // Clear current_story_id, save output
     db.prepare(
@@ -431,6 +455,7 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   db.prepare(
     "UPDATE steps SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?"
   ).run(output, stepId);
+  emitEvent({ ts: new Date().toISOString(), event: "step.done", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id });
 
   return advancePipeline(step.run_id);
 }
@@ -452,6 +477,11 @@ function handleVerifyEachCompletion(
     "UPDATE steps SET status = 'waiting', output = ?, updated_at = datetime('now') WHERE id = ?"
   ).run(output, verifyStep.id);
 
+  if (status !== "retry") {
+    // Verify passed
+    emitEvent({ ts: new Date().toISOString(), event: "story.verified", runId: verifyStep.run_id, workflowId: getWorkflowId(verifyStep.run_id), stepId: verifyStep.id });
+  }
+
   if (status === "retry") {
     // Verify failed — retry the story
     const lastDoneStory = db.prepare(
@@ -465,6 +495,9 @@ function handleVerifyEachCompletion(
         db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, lastDoneStory.id);
         db.prepare("UPDATE steps SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
         db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(verifyStep.run_id);
+        const wfId = getWorkflowId(verifyStep.run_id);
+        emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: verifyStep.run_id, workflowId: wfId, stepId: verifyStep.id });
+        emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: verifyStep.run_id, workflowId: wfId, detail: "Verification retries exhausted" });
         scheduleRunCronTeardown(verifyStep.run_id);
         return { advanced: false, runCompleted: false };
       }
@@ -475,6 +508,7 @@ function handleVerifyEachCompletion(
       // Store verify feedback
       const issues = context["issues"] ?? output;
       context["verify_feedback"] = issues;
+      emitEvent({ ts: new Date().toISOString(), event: "story.retry", runId: verifyStep.run_id, workflowId: getWorkflowId(verifyStep.run_id), stepId: verifyStep.id, detail: issues });
       db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), verifyStep.run_id);
     }
 
@@ -535,15 +569,19 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
     "SELECT id FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
   ).get(runId) as { id: string } | undefined;
 
+  const wfId = getWorkflowId(runId);
   if (next) {
     db.prepare(
       "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
     ).run(next.id);
+    emitEvent({ ts: new Date().toISOString(), event: "pipeline.advanced", runId, workflowId: wfId, stepId: next.id });
+    emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId, workflowId: wfId, stepId: next.id });
     return { advanced: true, runCompleted: false };
   } else {
     db.prepare(
       "UPDATE runs SET status = 'completed', updated_at = datetime('now') WHERE id = ?"
     ).run(runId);
+    emitEvent({ ts: new Date().toISOString(), event: "run.completed", runId, workflowId: wfId });
     archiveRunProgress(runId);
     scheduleRunCronTeardown(runId);
     return { advanced: false, runCompleted: true };
@@ -592,12 +630,17 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     ).get(step.current_story_id) as { id: string; retry_count: number; max_retries: number } | undefined;
 
     if (story) {
+      const storyRow = db.prepare("SELECT story_id, title FROM stories WHERE id = ?").get(step.current_story_id!) as { story_id: string; title: string } | undefined;
       const newRetry = story.retry_count + 1;
       if (newRetry > story.max_retries) {
         // Story retries exhausted
         db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
         db.prepare("UPDATE steps SET status = 'failed', output = ?, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(error, stepId);
         db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(step.run_id);
+        const wfId = getWorkflowId(step.run_id);
+        emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, storyId: storyRow?.story_id, storyTitle: storyRow?.title, detail: error });
+        emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: error });
+        emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Story retries exhausted" });
         scheduleRunCronTeardown(step.run_id);
         return { retrying: false, runFailed: true };
       }
@@ -619,6 +662,9 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     db.prepare(
       "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
     ).run(step.run_id);
+    const wfId2 = getWorkflowId(step.run_id);
+    emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId2, stepId: stepId, detail: error });
+    emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId2, detail: "Step retries exhausted" });
     scheduleRunCronTeardown(step.run_id);
     return { retrying: false, runFailed: true };
   } else {

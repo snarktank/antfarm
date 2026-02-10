@@ -308,9 +308,56 @@ async function openRun(id) {
     </div>
     <div class="steps-list">${stepsHTML}</div>
     <div id="stories-panel"></div>
+    <div id="activity-panel"></div>
   `;
   document.getElementById('overlay').classList.add('open');
   loadStories(id);
+  loadActivity(id);
+}
+
+function formatEventDesc(evt) {
+  const e = evt.event;
+  const story = evt.storyTitle ? `${evt.storyId}: "${evt.storyTitle}"` : evt.storyId || '';
+  switch (e) {
+    case 'run.started': return 'Run started';
+    case 'run.completed': return 'Run completed ✅';
+    case 'run.failed': return 'Run failed ❌';
+    case 'step.pending': return `Step pending`;
+    case 'step.running': return `Claimed step`;
+    case 'step.done': return `Step completed`;
+    case 'step.failed': return `Step failed` + (evt.detail ? `: ${evt.detail.slice(0,80)}` : '');
+    case 'step.timeout': return `Step timed out` + (evt.detail ? ` — ${evt.detail}` : '');
+    case 'story.started': return `Claimed story ${story}`;
+    case 'story.done': return `Completed ${story}`;
+    case 'story.verified': return `Verified ${story} ✅`;
+    case 'story.retry': return `Retry ${story}` + (evt.detail ? ` — ${evt.detail.slice(0,80)}` : '');
+    case 'story.failed': return `Story failed ${story}`;
+    case 'pipeline.advanced': return `Pipeline advanced`;
+    default: return e;
+  }
+}
+
+async function loadActivity(runId) {
+  const events = await fetchJSON(`/api/runs/${runId}/events`);
+  const panel = document.getElementById('activity-panel');
+  if (!events || events.length === 0) { panel.innerHTML = ''; return; }
+  const rows = events.map(evt => {
+    const t = new Date(evt.ts);
+    const time = t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    const agent = evt.agentId ? evt.agentId.split('/').pop() : '';
+    const desc = formatEventDesc(evt);
+    return `<div style="display:flex;gap:12px;padding:4px 0;font-size:12px;line-height:1.5;border-bottom:1px solid var(--border-light)">
+      <span style="color:var(--text-secondary);font-family:'Geist Mono',monospace;flex-shrink:0;min-width:44px">${time}</span>
+      <span style="color:var(--accent-teal);font-family:'Geist Mono',monospace;min-width:70px;flex-shrink:0">${esc(agent)}</span>
+      <span style="color:var(--text-primary)">${esc(desc)}</span>
+    </div>`;
+  }).join('');
+  panel.innerHTML = `
+    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
+      <h3 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:12px">Activity</h3>
+      <div style="max-height:300px;overflow-y:auto">${rows}</div>
+    </div>
+  `;
 }
 
 function closePanel() {

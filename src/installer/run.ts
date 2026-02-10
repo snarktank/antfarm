@@ -4,6 +4,7 @@ import { resolveWorkflowDir } from "./paths.js";
 import { getDb } from "../db.js";
 import { logger } from "../lib/logger.js";
 import { ensureWorkflowCrons } from "./agent-cron.js";
+import { emitEvent } from "./events.js";
 
 export async function runWorkflow(params: {
   workflowId: string;
@@ -58,6 +59,8 @@ export async function runWorkflow(params: {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`Cannot start workflow run: cron setup failed. ${message}`);
   }
+
+  emitEvent({ ts: new Date().toISOString(), event: "run.started", runId, workflowId: workflow.id });
 
   await logger.info(`Run started: "${params.taskTitle}"`, {
     workflowId: workflow.id,
