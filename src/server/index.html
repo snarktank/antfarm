@@ -211,6 +211,16 @@ select:focus{outline:none;border-color:#8ECFC0}
 .model-table .model-name{font-weight:500}
 .model-table-loading{padding:24px;text-align:center;color:var(--text-secondary);font-size:14px}
 .model-table-empty{padding:24px;text-align:center;color:var(--text-secondary);font-size:14px}
+
+/* ── Date Filter ───────────────────────────────────────────────── */
+.date-filter{display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.date-filter-group{display:flex;align-items:center;gap:8px}
+.date-filter-label{font-size:13px;font-weight:500;color:var(--text-secondary)}
+.date-filter-input{background:var(--bg-surface);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:'Inter',sans-serif;font-size:13px;cursor:pointer}
+.date-filter-input:focus{outline:none;border-color:var(--accent-green)}
+.date-filter-input::-webkit-calendar-picker-indicator{cursor:pointer;filter:opacity(0.6)}
+[data-theme="dark"] .date-filter-input::-webkit-calendar-picker-indicator{filter:invert(1) opacity(0.6)}
+@media (prefers-color-scheme: dark) {:root:not([data-theme="light"]) .date-filter-input::-webkit-calendar-picker-indicator{filter:invert(1) opacity(0.6)}}
 </style>
 </head>
 <body>
@@ -228,6 +238,16 @@ select:focus{outline:none;border-color:#8ECFC0}
   <div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
 </div>
 <div id="costs-view" class="view-container">
+  <div class="date-filter" id="date-filter">
+    <div class="date-filter-group">
+      <label class="date-filter-label" for="date-from">From</label>
+      <input type="date" id="date-from" class="date-filter-input">
+    </div>
+    <div class="date-filter-group">
+      <label class="date-filter-label" for="date-to">To</label>
+      <input type="date" id="date-to" class="date-filter-input">
+    </div>
+  </div>
   <div class="summary-cards" id="summary-cards">
     <div class="summary-card">
       <div class="summary-card-label">Total Input Tokens</div>
@@ -476,6 +496,36 @@ setInterval(() => { if (currentWf) loadRuns(); }, 30000);
   });
 })();
 
+// ── Date Filter ───────────────────────────────────────────────────
+(function initDateFilter() {
+  const dateFrom = document.getElementById('date-from');
+  const dateTo = document.getElementById('date-to');
+
+  // Default to last 30 days
+  const today = new Date();
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(today.getDate() - 30);
+
+  function toISODate(date) {
+    return date.toISOString().split('T')[0];
+  }
+
+  dateFrom.value = toISODate(thirtyDaysAgo);
+  dateTo.value = toISODate(today);
+
+  dateFrom.addEventListener('change', loadCostsSummary);
+  dateTo.addEventListener('change', loadCostsSummary);
+})();
+
+function getDateFilterParams() {
+  const dateFrom = document.getElementById('date-from').value;
+  const dateTo = document.getElementById('date-to').value;
+  const params = new URLSearchParams();
+  if (dateFrom) params.set('from_date', dateFrom);
+  if (dateTo) params.set('to_date', dateTo);
+  return params.toString();
+}
+
 // ── Costs Summary ─────────────────────────────────────────────────
 function formatNumber(n) {
   if (n === null || n === undefined) return '—';
@@ -500,7 +550,8 @@ async function loadCostsSummary() {
   });
 
   try {
-    const data = await fetchJSON('/api/usage');
+    const dateParams = getDateFilterParams();
+    const data = await fetchJSON('/api/usage' + (dateParams ? '?' + dateParams : ''));
     cardInputTokens.textContent = formatNumber(data.totalInputTokens);
     cardOutputTokens.textContent = formatNumber(data.totalOutputTokens);
     cardTotalCost.textContent = formatCurrency(data.totalCostUsd);
@@ -525,7 +576,9 @@ async function loadModelBreakdown() {
   tbody.innerHTML = '<tr><td colspan="5" class="model-table-loading">Loading...</td></tr>';
 
   try {
-    const data = await fetchJSON('/api/usage?group_by=model');
+    const dateParams = getDateFilterParams();
+    const separator = dateParams ? '&' : '';
+    const data = await fetchJSON('/api/usage?group_by=model' + separator + dateParams);
     
     if (!data || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="model-table-empty">No usage data</td></tr>';
@@ -554,7 +607,9 @@ async function loadAgentBreakdown() {
   tbody.innerHTML = '<tr><td colspan="5" class="model-table-loading">Loading...</td></tr>';
 
   try {
-    const data = await fetchJSON('/api/usage?group_by=agent');
+    const dateParams = getDateFilterParams();
+    const separator = dateParams ? '&' : '';
+    const data = await fetchJSON('/api/usage?group_by=agent' + separator + dateParams);
     
     if (!data || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="model-table-empty">No usage data</td></tr>';

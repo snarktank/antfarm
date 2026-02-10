@@ -91,3 +91,18 @@ Started: 2026-02-09T21:12:00-05:00
 - Files changed: src/server/index.html, src/server/dashboard.test.ts
 - **Learnings:** Use colspan on placeholder rows for loading/empty states. Escape user-controlled content (model names) before rendering to HTML.
 ---
+
+## 2026-02-09 22:22 - US-008: Add costs breakdown by agent table
+- Added agent breakdown table below model breakdown in costs-view
+- Reuses model-breakdown class and model-table styles for consistent appearance
+- Table columns: Agent, Input Tokens, Output Tokens, Cost, Requests
+- Fetches data from GET /api/usage?group_by=agent
+- Sorts by total cost descending (highest cost agents first)
+- Displays agent IDs (e.g., feature-dev-planner, feature-dev-developer)
+- Uses escapeHtml() for XSS protection on agent IDs
+- loadCostsSummary() now calls both loadModelBreakdown() and loadAgentBreakdown()
+- Added 10 tests verifying agent table structure, JavaScript, and ordering
+- Fixed pre-existing test that assumed only one table with numeric columns
+- Files changed: src/server/index.html, src/server/dashboard.test.ts
+- **Learnings:** Reuse existing CSS classes (model-breakdown, model-table) for consistency when adding similar components. Tests checking global HTML features may need scoping to specific elements when adding parallel structures.
+---

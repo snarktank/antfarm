@@ -753,3 +753,106 @@ describe("POST /api/usage", () => {
     assert.deepStrictEqual(data, { error: "agent_id is required" });
   });
 });
+
+describe("Date Filter UI", () => {
+  let server: http.Server;
+  const TEST_PORT = 33345;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("costs-view contains date-filter section above summary cards", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="date-filter"'), "Should have date-filter container");
+    assert.ok(html.includes('class="date-filter"'), "Should have date-filter class");
+    
+    // Date filter should appear before summary-cards in the HTML
+    const dateFilterPos = html.indexOf('id="date-filter"');
+    const summaryCardsPos = html.indexOf('id="summary-cards"');
+    assert.ok(dateFilterPos < summaryCardsPos, "Date filter should appear before summary cards");
+  });
+
+  test("has From date input with correct attributes", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="date-from"'), "Should have date-from input");
+    assert.ok(html.includes('type="date"'), "Should have type=date");
+    assert.ok(html.includes('class="date-filter-input"'), "Should have date-filter-input class");
+    assert.ok(html.includes('for="date-from"'), "Should have label for date-from");
+    assert.ok(html.includes('>From</label>'), "Should have From label text");
+  });
+
+  test("has To date input with correct attributes", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="date-to"'), "Should have date-to input");
+    assert.ok(html.includes('for="date-to"'), "Should have label for date-to");
+    assert.ok(html.includes('>To</label>'), "Should have To label text");
+  });
+
+  test("has CSS styles for date filter", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.date-filter{'), "Should have .date-filter style");
+    assert.ok(html.includes('.date-filter-group{'), "Should have .date-filter-group style");
+    assert.ok(html.includes('.date-filter-label{'), "Should have .date-filter-label style");
+    assert.ok(html.includes('.date-filter-input{'), "Should have .date-filter-input style");
+  });
+
+  test("has JavaScript to initialize date filter with last 30 days", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('initDateFilter'), "Should have initDateFilter function");
+    assert.ok(html.includes('setDate(today.getDate() - 30)'), "Should set from date to 30 days ago");
+    assert.ok(html.includes("dateFrom.value = toISODate(thirtyDaysAgo)"), "Should set dateFrom value");
+    assert.ok(html.includes("dateTo.value = toISODate(today)"), "Should set dateTo value");
+  });
+
+  test("has JavaScript to refresh data on date change", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes("dateFrom.addEventListener('change', loadCostsSummary)"), "Should add change listener to dateFrom");
+    assert.ok(html.includes("dateTo.addEventListener('change', loadCostsSummary)"), "Should add change listener to dateTo");
+  });
+
+  test("has getDateFilterParams function", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('function getDateFilterParams()'), "Should have getDateFilterParams function");
+    assert.ok(html.includes("params.set('from_date'"), "Should set from_date param");
+    assert.ok(html.includes("params.set('to_date'"), "Should set to_date param");
+  });
+
+  test("loadCostsSummary includes date filter params", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Find loadCostsSummary and verify it uses getDateFilterParams
+    const match = html.match(/async function loadCostsSummary[\s\S]*?^\}/m);
+    assert.ok(match, "Should find loadCostsSummary function");
+    assert.ok(match[0].includes("getDateFilterParams()"), "loadCostsSummary should call getDateFilterParams");
+  });
+
+  test("loadModelBreakdown includes date filter params", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const match = html.match(/async function loadModelBreakdown[\s\S]*?^\}/m);
+    assert.ok(match, "Should find loadModelBreakdown function");
+    assert.ok(match[0].includes("getDateFilterParams()"), "loadModelBreakdown should call getDateFilterParams");
+  });
+
+  test("loadAgentBreakdown includes date filter params", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const match = html.match(/async function loadAgentBreakdown[\s\S]*?^\}/m);
+    assert.ok(match, "Should find loadAgentBreakdown function");
+    assert.ok(match[0].includes("getDateFilterParams()"), "loadAgentBreakdown should call getDateFilterParams");
+  });
+});
