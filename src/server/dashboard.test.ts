@@ -36,6 +36,168 @@ async function request(
   });
 }
 
+describe("GET /api/usage", () => {
+  let server: http.Server;
+  const TEST_PORT = 33336;
+  // Use unique prefix to isolate test data
+  const TEST_PREFIX = `test-${Date.now()}`;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Insert test data for aggregation tests with unique identifiers
+    await request(TEST_PORT, "POST", "/api/usage", {
+      agent_id: `${TEST_PREFIX}-alpha`,
+      model: `${TEST_PREFIX}-sonnet`,
+      input_tokens: 1000,
+      output_tokens: 500,
+      cost_usd: 0.01,
+      task_label: `${TEST_PREFIX}-coding`,
+    });
+    await request(TEST_PORT, "POST", "/api/usage", {
+      agent_id: `${TEST_PREFIX}-alpha`,
+      model: `${TEST_PREFIX}-opus`,
+      input_tokens: 2000,
+      output_tokens: 1000,
+      cost_usd: 0.05,
+      task_label: `${TEST_PREFIX}-analysis`,
+    });
+    await request(TEST_PORT, "POST", "/api/usage", {
+      agent_id: `${TEST_PREFIX}-beta`,
+      model: `${TEST_PREFIX}-sonnet`,
+      input_tokens: 500,
+      output_tokens: 250,
+      cost_usd: 0.005,
+      task_label: `${TEST_PREFIX}-coding`,
+    });
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("returns aggregated totals without group_by", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", "/api/usage");
+
+    assert.strictEqual(status, 200);
+    const result = data as { totalInputTokens: number; totalOutputTokens: number; totalCostUsd: number; recordCount: number };
+    assert.strictEqual(typeof result.totalInputTokens, "number");
+    assert.strictEqual(typeof result.totalOutputTokens, "number");
+    assert.strictEqual(typeof result.totalCostUsd, "number");
+    assert.strictEqual(typeof result.recordCount, "number");
+    assert.ok(result.recordCount >= 3, "Should have at least 3 records");
+  });
+
+  test("groups by agent when group_by=agent", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", `/api/usage?group_by=agent&agent_id=${TEST_PREFIX}-alpha`);
+
+    assert.strictEqual(status, 200);
+    const results = data as Array<{ groupKey: string; totalInputTokens: number; recordCount: number }>;
+    assert.ok(Array.isArray(results), "Should return an array");
+    
+    const alphaGroup = results.find(r => r.groupKey === `${TEST_PREFIX}-alpha`);
+    assert.ok(alphaGroup, "Should have alpha group");
+    assert.strictEqual(alphaGroup!.recordCount, 2, "alpha should have 2 records");
+  });
+
+  test("groups by model when group_by=model", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", `/api/usage?group_by=model&model=${TEST_PREFIX}-sonnet`);
+
+    assert.strictEqual(status, 200);
+    const results = data as Array<{ groupKey: string; totalInputTokens: number; recordCount: number }>;
+    assert.ok(Array.isArray(results), "Should return an array");
+    
+    const sonnetGroup = results.find(r => r.groupKey === `${TEST_PREFIX}-sonnet`);
+    assert.ok(sonnetGroup, "Should have sonnet group");
+    assert.strictEqual(sonnetGroup!.recordCount, 2, "sonnet should have 2 records");
+  });
+
+  test("groups by task when group_by=task", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", `/api/usage?group_by=task&agent_id=${TEST_PREFIX}-alpha`);
+
+    assert.strictEqual(status, 200);
+    const results = data as Array<{ groupKey: string; totalInputTokens: number; recordCount: number }>;
+    assert.ok(Array.isArray(results), "Should return an array");
+    
+    const codingGroup = results.find(r => r.groupKey === `${TEST_PREFIX}-coding`);
+    const analysisGroup = results.find(r => r.groupKey === `${TEST_PREFIX}-analysis`);
+    assert.ok(codingGroup, "Should have coding group");
+    assert.ok(analysisGroup, "Should have analysis group");
+    assert.strictEqual(codingGroup!.recordCount, 1, "coding for alpha should have 1 record");
+    assert.strictEqual(analysisGroup!.recordCount, 1, "analysis for alpha should have 1 record");
+  });
+
+  test("groups by day when group_by=day", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", `/api/usage?group_by=day&agent_id=${TEST_PREFIX}-alpha`);
+
+    assert.strictEqual(status, 200);
+    const results = data as Array<{ groupKey: string; recordCount: number }>;
+    assert.ok(Array.isArray(results), "Should return an array");
+    assert.ok(results.length >= 1, "Should have at least one day group");
+    
+    // Each groupKey should look like a date (YYYY-MM-DD format)
+    for (const result of results) {
+      assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(result.groupKey), `groupKey should be date format: ${result.groupKey}`);
+    }
+  });
+
+  test("filters by agent_id", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", `/api/usage?agent_id=${TEST_PREFIX}-beta`);
+
+    assert.strictEqual(status, 200);
+    const result = data as { totalInputTokens: number; totalOutputTokens: number; totalCostUsd: number; recordCount: number };
+    assert.strictEqual(result.recordCount, 1, "Should have 1 record for beta");
+    assert.strictEqual(result.totalInputTokens, 500);
+    assert.strictEqual(result.totalOutputTokens, 250);
+  });
+
+  test("filters by model", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", `/api/usage?model=${TEST_PREFIX}-opus`);
+
+    assert.strictEqual(status, 200);
+    const result = data as { totalInputTokens: number; recordCount: number };
+    assert.strictEqual(result.recordCount, 1, "Should have 1 record for opus");
+    assert.strictEqual(result.totalInputTokens, 2000);
+  });
+
+  test("combines group_by with filter", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", `/api/usage?group_by=model&agent_id=${TEST_PREFIX}-alpha`);
+
+    assert.strictEqual(status, 200);
+    const results = data as Array<{ groupKey: string; recordCount: number }>;
+    assert.ok(Array.isArray(results), "Should return an array");
+    
+    // alpha uses both sonnet and opus
+    const sonnetGroup = results.find(r => r.groupKey === `${TEST_PREFIX}-sonnet`);
+    const opusGroup = results.find(r => r.groupKey === `${TEST_PREFIX}-opus`);
+    
+    assert.ok(sonnetGroup, "Should have sonnet group for alpha");
+    assert.ok(opusGroup, "Should have opus group for alpha");
+    assert.strictEqual(sonnetGroup!.recordCount, 1);
+    assert.strictEqual(opusGroup!.recordCount, 1);
+  });
+
+  test("returns 400 for invalid group_by", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", "/api/usage?group_by=invalid");
+
+    assert.strictEqual(status, 400);
+    assert.deepStrictEqual(data, { error: "Invalid group_by value. Must be one of: agent, model, task, day" });
+  });
+
+  test("returns empty aggregate for non-matching filter", async () => {
+    const { status, data } = await request(TEST_PORT, "GET", "/api/usage?agent_id=non-existent-agent-xyz123");
+
+    assert.strictEqual(status, 200);
+    const result = data as { totalInputTokens: number; totalOutputTokens: number; totalCostUsd: number; recordCount: number };
+    assert.strictEqual(result.recordCount, 0);
+    assert.strictEqual(result.totalInputTokens, 0);
+    assert.strictEqual(result.totalOutputTokens, 0);
+    assert.strictEqual(result.totalCostUsd, 0);
+  });
+});
+
 describe("POST /api/usage", () => {
   let server: http.Server;
   const TEST_PORT = 33335;

@@ -72,3 +72,115 @@ function mapRowToUsageRecord(row: any): UsageRecord {
     createdAt: row.created_at,
   };
 }
+
+export type UsageAggregate = {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUsd: number;
+  recordCount: number;
+};
+
+export type GroupedUsageAggregate = UsageAggregate & {
+  groupKey: string;
+};
+
+export type AggregateQueryOptions = {
+  groupBy?: "agent" | "model" | "task" | "day";
+  fromDate?: string;
+  toDate?: string;
+  agentId?: string;
+  model?: string;
+};
+
+/**
+ * Get aggregated usage data with optional grouping and filtering.
+ * 
+ * When groupBy is not specified, returns a single UsageAggregate with totals.
+ * When groupBy is specified, returns an array of GroupedUsageAggregate.
+ */
+export function getAggregatedUsage(options: AggregateQueryOptions): UsageAggregate | GroupedUsageAggregate[] {
+  const db = getDb();
+  const whereClauses: string[] = [];
+  const params: (string | number)[] = [];
+
+  // Build WHERE clauses for filters
+  if (options.fromDate) {
+    whereClauses.push("created_at >= ?");
+    params.push(options.fromDate);
+  }
+  if (options.toDate) {
+    whereClauses.push("created_at <= ?");
+    params.push(options.toDate);
+  }
+  if (options.agentId) {
+    whereClauses.push("agent_id = ?");
+    params.push(options.agentId);
+  }
+  if (options.model) {
+    whereClauses.push("model = ?");
+    params.push(options.model);
+  }
+
+  const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+  if (!options.groupBy) {
+    // Return single aggregate totals
+    const row = db.prepare(`
+      SELECT 
+        COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+        COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+        COALESCE(SUM(cost_usd), 0) as total_cost_usd,
+        COUNT(*) as record_count
+      FROM usage
+      ${whereSQL}
+    `).get(...params) as any;
+
+    return {
+      totalInputTokens: row.total_input_tokens,
+      totalOutputTokens: row.total_output_tokens,
+      totalCostUsd: row.total_cost_usd,
+      recordCount: row.record_count,
+    };
+  }
+
+  // Determine the GROUP BY column
+  let groupColumn: string;
+  switch (options.groupBy) {
+    case "agent":
+      groupColumn = "agent_id";
+      break;
+    case "model":
+      groupColumn = "model";
+      break;
+    case "task":
+      groupColumn = "task_label";
+      break;
+    case "day":
+      // Extract date portion from ISO timestamp
+      groupColumn = "DATE(created_at)";
+      break;
+    default:
+      throw new Error(`Invalid group_by value: ${options.groupBy}`);
+  }
+
+  const rows = db.prepare(`
+    SELECT 
+      ${groupColumn} as group_key,
+      COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+      COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+      COALESCE(SUM(cost_usd), 0) as total_cost_usd,
+      COUNT(*) as record_count
+    FROM usage
+    ${whereSQL}
+    GROUP BY ${groupColumn}
+    ORDER BY ${groupColumn}
+  `).all(...params) as any[];
+
+  return rows.map(row => ({
+    groupKey: row.group_key ?? "(none)",
+    totalInputTokens: row.total_input_tokens,
+    totalOutputTokens: row.total_output_tokens,
+    totalCostUsd: row.total_cost_usd,
+    recordCount: row.record_count,
+  }));
+}

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb } from "../db.js";
 import { resolveBundledWorkflowsDir } from "../installer/paths.js";
-import { insertUsage } from "../installer/usage.js";
+import { insertUsage, getAggregatedUsage } from "../installer/usage.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
@@ -88,6 +88,30 @@ export function startDashboard(port = 3333): http.Server {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
+
+    // GET /api/usage - query aggregated usage data
+    if (req.method === "GET" && p === "/api/usage") {
+      const groupBy = url.searchParams.get("group_by") as "agent" | "model" | "task" | "day" | null;
+      const fromDate = url.searchParams.get("from_date") ?? undefined;
+      const toDate = url.searchParams.get("to_date") ?? undefined;
+      const agentId = url.searchParams.get("agent_id") ?? undefined;
+      const model = url.searchParams.get("model") ?? undefined;
+
+      // Validate group_by if provided
+      if (groupBy && !["agent", "model", "task", "day"].includes(groupBy)) {
+        return json(res, { error: "Invalid group_by value. Must be one of: agent, model, task, day" }, 400);
+      }
+
+      const result = getAggregatedUsage({
+        groupBy: groupBy ?? undefined,
+        fromDate,
+        toDate,
+        agentId,
+        model,
+      });
+
+      return json(res, result);
+    }
 
     // POST /api/usage - record usage data
     if (req.method === "POST" && p === "/api/usage") {
