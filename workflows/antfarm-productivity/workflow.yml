@@ -1,0 +1,254 @@
+id: antfarm-workforce-productivity
+name: Antfarm Workforce Productivity Monitor
+description: Hourly check on antfarm workers. If idle >2 hours, assign skill-learning tasks from awesome-openclaw-skills to keep agents productive and evolving.
+
+cron:
+  interval_ms: 3600000  # 60 minutes
+
+agents:
+  - id: productivity-monitor
+    name: Workforce Productivity Monitor
+    role: analysis
+    workspace:
+      baseDir: agents/monitor
+      files:
+        AGENTS.md: agents/monitor/AGENTS.md
+        SOUL.md: agents/monitor/SOUL.md
+
+  - id: task-assigner
+    name: Skill Task Assigner
+    role: coding
+    workspace:
+      baseDir: agents/assigner
+      files:
+        AGENTS.md: agents/assigner/AGENTS.md
+        SOUL.md: agents/assigner/SOUL.md
+
+  - id: progress-tracker
+    name: Learning Progress Tracker
+    role: verification
+    workspace:
+      baseDir: agents/tracker
+      files:
+        AGENTS.md: agents/tracker/AGENTS.md
+        SOUL.md: agents/tracker/SOUL.md
+
+steps:
+  - id: check-idle
+    agent: antfarm-workforce-productivity/productivity-monitor
+    input: |
+      Check if antfarm workers have been idle for more than 2 hours.
+      
+      Check the following:
+      1. Query antfarm workflow status for all active runs
+      2. Check last activity timestamps for each agent workforce
+      3. Look at session logs for recent agent activity
+      4. Check if any workflows are stuck or completed without new tasks
+      
+      Report:
+      STATUS: done
+      IDLE_AGENTS: [list of idle agent teams >2h]
+      ACTIVE_AGENTS: [list of active agent teams]
+      IDLE_DURATION: hours idle for each idle team
+      LAST_TASK: what each idle team last worked on
+      
+      If no idle agents: STATUS: done, IDLE_AGENTS: []
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: check-user-repos
+    agent: antfarm-workforce-productivity/productivity-monitor
+    input: |
+      Check if there are active tasks from user's GitHub repositories that need work.
+      
+      Read: /Users/siddhantbadola/.openclaw/workspace/antfarm/workflows/antfarm-productivity/repo-work-catalog.md
+      
+      For each repo, check:
+      1. Are there open issues or TODOs?
+      2. Is documentation incomplete?
+      3. Are there feature requests?
+      4. Is code quality (linting, formatting) needed?
+      5. Are there security improvements needed?
+      6. Is the README outdated?
+      
+      Prioritize by:
+      - High: DI.SSID, openclaw-config, polyphony, ai-real-estate-agent
+      - Medium: disc-bot, TradingAgents, agents
+      - Low: Stale/archived projects
+      
+      Report:
+      STATUS: done
+      REPO_TASKS_AVAILABLE: [list of repos with pending work]
+      HIGH_PRIORITY: [repos needing immediate attention]
+      TASK_TYPES: [what kind of work is needed for each]
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: assign-repo-work
+    agent: antfarm-workforce-productivity/task-assigner
+    condition: "{{steps.check-idle.IDLE_AGENTS}} != [] && {{steps.check-user-repos.REPO_TASKS_AVAILABLE}} != []"
+    input: |
+      Assign real work from user's GitHub repositories to idle agent teams.
+      
+      PRIORITY ASSIGNMENTS:
+      
+      For bug-fix agents (idle):
+      - Check disc-bot for any new bugs or PR issues
+      - Review TradingAgents for trading logic bugs
+      - Scan polyphony for music streaming bugs
+      
+      For feature-dev agents (idle):
+      - DI.SSID: Create investor materials, grant docs, technical specs
+      - ai-real-estate-agent: Add property analysis features
+      - polyphony: Add music discovery features
+      - openclaw-config: Create templates and examples
+      
+      For security-audit agents (idle):
+      - Security review of disc-bot
+      - Audit TradingAgents for financial security
+      - Review any code handling sensitive data
+      
+      For any idle agents:
+      - Documentation improvements across all repos
+      - README standardization
+      - License file additions
+      - Code commenting and cleanup
+      
+      Work Assignment Format:
+      ```
+      AGENT_TEAM: [team_id]
+      REPO: [repo_name]
+      TASK: [specific task description]
+      BRANCH: [suggested branch name]
+      SUCCESS_CRITERIA: [how to know it's done]
+      ESTIMATED_TIME: [hours]
+      VALUE: [monetary or strategic value]
+      ```
+      
+      Report:
+      STATUS: done
+      ASSIGNMENTS: [agent -> repo task assigned]
+      REPOS_CLONED: [repos that need cloning]
+      BRANCHES_CREATED: [branch names for work]
+      EXPECTED_OUTCOMES: [what will be delivered]
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: assign-skills
+    agent: antfarm-workforce-productivity/task-assigner
+    condition: "{{steps.check-idle.IDLE_AGENTS}} != [] && {{steps.check-user-repos.REPO_TASKS_AVAILABLE}} == []"
+    input: |
+      Only assign skill-learning if no repo work is available.
+      
+      For each idle agent team, assign skill-learning tasks from the curated awesome-openclaw-skills list.
+      
+      SKILL CATEGORIES FOR LEARNING:
+      - Coding Agents & IDEs: coding-agent, cursor-agent, debug-pro, multi-coding-agent
+      - Git & GitHub: github, git-sync
+      - DevOps & Cloud: docker-essentials, docker-sandbox
+      - Browser & Automation: agent-browser, browse
+      - AI & LLMs: model-usage, coding-opencode
+      - Web & Frontend: frontend-design-ultimate
+      - Search & Research: deep-research, exa
+      - Productivity & Tasks: clawdo, cron-mastery
+      - CLI Utilities: Various automation tools
+      
+      For each idle agent:
+      1. Select 1-2 skills appropriate for their role
+      2. Create a learning task: "Install and master [skill-name]"
+      3. Define success criteria: Install → Test → Document → Apply
+      4. Estimate learning time: 30-90 minutes per skill
+      5. Set monetary goal: How this skill can generate value
+      
+      Report:
+      STATUS: done
+      ASSIGNMENTS: [agent -> skill tasks assigned]
+      LEARNING_GOALS: [what each agent should achieve]
+      VALUE_PROPOSITION: [how this skill can be monetized]
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: notify-workforce
+    agent: antfarm-workforce-productivity/task-assigner
+    condition: "{{steps.check-idle.IDLE_AGENTS}} != []"
+    input: |
+      Notify idle agent teams of their new assignments (repo work OR skill learning).
+      
+      IF REPO WORK ASSIGNED:
+      Message format:
+      ```
+      🚀 NEW WORK ASSIGNMENT FROM GITHUB
+      
+      You've been idle for {{idle_duration}} hours. Real work is available!
+      
+      📁 REPO: {{repo_name}}
+      🔧 TASK: {{task_description}}
+      🌿 BRANCH: {{branch_name}}
+      ⏱️ ESTIMATED: {{estimated_time}}
+      💰 VALUE: {{task_value}}
+      
+      SUCCESS CRITERIA:
+      ✅ Clone/pull the repo
+      ✅ Create feature branch
+      ✅ Complete the assigned work
+      ✅ Test thoroughly
+      ✅ Create PR with detailed description
+      ✅ Document in memory
+      
+      This is real work for real projects. Let's make progress!
+      ```
+      
+      IF SKILL LEARNING ASSIGNED (no repo work):
+      Message format:
+      ```
+      🚀 PRODUCTIVITY ALERT
+      
+      You've been idle for {{idle_duration}} hours. Time to evolve!
+      
+      NEW LEARNING ASSIGNMENT:
+      📚 Skill: {{skill_name}}
+      🎯 Goal: Master this skill in {{estimated_time}}
+      💰 Value: {{monetization_potential}}
+      
+      SUCCESS CRITERIA:
+      ✅ Install the skill
+      ✅ Test with a real example
+      ✅ Document key learnings in memory
+      ✅ Apply to a practical task
+      
+      Remember: Every skill mastered = more capabilities = more earning potential.
+      
+      Ready to level up? Start now!
+      ```
+      
+      Also update clawface avatar state to show "working" or "learning" mode.
+      
+      Report:
+      STATUS: done
+      NOTIFIED: [list of agents notified]
+      ASSIGNMENT_TYPE: [repo_work | skill_learning]
+      MESSAGES_SENT: count
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: track-progress
+    agent: antfarm-workforce-productivity/progress-tracker
+    input: |
+      Track learning progress of agent workforce.
+      
+      For ongoing skill learning:
+      1. Check memory files for skill documentation
+      2. Look for installed skills in workspace
+      3. Review recent session logs for skill usage
+      4. Verify success criteria completion
+      
+      Report:
+      STATUS: done
+      PROGRESS: [agent -> % complete -> skills mastered]
+      COMPLETED: [list of completed skill learnings]
+      STUCK: [agents needing help]
+      NEXT_STEPS: [recommendations for continued growth]
+      
+      Update productivity dashboard with stats.
+    expects: "STATUS: done"
+    retries: 1

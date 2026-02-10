@@ -17,7 +17,7 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
     throw new Error(`workflow.yml missing steps list in ${workflowDir}`);
   }
   validateAgents(parsed.agents, workflowDir);
-  // Parse type/loop from raw YAML before validation
+  // Parse type/loop/condition from raw YAML before validation
   for (const step of parsed.steps) {
     const rawStep = step as any;
     if (rawStep.type) {
@@ -25,6 +25,9 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
     }
     if (rawStep.loop) {
       step.loop = parseLoopConfig(rawStep.loop);
+    }
+    if (rawStep.condition) {
+      step.condition = rawStep.condition;
     }
   }
   validateSteps(parsed.steps, workflowDir);

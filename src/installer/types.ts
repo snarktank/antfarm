@@ -49,6 +49,7 @@ export type WorkflowStep = {
   expects: string;
   max_retries?: number;
   on_fail?: WorkflowStepFailure;
+  condition?: string;
 };
 
 export type Story = {

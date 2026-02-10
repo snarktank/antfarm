@@ -1,0 +1,157 @@
+id: clawork-monitor
+name: Clawork Job Monitor
+
+cron:
+  interval_ms: 300000  # 5 minutes
+
+agents:
+  - id: monitor
+    name: Clawork Monitor
+    role: scanning
+    workspace:
+      baseDir: agents/monitor
+      files:
+        AGENTS.md: agents/monitor/AGENTS.md
+        SOUL.md: agents/monitor/SOUL.md
+
+  - id: evaluator
+    name: Job Evaluator
+    role: analysis
+    workspace:
+      baseDir: agents/evaluator
+      files:
+        AGENTS.md: agents/evaluator/AGENTS.md
+        SOUL.md: agents/evaluator/SOUL.md
+
+  - id: drafter
+    name: Application Drafter
+    role: coding
+    workspace:
+      baseDir: agents/drafter
+      files:
+        AGENTS.md: agents/drafter/AGENTS.md
+        SOUL.md: agents/drafter/SOUL.md
+
+  - id: reviewer
+    name: Application Reviewer
+    role: verification
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: agents/reviewer/AGENTS.md
+        SOUL.md: agents/reviewer/SOUL.md
+
+  - id: submitter
+    name: Application Submitter
+    role: pr
+    workspace:
+      baseDir: agents/submitter
+      files:
+        AGENTS.md: agents/submitter/AGENTS.md
+        SOUL.md: agents/submitter/SOUL.md
+
+steps:
+  - id: scan
+    agent: clawork-monitor/monitor
+    input: |
+      Check Clawork API for new jobs since last scan.
+      
+      API: https://clawork.xyz/api/v1/jobs?status=open
+      
+      Compare against previously seen job IDs stored in:
+      ~/.openclaw/workspace/antfarm/workflows/clawork-monitor/state/seen_jobs.json
+      
+      Report:
+      STATUS: done
+      NEW_JOBS: [list of new job IDs and titles]
+      JOB_COUNT: number of new jobs found
+      
+      If no new jobs: STATUS: done, NEW_JOBS: []
+    expects: "STATUS: done"
+    retries: 2
+
+  - id: evaluate
+    agent: clawork-monitor/evaluator
+    input: |
+      Evaluate new jobs from previous step against my capabilities.
+      
+      MY PROFILE:
+      - Skills: Python, React, TypeScript, Node.js, AI/ML, Solana, Rust
+      - Experience: Full-stack, AI agents, DeFi
+      - Rate: 0.03-0.15 ETH
+      - Availability: Immediate for small jobs
+      
+      For each new job:
+      1. Fetch full details from https://clawork.xyz/api/v1/jobs/<id>
+      2. Score fit (1-10): skills match, budget alignment, deadline feasible
+      3. Categorize: AUTO_APPLY (score >= 7), REVIEW (score 4-6), SKIP (score < 4)
+      
+      Report:
+      STATUS: done
+      AUTO_APPLY: [job IDs to auto-apply]
+      REVIEW: [job IDs needing manual review]
+      SKIP: [job IDs to ignore]
+      REASONING: brief explanation for each decision
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: draft
+    agent: clawork-monitor/drafter
+    input: |
+      Draft applications for AUTO_APPLY jobs from evaluation step.
+      
+      For each job:
+      1. Read job details
+      2. Write compelling pitch highlighting relevant experience
+      3. Propose competitive price (usually match or slightly under budget)
+      4. Estimate realistic timeline
+      
+      Application format:
+      ```json
+      {
+        "pitch": "I specialize in... [2-3 sentences]",
+        "proposed_price": "0.XX ETH",
+        "estimated_time": "X hours/days",
+        "wallet": "0xYourWalletAddress"
+      }
+      ```
+      
+      Report:
+      STATUS: done
+      DRAFTS: [list of job IDs with drafted applications]
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: review
+    agent: clawork-monitor/reviewer
+    input: |
+      Review drafted applications for quality before submission.
+      
+      Check each draft:
+      - Pitch is compelling and specific to the job
+      - Price is competitive but fair
+      - Timeline is realistic
+      - JSON format is valid
+      
+      Report:
+      STATUS: done
+      APPROVED: [job IDs ready to submit]
+      NEEDS_REVISION: [job IDs with issues - explain why]
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: submit
+    agent: clawork-monitor/submitter
+    input: |
+      Submit approved applications to Clawork via API.
+      
+      For each approved job:
+      POST to the job's source URL (4claw/Moltx/Moltbook reply endpoint)
+      with !clawork-apply tag and application JSON.
+      
+      Report:
+      STATUS: done
+      SUBMITTED: [job IDs with confirmation]
+      FAILED: [job IDs that failed - with error]
+    expects: "STATUS: done"
+    retries: 2

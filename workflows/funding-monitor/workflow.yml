@@ -1,0 +1,113 @@
+id: funding-monitor
+name: DISSID Funding Opportunity Monitor
+description: Monitor funding opportunities, track grant applications, and alert on deadlines for DISSID startup funding.
+
+cron:
+  interval_ms: 86400000  # Daily
+
+agents:
+  - id: funding-scout
+    name: Funding Opportunity Scout
+    role: scanning
+    workspace:
+      baseDir: agents/scout
+      files:
+        AGENTS.md: AGENTS.md
+        SOUL.md: SOUL.md
+
+  - id: application-tracker
+    name: Grant Application Tracker
+    role: analysis
+    workspace:
+      baseDir: agents/tracker
+      files:
+        AGENTS.md: AGENTS.md
+        SOUL.md: SOUL.md
+
+  - id: deadline-monitor
+    name: Deadline Alert Monitor
+    role: analysis
+    workspace:
+      baseDir: agents/deadlines
+      files:
+        AGENTS.md: AGENTS.md
+        SOUL.md: SOUL.md
+
+steps:
+  - id: scout-opportunities
+    agent: funding-monitor/funding-scout
+    input: |
+      Scout for new funding opportunities for DISSID startup.
+      
+      Check daily:
+      1. IRAP website for program updates
+      2. Starter Company Plus for new cohorts
+      3. CDAP for application openings
+      4. MaRS for new funding programs
+      5. Communitech for startup opportunities
+      6. Angel investor networks for pitch events
+      7. Accelerator programs (YC, Techstars) for application windows
+      
+      Read funding strategy from: DISSID_FUNDING_STRATEGY.md
+      
+      Report:
+      STATUS: done
+      NEW_OPPORTUNITIES: [list of new funding sources found]
+      RELEVANCE: [how each applies to DISSID]
+      ACTION_REQUIRED: [what to do next]
+      DEADLINES: [upcoming deadlines this week]
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: track-applications
+    agent: funding-monitor/application-tracker
+    input: |
+      Track status of active grant applications and funding pursuits.
+      
+      Applications to monitor (from DISSID_FUNDING_STRATEGY.md):
+      - IRAP: Called? Applied? Status?
+      - Starter Company Plus: Visited employment centre? Application submitted?
+      - CDAP: Application status?
+      - Communitech: Joined? In program?
+      - Waterloo Accelerator: Applied? Accepted?
+      - Angel networks: Pitched? Follow-ups?
+      
+      For each active application:
+      - Current status
+      - Next action required
+      - Documents needed
+      - Timeline
+      
+      Report:
+      STATUS: done
+      ACTIVE_APPLICATIONS: [list with status]
+      BLOCKED: [applications stuck and why]
+      NEXT_ACTIONS: [prioritized list of what to do]
+      DOCUMENTS_NEEDED: [what to prepare]
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: check-deadlines
+    agent: funding-monitor/deadline-monitor
+    input: |
+      Check for upcoming funding deadlines and send alerts.
+      
+      Critical deadlines to monitor:
+      - IRAP application windows
+      - Starter Company Plus cohort deadlines
+      - Accelerator application dates (YC, Techstars)
+      - Grant program deadlines
+      - Pitch event dates
+      
+      Alert if:
+      - Deadline within 7 days (HIGH PRIORITY)
+      - Deadline within 30 days (MEDIUM PRIORITY)
+      - New opportunity discovered
+      
+      Report:
+      STATUS: done
+      URGENT: [deadlines within 7 days]
+      UPCOMING: [deadlines within 30 days]
+      ALERTS_SENT: [what user was notified about]
+    expects: "STATUS: done"
+    retries: 1

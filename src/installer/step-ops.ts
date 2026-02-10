@@ -35,14 +35,179 @@ function getWorkflowId(runId: string): string | undefined {
 
 /**
  * Resolve {{key}} placeholders in a template against a context object.
+ * Supports keys with hyphens, dots, and alphanumeric characters.
  */
 export function resolveTemplate(template: string, context: Record<string, string>): string {
-  return template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (_match, key: string) => {
+  return template.replace(/\{\{([\w\-]+(?:\.[\w\-]+)*)\}\}/g, (_match, key: string) => {
     if (key in context) return context[key];
     const lower = key.toLowerCase();
     if (lower in context) return context[lower];
     return `[missing: ${key}]`;
   });
+}
+
+/**
+ * Evaluate a condition expression against the run context.
+ * Supports: {{key}} variable substitution, ==, !=, &&, ||, comparisons to [] and ""
+ * Examples:
+ *   "{{steps.check-idle.IDLE_AGENTS}} != []"
+ *   "{{steps.check-idle.IDLE_AGENTS}} != [] && {{steps.check-repos.REPO_TASKS_AVAILABLE}} != []"
+ */
+function evaluateCondition(condition: string, context: Record<string, string>): boolean {
+  // First resolve all {{variable}} placeholders
+  let resolved = resolveTemplate(condition, context);
+
+  // Handle [missing: key] as falsy/empty
+  resolved = resolved.replace(/\[missing: [^\]]+\]/g, '[]');
+
+  // Tokenize while preserving string literals and operators
+  const tokens: string[] = [];
+  let current = '';
+  let inString = false;
+  let stringChar = '';
+
+  for (let i = 0; i < resolved.length; i++) {
+    const char = resolved[i];
+
+    if (!inString && (char === '"' || char === "'")) {
+      if (current.trim()) tokens.push(current.trim());
+      inString = true;
+      stringChar = char;
+      current = char;
+    } else if (inString && char === stringChar) {
+      current += char;
+      tokens.push(current);
+      inString = false;
+      current = '';
+    } else if (!inString) {
+      // Check for two-char operators
+      const twoChar = resolved.slice(i, i + 2);
+      if (twoChar === '==' || twoChar === '!=') {
+        if (current.trim()) tokens.push(current.trim());
+        tokens.push(twoChar);
+        current = '';
+        i++; // skip next char
+      } else if (char === '&' && resolved[i + 1] === '&') {
+        if (current.trim()) tokens.push(current.trim());
+        tokens.push('&&');
+        current = '';
+        i++;
+      } else if (char === '|' && resolved[i + 1] === '|') {
+        if (current.trim()) tokens.push(current.trim());
+        tokens.push('||');
+        current = '';
+        i++;
+      } else if (char === ' ') {
+        if (current.trim()) tokens.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim()) tokens.push(current.trim());
+
+  // Parse tokens into expression
+  interface Expr {
+    type: 'compare' | 'and' | 'or';
+    left?: Expr;
+    right?: Expr;
+    op?: string;
+    value?: boolean;
+    leftVal?: string;
+    rightVal?: string;
+  }
+
+  function parseExpression(index: number): { expr: Expr; nextIndex: number } {
+    const left = parseComparison(index);
+    let i = left.nextIndex;
+
+    while (i < tokens.length) {
+      const token = tokens[i];
+      if (token === '&&') {
+        const right = parseExpression(i + 1);
+        return {
+          expr: { type: 'and', left: left.expr, right: right.expr },
+          nextIndex: right.nextIndex
+        };
+      } else if (token === '||') {
+        const right = parseExpression(i + 1);
+        return {
+          expr: { type: 'or', left: left.expr, right: right.expr },
+          nextIndex: right.nextIndex
+        };
+      } else {
+        break;
+      }
+    }
+
+    return left;
+  }
+
+  function parseComparison(index: number): { expr: Expr; nextIndex: number } {
+    if (index >= tokens.length) {
+      return { expr: { type: 'compare', value: true }, nextIndex: index };
+    }
+
+    const leftVal = tokens[index];
+
+    if (index + 2 < tokens.length && (tokens[index + 1] === '==' || tokens[index + 1] === '!=')) {
+      const op = tokens[index + 1];
+      const rightVal = tokens[index + 2];
+      return {
+        expr: { type: 'compare', op, leftVal, rightVal },
+        nextIndex: index + 3
+      };
+    }
+
+    // Single value - truthy check
+    return {
+      expr: { type: 'compare', op: '!=', leftVal, rightVal: '[]' },
+      nextIndex: index + 1
+    };
+  }
+
+  function normalizeValue(val: string | undefined): string {
+    if (val === undefined || val === null) return '';
+    // Strip surrounding quotes from string values
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      return val.slice(1, -1);
+    }
+    return val;
+  }
+
+  function evaluate(expr: Expr): boolean {
+    switch (expr.type) {
+      case 'compare':
+        if (expr.value !== undefined) return expr.value;
+        const left = normalizeValue(expr.leftVal ?? '');
+        const right = normalizeValue(expr.rightVal ?? '');
+        const isLeftEmpty = left === '[]' || left === '';
+        const isRightEmpty = right === '[]' || right === '';
+
+        if (expr.op === '==') {
+          return isLeftEmpty === isRightEmpty && (isLeftEmpty || left === right);
+        } else if (expr.op === '!=') {
+          return isLeftEmpty !== isRightEmpty || (!isLeftEmpty && left !== right);
+        }
+        return false;
+      case 'and':
+        return evaluate(expr.left!) && evaluate(expr.right!);
+      case 'or':
+        return evaluate(expr.left!) || evaluate(expr.right!);
+      default:
+        return false;
+    }
+  }
+
+  try {
+    const parsed = parseExpression(0);
+    return evaluate(parsed.expr);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -259,21 +424,32 @@ interface ClaimResult {
 
 /**
  * Find and claim a pending step for an agent, returning the resolved input.
+ * Respects condition expressions - skips steps whose conditions evaluate to false.
  */
 export function claimStep(agentId: string): ClaimResult {
   // First, cleanup any abandoned steps
   cleanupAbandonedSteps();
   const db = getDb();
 
-  const step = db.prepare(
-    "SELECT id, run_id, input_template, type, loop_config FROM steps WHERE agent_id = ? AND status = 'pending' LIMIT 1"
-  ).get(agentId) as { id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
+  // Find all pending steps for this agent, ordered by step_index
+  const steps = db.prepare(
+    "SELECT id, run_id, input_template, type, loop_config, condition, step_index FROM steps WHERE agent_id = ? AND status = 'pending' ORDER BY step_index ASC"
+  ).all(agentId) as { id: string; run_id: string; input_template: string; type: string; loop_config: string | null; condition: string | null; step_index: number }[];
 
-  if (!step) return { found: false };
+  if (steps.length === 0) return { found: false };
 
-  // Get run context
-  const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string } | undefined;
+  // Get run context (same for all steps in a run)
+  const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(steps[0].run_id) as { context: string } | undefined;
   const context: Record<string, string> = run ? JSON.parse(run.context) : {};
+
+  // Find first step whose condition evaluates to true (or has no condition)
+  let step = steps.find(s => !s.condition || evaluateCondition(s.condition, context));
+
+  if (!step) {
+    // All pending steps have conditions that evaluate to false
+    // This is normal - they may become eligible after previous steps complete
+    return { found: false };
+  }
 
   // T6: Loop step claim logic
   if (step.type === "loop") {
