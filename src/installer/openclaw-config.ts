@@ -26,9 +26,9 @@ export async function readOpenClawConfig(): Promise<{ path: string; config: Open
 }
 
 export async function writeOpenClawConfig(
-  path: string,
+  configPath: string,
   config: OpenClawConfig,
 ): Promise<void> {
   const content = `${JSON.stringify(config, null, 2)}\n`;
-  await fs.writeFile(path, content, "utf-8");
+  await fs.writeFile(configPath, content, "utf-8");
 }

@@ -12,6 +12,7 @@ agents:
   - id: scanner
     name: Scanner
     role: scanning
+    model: anthropic/claude-sonnet-4-5
     description: Explores codebase and runs comprehensive security analysis.
     workspace:
       baseDir: agents/scanner
@@ -23,6 +24,7 @@ agents:
   - id: prioritizer
     name: Prioritizer
     role: analysis
+    model: anthropic/claude-sonnet-4-5
     description: Deduplicates, ranks, and groups findings into a fix plan.
     workspace:
       baseDir: agents/prioritizer
@@ -34,6 +36,7 @@ agents:
   - id: setup
     name: Setup
     role: coding
+    model: anthropic/claude-sonnet-4-5
     description: Creates security branch and establishes baseline.
     workspace:
       baseDir: agents/setup
@@ -45,6 +48,7 @@ agents:
   - id: fixer
     name: Fixer
     role: coding
+    model: openai-codex/gpt-5.3-codex
     description: Implements security fixes one at a time with regression tests.
     workspace:
       baseDir: agents/fixer
@@ -56,6 +60,7 @@ agents:
   - id: verifier
     name: Verifier
     role: verification
+    model: anthropic/claude-opus-4-6
     description: Verifies each fix is correct and the vulnerability is patched.
     workspace:
       baseDir: agents/verifier
@@ -67,6 +72,7 @@ agents:
   - id: tester
     name: Tester
     role: testing
+    model: anthropic/claude-sonnet-4-5
     description: Final integration testing and audit re-run after all fixes.
     workspace:
       baseDir: agents/tester
@@ -78,6 +84,7 @@ agents:
   - id: pr
     name: PR Creator
     role: pr
+    model: anthropic/claude-sonnet-4-5
     description: Creates a pull request summarizing the security audit and fixes.
     workspace:
       baseDir: agents/pr

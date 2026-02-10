@@ -305,6 +305,61 @@ async function deleteCronJobHTTP(jobId: string): Promise<{ ok: boolean; error?: 
   }
 }
 
+/**
+ * Send a notification message via OpenClaw's sessions_send tool.
+ * Uses the gateway /tools/invoke endpoint with tool=sessions_send.
+ */
+export async function sendNotification(opts: {
+  message: string;
+  sessionTarget?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const target = opts.sessionTarget || "main";
+
+  // --- Try HTTP first ---
+  const gateway = await getGatewayConfig();
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (gateway.token) headers["Authorization"] = `Bearer ${gateway.token}`;
+
+    const response = await fetch(`${gateway.url}/tools/invoke`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        tool: "sessions_send",
+        args: { sessionKey: target, message: opts.message },
+        sessionKey: "global",
+      }),
+    });
+
+    if (response.status === 404) {
+      // Gateway available but tool not found — try CLI fallback
+      return sendNotificationCLI(target, opts.message);
+    }
+
+    if (!response.ok) {
+      return { ok: false, error: `Gateway returned ${response.status}` };
+    }
+
+    const result = (await response.json()) as Record<string, unknown>;
+    return result.ok ? { ok: true } : { ok: false, error: (result.error as string) ?? "Unknown error" };
+  } catch {
+    // Gateway unreachable — try CLI fallback
+    return sendNotificationCLI(target, opts.message);
+  }
+}
+
+async function sendNotificationCLI(
+  sessionTarget: string,
+  message: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await runCli(["send", sessionTarget, message]);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: `CLI fallback failed: ${err}` };
+  }
+}
+
 export async function deleteAgentCronJobs(namePrefix: string): Promise<void> {
   const listResult = await listCronJobs();
   if (!listResult.ok || !listResult.jobs) return;

@@ -12,6 +12,7 @@ agents:
   - id: triager
     name: Triager
     role: analysis
+    model: anthropic/claude-sonnet-4-5
     description: Analyzes bug reports, reproduces issues, classifies severity.
     workspace:
       baseDir: agents/triager
@@ -23,6 +24,7 @@ agents:
   - id: investigator
     name: Investigator
     role: analysis
+    model: anthropic/claude-opus-4-6
     description: Traces bugs to root cause and proposes fix approach.
     workspace:
       baseDir: agents/investigator
@@ -34,6 +36,7 @@ agents:
   - id: setup
     name: Setup
     role: coding
+    model: anthropic/claude-sonnet-4-5
     description: Creates bugfix branch and establishes baseline.
     workspace:
       baseDir: agents/setup
@@ -45,6 +48,7 @@ agents:
   - id: fixer
     name: Fixer
     role: coding
+    model: openai-codex/gpt-5.3-codex
     description: Implements the fix and writes regression tests.
     workspace:
       baseDir: agents/fixer
@@ -56,6 +60,7 @@ agents:
   - id: verifier
     name: Verifier
     role: verification
+    model: anthropic/claude-opus-4-6
     description: Verifies the fix and regression test correctness.
     workspace:
       baseDir: agents/verifier
@@ -67,6 +72,7 @@ agents:
   - id: pr
     name: PR Creator
     role: pr
+    model: anthropic/claude-sonnet-4-5
     description: Creates a pull request with bug fix details.
     workspace:
       baseDir: agents/pr

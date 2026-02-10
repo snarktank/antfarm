@@ -6,6 +6,7 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
+import { sendNotification } from "./gateway-api.js";
 
 /**
  * Fire-and-forget cron teardown when a run ends.
@@ -29,6 +30,75 @@ function getWorkflowId(runId: string): string | undefined {
     const row = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(runId) as { workflow_id: string } | undefined;
     return row?.workflow_id;
   } catch { return undefined; }
+}
+
+// ── Run Completion Notifications ────────────────────────────────────
+
+/**
+ * Send a Discord/session notification when a run completes or fails.
+ * Reads notifications config from the workflow spec on disk.
+ * Fire-and-forget: errors are logged but never thrown.
+ */
+function sendRunNotification(runId: string, status: "completed" | "failed", detail?: string): void {
+  try {
+    const db = getDb();
+    const run = db.prepare(
+      "SELECT workflow_id, task, context, created_at, updated_at FROM runs WHERE id = ?"
+    ).get(runId) as { workflow_id: string; task: string; context: string; created_at: string; updated_at: string } | undefined;
+    if (!run) return;
+
+    // Load workflow spec to check for notifications.sessionTarget
+    const workflowDir = path.join(os.homedir(), ".openclaw", "workspace", "antfarm", "workflows", run.workflow_id);
+    const specPath = path.join(workflowDir, "workflow.yml");
+    let sessionTarget: string | undefined;
+    try {
+      const raw = fs.readFileSync(specPath, "utf-8");
+      // Simple YAML parse for sessionTarget — avoid importing YAML in sync context
+      const match = raw.match(/notifications:[\s\S]*?sessionTarget:\s*["']?([^\s"']+)/);
+      if (!match) {
+        const match2 = raw.match(/notifications:[\s\S]*?session_target:\s*["']?([^\s"']+)/);
+        if (!match2) return; // No session notification configured
+        sessionTarget = match2[1];
+      } else {
+        sessionTarget = match[1];
+      }
+    } catch {
+      return; // No workflow spec or can't read it
+    }
+
+    const context: Record<string, string> = JSON.parse(run.context);
+    const emoji = status === "completed" ? "✅" : "❌";
+    const duration = formatDuration(run.created_at, run.updated_at);
+    const prLink = context.pr ? `\nPR: ${context.pr}` : "";
+    const failDetail = detail ? `\nReason: ${detail}` : "";
+
+    const message = [
+      `${emoji} **Workflow ${status}:** ${run.workflow_id}`,
+      `Task: ${run.task}`,
+      `Status: ${status}`,
+      `Duration: ${duration}`,
+      prLink,
+      failDetail,
+    ].filter(Boolean).join("\n");
+
+    sendNotification({ message, sessionTarget }).catch(() => {});
+  } catch {
+    // Fire-and-forget — never break the pipeline
+  }
+}
+
+function formatDuration(start: string, end: string): string {
+  try {
+    const ms = new Date(end).getTime() - new Date(start).getTime();
+    if (ms < 0) return "unknown";
+    const mins = Math.floor(ms / 60000);
+    if (mins < 60) return `${mins}m`;
+    const hrs = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    return `${hrs}h ${remMins}m`;
+  } catch {
+    return "unknown";
+  }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -224,6 +294,7 @@ function cleanupAbandonedSteps(): void {
       emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: "Agent abandoned step without completing" });
       emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Step abandoned and retries exhausted" });
       scheduleRunCronTeardown(step.run_id);
+      sendRunNotification(step.run_id, "failed", "Step abandoned and retries exhausted");
     } else {
       // Reset to pending for retry
       db.prepare(
@@ -499,6 +570,7 @@ function handleVerifyEachCompletion(
         emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: verifyStep.run_id, workflowId: wfId, stepId: verifyStep.id });
         emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: verifyStep.run_id, workflowId: wfId, detail: "Verification retries exhausted" });
         scheduleRunCronTeardown(verifyStep.run_id);
+        sendRunNotification(verifyStep.run_id, "failed", "Verification retries exhausted");
         return { advanced: false, runCompleted: false };
       }
 
@@ -584,6 +656,7 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
     emitEvent({ ts: new Date().toISOString(), event: "run.completed", runId, workflowId: wfId });
     archiveRunProgress(runId);
     scheduleRunCronTeardown(runId);
+    sendRunNotification(runId, "completed");
     return { advanced: false, runCompleted: true };
   }
 }
@@ -642,6 +715,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
         emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: error });
         emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Story retries exhausted" });
         scheduleRunCronTeardown(step.run_id);
+        sendRunNotification(step.run_id, "failed", "Story retries exhausted");
         return { retrying: false, runFailed: true };
       }
 
@@ -666,6 +740,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId2, stepId: stepId, detail: error });
     emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId2, detail: "Step retries exhausted" });
     scheduleRunCronTeardown(step.run_id);
+    sendRunNotification(step.run_id, "failed", "Step retries exhausted");
     return { retrying: false, runFailed: true };
   } else {
     db.prepare(

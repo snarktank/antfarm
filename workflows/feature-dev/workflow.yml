@@ -13,6 +13,7 @@ agents:
   - id: planner
     name: Planner
     role: analysis
+    model: anthropic/claude-opus-4-6
     description: Decomposes tasks into ordered user stories.
     workspace:
       baseDir: agents/planner
@@ -24,6 +25,7 @@ agents:
   - id: setup
     name: Setup
     role: coding
+    model: anthropic/claude-sonnet-4-5
     description: Prepares environment, creates branch, establishes baseline.
     workspace:
       baseDir: agents/setup
@@ -35,6 +37,7 @@ agents:
   - id: developer
     name: Developer
     role: coding
+    model: anthropic/claude-opus-4-6
     description: Implements features, writes tests, creates PRs.
     workspace:
       baseDir: agents/developer
@@ -46,6 +49,7 @@ agents:
   - id: verifier
     name: Verifier
     role: verification
+    model: anthropic/claude-opus-4-6
     description: Quick sanity check - did developer actually do the work?
     workspace:
       baseDir: agents/verifier
@@ -57,6 +61,7 @@ agents:
   - id: tester
     name: Tester
     role: testing
+    model: anthropic/claude-sonnet-4-5
     description: Integration and E2E testing after all stories are implemented.
     workspace:
       baseDir: agents/tester
@@ -68,6 +73,7 @@ agents:
   - id: reviewer
     name: Reviewer
     role: analysis
+    model: anthropic/claude-sonnet-4-5
     description: Reviews PRs, requests changes or approves.
     workspace:
       baseDir: agents/reviewer

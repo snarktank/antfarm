@@ -74,6 +74,7 @@ export type WorkflowSpec = {
   context?: Record<string, string>;
   notifications?: {
     url?: string;
+    sessionTarget?: string;
   };
 };
 
