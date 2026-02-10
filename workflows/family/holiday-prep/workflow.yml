@@ -1,0 +1,216 @@
+# Holiday Prep Workflow
+# Monthly holiday preparation — fills notes for month-after-next
+id: holiday-prep
+name: Holiday Preparation
+version: 1
+description: |
+  Identifies upcoming holidays 1-2 months out and prepares Apple Notes
+  with the 5-section template (Things to do, Places to go, Foods & recipes,
+  Cultural facts, Kid-friendly activities).
+
+agents:
+  - id: planner
+    name: Holiday Planner
+    role: analysis
+    description: Identifies which holidays need notes and creates them as stories.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+        SOUL.md: agents/planner/SOUL.md
+        template.md: agents/planner/template.md
+
+  - id: researcher
+    name: Holiday Researcher
+    role: analysis
+    description: Researches content for each holiday.
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+        IDENTITY.md: agents/researcher/IDENTITY.md
+        SOUL.md: agents/researcher/SOUL.md
+        template.md: agents/researcher/template.md
+
+  - id: formatter
+    name: Note Formatter
+    role: coding
+    description: Formats into strict Apple Notes HTML.
+    workspace:
+      baseDir: agents/formatter
+      files:
+        AGENTS.md: agents/formatter/AGENTS.md
+        IDENTITY.md: agents/formatter/IDENTITY.md
+        SOUL.md: agents/formatter/SOUL.md
+        spec.md: agents/formatter/spec.md
+        template.html: agents/formatter/template.html
+
+  - id: validator
+    name: Format Validator
+    role: verification
+    description: Validates HTML formatting.
+    workspace:
+      baseDir: agents/validator
+      files:
+        AGENTS.md: agents/validator/AGENTS.md
+        IDENTITY.md: agents/validator/IDENTITY.md
+        SOUL.md: agents/validator/SOUL.md
+        spec.md: agents/validator/spec.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      Plan which holidays need notes for the month-after-next.
+
+      TASK: {{task}}
+
+      Current date is approximately "today". Calculate:
+      1. What month is it now?
+      2. What is "month-after-next" (current month + 2)?
+
+      Identify major holidays in that month that need notes:
+      - Cultural holidays (Lunar New Year, Seollal, Chuseok, etc.)
+      - Religious holidays (Easter, Ramadan, Passover, etc.) if observed
+      - National holidays (Thanksgiving, etc.)
+      - Fun/seasonal (Halloween, Pi Day, etc.)
+
+      For each holiday, create a story with:
+      - id: H-1, H-2, etc.
+      - title: The date and holiday name
+      - description: What to research and include
+      - acceptanceCriteria: [must have 5 sections, proper HTML, etc.]
+
+      Reply with:
+      STATUS: done
+      TARGET_MONTH: [Month YYYY]
+      HOLIDAYS_JSON: [array of holiday story objects]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: research
+    agent: researcher
+    type: loop
+    loop:
+      over: holidays
+      completion: all_done
+      fresh_session: true
+    input: |
+      Research content for this holiday.
+
+      TASK: {{task}}
+      TARGET_MONTH: {{target_month}}
+
+      CURRENT HOLIDAY:
+      {{current_holiday}}
+
+      Research and gather:
+      1. Things to do — activities, traditions, crafts
+      2. Places to go — events, festivals, locations
+      3. Foods & recipes — traditional dishes, easy recipes
+      4. Cultural facts — history, significance, customs
+      5. Kid-friendly activities — age-appropriate ideas
+
+      Focus on practical, family-oriented content.
+
+      Reply with:
+      STATUS: done
+      THINGS_TO_DO: [list]
+      PLACES_TO_GO: [list]
+      FOODS_RECIPES: [list]
+      CULTURAL_FACTS: [list]
+      KID_ACTIVITIES: [list]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: format
+    agent: formatter
+    type: loop
+    loop:
+      over: holidays
+      completion: all_done
+      fresh_session: true
+      verify_each: true
+      verify_step: validate
+    input: |
+      Format holiday content into Apple Notes HTML.
+
+      TASK: {{task}}
+      CURRENT_HOLIDAY: {{current_holiday}}
+
+      CONTENT:
+      THINGS_TO_DO: {{things_to_do}}
+      PLACES_TO_GO: {{places_to_go}}
+      FOODS_RECIPES: {{foods_recipes}}
+      CULTURAL_FACTS: {{cultural_facts}}
+      KID_ACTIVITIES: {{kid_activities}}
+
+      Use template.html structure. Follow spec.md EXACTLY:
+      - Bold title first line only
+      - 5 sections with bold headings
+      - Bullet lists under each
+      - Never more than one blank line
+      - Italic sources footer
+
+      Reply with:
+      STATUS: done
+      NOTE_TITLE: YYYY-MM-DD — Holiday Name
+      HTML_BODY: [Complete HTML]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: validate
+    agent: validator
+    input: |
+      Validate holiday note HTML formatting.
+
+      HTML_BODY: {{html_body}}
+      NOTE_TITLE: {{note_title}}
+
+      Checklist:
+      1. Title format: YYYY-MM-DD — Holiday Name (bold, first line)
+      2. 5 sections present: Things to do, Places to go, Foods & recipes, Cultural facts, Kid-friendly activities
+      3. All section headings bold
+      4. Bullet lists under each section
+      5. No double blank lines
+      6. Valid HTML only
+      7. Italic sources footer
+
+      Reply with:
+      STATUS: done
+      VALIDATED: yes
+
+      Or:
+      STATUS: retry
+      ISSUES:
+      - [specific violations]
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: format
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: summary
+    agent: planner
+    input: |
+      Create final summary of all holiday notes prepared.
+
+      TASK: {{task}}
+      TARGET_MONTH: {{target_month}}
+
+      Reply with:
+      STATUS: done
+      SUMMARY: List of all holiday notes created with titles
+      NEXT_STEPS: Reminder to create notes in Apple Notes using the HTML
+    expects: "STATUS: done"
+    max_retries: 0
+    on_fail:
+      escalate_to: human

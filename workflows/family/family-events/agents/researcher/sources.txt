@@ -1,0 +1,22 @@
+# Family Events Research Sources (North Dallas)
+# These are the ONLY sources to use. Do not add or remove sources.
+
+## Primary RSS Feeds (use blogwatcher skill if available, or web_fetch)
+- https://www.collincountymoms.com/feed/ (Collin County Moms blog)
+- https://dallasmoms.com/feed/ (Dallas Moms blog)
+- https://dfwchild.com/rss/ (DFWChild magazine)
+
+## Event Calendars (web_fetch)
+- https://www.wattorescreek.com/events/ (Watters Creek events)
+- https://www.fairviewtowncenter.com/events/ (Fairview Town Center)
+- https://www.allenlibrary.org/calendar (Allen Public Library)
+- https://www.mckinneytexas.org/departments/libraries/events (McKinney Libraries)
+- https://www.collincountytx.gov/calendar (Collin County events)
+- https://www.visitplano.com/events/ (Plano events - nearby backup)
+
+## Guidelines
+- Focus on events within ~20 miles of Allen/Plano/Frisco/McKinney
+- Include date, time, location, and cost in every listing
+- Prioritize free/low-cost events ($0-20 per person)
+- Include both registration-required and drop-in events
+- Note age recommendations if provided

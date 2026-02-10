@@ -32,10 +32,13 @@ BRANCH: feature-branch
 KEY: value
 ...
 ANTFARM_EOF
-cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
+cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>" --chain
 \`\`\`
 
-IMPORTANT: Always write output to a file first, then pipe via stdin. Do NOT pass output as a command-line argument — complex output (JSON, multi-line text) gets mangled by shell escaping.
+IMPORTANT:
+1. Always write output to a file first, then pipe via stdin. Do NOT pass output as a command-line argument — complex output gets mangled by shell escaping.
+2. Use --chain to immediately activate the next agent (no 5-minute wait).
+3. If you omit --chain, the next agent will run on its normal schedule.
 
 This automatically: saves your output, merges KEY: value pairs into the run context, and advances the pipeline to the next step.
 

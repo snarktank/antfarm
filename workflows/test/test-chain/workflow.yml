@@ -1,0 +1,48 @@
+id: test-chain
+name: Test Chain Workflow
+version: 1
+description: Simple 3-step test to verify chain functionality
+
+agents:
+  - id: step1
+    name: Step 1 Agent
+    role: coding
+    workspace:
+      baseDir: agents/step1
+      files:
+        AGENTS.md: agents/step1/AGENTS.md
+
+  - id: step2
+    name: Step 2 Agent
+    role: coding
+    workspace:
+      baseDir: agents/step2
+      files:
+        AGENTS.md: agents/step2/AGENTS.md
+
+  - id: step3
+    name: Step 3 Agent
+    role: coding
+    workspace:
+      baseDir: agents/step3
+      files:
+        AGENTS.md: agents/step3/AGENTS.md
+
+steps:
+  - id: one
+    agent: step1
+    input: |
+      Test step 1. Reply with STATUS: done, VALUE: hello
+    expects: "STATUS: done"
+
+  - id: two
+    agent: step2
+    input: |
+      Test step 2. Previous value was {{value}}. Reply with STATUS: done, VALUE: world
+    expects: "STATUS: done"
+
+  - id: three
+    agent: step3
+    input: |
+      Test step 3. Previous value was {{value}}. Reply with STATUS: done
+    expects: "STATUS: done"

@@ -1,0 +1,543 @@
+# New Application Development Workflow
+# Comprehensive workflow from ideation through launch
+
+id: new-app-dev
+name: New Application Development
+version: 1.0.0
+description: |
+  Comprehensive workflow for developing new applications from ideation through launch.
+  Covers market research, prototyping, validation, design, development, testing (alpha/beta),
+  polish, and launch preparation. For greenfield projects, not feature additions.
+
+agents:
+  - id: discoverer
+    name: Market Discoverer
+    role: analysis
+    description: Researches market needs, competition, and user personas.
+    workspace:
+      baseDir: agents/discoverer
+      files:
+        AGENTS.md: agents/discoverer/AGENTS.md
+
+  - id: product_manager
+    name: Product Manager
+    role: analysis
+    description: Brainstorms solutions, runs SWOT analysis, selects winning concept.
+    workspace:
+      baseDir: agents/product_manager
+      files:
+        AGENTS.md: agents/product_manager/AGENTS.md
+
+  - id: strategist
+    name: Product Strategist
+    role: analysis
+    description: Defines value proposition, success metrics, and business case.
+    workspace:
+      baseDir: agents/strategist
+      files:
+        AGENTS.md: agents/strategist/AGENTS.md
+
+  - id: roadmapper
+    name: Roadmapper
+    role: analysis
+    description: Creates product roadmap with milestones and priorities.
+    workspace:
+      baseDir: agents/roadmapper
+      files:
+        AGENTS.md: agents/roadmapper/AGENTS.md
+
+  - id: prototyper
+    name: Prototyper
+    role: coding
+    description: Builds MVP/prototype for validation.
+    workspace:
+      baseDir: agents/prototyper
+      files:
+        AGENTS.md: agents/prototyper/AGENTS.md
+
+  - id: validator
+    name: Validator
+    role: verification
+    description: Tests prototypes with users and makes pivot/persevere decisions.
+    workspace:
+      baseDir: agents/validator
+      files:
+        AGENTS.md: agents/validator/AGENTS.md
+
+  - id: setup
+    name: Setup
+    role: coding
+    description: Initializes repository and makes architecture decisions.
+    workspace:
+      baseDir: agents/setup
+      files:
+        AGENTS.md: agents/setup/AGENTS.md
+
+  - id: designer
+    name: Designer
+    role: coding
+    description: Creates design system and UI mockups.
+    workspace:
+      baseDir: agents/designer
+      files:
+        AGENTS.md: agents/designer/AGENTS.md
+
+  - id: developer
+    name: Developer
+    role: coding
+    description: Implements MVP features story by story.
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+
+  - id: alphatester
+    name: Alpha Tester
+    role: testing
+    description: Runs internal QA and testing before beta.
+    workspace:
+      baseDir: agents/alphatester
+      files:
+        AGENTS.md: agents/alphatester/AGENTS.md
+
+  - id: betatester
+    name: Beta Tester
+    role: testing
+    description: Coordinates beta testing with external users.
+    workspace:
+      baseDir: agents/betatester
+      files:
+        AGENTS.md: agents/betatester/AGENTS.md
+
+  - id: polisher
+    name: Polisher
+    role: coding
+    description: Optimizes performance and handles edge cases pre-launch.
+    workspace:
+      baseDir: agents/polisher
+      files:
+        AGENTS.md: agents/polisher/AGENTS.md
+
+  - id: launch_manager
+    name: Launch Manager
+    role: pr
+    description: Prepares for launch and executes go-live.
+    workspace:
+      baseDir: agents/launch_manager
+      files:
+        AGENTS.md: agents/launch_manager/AGENTS.md
+
+  - id: reviewer
+    name: Reviewer
+    role: analysis
+    description: Conducts post-launch review and documents lessons learned.
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: agents/reviewer/AGENTS.md
+
+steps:
+  # Phase 1: Discovery & Ideation
+  - id: discover
+    agent: discoverer
+    input: |
+      Conduct market research and define the problem space.
+
+      TASK: {{task}}
+
+      Instructions:
+      1. Analyze the market opportunity (TAM/SAM/SOM)
+      2. Define 2-4 user personas with pain points
+      3. Analyze competitors (strengths, weaknesses, gaps)
+      4. Write a clear problem statement
+
+      Create research/ directory with:
+      - market-analysis.md
+      - user-personas.md
+      - competitive-landscape.md
+      - problem-statement.md
+
+      Reply with:
+      STATUS: done
+      RESEARCH_DIR: /path/to/research/
+      KEY_INSIGHT: One sentence summary
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: ideate
+    agent: product_manager
+    input: |
+      Generate and screen product ideas.
+
+      TASK: {{task}}
+      RESEARCH: {{discover_output}}
+
+      Instructions:
+      1. Read research/ directory
+      2. Use SCAMPER to generate 5-10 solution concepts
+      3. Score each on: user value, feasibility, timing, differentiation, viability
+      4. Run SWOT on top 3 concepts
+      5. Select winning concept with rationale
+
+      Create product/ directory with:
+      - ideation.md
+      - swot-analysis.md
+      - concept-selection.md
+      - product-concept.md
+
+      Reply with:
+      STATUS: done
+      WINNING_CONCEPT: One-sentence description
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: strategize
+    agent: strategist
+    input: |
+      Define strategy and success metrics.
+
+      TASK: {{task}}
+      CONCEPT: {{ideate_output}}
+
+      Instructions:
+      1. Create value proposition canvas
+      2. Define 5-7 success metrics with targets (North Star, leading, lagging, guardrails)
+      3. Create rough business case
+      4. Outline go-to-market strategy
+
+      Create strategy/ directory with:
+      - value-proposition.md
+      - success-metrics.md
+      - business-case.md
+      - gtm-strategy.md
+
+      Reply with:
+      STATUS: done
+      NORTH_STAR: [metric] — [target]
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: roadmap
+    agent: roadmapper
+    input: |
+      Create product roadmap.
+
+      TASK: {{task}}
+      STRATEGY: {{strategize_output}}
+
+      Instructions:
+      1. Define phases (MVP, polish, launch, post-launch)
+      2. Set milestones with dates
+      3. RICE-score all features
+      4. Map dependencies
+
+      Create roadmap/ directory with:
+      - roadmap.md
+      - phases.md
+      - milestones.md
+      - priorities.md
+
+      Reply with:
+      STATUS: done
+      MVP_DATE: YYYY-MM-DD
+      LAUNCH_DATE: YYYY-MM-DD
+    expects: "STATUS: done"
+    max_retries: 2
+
+  # Phase 2: Validation
+  - id: prototype
+    agent: prototyper
+    input: |
+      Build prototype for validation.
+
+      TASK: {{task}}
+      ROADMAP: {{roadmap_output}}
+
+      Instructions:
+      1. Choose prototype fidelity (wireframe/clickable/coded)
+      2. Build focused MVP prototype
+      3. Create test plan with tasks and success criteria
+      4. Prepare feedback form
+
+      Create prototype/ directory with:
+      - prototype/ (actual prototype files)
+      - prototype-summary.md
+      - test-plan.md
+      - feedback-form.md
+
+      Reply with:
+      STATUS: done
+      PROTOTYPE_TYPE: wireframe/clickable/coded
+      TEST_READY: true
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: validate
+    agent: validator
+    input: |
+      Validate prototype with users.
+
+      TASK: {{task}}
+      PROTOTYPE: {{prototype_output}}
+
+      Instructions:
+      1. Review prototype and test plan
+      2. Conduct user tests (simulated)
+      3. Analyze feedback against: desirability, usability, viability, feasibility
+      4. Make recommendation: PIVOT / PERSEVERE / STOP / ITERATE
+
+      Create validation/ directory with:
+      - test-results.md
+      - analysis.md
+      - recommendation.md
+      - iterations.md (if iterating)
+
+      Reply with:
+      STATUS: done
+      RECOMMENDATION: [decision]
+      NEXT_STEP: [what happens next]
+    expects: "STATUS: done"
+    max_retries: 2
+
+  # Phase 3: Foundation
+  - id: setup
+    agent: setup
+    input: |
+      Initialize repository and architecture.
+
+      TASK: {{task}}
+      VALIDATION: {{validate_output}}
+
+      Instructions:
+      1. Initialize git repository
+      2. Select technology stack (documented in ADRs)
+      3. Set up build tools, linting, CI/CD basics
+      4. Create folder structure
+
+      Create:
+      - README.md
+      - docs/adr/ (Architecture Decision Records)
+      - src/ (source structure)
+
+      Reply with:
+      STATUS: done
+      REPO: /path/to/repo
+      STACK: [technologies]
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: design
+    agent: designer
+    input: |
+      Create design system and mockups.
+
+      TASK: {{task}}
+      SETUP: {{setup_output}}
+
+      Instructions:
+      1. Create design system (colors, typography, spacing, components)
+      2. Design user flows
+      3. Create mockups for all major screens
+      4. Export assets
+
+      Create design/ directory with:
+      - design-system/
+      - user-flows/
+      - mockups/
+      - assets/
+
+      Reply with:
+      STATUS: done
+      SCREENS: [list of designed screens]
+    expects: "STATUS: done"
+    max_retries: 2
+
+  # Phase 4: Development
+  - id: implement
+    agent: developer
+    type: loop
+    loop:
+      over: stories
+      completion: all_done
+      fresh_session: true
+    input: |
+      Implement MVP features.
+
+      TASK: {{task}}
+      DESIGN: {{design_output}}
+
+      Instructions:
+      1. Read design/ directory
+      2. Run roam map and roam weather (save to .roam/)
+      3. Implement this story per acceptance criteria
+      4. Write tests
+      5. Commit with conventional message
+      6. Append to progress.txt
+
+      Reply with:
+      STATUS: done
+      CHANGES: What was implemented
+      TESTS: What tests were written
+    expects: "STATUS: done"
+    max_retries: 2
+
+  # Phase 5: Testing
+  - id: alphatest
+    agent: alphatester
+    input: |
+      Run alpha testing.
+
+      TASK: {{task}}
+      IMPLEMENTATION: {{implement_output}}
+
+      Instructions:
+      1. Create comprehensive test plan
+      2. Run functional, technical, cross-browser tests
+      3. Document bugs with severity
+      4. Make sign-off decision
+
+      Create testing/alpha/ with:
+      - test-plan.md
+      - test-results.md
+      - bugs.md
+      - signoff.md
+
+      Reply with:
+      STATUS: done
+      CRITICAL_BUGS: N
+      SIGNOFF: true/false
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: betatest
+    agent: betatester
+    input: |
+      Run beta testing.
+
+      TASK: {{task}}
+      ALPHA: {{alphatest_output}}
+
+      Instructions:
+      1. Set up beta environment
+      2. Recruit beta testers
+      3. Collect and organize feedback
+      4. Triage issues (P0/P1/P2/P3)
+
+      Create testing/beta/ with:
+      - beta-plan.md
+      - feedback-summary.md
+      - issues-triaged.md
+      - launch-readiness.md
+
+      Reply with:
+      STATUS: done
+      BLOCKERS_REMAINING: N
+      LAUNCH_RECOMMENDATION: GO/DELAY
+    expects: "STATUS: done"
+    max_retries: 2
+
+  # Phase 6: Polish & Launch
+  - id: polish
+    agent: polisher
+    input: |
+      Polish and optimize before launch.
+
+      TASK: {{task}}
+      BETA: {{betatest_output}}
+
+      Instructions:
+      1. Optimize performance (Lighthouse, bundle size, API response)
+      2. Handle edge cases
+      3. Complete security checklist
+      4. Verify production readiness
+
+      Create polish/ with:
+      - performance-report.md
+      - edge-cases-handled.md
+      - security-checklist.md
+      - production-ready.md
+
+      Reply with:
+      STATUS: done
+      LIGHTHOUSE_SCORE: N
+      PRODUCTION_READY: true
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: launchprep
+    agent: launch_manager
+    input: |
+      Prepare for launch.
+
+      TASK: {{task}}
+      POLISH: {{polish_output}}
+
+      Instructions:
+      1. Complete launch checklist
+      2. Create documentation (user guide, API docs, runbook)
+      3. Prepare marketing materials
+      4. Set up monitoring and alerts
+
+      Create launch/ with:
+      - launch-checklist.md
+      - documentation/
+      - marketing/
+
+      Reply with:
+      STATUS: done
+      CHECKLIST_COMPLETE: true
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: launch
+    agent: launch_manager
+    input: |
+      Execute launch.
+
+      TASK: {{task}}
+      PREP: {{launchprep_output}}
+
+      Instructions:
+      1. Deploy to production
+      2. Run smoke tests
+      3. Monitor first 24h
+      4. Document any incidents
+
+      Update launch/ with:
+      - deployment-log.md
+      - post-launch-report.md
+
+      Reply with:
+      STATUS: done
+      DEPLOYED_URL: [URL]
+      INCIDENTS: N
+    expects: "STATUS: done"
+    max_retries: 2
+
+  # Phase 7: Review
+  - id: review
+    agent: reviewer
+    input: |
+      Conduct post-launch review.
+
+      TASK: {{task}}
+      LAUNCH: {{launch_output}}
+
+      Instructions:
+      1. Compare metrics to targets
+      2. Document lessons learned
+      3. Log technical debt
+      4. Create v1.1 roadmap
+
+      Create review/ with:
+      - metrics-comparison.md
+      - process-retro.md
+      - lessons-learned.md
+      - v1.1-roadmap.md
+
+      Reply with:
+      STATUS: done
+      SUCCESS_RATING: Below/Meets/Exceeds
+      TOP_LESSON: [key takeaway]
+    expects: "STATUS: done"
+    max_retries: 1

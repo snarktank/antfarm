@@ -16,23 +16,62 @@ interface WorkflowDef {
   steps: Array<{ id: string; agent: string }>;
 }
 
-function loadWorkflows(): WorkflowDef[] {
-  const dir = resolveBundledWorkflowsDir();
-  const results: WorkflowDef[] = [];
+interface WorkflowTree {
+  workflows: WorkflowDef[];
+  children: Record<string, WorkflowTree>;
+}
+
+function loadWorkflowsRecursive(dir: string, prefix = "", seenIds = new Set<string>()): { flat: WorkflowDef[]; tree: WorkflowTree } {
+  const flat: WorkflowDef[] = [];
+  const tree: WorkflowTree = { workflows: [], children: {} };
+
   try {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const ymlPath = path.join(dir, entry.name, "workflow.yml");
-      if (!fs.existsSync(ymlPath)) continue;
-      const parsed = YAML.parse(fs.readFileSync(ymlPath, "utf-8"));
-      results.push({
-        id: parsed.id ?? entry.name,
-        name: parsed.name ?? entry.name,
-        steps: (parsed.steps ?? []).map((s: any) => ({ id: s.id, agent: s.agent })),
-      });
+
+      const subDir = path.join(dir, entry.name);
+      const ymlPath = path.join(subDir, "workflow.yml");
+
+      if (fs.existsSync(ymlPath)) {
+        // Found a workflow file
+        const parsed = YAML.parse(fs.readFileSync(ymlPath, "utf-8"));
+        const workflowId = parsed.id ?? entry.name;
+
+        // Skip if we've seen this ID before (dedupe, prefer first found = nested)
+        if (seenIds.has(workflowId)) continue;
+        seenIds.add(workflowId);
+
+        const fullId = prefix ? `${prefix}/${entry.name}` : entry.name;
+        const workflow: WorkflowDef = {
+          id: workflowId,
+          name: parsed.name ?? entry.name,
+          steps: (parsed.steps ?? []).map((s: any) => ({ id: s.id, agent: s.agent })),
+        };
+        flat.push(workflow);
+        tree.workflows.push(workflow);
+      } else {
+        // No workflow.yml — treat as folder, recurse
+        const childPrefix = prefix ? `${prefix}/${entry.name}` : entry.name;
+        const child = loadWorkflowsRecursive(subDir, childPrefix, seenIds);
+
+        // Add child's workflows to flat list (already deduped)
+        flat.push(...child.flat);
+
+        // Add to tree children
+        if (child.flat.length > 0) {
+          tree.children[entry.name] = child.tree;
+        }
+      }
     }
   } catch { /* empty */ }
-  return results;
+
+  return { flat, tree };
+}
+
+function loadWorkflows(): { workflows: WorkflowDef[]; tree: WorkflowTree } {
+  const dir = resolveBundledWorkflowsDir();
+  const result = loadWorkflowsRecursive(dir, "", new Set<string>());
+  return { workflows: result.flat, tree: result.tree };
 }
 
 function getRuns(workflowId?: string): Array<RunInfo & { steps: StepInfo[] }> {

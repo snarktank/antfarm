@@ -220,7 +220,7 @@ export function claimStep(agentId: string): ClaimResult {
       if (!nextStory) {
         // No more stories — mark step done and advance
         db.prepare(
-          "UPDATE steps SET status = 'done', updated_at = datetime('now') WHERE id = ?"
+          "UPDATE steps SET status = 'done', updated_at = datetime('now', 'utc') WHERE id = ?"
         ).run(step.id);
         advancePipeline(step.run_id);
         return { found: false };
@@ -228,10 +228,10 @@ export function claimStep(agentId: string): ClaimResult {
 
       // Claim the story
       db.prepare(
-        "UPDATE stories SET status = 'running', updated_at = datetime('now') WHERE id = ?"
+        "UPDATE stories SET status = 'running', updated_at = datetime('now', 'utc') WHERE id = ?"
       ).run(nextStory.id);
       db.prepare(
-        "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now') WHERE id = ?"
+        "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
       ).run(nextStory.id, step.id);
 
       // Build story template vars
@@ -273,7 +273,7 @@ export function claimStep(agentId: string): ClaimResult {
 
   // Single step: existing logic
   db.prepare(
-    "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
+    "UPDATE steps SET status = 'running', updated_at = datetime('now', 'utc') WHERE id = ? AND status = 'pending'"
   ).run(step.id);
 
   // Inject progress for any step in a run that has stories
@@ -320,7 +320,7 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   }
 
   db.prepare(
-    "UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?"
+    "UPDATE runs SET context = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
   ).run(JSON.stringify(context), step.run_id);
 
   // T5: Parse STORIES_JSON from output (any step, typically the planner)
@@ -330,12 +330,12 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   if (step.type === "loop" && step.current_story_id) {
     // Mark current story done
     db.prepare(
-      "UPDATE stories SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE stories SET status = 'done', output = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(output, step.current_story_id);
 
     // Clear current_story_id, save output
     db.prepare(
-      "UPDATE steps SET current_story_id = NULL, output = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET current_story_id = NULL, output = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(output, step.id);
 
     const loopConfig: LoopConfig | null = step.loop_config ? JSON.parse(step.loop_config) : null;
@@ -348,11 +348,11 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
 
       if (verifyStep) {
         db.prepare(
-          "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+          "UPDATE steps SET status = 'pending', updated_at = datetime('now', 'utc') WHERE id = ?"
         ).run(verifyStep.id);
         // Loop step stays 'running'
         db.prepare(
-          "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ?"
+          "UPDATE steps SET status = 'running', updated_at = datetime('now', 'utc') WHERE id = ?"
         ).run(step.id);
         return { advanced: false, runCompleted: false };
       }
@@ -376,7 +376,7 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
 
   // Single step: mark done and advance
   db.prepare(
-    "UPDATE steps SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?"
+    "UPDATE steps SET status = 'done', output = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
   ).run(output, stepId);
 
   return advancePipeline(step.run_id);
@@ -396,7 +396,7 @@ function handleVerifyEachCompletion(
 
   // Reset verify step to waiting for next use
   db.prepare(
-    "UPDATE steps SET status = 'waiting', output = ?, updated_at = datetime('now') WHERE id = ?"
+    "UPDATE steps SET status = 'waiting', output = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
   ).run(output, verifyStep.id);
 
   if (status === "retry") {
@@ -409,30 +409,30 @@ function handleVerifyEachCompletion(
       const newRetry = lastDoneStory.retry_count + 1;
       if (newRetry > lastDoneStory.max_retries) {
         // Story retries exhausted — fail everything
-        db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, lastDoneStory.id);
-        db.prepare("UPDATE steps SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
-        db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(verifyStep.run_id);
+        db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now', 'utc') WHERE id = ?").run(newRetry, lastDoneStory.id);
+        db.prepare("UPDATE steps SET status = 'failed', updated_at = datetime('now', 'utc') WHERE id = ?").run(loopStepId);
+        db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now', 'utc') WHERE id = ?").run(verifyStep.run_id);
         scheduleRunCronTeardown(verifyStep.run_id);
         return { advanced: false, runCompleted: false };
       }
 
       // Set story back to pending for retry
-      db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, lastDoneStory.id);
+      db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now', 'utc') WHERE id = ?").run(newRetry, lastDoneStory.id);
 
       // Store verify feedback
       const issues = context["issues"] ?? output;
       context["verify_feedback"] = issues;
-      db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), verifyStep.run_id);
+      db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now', 'utc') WHERE id = ?").run(JSON.stringify(context), verifyStep.run_id);
     }
 
     // Set loop step back to pending for retry
-    db.prepare("UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
+    db.prepare("UPDATE steps SET status = 'pending', updated_at = datetime('now', 'utc') WHERE id = ?").run(loopStepId);
     return { advanced: false, runCompleted: false };
   }
 
   // Verify passed — clear feedback and continue
   delete context["verify_feedback"];
-  db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), verifyStep.run_id);
+  db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now', 'utc') WHERE id = ?").run(JSON.stringify(context), verifyStep.run_id);
 
   return checkLoopContinuation(verifyStep.run_id, loopStepId);
 }
@@ -449,14 +449,14 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
   if (pendingStory) {
     // More stories — loop step back to pending
     db.prepare(
-      "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(loopStepId);
     return { advanced: false, runCompleted: false };
   }
 
   // All stories done — mark loop step done
   db.prepare(
-    "UPDATE steps SET status = 'done', updated_at = datetime('now') WHERE id = ?"
+    "UPDATE steps SET status = 'done', updated_at = datetime('now', 'utc') WHERE id = ?"
   ).run(loopStepId);
 
   // Also mark verify step done if it exists
@@ -465,7 +465,7 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
     const lc: LoopConfig = JSON.parse(loopStep.loop_config);
     if (lc.verifyEach && lc.verifyStep) {
       db.prepare(
-        "UPDATE steps SET status = 'done', updated_at = datetime('now') WHERE run_id = ? AND step_id = ?"
+        "UPDATE steps SET status = 'done', updated_at = datetime('now', 'utc') WHERE run_id = ? AND step_id = ?"
       ).run(runId, lc.verifyStep);
     }
   }
@@ -484,12 +484,12 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
 
   if (next) {
     db.prepare(
-      "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(next.id);
     return { advanced: true, runCompleted: false };
   } else {
     db.prepare(
-      "UPDATE runs SET status = 'completed', updated_at = datetime('now') WHERE id = ?"
+      "UPDATE runs SET status = 'completed', updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(runId);
     archiveRunProgress(runId);
     scheduleRunCronTeardown(runId);
@@ -542,16 +542,16 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
       const newRetry = story.retry_count + 1;
       if (newRetry > story.max_retries) {
         // Story retries exhausted
-        db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
-        db.prepare("UPDATE steps SET status = 'failed', output = ?, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(error, stepId);
-        db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(step.run_id);
+        db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now', 'utc') WHERE id = ?").run(newRetry, story.id);
+        db.prepare("UPDATE steps SET status = 'failed', output = ?, current_story_id = NULL, updated_at = datetime('now', 'utc') WHERE id = ?").run(error, stepId);
+        db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now', 'utc') WHERE id = ?").run(step.run_id);
         scheduleRunCronTeardown(step.run_id);
         return { retrying: false, runFailed: true };
       }
 
       // Retry the story
-      db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
-      db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(stepId);
+      db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now', 'utc') WHERE id = ?").run(newRetry, story.id);
+      db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now', 'utc') WHERE id = ?").run(stepId);
       return { retrying: true, runFailed: false };
     }
   }
@@ -561,16 +561,16 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
 
   if (newRetryCount > step.max_retries) {
     db.prepare(
-      "UPDATE steps SET status = 'failed', output = ?, retry_count = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'failed', output = ?, retry_count = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(error, newRetryCount, stepId);
     db.prepare(
-      "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+      "UPDATE runs SET status = 'failed', updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(step.run_id);
     scheduleRunCronTeardown(step.run_id);
     return { retrying: false, runFailed: true };
   } else {
     db.prepare(
-      "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(newRetryCount, stepId);
     return { retrying: true, runFailed: false };
   }

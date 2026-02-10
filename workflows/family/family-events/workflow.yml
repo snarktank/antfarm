@@ -1,0 +1,183 @@
+# Family Events Workflow
+# Weekly Family & Kid Events curation for North Dallas
+id: family-events
+name: Family & Kid Events (North Dallas)
+version: 1
+description: |
+  Gathers family and kid-friendly events for the upcoming week in North Dallas,
+  formats them according to the strict Apple Notes spec, validates formatting,
+  and delivers the final HTML content.
+
+agents:
+  - id: researcher
+    name: Events Researcher
+    role: analysis
+    description: Researches family events from curated sources.
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+        IDENTITY.md: agents/researcher/IDENTITY.md
+        SOUL.md: agents/researcher/SOUL.md
+        sources.txt: agents/researcher/sources.txt
+
+  - id: formatter
+    name: Note Formatter
+    role: coding
+    description: Formats events into strict Apple Notes HTML structure.
+    workspace:
+      baseDir: agents/formatter
+      files:
+        AGENTS.md: agents/formatter/AGENTS.md
+        IDENTITY.md: agents/formatter/IDENTITY.md
+        SOUL.md: agents/formatter/SOUL.md
+        template.html: agents/formatter/template.html
+        spec.md: agents/formatter/spec.md
+
+  - id: validator
+    name: Format Validator
+    role: verification
+    description: Validates HTML matches strict formatting requirements.
+    workspace:
+      baseDir: agents/validator
+      files:
+        AGENTS.md: agents/validator/AGENTS.md
+        IDENTITY.md: agents/validator/IDENTITY.md
+        SOUL.md: agents/validator/SOUL.md
+        spec.md: agents/validator/spec.md
+
+steps:
+  - id: research
+    agent: researcher
+    input: |
+      Research family & kid events for the requested week in North Dallas.
+
+      TASK: {{task}}
+
+      Sources (MUST use all of these):
+      {{sources}}
+
+      For each event, capture:
+      - Event name
+      - Venue and city
+      - Date and time
+      - Brief description (1-2 sentences)
+      - Cost if available
+      - URL if available
+
+      Group events by day of week (Monday, Tuesday, etc.).
+      Identify 3-5 "Top Picks" that look most interesting/unique.
+
+      Reply with:
+      STATUS: done
+      WEEK_RANGE: the exact week range (e.g., "2/9/26–2/15/26")
+      TOP_PICKS: |
+        - Event name @ Venue (City) — time. Description. Cost: $X
+      BY_DAY: |
+        Monday (M/D):
+        - Event @ Venue (City) — time. Description. Cost
+        
+        Tuesday (M/D):
+        - etc
+      ALL_WEEK: |
+        - Ongoing events (if any)
+      SOURCES_CHECKED: List of sources you actually queried
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: format
+    agent: formatter
+    input: |
+      Create a properly formatted Apple Notes HTML body for Family & Kid Events.
+
+      TASK: {{task}}
+      WEEK_RANGE: {{week_range}}
+      TOP_PICKS: {{top_picks}}
+      BY_DAY: {{by_day}}
+      ALL_WEEK: {{all_week}}
+
+      CRITICAL RULES from spec.md:
+      1. First line ONLY: bold title "Family & Kid Events — {{week_range}} (North Dallas)"
+      2. Use proper HTML with <div>, <b>, <ul>, <li> tags
+      3. NEVER more than one consecutive blank line (<div><br></div>)
+      4. One blank line after "By Day" heading
+      5. One blank line after each day's bullet list
+      6. Bold section headings: Top Picks, By Day, All-Week / Ongoing
+      7. Day subheadings in bold: Monday (M/D), Tuesday (M/D), etc.
+      8. Bullet format: <b>Event Name @ Venue (City)</b> — time/short description. <b>Cost:</b> …
+      9. Final line italic: Sources: {{sources_checked}}. Verify registration and details before attending.
+
+      Read template.html for exact structure.
+
+      Reply with:
+      STATUS: done
+      NOTE_TITLE: Family - Family & Kid Events — {{week_range}} (North Dallas)
+      HTML_BODY: |
+        [Complete HTML body for Apple Notes]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: validate
+    agent: validator
+    input: |
+      Validate the HTML body follows strict formatting rules.
+
+      TASK: {{task}}
+      HTML_BODY: {{html_body}}
+      NOTE_TITLE: {{note_title}}
+
+      Checklist:
+      1. First line is ONLY a bold title (no plain text title duplication)
+      2. Uses proper HTML structure (<div>, <b>, <ul>, <li>)
+      3. No more than one consecutive <div><br></div> (blank line)
+      4. Has "Top Picks" section with bold heading
+      5. Has "By Day" section with bold heading
+      6. Day subheadings present (Monday, Tuesday, etc.)
+      7. Has "All-Week / Ongoing" section
+      8. Final line is italic sources footer
+      9. Event format uses <b>Name @ Venue (City)</b>
+
+      Reply with:
+      STATUS: done
+      VALIDATED: yes
+      NOTES: Any issues found (even minor)
+
+      Or if validation fails:
+      STATUS: retry
+      ISSUES:
+      - List specific formatting violations
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: format
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: deliver
+    agent: formatter
+    input: |
+      Final delivery of the validated note.
+
+      TASK: {{task}}
+      NOTE_TITLE: {{note_title}}
+      HTML_BODY: {{html_body}}
+
+      Output the final result:
+      1. Display the completed note title
+      2. Show the HTML body (first 500 chars for verification)
+      3. Instructions: Use apple-notes-skill to create the note:
+         create-note.sh "{{note_title}}" "{{html_body}}"
+
+      Reply with:
+      STATUS: done
+      DELIVERED: Apple Note ready for creation
+      TITLE: {{note_title}}
+      HTML_PREVIEW: [First 500 chars of HTML]
+    expects: "STATUS: done"
+    max_retries: 0
+    on_fail:
+      escalate_to: human

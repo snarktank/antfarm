@@ -1,0 +1,183 @@
+# Hot Restaurants Workflow
+# Weekly hot restaurants curation for Dallas area
+id: hot-restaurants
+name: Hot Restaurants (Dallas Area)
+version: 1
+description: |
+  Gathers hot restaurant openings and buzz-worthy spots in the Dallas area,
+  formats them according to strict Apple Notes spec, validates formatting,
+  and delivers the final HTML content.
+
+agents:
+  - id: researcher
+    name: Restaurant Researcher
+    role: analysis
+    description: Researches hot restaurants from curated sources.
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+        IDENTITY.md: agents/researcher/IDENTITY.md
+        SOUL.md: agents/researcher/SOUL.md
+        sources.txt: agents/researcher/sources.txt
+
+  - id: formatter
+    name: Note Formatter
+    role: coding
+    description: Formats restaurants into strict Apple Notes HTML structure.
+    workspace:
+      baseDir: agents/formatter
+      files:
+        AGENTS.md: agents/formatter/AGENTS.md
+        IDENTITY.md: agents/formatter/IDENTITY.md
+        SOUL.md: agents/formatter/SOUL.md
+        template.html: agents/formatter/template.html
+        spec.md: agents/formatter/spec.md
+
+  - id: validator
+    name: Format Validator
+    role: verification
+    description: Validates HTML matches strict formatting requirements.
+    workspace:
+      baseDir: agents/validator
+      files:
+        AGENTS.md: agents/validator/AGENTS.md
+        IDENTITY.md: agents/validator/IDENTITY.md
+        SOUL.md: agents/validator/SOUL.md
+        spec.md: agents/validator/spec.md
+
+steps:
+  - id: research
+    agent: researcher
+    input: |
+      Research hot restaurants and food spots for Dallas area this week.
+
+      TASK: {{task}}
+
+      Sources (MUST use all of these):
+      {{sources}}
+
+      For each spot, capture:
+      - Name and neighborhood/city
+      - Type (restaurant, bar, cafe, dessert)
+      - Why it's hot (new opening, buzz, award, etc.)
+      - Signature dish/drink to try
+      - Price range ($, $$, $$$, $$$$)
+      - URL if available
+
+      Categorize into:
+      - Top Picks (3-5 most exciting)
+      - Restaurants (new openings, hot right now)
+      - Bars/Nightlife with food
+      - Cafes/Coffee
+      - Desserts
+
+      Reply with:
+      STATUS: done
+      WEEK_RANGE: the exact week range (e.g., "2/9/26–2/15/26")
+      TOP_PICKS: |
+        - Restaurant Name (Area) — brief why hot. Story: backstory. What to try: dish. Price: $$
+      RESTAURANTS: |
+        - Name (Area) — description. Story: ... What to try: ... Price: $$
+      BARS: |
+        - Name (Area) — description. Story: ... What to try: ... Price: $$
+      CAFES: |
+        - Name (Area) — description. What to try: ... Price: $$
+      DESSERTS: |
+        - Name (Area) — description. What to try: ... Price: $$
+      SOURCES_CHECKED: List of sources you actually queried
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: format
+    agent: formatter
+    input: |
+      Create a properly formatted Apple Notes HTML body for Hot Restaurants.
+
+      TASK: {{task}}
+      WEEK_RANGE: {{week_range}}
+      TOP_PICKS: {{top_picks}}
+      RESTAURANTS: {{restaurants}}
+      BARS: {{bars}}
+      CAFES: {{cafes}}
+      DESSERTS: {{desserts}}
+
+      CRITICAL RULES from spec.md:
+      1. First line ONLY: bold title "Hot Restaurants — {{week_range}} (Dallas area)"
+      2. Use proper HTML with <div>, <b>, <ul>, <li> tags
+      3. NEVER more than one consecutive blank line (<div><br></div>)
+      4. Bold section headings: Top Picks, Restaurants, Bars/Nightlife, Cafes/Coffee, Desserts
+      5. Bullet format: <b>Name (Area)</b> — description. <b>Story:</b> ... <b>What to try:</b> ... <b>Price:</b> $$
+      6. Final line italic with sources
+
+      Read template.html for exact structure.
+
+      Reply with:
+      STATUS: done
+      NOTE_TITLE: Family - Hot Restaurants — {{week_range}} (Dallas area)
+      HTML_BODY: |
+        [Complete HTML body for Apple Notes]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: validate
+    agent: validator
+    input: |
+      Validate the HTML body follows strict formatting rules.
+
+      TASK: {{task}}
+      HTML_BODY: {{html_body}}
+      NOTE_TITLE: {{note_title}}
+
+      Checklist:
+      1. First line is ONLY a bold title (no plain text before it)
+      2. Uses proper HTML structure
+      3. No more than one consecutive blank line
+      4. Has "Top Picks" section
+      5. Has "Restaurants" section
+      6. Has "Bars/Nightlife" section
+      7. Has "Cafes/Coffee" section
+      8. Has "Desserts" section
+      9. Bullet format uses <b>Name (Area)</b> with bold labels for Story/What to try/Price
+      10. Final line is italic sources footer
+
+      Reply with:
+      STATUS: done
+      VALIDATED: yes
+      NOTES: Any issues found
+
+      Or if validation fails:
+      STATUS: retry
+      ISSUES:
+      - List specific formatting violations
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: format
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: deliver
+    agent: formatter
+    input: |
+      Final delivery of the validated note.
+
+      TASK: {{task}}
+      NOTE_TITLE: {{note_title}}
+      HTML_BODY: {{html_body}}
+
+      Output the final result with display and creation instructions.
+
+      Reply with:
+      STATUS: done
+      DELIVERED: Apple Note ready for creation
+      TITLE: {{note_title}}
+      HTML_PREVIEW: [First 500 chars of HTML]
+    expects: "STATUS: done"
+    max_retries: 0
+    on_fail:
+      escalate_to: human

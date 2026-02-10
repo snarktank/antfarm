@@ -205,10 +205,34 @@ async function fetchJSON(url) {
 }
 
 async function loadWorkflows() {
-  workflows = await fetchJSON('/api/workflows');
+  const data = await fetchJSON('/api/workflows');
+  workflows = data.workflows || data; // fallback for backwards compat
+  const tree = data.tree || null;
   const sel = document.getElementById('wf-select');
-  sel.innerHTML = '<option value="">— select workflow —</option>' +
-    workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+
+  function buildOptions(tree, prefix = '') {
+    let html = '';
+    // Add workflows in this folder
+    for (const w of tree.workflows || []) {
+      html += `<option value="${w.id}">${prefix}${w.name}</option>`;
+    }
+    // Add subfolders as optgroups
+    for (const [folderName, childTree] of Object.entries(tree.children || {})) {
+      html += `<optgroup label="${prefix}${folderName}">`;
+      html += buildOptions(childTree, prefix + '  ');
+      html += '</optgroup>';
+    }
+    return html;
+  }
+
+  if (tree) {
+    sel.innerHTML = '<option value="">— select workflow —</option>' + buildOptions(tree);
+  } else {
+    // Fallback to flat list
+    sel.innerHTML = '<option value="">— select workflow —</option>' +
+      workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+  }
+
   if (workflows.length === 1) {
     sel.value = workflows[0].id;
     selectWorkflow(workflows[0].id);

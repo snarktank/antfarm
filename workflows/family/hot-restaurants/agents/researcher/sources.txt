@@ -1,0 +1,20 @@
+# Hot Restaurants Research Sources (Dallas Area)
+# These are the ONLY sources to use.
+
+## Primary Sources
+- https://dallas.eater.com/ (Eater Dallas heatmap and latest)
+- https://www.dmagazine.com/food-dining/ (D Magazine dining)
+- https://www.dallasobserver.com/food-drink (Dallas Observer)
+- https://www.centraltrack.com/category/dining/ (Central Track Dallas)
+
+## Secondary/Backup
+- https://papercitymag.com/dining/ (PaperCity Dallas dining)
+- https://www.guidelive.com/food-drink (GuideLive)
+- https://www.theinfatuation.com/dallas (Infatuation Dallas)
+
+## Guidelines
+- Focus on Dallas proper and immediate suburbs (Highland Park, University Park, Oak Cliff, Deep Ellum, Bishop Arts, Design District, Lower Greenville, Uptown)
+- Prioritize NEW openings (within last 2-4 weeks) or places with current buzz
+- Include brief backstory/why it's hot
+- Capture signature dish or "what to try"
+- Note price range: $ = under $15, $$ = $15-30, $$$ = $30-50, $$$$ = $50+

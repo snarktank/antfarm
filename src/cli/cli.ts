@@ -9,13 +9,67 @@ import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/d
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { getDb } from "../db.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const pkgPath = join(__dirname, "..", "..", "package.json");
+
+/**
+ * Spawn the next agent in the chain after a step completes.
+ * Uses OpenClaw cron wake to immediately activate the agent.
+ */
+async function spawnNextAgent(stepId: string): Promise<{ success: boolean; agentId?: string; message: string }> {
+  const db = getDb();
+
+  // Get the step's run and find the next pending step
+  const step = db.prepare("SELECT run_id FROM steps WHERE id = ?").get(stepId) as { run_id: string } | undefined;
+  if (!step) {
+    return { success: false, message: "Step not found" };
+  }
+
+  // Find the next pending step in this run
+  const nextStep = db.prepare(
+    `SELECT s.id as step_id, s.agent_id, a.agent_id as workflow_agent_id
+     FROM steps s
+     JOIN runs r ON s.run_id = r.id
+     JOIN workflows w ON r.workflow_id = w.id
+     JOIN agents a ON a.workflow_id = w.id AND a.agent_id = s.agent_id
+     WHERE s.run_id = ? AND s.status = 'pending'
+     ORDER BY s.step_index ASC LIMIT 1`
+  ).get(step.run_id) as { step_id: string; agent_id: string; workflow_agent_id: string } | undefined;
+
+  if (!nextStep) {
+    return { success: false, message: "No pending steps found" };
+  }
+
+  // Use OpenClaw cron wake to immediately activate the agent
+  // We use a direct approach via system command since we need to trigger the cron
+  try {
+    // Find OpenClaw binary
+    const homeDir = process.env.HOME ?? "/tmp";
+    const openclawPath = join(homeDir, ".openclaw", "bin", "openclaw");
+
+    if (!existsSync(openclawPath)) {
+      return { success: false, message: `OpenClaw not found at ${openclawPath}` };
+    }
+
+    // Trigger a wake event for the specific agent
+    // This will cause the cron to run the agent on next heartbeat
+    const cronName = `antfarm/${nextStep.workflow_agent_id}`;
+    execSync(`"${openclawPath}" cron wake "Wake agent ${nextStep.agent_id} for chained step"`, {
+      timeout: 5000,
+      stdio: "pipe"
+    });
+
+    return { success: true, agentId: nextStep.agent_id, message: `Waked agent ${nextStep.agent_id}` };
+  } catch (err: any) {
+    return { success: false, agentId: nextStep.agent_id, message: `Wake failed: ${err.message}` };
+  }
+}
 
 function getVersion(): string {
   try {
@@ -211,8 +265,13 @@ async function main() {
     }
     if (action === "complete") {
       if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
+
+      // Check for --chain flag
+      const hasChainFlag = args.includes("--chain");
+      const effectiveArgs = args.filter(a => a !== "--chain");
+
       // Read output from args or stdin
-      let output = args.slice(3).join(" ").trim();
+      let output = effectiveArgs.slice(3).join(" ").trim();
       if (!output) {
         // Read from stdin (piped input)
         const chunks: Buffer[] = [];
@@ -221,8 +280,21 @@ async function main() {
         }
         output = Buffer.concat(chunks).toString("utf-8").trim();
       }
+
+      // Complete the step
       const result = completeStep(target, output);
-      process.stdout.write(JSON.stringify(result) + "\n");
+
+      // Handle chaining: if step advanced and chain flag set, spawn next agent
+      if (hasChainFlag && result.advanced && !result.runCompleted) {
+        try {
+          const spawnResult = await spawnNextAgent(target);
+          process.stdout.write(JSON.stringify({ ...result, chainSpawn: spawnResult }) + "\n");
+        } catch (err) {
+          process.stdout.write(JSON.stringify({ ...result, chainSpawn: { error: String(err) } }) + "\n");
+        }
+      } else {
+        process.stdout.write(JSON.stringify(result) + "\n");
+      }
       return;
     }
     if (action === "fail") {
@@ -364,7 +436,7 @@ async function main() {
       ).get(run.id) as { id: string } | undefined;
       if (failedStory) {
         db.prepare(
-          "UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+          "UPDATE stories SET status = 'pending', updated_at = datetime('now', 'utc') WHERE id = ?"
         ).run(failedStory.id);
       }
     }
@@ -414,12 +486,12 @@ async function main() {
 
     // Reset step to pending
     db.prepare(
-      "UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(failedStep.id);
 
     // Reset run to running
     db.prepare(
-      "UPDATE runs SET status = 'running', updated_at = datetime('now') WHERE id = ?"
+      "UPDATE runs SET status = 'running', updated_at = datetime('now', 'utc') WHERE id = ?"
     ).run(run.id);
 
     // Ensure crons are running for this workflow

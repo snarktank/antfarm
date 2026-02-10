@@ -1,0 +1,392 @@
+# Ralph loop (https://github.com/snarktank/ralph) — fresh context per agent session
+id: security-audit
+name: Security Audit & Fix
+version: 1
+description: |
+  Security vulnerability scanning and remediation pipeline.
+  Scanner explores the codebase for vulnerabilities. Prioritizer ranks and groups findings.
+  Setup creates the security branch. Fixer implements each fix with regression tests.
+  Verifier confirms each fix. Tester runs final integration validation. PR agent creates the pull request.
+
+agents:
+  - id: scanner
+    name: Scanner
+    role: scanning
+    description: Explores codebase and runs comprehensive security analysis.
+    workspace:
+      baseDir: agents/scanner
+      files:
+        AGENTS.md: agents/scanner/AGENTS.md
+        SOUL.md: agents/scanner/SOUL.md
+        IDENTITY.md: agents/scanner/IDENTITY.md
+
+  - id: prioritizer
+    name: Prioritizer
+    role: analysis
+    description: Deduplicates, ranks, and groups findings into a fix plan.
+    workspace:
+      baseDir: agents/prioritizer
+      files:
+        AGENTS.md: agents/prioritizer/AGENTS.md
+        SOUL.md: agents/prioritizer/SOUL.md
+        IDENTITY.md: agents/prioritizer/IDENTITY.md
+
+  - id: setup
+    name: Setup
+    role: coding
+    description: Creates security branch and establishes baseline.
+    workspace:
+      baseDir: agents/setup
+      files:
+        AGENTS.md: ../../../agents/shared/setup/AGENTS.md
+        SOUL.md: ../../../agents/shared/setup/SOUL.md
+        IDENTITY.md: ../../../agents/shared/setup/IDENTITY.md
+
+  - id: fixer
+    name: Fixer
+    role: coding
+    description: Implements security fixes one at a time with regression tests.
+    workspace:
+      baseDir: agents/fixer
+      files:
+        AGENTS.md: agents/fixer/AGENTS.md
+        SOUL.md: agents/fixer/SOUL.md
+        IDENTITY.md: agents/fixer/IDENTITY.md
+
+  - id: verifier
+    name: Verifier
+    role: verification
+    description: Verifies each fix is correct and the vulnerability is patched.
+    workspace:
+      baseDir: agents/verifier
+      files:
+        AGENTS.md: ../../../agents/shared/verifier/AGENTS.md
+        SOUL.md: ../../../agents/shared/verifier/SOUL.md
+        IDENTITY.md: ../../../agents/shared/verifier/IDENTITY.md
+
+  - id: tester
+    name: Tester
+    role: testing
+    description: Final integration testing and audit re-run after all fixes.
+    workspace:
+      baseDir: agents/tester
+      files:
+        AGENTS.md: agents/tester/AGENTS.md
+        SOUL.md: agents/tester/SOUL.md
+        IDENTITY.md: agents/tester/IDENTITY.md
+
+  - id: pr
+    name: PR Creator
+    role: pr
+    description: Creates a pull request summarizing the security audit and fixes.
+    workspace:
+      baseDir: agents/pr
+      files:
+        AGENTS.md: ../../../agents/shared/pr/AGENTS.md
+        SOUL.md: ../../../agents/shared/pr/SOUL.md
+        IDENTITY.md: ../../../agents/shared/pr/IDENTITY.md
+
+steps:
+  - id: scan
+    agent: scanner
+    input: |
+      Perform a comprehensive security audit of the codebase.
+
+      TASK:
+      {{task}}
+
+      Instructions:
+      1. Explore the codebase — understand the stack, framework, dependencies
+      2. Run `npm audit` (or equivalent) if a package manager is present
+      3. Scan for hardcoded secrets: API keys, passwords, tokens, private keys in source
+      4. Check for .env files committed to the repo
+      5. Scan for common vulnerabilities:
+         - SQL injection (raw queries, string concatenation in queries)
+         - XSS (unescaped user input in templates/responses)
+         - CSRF (missing CSRF tokens on state-changing endpoints)
+         - Auth bypass (missing auth middleware, broken access control)
+         - Directory traversal (user input in file paths)
+         - SSRF (user-controlled URLs in server-side requests)
+         - Insecure deserialization
+         - Missing input validation on API endpoints
+         - Insecure file permissions
+         - Exposed environment variables
+      6. Review auth/session handling (token expiry, session fixation, cookie flags)
+      7. Check security headers (CORS, CSP, HSTS, X-Frame-Options)
+      8. Document every finding with severity, file, line, and description
+
+      Reply with:
+      STATUS: done
+      REPO: /path/to/repo
+      BRANCH: security-audit-YYYY-MM-DD
+      VULNERABILITY_COUNT: <number>
+      FINDINGS: <detailed list of each vulnerability>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: prioritize
+    agent: prioritizer
+    input: |
+      Prioritize and group the security findings into a fix plan.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      VULNERABILITY_COUNT: {{vulnerability_count}}
+      FINDINGS: {{findings}}
+
+      Instructions:
+      1. Deduplicate findings (same root cause = one fix)
+      2. Group related issues (e.g., multiple XSS from same missing sanitizer = one fix)
+      3. Rank by: exploitability × impact (critical > high > medium > low)
+      4. Create a prioritized fix plan — max 20 fixes
+      5. If more than 20 issues, pick the top 20 by severity; note deferred items
+      6. Output each fix as a story in STORIES_JSON format
+
+      Each story object must have:
+      - id: "fix-001", "fix-002", etc.
+      - title: brief description of the fix
+      - description: what vulnerability it addresses, affected files, what needs to change
+      - acceptance_criteria: list of criteria including "Vulnerability is no longer exploitable" and "Regression test passes"
+      - severity: critical|high|medium|low
+
+      Reply with:
+      STATUS: done
+      FIX_PLAN: <ordered list of fixes with severity>
+      CRITICAL_COUNT: <number>
+      HIGH_COUNT: <number>
+      DEFERRED: <any issues skipped and why>
+      STORIES_JSON: [ ... array of story objects ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: setup
+    agent: setup
+    input: |
+      Prepare the environment for security fixes.
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      Instructions:
+      1. cd into the repo
+      2. Create the security branch (git checkout -b {{branch}} from main)
+      3. Read package.json, CI config, test config to understand build/test setup
+      4. Run the build to establish a baseline
+      5. Run the tests to establish a baseline
+
+      Reply with:
+      STATUS: done
+      BUILD_CMD: <build command>
+      TEST_CMD: <test command>
+      BASELINE: <baseline status>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: fix
+    agent: fixer
+    type: loop
+    loop:
+      over: stories
+      completion: all_done
+      fresh_session: true
+      verify_each: true
+      verify_step: verify
+    input: |
+      Implement a security fix. You are working on ONE fix in a fresh session.
+
+      TASK (overall):
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      BUILD_CMD: {{build_cmd}}
+      TEST_CMD: {{test_cmd}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      COMPLETED STORIES:
+      {{completed_stories}}
+
+      STORIES REMAINING: {{stories_remaining}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions:
+      1. cd into the repo, pull latest on the branch
+      2. Read the vulnerability description carefully
+      3. Implement the fix — minimal, targeted changes only
+      4. Write a regression test that verifies the vulnerability is patched
+      5. Run {{build_cmd}} to verify the build passes
+      6. Run {{test_cmd}} to verify all tests pass
+      7. Commit: fix(security): brief description
+      8. Append to progress.txt
+
+      Reply with:
+      STATUS: done
+      CHANGES: what was fixed
+      REGRESSION_TEST: what test was added
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify
+    agent: verifier
+    input: |
+      Verify the security fix is correct and the vulnerability is patched.
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      TEST_CMD: {{test_cmd}}
+      CHANGES: {{changes}}
+      REGRESSION_TEST: {{regression_test}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions:
+      1. Run the full test suite with {{test_cmd}}
+      2. Confirm the regression test exists and tests the right thing
+      3. Review the fix — does it actually address the vulnerability?
+      4. Check for unintended side effects
+      5. Verify the regression test would fail without the fix
+
+      Security-specific verification — think about bypass scenarios:
+      - SQL Injection: Does it handle all query patterns, not just the one found?
+      - XSS: Does sanitization cover all output contexts (HTML, attributes, JS, URLs)?
+      - Path traversal: Does it handle URL-encoded sequences (%2e%2e), null bytes?
+      - Auth bypass: Does it cover all HTTP methods (GET, POST, PUT, DELETE)?
+      - CSRF: Does it validate the token server-side?
+      - If the fix only blocks one payload variant, it's insufficient — STATUS: retry
+
+      Reply with:
+      STATUS: done
+      VERIFIED: what was confirmed
+
+      Or if issues found:
+      STATUS: retry
+      ISSUES:
+      - What's wrong or incomplete
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: fix
+      max_retries: 3
+      on_exhausted:
+        escalate_to: human
+
+  - id: test
+    agent: tester
+    input: |
+      Final integration testing after all security fixes.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      BUILD_CMD: {{build_cmd}}
+      TEST_CMD: {{test_cmd}}
+      CHANGES: {{changes}}
+      VULNERABILITY_COUNT: {{vulnerability_count}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions:
+      1. Run the full test suite ({{test_cmd}}) — all tests must pass
+      2. Run the build ({{build_cmd}}) — must succeed
+      3. Run `npm audit` (or equivalent) again — compare before/after
+      4. Quick smoke test: does the app still start and work?
+      5. Verify no regressions from the security fixes
+      6. Summarize: what improved, what remains
+
+      Reply with:
+      STATUS: done
+      RESULTS: test outcomes
+      AUDIT_AFTER: remaining audit issues if any
+
+      Or if issues found:
+      STATUS: retry
+      FAILURES:
+      - What's broken
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: fix
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: pr
+    agent: pr
+    input: |
+      Create a pull request for the security fixes.
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      VULNERABILITY_COUNT: {{vulnerability_count}}
+      FINDINGS: {{findings}}
+      FIX_PLAN: {{fix_plan}}
+      CRITICAL_COUNT: {{critical_count}}
+      HIGH_COUNT: {{high_count}}
+      DEFERRED: {{deferred}}
+      CHANGES: {{changes}}
+      RESULTS: {{results}}
+      AUDIT_AFTER: {{audit_after}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      PR title format: fix(security): audit and remediation YYYY-MM-DD
+
+      PR body structure:
+      ```
+      ## Security Audit Summary
+
+      **Scan Date**: YYYY-MM-DD
+      **Vulnerabilities Found**: {{vulnerability_count}} ({{critical_count}} critical, {{high_count}} high)
+      **Vulnerabilities Fixed**: <count from changes>
+      **Vulnerabilities Deferred**: <count from deferred>
+
+      ## Fixes Applied
+
+      | # | Severity | Description | Files |
+      |---|----------|-------------|-------|
+      (list each fix from {{changes}})
+
+      ## Deferred Items
+      {{deferred}}
+
+      ## Regression Tests Added
+      (list from progress log)
+
+      ## Audit Comparison
+      **Before**: <from findings>
+      **After**: {{audit_after}}
+      ```
+
+      Label: security
+
+      Use: gh pr create
+
+      Reply with:
+      STATUS: done
+      PR: URL to the pull request
+    expects: "STATUS: done"
+    on_fail:
+      escalate_to: human
