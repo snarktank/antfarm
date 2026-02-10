@@ -124,10 +124,10 @@ function buildToolsConfig(role: AgentRole): Record<string, unknown> {
 
 function upsertAgent(
   list: Array<Record<string, unknown>>,
-  agent: { id: string; name?: string; workspaceDir: string; agentDir: string; role: AgentRole },
+  agent: { id: string; name?: string; model?: string; workspaceDir: string; agentDir: string; role: AgentRole },
 ) {
   const existing = list.find((entry) => entry.id === agent.id);
-  const payload = {
+  const payload: Record<string, unknown> = {
     id: agent.id,
     name: agent.name ?? agent.id,
     workspace: agent.workspaceDir,
@@ -135,6 +135,7 @@ function upsertAgent(
     tools: buildToolsConfig(agent.role),
     subagents: SUBAGENT_POLICY,
   };
+  if (agent.model) payload.model = agent.model;
   if (existing) Object.assign(existing, payload);
   else list.push(payload);
 }

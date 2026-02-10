@@ -21,6 +21,7 @@ export type WorkflowAgent = {
   name?: string;
   description?: string;
   role?: AgentRole;
+  model?: string;
   workspace: WorkflowAgentFiles;
 };
 
