@@ -754,6 +754,169 @@ describe("POST /api/usage", () => {
   });
 });
 
+describe("Model Filter Dropdown UI", () => {
+  let server: http.Server;
+  const TEST_PORT = 33346;
+
+  before(async () => {
+    const { startDashboard } = await import("./dashboard.js");
+    server = startDashboard(TEST_PORT);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  after(async () => {
+    server.close();
+  });
+
+  test("model filter dropdown appears next to date filters", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('id="model-filter"'), "Should have model-filter element");
+    
+    // Model filter should be inside date-filter container
+    const dateFilterMatch = html.match(/<div[^>]*class="date-filter"[^>]*>[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/);
+    assert.ok(dateFilterMatch, "Should find date-filter section");
+    assert.ok(dateFilterMatch[0].includes('id="model-filter"'), "Model filter should be inside date-filter section");
+    
+    // Check position: model filter should appear after date-to
+    const dateToPos = html.indexOf('id="date-to"');
+    const modelFilterPos = html.indexOf('id="model-filter"');
+    assert.ok(modelFilterPos > dateToPos, "Model filter should appear after date-to input");
+  });
+
+  test("model filter has 'All Models' as default option", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Find the select element and check it has 'All Models' option with empty value
+    assert.ok(html.includes('<option value="">All Models</option>'), "Should have 'All Models' option with empty value");
+  });
+
+  test("model filter is a select element with correct class", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('class="model-filter-select"'), "Should have model-filter-select class");
+    assert.ok(html.includes('<select id="model-filter"'), "Should be a select element");
+  });
+
+  test("model filter has label matching date filter style", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('for="model-filter"'), "Should have label for model-filter");
+    assert.ok(html.includes('>Model</label>'), "Should have Model label text");
+    
+    // Label should use date-filter-label class for consistent styling
+    const labelMatch = html.match(/<label[^>]*for="model-filter"[^>]*>/);
+    assert.ok(labelMatch, "Should find model-filter label");
+    assert.ok(labelMatch[0].includes('date-filter-label'), "Label should use date-filter-label class");
+  });
+
+  test("has CSS styles for model filter select", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('.model-filter-select{'), "Should have .model-filter-select style");
+    assert.ok(html.includes('.model-filter-select:focus{'), "Should have focus style");
+  });
+
+  test("model filter CSS matches dashboard theme", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // Check that model filter uses theme variables like date filter
+    const cssMatch = html.match(/\.model-filter-select\{[^}]+\}/);
+    assert.ok(cssMatch, "Should find .model-filter-select CSS");
+    assert.ok(cssMatch[0].includes('var(--bg-surface)'), "Should use --bg-surface");
+    assert.ok(cssMatch[0].includes('var(--border)'), "Should use --border");
+    assert.ok(cssMatch[0].includes('border-radius:6px'), "Should have 6px border radius matching inputs");
+  });
+
+  test("has loadModelOptions function", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('async function loadModelOptions'), "Should have loadModelOptions function");
+    assert.ok(html.includes("group_by=model"), "loadModelOptions should fetch models using group_by=model");
+  });
+
+  test("loadModelOptions populates dropdown with models from API", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const funcMatch = html.match(/async function loadModelOptions[\s\S]*?^\}/m);
+    assert.ok(funcMatch, "Should find loadModelOptions function");
+    assert.ok(funcMatch[0].includes("modelSelect.innerHTML"), "Should update select innerHTML");
+    assert.ok(funcMatch[0].includes('value="">All Models</option>'), "Should include All Models option");
+  });
+
+  test("has getModelFilterParam function", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('function getModelFilterParam()'), "Should have getModelFilterParam function");
+  });
+
+  test("has getFilterParams function combining date and model filters", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes('function getFilterParams()'), "Should have getFilterParams function");
+    
+    const funcMatch = html.match(/function getFilterParams\(\)[\s\S]*?return params\.toString\(\);\s*\}/);
+    assert.ok(funcMatch, "Should find getFilterParams function");
+    assert.ok(funcMatch[0].includes("params.set('model'"), "Should include model in filter params");
+    assert.ok(funcMatch[0].includes("params.set('from_date'"), "Should include from_date in filter params");
+    assert.ok(funcMatch[0].includes("params.set('to_date'"), "Should include to_date in filter params");
+  });
+
+  test("model filter change triggers loadCostsSummary", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    assert.ok(html.includes("modelSelect.addEventListener('change', loadCostsSummary)"), "Should add change listener to model filter");
+  });
+
+  test("loadCostsSummary uses getFilterParams", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const funcMatch = html.match(/async function loadCostsSummary[\s\S]*?loadAgentBreakdown\(\);[\s\S]*?\}/);
+    assert.ok(funcMatch, "Should find loadCostsSummary function");
+    assert.ok(funcMatch[0].includes("getFilterParams()"), "loadCostsSummary should use getFilterParams");
+  });
+
+  test("loadModelBreakdown uses getFilterParams", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const funcMatch = html.match(/async function loadModelBreakdown[\s\S]*?^\}/m);
+    assert.ok(funcMatch, "Should find loadModelBreakdown function");
+    assert.ok(funcMatch[0].includes("getFilterParams()"), "loadModelBreakdown should use getFilterParams");
+  });
+
+  test("loadAgentBreakdown uses getFilterParams", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const funcMatch = html.match(/async function loadAgentBreakdown[\s\S]*?^\}/m);
+    assert.ok(funcMatch, "Should find loadAgentBreakdown function");
+    assert.ok(funcMatch[0].includes("getFilterParams()"), "loadAgentBreakdown should use getFilterParams");
+  });
+
+  test("loadCostsSummary calls loadModelOptions to refresh dropdown", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const funcMatch = html.match(/async function loadCostsSummary[\s\S]*?loadAgentBreakdown\(\);[\s\S]*?\}/);
+    assert.ok(funcMatch, "Should find loadCostsSummary function");
+    assert.ok(funcMatch[0].includes("loadModelOptions()"), "loadCostsSummary should call loadModelOptions");
+  });
+
+  test("loadModelOptions uses escapeHtml for XSS protection", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    const funcMatch = html.match(/async function loadModelOptions[\s\S]*?^\}/m);
+    assert.ok(funcMatch, "Should find loadModelOptions function");
+    assert.ok(funcMatch[0].includes("escapeHtml(m)"), "Should use escapeHtml on model names");
+  });
+
+  test("model filter is in date-filter-group container", async () => {
+    const html = await fetchHTML(TEST_PORT, "/");
+    
+    // The model filter should be wrapped in a date-filter-group like the date inputs
+    const groupMatch = html.match(/<div class="date-filter-group">[\s\S]*?id="model-filter"[\s\S]*?<\/div>/);
+    assert.ok(groupMatch, "Model filter should be in a date-filter-group container");
+  });
+});
+
 describe("Date Filter UI", () => {
   let server: http.Server;
   const TEST_PORT = 33345;
@@ -831,28 +994,28 @@ describe("Date Filter UI", () => {
     assert.ok(html.includes("params.set('to_date'"), "Should set to_date param");
   });
 
-  test("loadCostsSummary includes date filter params", async () => {
+  test("loadCostsSummary includes filter params", async () => {
     const html = await fetchHTML(TEST_PORT, "/");
     
-    // Find loadCostsSummary and verify it uses getDateFilterParams
-    const match = html.match(/async function loadCostsSummary[\s\S]*?^\}/m);
+    // Find loadCostsSummary and verify it uses getFilterParams (includes date and model)
+    const match = html.match(/async function loadCostsSummary[\s\S]*?loadAgentBreakdown\(\);[\s\S]*?\}/);
     assert.ok(match, "Should find loadCostsSummary function");
-    assert.ok(match[0].includes("getDateFilterParams()"), "loadCostsSummary should call getDateFilterParams");
+    assert.ok(match[0].includes("getFilterParams()"), "loadCostsSummary should call getFilterParams");
   });
 
-  test("loadModelBreakdown includes date filter params", async () => {
+  test("loadModelBreakdown includes filter params", async () => {
     const html = await fetchHTML(TEST_PORT, "/");
     
     const match = html.match(/async function loadModelBreakdown[\s\S]*?^\}/m);
     assert.ok(match, "Should find loadModelBreakdown function");
-    assert.ok(match[0].includes("getDateFilterParams()"), "loadModelBreakdown should call getDateFilterParams");
+    assert.ok(match[0].includes("getFilterParams()"), "loadModelBreakdown should call getFilterParams");
   });
 
-  test("loadAgentBreakdown includes date filter params", async () => {
+  test("loadAgentBreakdown includes filter params", async () => {
     const html = await fetchHTML(TEST_PORT, "/");
     
     const match = html.match(/async function loadAgentBreakdown[\s\S]*?^\}/m);
     assert.ok(match, "Should find loadAgentBreakdown function");
-    assert.ok(match[0].includes("getDateFilterParams()"), "loadAgentBreakdown should call getDateFilterParams");
+    assert.ok(match[0].includes("getFilterParams()"), "loadAgentBreakdown should call getFilterParams");
   });
 });

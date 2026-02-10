@@ -106,3 +106,32 @@ Started: 2026-02-09T21:12:00-05:00
 - Files changed: src/server/index.html, src/server/dashboard.test.ts
 - **Learnings:** Reuse existing CSS classes (model-breakdown, model-table) for consistency when adding similar components. Tests checking global HTML features may need scoping to specific elements when adding parallel structures.
 ---
+
+## 2026-02-09 22:32 - US-009: Add date range filter to costs view
+- Added date-filter section with From/To date inputs above summary cards
+- CSS styling for date filter matching dashboard theme (border, focus state, calendar picker)
+- Added initDateFilter() IIFE to set defaults: from = 30 days ago, to = today
+- Added getDateFilterParams() helper to build query string from date inputs
+- Updated loadCostsSummary(), loadModelBreakdown(), loadAgentBreakdown() to include date params
+- Date change events trigger loadCostsSummary() which refreshes all costs data
+- Date format is YYYY-MM-DD (native date input format)
+- Added 10 tests verifying date filter HTML structure, CSS, initialization, and API integration
+- Files changed: src/server/index.html, src/server/dashboard.test.ts
+- **Learnings:** Native date inputs use YYYY-MM-DD format. Use toISOString().split('T')[0] to format dates. For dark mode calendar picker styling, use filter: invert(1) on ::-webkit-calendar-picker-indicator.
+---
+
+## 2026-02-09 22:42 - US-010: Add model filter dropdown to costs view
+- Added model filter dropdown next to date filters in the date-filter section
+- Dropdown populated with distinct models from /api/usage?group_by=model
+- Includes 'All Models' option with empty value as default
+- CSS styling (.model-filter-select) matches dashboard theme
+- Added loadModelOptions() to fetch and populate dropdown
+- Added getFilterParams() combining date and model filters into query params
+- Updated loadCostsSummary(), loadModelBreakdown(), loadAgentBreakdown() to use getFilterParams()
+- Model change triggers loadCostsSummary() to refresh all costs data
+- loadCostsSummary() calls loadModelOptions() to refresh dropdown on data reload
+- Uses escapeHtml() for XSS protection on model names in dropdown
+- Added 17 tests verifying dropdown structure, CSS, JavaScript, and integration
+- Files changed: src/server/index.html, src/server/dashboard.test.ts
+- **Learnings:** When adding filters, create a combined getFilterParams() function instead of chaining individual param functions. Refresh filter options on data reload to capture newly added values.
+---

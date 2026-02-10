@@ -221,6 +221,11 @@ select:focus{outline:none;border-color:#8ECFC0}
 .date-filter-input::-webkit-calendar-picker-indicator{cursor:pointer;filter:opacity(0.6)}
 [data-theme="dark"] .date-filter-input::-webkit-calendar-picker-indicator{filter:invert(1) opacity(0.6)}
 @media (prefers-color-scheme: dark) {:root:not([data-theme="light"]) .date-filter-input::-webkit-calendar-picker-indicator{filter:invert(1) opacity(0.6)}}
+
+/* ── Model Filter ──────────────────────────────────────────────── */
+.model-filter-select{background:var(--bg-surface);color:var(--text-primary);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;min-width:180px}
+.model-filter-select:focus{outline:none;border-color:var(--accent-green)}
+.model-filter-select option{background:var(--bg-surface);color:var(--text-primary)}
 </style>
 </head>
 <body>
@@ -246,6 +251,12 @@ select:focus{outline:none;border-color:#8ECFC0}
     <div class="date-filter-group">
       <label class="date-filter-label" for="date-to">To</label>
       <input type="date" id="date-to" class="date-filter-input">
+    </div>
+    <div class="date-filter-group">
+      <label class="date-filter-label" for="model-filter">Model</label>
+      <select id="model-filter" class="model-filter-select">
+        <option value="">All Models</option>
+      </select>
     </div>
   </div>
   <div class="summary-cards" id="summary-cards">
@@ -526,6 +537,52 @@ function getDateFilterParams() {
   return params.toString();
 }
 
+function getModelFilterParam() {
+  const modelFilter = document.getElementById('model-filter').value;
+  return modelFilter || '';
+}
+
+function getFilterParams() {
+  const params = new URLSearchParams();
+  const dateFrom = document.getElementById('date-from').value;
+  const dateTo = document.getElementById('date-to').value;
+  const model = document.getElementById('model-filter').value;
+  if (dateFrom) params.set('from_date', dateFrom);
+  if (dateTo) params.set('to_date', dateTo);
+  if (model) params.set('model', model);
+  return params.toString();
+}
+
+// ── Model Filter ──────────────────────────────────────────────────
+async function loadModelOptions() {
+  const modelSelect = document.getElementById('model-filter');
+  const currentValue = modelSelect.value;
+  
+  try {
+    // Fetch all models (grouped by model, without date filter to get full list)
+    const data = await fetchJSON('/api/usage?group_by=model');
+    
+    // Keep 'All Models' option, add distinct models
+    const models = Array.isArray(data) ? data.map(r => r.groupKey).filter(Boolean).sort() : [];
+    
+    modelSelect.innerHTML = '<option value="">All Models</option>' +
+      models.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+    
+    // Restore previous selection if still valid
+    if (currentValue && models.includes(currentValue)) {
+      modelSelect.value = currentValue;
+    }
+  } catch (e) {
+    // Keep just 'All Models' on error
+    modelSelect.innerHTML = '<option value="">All Models</option>';
+  }
+}
+
+(function initModelFilter() {
+  const modelSelect = document.getElementById('model-filter');
+  modelSelect.addEventListener('change', loadCostsSummary);
+})();
+
 // ── Costs Summary ─────────────────────────────────────────────────
 function formatNumber(n) {
   if (n === null || n === undefined) return '—';
@@ -550,8 +607,8 @@ async function loadCostsSummary() {
   });
 
   try {
-    const dateParams = getDateFilterParams();
-    const data = await fetchJSON('/api/usage' + (dateParams ? '?' + dateParams : ''));
+    const filterParams = getFilterParams();
+    const data = await fetchJSON('/api/usage' + (filterParams ? '?' + filterParams : ''));
     cardInputTokens.textContent = formatNumber(data.totalInputTokens);
     cardOutputTokens.textContent = formatNumber(data.totalOutputTokens);
     cardTotalCost.textContent = formatCurrency(data.totalCostUsd);
@@ -566,6 +623,9 @@ async function loadCostsSummary() {
     el.classList.remove('loading');
   });
 
+  // Refresh model options (in case new models were added)
+  loadModelOptions();
+
   // Also load breakdown tables
   loadModelBreakdown();
   loadAgentBreakdown();
@@ -576,9 +636,9 @@ async function loadModelBreakdown() {
   tbody.innerHTML = '<tr><td colspan="5" class="model-table-loading">Loading...</td></tr>';
 
   try {
-    const dateParams = getDateFilterParams();
-    const separator = dateParams ? '&' : '';
-    const data = await fetchJSON('/api/usage?group_by=model' + separator + dateParams);
+    const filterParams = getFilterParams();
+    const separator = filterParams ? '&' : '';
+    const data = await fetchJSON('/api/usage?group_by=model' + separator + filterParams);
     
     if (!data || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="model-table-empty">No usage data</td></tr>';
@@ -607,9 +667,9 @@ async function loadAgentBreakdown() {
   tbody.innerHTML = '<tr><td colspan="5" class="model-table-loading">Loading...</td></tr>';
 
   try {
-    const dateParams = getDateFilterParams();
-    const separator = dateParams ? '&' : '';
-    const data = await fetchJSON('/api/usage?group_by=agent' + separator + dateParams);
+    const filterParams = getFilterParams();
+    const separator = filterParams ? '&' : '';
+    const data = await fetchJSON('/api/usage?group_by=agent' + separator + filterParams);
     
     if (!data || data.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="model-table-empty">No usage data</td></tr>';
