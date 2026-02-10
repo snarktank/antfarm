@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { installWorkflow } from "../installer/install.js";
 import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../installer/uninstall.js";
-import { getWorkflowStatus, listRuns } from "../installer/status.js";
+import { getWorkflowStatus, getWorkflowStatusJson, listRuns } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
@@ -302,8 +302,17 @@ async function main() {
   }
 
   if (action === "status") {
-    const query = args.slice(2).join(" ").trim();
+    const statusArgs = args.slice(2).filter((a) => a !== "--json");
+    const jsonFlag = args.includes("--json");
+    const query = statusArgs.join(" ").trim();
     if (!query) { process.stderr.write("Missing search query.\n"); printUsage(); process.exit(1); }
+
+    if (jsonFlag) {
+      const json = getWorkflowStatusJson(query, getStories);
+      process.stdout.write(JSON.stringify(json, null, 2) + "\n");
+      return;
+    }
+
     const result = getWorkflowStatus(query);
     if (result.status === "not_found") { process.stdout.write(`${result.message}\n`); return; }
     const { run, steps } = result;
