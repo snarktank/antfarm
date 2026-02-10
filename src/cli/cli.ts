@@ -6,7 +6,7 @@ import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
-import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
+import { claimStep, completeStep, failStep, getStories, getStepTiming, type StepTiming } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { execSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
@@ -311,6 +311,24 @@ async function main() {
       for (const s of stories) {
         const retryInfo = s.retryCount > 0 ? ` (retry ${s.retryCount})` : "";
         console.log(`${s.storyId.padEnd(8)} [${s.status.padEnd(7)}] ${s.title}${retryInfo}`);
+      }
+      return;
+    }
+    if (action === "timing") {
+      if (!target) { process.stderr.write("Missing run-id.\n"); process.exit(1); }
+      const timing = getStepTiming(target);
+      if (timing.length === 0) { console.log("No steps found for this run."); return; }
+
+      console.log(`Step timing for run ${target.slice(0, 8)}:`);
+      console.log("");
+      console.log(`${"Step".padEnd(15)} ${"Agent".padEnd(20)} ${"Status".padEnd(10)} ${"Claim→Start".padEnd(12)} ${"Start→Done".padEnd(12)} ${"Total".padEnd(10)}`);
+      console.log("-".repeat(90));
+
+      for (const t of timing) {
+        const claimToStart = t.claimToStartMs !== null ? `${t.claimToStartMs}ms`.padEnd(12) : "-".padEnd(12);
+        const startToComplete = t.startToCompleteMs !== null ? `${t.startToCompleteMs}ms`.padEnd(12) : "-".padEnd(12);
+        const total = t.totalDurationMs !== null ? `${t.totalDurationMs}ms`.padEnd(10) : "-".padEnd(10);
+        console.log(`${t.stepId.slice(0, 14).padEnd(15)} ${t.agentId.slice(0, 19).padEnd(20)} ${t.status.padEnd(10)} ${claimToStart} ${startToComplete} ${total}`);
       }
       return;
     }

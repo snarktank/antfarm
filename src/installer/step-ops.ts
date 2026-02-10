@@ -7,6 +7,68 @@ import crypto from "node:crypto";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 
 /**
+ * Get timing statistics for all steps in a run.
+ * Returns latency metrics for claimed -> started -> completed.
+ */
+export interface StepTiming {
+  stepId: string;
+  agentId: string;
+  status: string;
+  claimedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  claimToStartMs: number | null;
+  startToCompleteMs: number | null;
+  totalDurationMs: number | null;
+}
+
+export function getStepTiming(runId: string): StepTiming[] {
+  const db = getDb();
+  const steps = db.prepare(
+    "SELECT step_id, agent_id, status, claimed_at, started_at, completed_at FROM steps WHERE run_id = ? ORDER BY step_index ASC"
+  ).all(runId) as Array<{
+    step_id: string;
+    agent_id: string;
+    status: string;
+    claimed_at: string | null;
+    started_at: string | null;
+    completed_at: string | null;
+  }>;
+
+  return steps.map(s => {
+    const claimedAt = s.claimed_at ?? null;
+    const startedAt = s.started_at ?? null;
+    const completedAt = s.completed_at ?? null;
+
+    let claimToStartMs: number | null = null;
+    let startToCompleteMs: number | null = null;
+    let totalDurationMs: number | null = null;
+
+    if (claimedAt && startedAt) {
+      claimToStartMs = new Date(startedAt).getTime() - new Date(claimedAt).getTime();
+    }
+    if (startedAt && completedAt) {
+      startToCompleteMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
+    }
+    if (claimedAt && completedAt) {
+      totalDurationMs = new Date(completedAt).getTime() - new Date(claimedAt).getTime();
+    }
+
+    return {
+      stepId: s.step_id,
+      agentId: s.agent_id,
+      status: s.status,
+      claimedAt,
+      startedAt,
+      completedAt,
+      claimToStartMs,
+      startToCompleteMs,
+      totalDurationMs,
+    };
+  });
+}
+
+/**
  * Fire-and-forget cron teardown when a run ends.
  * Looks up the workflow_id for the run and tears down crons if no other active runs.
  */
@@ -200,6 +262,7 @@ const STEP_STALL_MINUTES = 2;
  */
 export function claimStep(agentId: string): ClaimResult {
   const db = getDb();
+  const now = new Date().toISOString();
 
   // First: try to find a genuinely pending step
   let step = db.prepare(
@@ -227,9 +290,10 @@ export function claimStep(agentId: string): ClaimResult {
       }
 
       // Re-claim the stalled step by updating timestamp (keeps status as 'running')
+      // Update claimed_at to track re-claiming
       db.prepare(
-        "UPDATE steps SET updated_at = datetime('now', 'utc'), current_story_id = NULL WHERE id = ?"
-      ).run(stalledStep.id);
+        "UPDATE steps SET updated_at = datetime('now', 'utc'), claimed_at = ?, current_story_id = NULL WHERE id = ?"
+      ).run(now, stalledStep.id);
 
       // Use the stalled step as our target
       step = stalledStep;
@@ -264,9 +328,10 @@ export function claimStep(agentId: string): ClaimResult {
       db.prepare(
         "UPDATE stories SET status = 'running', updated_at = datetime('now', 'utc') WHERE id = ?"
       ).run(nextStory.id);
+      // Set claimed_at and started_at to track timing
       db.prepare(
-        "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
-      ).run(nextStory.id, step.id);
+        "UPDATE steps SET status = 'running', current_story_id = ?, claimed_at = ?, started_at = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
+      ).run(nextStory.id, now, now, step.id);
 
       // Build story template vars
       const story: Story = {
@@ -306,9 +371,10 @@ export function claimStep(agentId: string): ClaimResult {
   }
 
   // Single step: existing logic
+  // Set claimed_at and started_at for timing tracking
   db.prepare(
-    "UPDATE steps SET status = 'running', updated_at = datetime('now', 'utc') WHERE id = ? AND status = 'pending'"
-  ).run(step.id);
+    "UPDATE steps SET status = 'running', claimed_at = ?, started_at = ?, updated_at = datetime('now', 'utc') WHERE id = ? AND status = 'pending'"
+  ).run(now, now, step.id);
 
   // Inject progress for any step in a run that has stories
   const hasStories = db.prepare(
@@ -410,7 +476,7 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
 
   // Single step: mark done and advance
   db.prepare(
-    "UPDATE steps SET status = 'done', output = ?, updated_at = datetime('now', 'utc') WHERE id = ?"
+    "UPDATE steps SET status = 'done', output = ?, completed_at = datetime('now', 'utc'), updated_at = datetime('now', 'utc') WHERE id = ?"
   ).run(output, stepId);
 
   return advancePipeline(step.run_id);
@@ -490,7 +556,7 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
 
   // All stories done — mark loop step done
   db.prepare(
-    "UPDATE steps SET status = 'done', updated_at = datetime('now', 'utc') WHERE id = ?"
+    "UPDATE steps SET status = 'done', completed_at = datetime('now', 'utc'), updated_at = datetime('now', 'utc') WHERE id = ?"
   ).run(loopStepId);
 
   // Also mark verify step done if it exists
@@ -499,7 +565,7 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
     const lc: LoopConfig = JSON.parse(loopStep.loop_config);
     if (lc.verifyEach && lc.verifyStep) {
       db.prepare(
-        "UPDATE steps SET status = 'done', updated_at = datetime('now', 'utc') WHERE run_id = ? AND step_id = ?"
+        "UPDATE steps SET status = 'done', completed_at = datetime('now', 'utc'), updated_at = datetime('now', 'utc') WHERE run_id = ? AND step_id = ?"
       ).run(runId, lc.verifyStep);
     }
   }
