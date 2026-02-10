@@ -180,6 +180,8 @@ select:focus{outline:none;border-color:#8ECFC0}
 @media(max-width:768px){.board{flex-direction:column}.column{min-width:unset}}
 .story-open{display:block!important}
 .story-chevron-open{transform:rotate(90deg)}
+.step-open{display:block!important}
+.step-chevron-open{transform:rotate(90deg)}
 </style>
 </head>
 <body>
@@ -290,11 +292,19 @@ async function openRun(id) {
   const stepsHTML = (run.steps || []).map(s => {
     const st = s.status || 'waiting';
     const icon = stepIcons[st] || '○';
-    return `<div class="step-row">
-      <div class="step-icon ${st}">${icon}</div>
-      <div class="step-name">${s.step_id}</div>
-      <div class="step-agent">${s.agent_id || ''}</div>
-      <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
+    const hasOutput = !!s.output;
+    const toggleAttr = hasOutput ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" style="cursor:pointer"` : '';
+    return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
+        <div class="step-icon ${st}">${icon}</div>
+        <div class="step-name" style="flex:1">${s.step_id}</div>
+        <div class="step-agent">${s.agent_id || ''}</div>
+        <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
+        ${hasOutput ? '<span class="step-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
+      </div>
+      ${hasOutput ? `<div class="step-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6">
+        <details style="margin-top:4px" onclick="event.stopPropagation()"><summary style="font-size:11px;color:var(--text-secondary);cursor:pointer;font-weight:500">Output</summary><pre style="margin-top:6px;padding:8px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto">${esc(s.output)}</pre></details>
+      </div>` : ''}
     </div>`;
   }).join('');
   panel.innerHTML = `
