@@ -86,6 +86,19 @@ export type StepResult = {
   completedAt: string;
 };
 
+export type UsageRecord = {
+  id: string;
+  runId?: string;
+  stepId?: string;
+  agentId: string;
+  model: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  costUsd?: number;
+  taskLabel?: string;
+  createdAt: string;
+};
+
 export type WorkflowRunRecord = {
   id: string;
   workflowId: string;
