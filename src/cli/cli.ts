@@ -439,9 +439,16 @@ async function main() {
   }
 
   if (action === "run") {
-    const taskTitle = args.slice(3).join(" ").trim();
+    let notifyUrl: string | undefined;
+    const runArgs = args.slice(3);
+    const nuIdx = runArgs.indexOf("--notify-url");
+    if (nuIdx !== -1) {
+      notifyUrl = runArgs[nuIdx + 1];
+      runArgs.splice(nuIdx, 2);
+    }
+    const taskTitle = runArgs.join(" ").trim();
     if (!taskTitle) { process.stderr.write("Missing task title.\n"); printUsage(); process.exit(1); }
-    const run = await runWorkflow({ workflowId: target, taskTitle });
+    const run = await runWorkflow({ workflowId: target, taskTitle, notifyUrl });
     process.stdout.write(
       [`Run: ${run.id}`, `Workflow: ${run.workflowId}`, `Task: ${run.task}`, `Status: ${run.status}`].join("\n") + "\n",
     );

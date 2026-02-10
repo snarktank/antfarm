@@ -71,6 +71,9 @@ export type WorkflowSpec = {
   agents: WorkflowAgent[];
   steps: WorkflowStep[];
   context?: Record<string, string>;
+  notifications?: {
+    url?: string;
+  };
 };
 
 export type WorkflowInstallResult = {

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { getDb } from "../db.js";
 
 const EVENTS_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
 const EVENTS_FILE = path.join(EVENTS_DIR, "events.jsonl");
@@ -39,6 +40,45 @@ export function emitEvent(evt: AntfarmEvent): void {
     fs.appendFileSync(EVENTS_FILE, JSON.stringify(evt) + "\n");
   } catch {
     // best-effort, never throw
+  }
+  fireWebhook(evt);
+}
+
+// In-memory cache: runId -> notify_url | null
+const notifyUrlCache = new Map<string, string | null>();
+
+function getNotifyUrl(runId: string): string | null {
+  if (notifyUrlCache.has(runId)) return notifyUrlCache.get(runId)!;
+  try {
+    const db = getDb();
+    const row = db.prepare("SELECT notify_url FROM runs WHERE id = ?").get(runId) as { notify_url: string | null } | undefined;
+    const url = row?.notify_url ?? null;
+    notifyUrlCache.set(runId, url);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function fireWebhook(evt: AntfarmEvent): void {
+  const raw = getNotifyUrl(evt.runId);
+  if (!raw) return;
+  try {
+    let url = raw;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const hashIdx = url.indexOf("#auth=");
+    if (hashIdx !== -1) {
+      headers["Authorization"] = decodeURIComponent(url.slice(hashIdx + 6));
+      url = url.slice(0, hashIdx);
+    }
+    fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(evt),
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => {});
+  } catch {
+    // fire-and-forget
   }
 }
 

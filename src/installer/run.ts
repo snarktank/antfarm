@@ -9,6 +9,7 @@ import { emitEvent } from "./events.js";
 export async function runWorkflow(params: {
   workflowId: string;
   taskTitle: string;
+  notifyUrl?: string;
 }): Promise<{ id: string; workflowId: string; task: string; status: string }> {
   const workflowDir = resolveWorkflowDir(params.workflowId);
   const workflow = await loadWorkflowSpec(workflowDir);
@@ -23,10 +24,11 @@ export async function runWorkflow(params: {
 
   db.exec("BEGIN");
   try {
+    const notifyUrl = params.notifyUrl ?? workflow.notifications?.url ?? null;
     const insertRun = db.prepare(
-      "INSERT INTO runs (id, workflow_id, task, status, context, created_at, updated_at) VALUES (?, ?, ?, 'running', ?, ?, ?)"
+      "INSERT INTO runs (id, workflow_id, task, status, context, notify_url, created_at, updated_at) VALUES (?, ?, ?, 'running', ?, ?, ?, ?)"
     );
-    insertRun.run(runId, workflow.id, params.taskTitle, JSON.stringify(initialContext), now, now);
+    insertRun.run(runId, workflow.id, params.taskTitle, JSON.stringify(initialContext), notifyUrl, now, now);
 
     const insertStep = db.prepare(
       "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
