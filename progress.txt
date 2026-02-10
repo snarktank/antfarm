@@ -1,0 +1,29 @@
+# Progress Log
+Run: cf161795-3125-40a0-a281-9e505cf49a36
+Task: Antfarm completion notifications
+Started: 2026-02-10T18:07:00-05:00
+
+## Codebase Patterns
+- Project uses node:sqlite DatabaseSync (sync API), not async
+- DB type casts from `.all()` need `as unknown as T[]` (TS strict)
+- DB type casts from `.get()` use `as T | undefined`
+- Tests use `node:test` + `node:assert/strict`, run with `node --test tests/*.test.ts`
+- Tests import from `dist/` not `src/` (compiled JS)
+- Workflow specs loaded via `loadWorkflowSpec()` from `workflow-spec.ts` (async, uses YAML lib)
+- Notification sending via `sendNotification()` from `gateway-api.ts` (async, takes `{message, sessionTarget}`)
+- Types in `src/installer/types.ts`
+- Build: `npm run build` (tsc + copy html + chmod)
+- Existing `sendRunNotification` in step-ops.ts is private/inline — new module replaces it
+
+---
+
+## 2026-02-10 18:07 - US-001: Add notification sender module with summary builder
+- Created `src/installer/notifications.ts` with `formatRunSummary` and `sendRunNotification` exports
+- Added `NotificationsConfig` type to `types.ts` with `enabled`, `channel`, `on_success`, `on_failure`, `url`, `sessionTarget`
+- Updated `WorkflowSpec.notifications` to use `NotificationsConfig` type
+- `formatRunSummary`: builds message with workflow name, task (truncated), status, duration, story counts, optional PR link
+- `sendRunNotification`: loads run from DB, loads workflow spec, checks enabled/on_success/on_failure flags, gets story counts, sends via gateway
+- Defaults: enabled=true, on_success=true, on_failure=true, channel="main"
+- Created `tests/notifications-module.test.ts` with 11 tests — all passing
+- **Learnings:** `.all()` returns `Record<string, SQLOutputValue>[]` which needs double cast; tests must import from `dist/`
+---
