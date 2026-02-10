@@ -82,6 +82,16 @@ function migrate(db: DatabaseSync): void {
   if (!colNames.has("current_story_id")) {
     db.exec("ALTER TABLE steps ADD COLUMN current_story_id TEXT");
   }
+  // Timing columns for latency measurement
+  if (!colNames.has("claimed_at")) {
+    db.exec("ALTER TABLE steps ADD COLUMN claimed_at TEXT");
+  }
+  if (!colNames.has("started_at")) {
+    db.exec("ALTER TABLE steps ADD COLUMN started_at TEXT");
+  }
+  if (!colNames.has("completed_at")) {
+    db.exec("ALTER TABLE steps ADD COLUMN completed_at TEXT");
+  }
 }
 
 export function getDbPath(): string {
