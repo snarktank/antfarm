@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb } from "../db.js";
 import { resolveBundledWorkflowsDir } from "../installer/paths.js";
+import { insertUsage } from "../installer/usage.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
@@ -59,6 +60,21 @@ function json(res: http.ServerResponse, data: unknown, status = 200) {
   res.end(JSON.stringify(data));
 }
 
+function parseBody(req: http.IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 function serveHTML(res: http.ServerResponse) {
   const htmlPath = path.join(__dirname, "index.html");
   // In dist, index.html won't exist—serve from src
@@ -69,9 +85,49 @@ function serveHTML(res: http.ServerResponse) {
 }
 
 export function startDashboard(port = 3333): http.Server {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
+
+    // POST /api/usage - record usage data
+    if (req.method === "POST" && p === "/api/usage") {
+      let body: Record<string, unknown>;
+      try {
+        body = await parseBody(req) as Record<string, unknown>;
+      } catch (e) {
+        return json(res, { error: "Invalid JSON body" }, 400);
+      }
+      
+      // Validate required fields
+      if (!body.agent_id || typeof body.agent_id !== "string") {
+        return json(res, { error: "agent_id is required" }, 400);
+      }
+      if (!body.model || typeof body.model !== "string") {
+        return json(res, { error: "model is required" }, 400);
+      }
+
+      try {
+        // Insert usage record
+        const id = insertUsage({
+          agentId: body.agent_id,
+          model: body.model,
+          inputTokens: typeof body.input_tokens === "number" ? body.input_tokens : undefined,
+          outputTokens: typeof body.output_tokens === "number" ? body.output_tokens : undefined,
+          costUsd: typeof body.cost_usd === "number" ? body.cost_usd : undefined,
+          runId: typeof body.run_id === "string" ? body.run_id : undefined,
+          stepId: typeof body.step_id === "string" ? body.step_id : undefined,
+          taskLabel: typeof body.task_label === "string" ? body.task_label : undefined,
+        });
+
+        return json(res, { id }, 201);
+      } catch (e: any) {
+        // Handle FK constraint or other database errors
+        if (e?.message?.includes("FOREIGN KEY")) {
+          return json(res, { error: "Invalid run_id reference" }, 400);
+        }
+        return json(res, { error: "Database error" }, 500);
+      }
+    }
 
     if (p === "/api/workflows") {
       return json(res, loadWorkflows());

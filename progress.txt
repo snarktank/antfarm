@@ -1,0 +1,47 @@
+# Progress Log
+Run: c62db3ad-4df1-4385-887c-00999dd2739f
+Task: Create cost tracking dashboard for Antfarm
+Started: 2026-02-09T21:12:00-05:00
+
+## Codebase Patterns
+- Uses `node:sqlite` DatabaseSync (synchronous, not async)
+- Tables created in `migrate()` function in `src/db.ts`
+- Pattern: `CREATE TABLE IF NOT EXISTS` for idempotent migrations
+- Pattern: `ALTER TABLE ADD COLUMN` for backwards-compatible schema changes
+- Tests use `node:test` with `node --test dist/*.test.js`
+- Build: `npm run build` (runs tsc, copies HTML, chmod cli)
+- DB columns use snake_case (run_id), TS types use camelCase (runId) - map with helper function
+- Nullable DB columns map to `undefined` in TS types, not `null`
+- Dashboard uses raw `http.createServer` with manual routing in src/server/dashboard.ts
+- API endpoints use `json(res, data, status)` helper for JSON responses
+- For POST endpoints: parse body with async `parseBody(req)` helper, then validate
+
+---
+
+## 2026-02-09 21:15 - US-001: Add usage table to database schema
+- Added `usage` table to db.ts migrate() function
+- Columns: id, run_id (nullable FK), step_id, agent_id, model, input_tokens, output_tokens, cost_usd, task_label, created_at
+- Created indexes on agent_id, model, created_at
+- Created src/db.test.ts with 4 tests verifying table structure, indexes, and insert behavior
+- **Learnings:** Project had no test infrastructure - added first test file using node:test
+---
+
+## 2026-02-09 21:22 - US-002: Add usage data types and helper functions
+- Added `UsageRecord` type to src/installer/types.ts with camelCase fields
+- Created src/installer/usage.ts with:
+  - `insertUsage(record)` - inserts and returns id, auto-generates id/createdAt if not provided
+  - `getUsageByRunId(runId)` - returns all records for a run, ordered by created_at
+  - `getUsageByAgentId(agentId)` - returns all records for an agent, ordered by created_at
+- Created src/installer/usage.test.ts with 7 tests covering insert, retrieval, empty results, null handling
+- **Learnings:** DB uses snake_case (run_id), TS types use camelCase (runId). Map with helper function.
+---
+
+## 2026-02-09 21:32 - US-003: Add POST /api/usage endpoint to record usage
+- Added POST /api/usage handler to src/server/dashboard.ts
+- Accepts JSON body with: agent_id, model (required), input_tokens, output_tokens, cost_usd, run_id, step_id, task_label (optional)
+- Returns 400 with error message if agent_id or model is missing
+- Returns 400 with "Invalid run_id reference" if FK constraint fails
+- Returns 201 with {id: ...} on success
+- Created src/server/dashboard.test.ts with 10 tests covering validation, success cases, and error handling
+- **Learnings:** Dashboard uses raw http.createServer with manual routing. Use async handler and parseBody helper. FK constraints on usage.run_id mean client must provide valid run_id or omit it.
+---
