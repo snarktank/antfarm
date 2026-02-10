@@ -197,22 +197,26 @@ function parseAndInsertStories(output: string, runId: string): void {
 const ABANDONED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
- * Find steps that have been "running" for too long and reset them to pending.
- * This catches cases where an agent claimed a step but never completed/failed it.
+ * Find steps that have been "running" for too long and reset them.
+ *
+ * For single steps: increment the step's retry_count. If exhausted, fail the step and run.
+ * For loop steps: the step stays "running" for the duration of the loop — that's normal.
+ *   Instead, we check the *current story's* updated_at. If stale, it means the agent
+ *   session died mid-story. We use the story's retry_count (not the step's) so that
+ *   individual story crashes don't exhaust the entire step.
  */
 function cleanupAbandonedSteps(): void {
   const db = getDb();
   const cutoff = new Date(Date.now() - ABANDONED_THRESHOLD_MS).toISOString();
 
-  // Find running steps that haven't been updated recently
-  const abandonedSteps = db.prepare(
-    "SELECT id, step_id, run_id, retry_count, max_retries FROM steps WHERE status = 'running' AND updated_at < ?"
+  // ── Single steps: existing logic (step-level retries) ──
+  const abandonedSingleSteps = db.prepare(
+    "SELECT id, step_id, run_id, retry_count, max_retries FROM steps WHERE status = 'running' AND type != 'loop' AND updated_at < ?"
   ).all(cutoff) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number }[];
 
-  for (const step of abandonedSteps) {
+  for (const step of abandonedSingleSteps) {
     const newRetry = step.retry_count + 1;
     if (newRetry >= step.max_retries) {
-      // Fail the step and run
       db.prepare(
         "UPDATE steps SET status = 'failed', output = 'Agent abandoned step without completing', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
       ).run(newRetry, step.id);
@@ -225,7 +229,6 @@ function cleanupAbandonedSteps(): void {
       emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Step abandoned and retries exhausted" });
       scheduleRunCronTeardown(step.run_id);
     } else {
-      // Reset to pending for retry
       db.prepare(
         "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
       ).run(newRetry, step.id);
@@ -233,18 +236,61 @@ function cleanupAbandonedSteps(): void {
     }
   }
 
-  // Also reset any running stories that are abandoned
-  const abandonedStories = db.prepare(
-    "SELECT id, retry_count, max_retries, run_id FROM stories WHERE status = 'running' AND updated_at < ?"
-  ).all(cutoff) as { id: string; retry_count: number; max_retries: number; run_id: string }[];
+  // ── Loop steps with a current story: per-story retries ──
+  // The step itself is allowed to stay "running" for the entire loop duration.
+  // We only check if the *current story* has gone stale (agent died mid-story).
+  const abandonedLoopSteps = db.prepare(
+    `SELECT s.id as step_db_id, s.step_id, s.run_id,
+            st.id as story_db_id, st.story_id, st.title as story_title,
+            st.retry_count as story_retry_count, st.max_retries as story_max_retries
+     FROM steps s
+     JOIN stories st ON s.current_story_id = st.id
+     WHERE s.status = 'running' AND s.type = 'loop'
+       AND st.status = 'running' AND st.updated_at < ?`
+  ).all(cutoff) as {
+    step_db_id: string; step_id: string; run_id: string;
+    story_db_id: string; story_id: string; story_title: string;
+    story_retry_count: number; story_max_retries: number;
+  }[];
 
-  for (const story of abandonedStories) {
-    const newRetry = story.retry_count + 1;
-    if (newRetry >= story.max_retries) {
-      db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
+  for (const row of abandonedLoopSteps) {
+    const newStoryRetry = row.story_retry_count + 1;
+    const wfId = getWorkflowId(row.run_id);
+
+    if (newStoryRetry >= row.story_max_retries) {
+      // Story exhausted its retries — mark story failed, but continue the loop
+      db.prepare(
+        "UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
+      ).run(newStoryRetry, row.story_db_id);
+      emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: row.run_id, workflowId: wfId, stepId: row.step_id, storyId: row.story_id, storyTitle: row.story_title, detail: `Story abandoned — retries exhausted (${newStoryRetry}/${row.story_max_retries})` });
     } else {
-      db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
+      // Reset story to pending for retry
+      db.prepare(
+        "UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
+      ).run(newStoryRetry, row.story_db_id);
+      emitEvent({ ts: new Date().toISOString(), event: "story.retry", runId: row.run_id, workflowId: wfId, stepId: row.step_id, storyId: row.story_id, storyTitle: row.story_title, detail: `Story abandoned — reset for retry (${newStoryRetry}/${row.story_max_retries})` });
     }
+
+    // In both cases: clear current_story_id and set step back to pending
+    // so the next claim picks up the next available story (or finishes the loop)
+    db.prepare(
+      "UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+    ).run(row.step_db_id);
+  }
+
+  // ── Loop steps stuck "running" with no current story ──
+  // Edge case: step is running but current_story_id is NULL and stale.
+  // This shouldn't normally happen, but handle it defensively.
+  const stuckLoopSteps = db.prepare(
+    "SELECT id, step_id, run_id, retry_count, max_retries FROM steps WHERE status = 'running' AND type = 'loop' AND current_story_id IS NULL AND updated_at < ?"
+  ).all(cutoff) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number }[];
+
+  for (const step of stuckLoopSteps) {
+    // Reset to pending — the next claim will either pick the next story or finish the loop
+    db.prepare(
+      "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+    ).run(step.id);
+    emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.step_id, detail: `Loop step stuck without story — reset to pending` });
   }
 }
 
@@ -270,6 +316,10 @@ export function claimStep(agentId: string): ClaimResult {
   ).get(agentId) as { id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
 
   if (!step) return { found: false };
+
+  // Guard: don't claim work for a failed run
+  const runStatus = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
+  if (runStatus?.status === "failed") return { found: false };
 
   // Get run context
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string } | undefined;
@@ -380,6 +430,12 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
+
+  // Guard: don't process completions for failed runs
+  const runCheck = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
+  if (runCheck?.status === "failed") {
+    return { advanced: false, runCompleted: false };
+  }
 
   // Merge KEY: value lines into run context
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string };
@@ -526,25 +582,39 @@ function handleVerifyEachCompletion(
 
 /**
  * Check if the loop has more stories; if so set loop step pending, otherwise done + advance.
+ * A loop is complete when no stories are pending or running — i.e., all are done or failed.
  */
 function checkLoopContinuation(runId: string, loopStepId: string): { advanced: boolean; runCompleted: boolean } {
   const db = getDb();
-  const pendingStory = db.prepare(
-    "SELECT id FROM stories WHERE run_id = ? AND status = 'pending' LIMIT 1"
+  const activeStory = db.prepare(
+    "SELECT id FROM stories WHERE run_id = ? AND status IN ('pending', 'running') LIMIT 1"
   ).get(runId) as { id: string } | undefined;
 
-  if (pendingStory) {
-    // More stories — loop step back to pending
+  if (activeStory) {
+    // More stories to process — loop step back to pending
     db.prepare(
       "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
     ).run(loopStepId);
     return { advanced: false, runCompleted: false };
   }
 
-  // All stories done — mark loop step done
+  // All stories are terminal (done or failed) — loop is complete
+  const failedCount = (db.prepare(
+    "SELECT COUNT(*) as count FROM stories WHERE run_id = ? AND status = 'failed'"
+  ).get(runId) as { count: number }).count;
+
+  // Mark loop step done (even if some stories failed — the loop processed all of them)
   db.prepare(
     "UPDATE steps SET status = 'done', updated_at = datetime('now') WHERE id = ?"
   ).run(loopStepId);
+
+  if (failedCount > 0) {
+    const totalCount = (db.prepare(
+      "SELECT COUNT(*) as count FROM stories WHERE run_id = ?"
+    ).get(runId) as { count: number }).count;
+    const wfId = getWorkflowId(runId);
+    emitEvent({ ts: new Date().toISOString(), event: "step.done", runId, workflowId: wfId, stepId: loopStepId, detail: `Loop completed with ${failedCount}/${totalCount} stories failed` });
+  }
 
   // Also mark verify step done if it exists
   const loopStep = db.prepare("SELECT loop_config, run_id FROM steps WHERE id = ?").get(loopStepId) as { loop_config: string | null; run_id: string } | undefined;
@@ -562,9 +632,17 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
 
 /**
  * Advance the pipeline: find the next waiting step and make it pending, or complete the run.
+ * Respects terminal run states — a failed run cannot be advanced or completed.
  */
 function advancePipeline(runId: string): { advanced: boolean; runCompleted: boolean } {
   const db = getDb();
+
+  // Guard: never advance or overwrite a failed run
+  const run = db.prepare("SELECT status FROM runs WHERE id = ?").get(runId) as { status: string } | undefined;
+  if (run?.status === "failed") {
+    return { advanced: false, runCompleted: false };
+  }
+
   const next = db.prepare(
     "SELECT id FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
   ).get(runId) as { id: string } | undefined;
