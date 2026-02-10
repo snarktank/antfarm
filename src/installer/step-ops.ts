@@ -423,33 +423,72 @@ interface ClaimResult {
 }
 
 /**
+ * Check if all previous steps in a run are completed (done or waiting).
+ * This ensures sequential execution within a run.
+ */
+function arePreviousStepsComplete(runId: string, stepIndex: number): boolean {
+  const db = getDb();
+  const incompleteSteps = db.prepare(
+    "SELECT COUNT(*) as cnt FROM steps WHERE run_id = ? AND step_index < ? AND status NOT IN ('done', 'waiting')"
+  ).get(runId, stepIndex) as { cnt: number };
+  return incompleteSteps.cnt === 0;
+}
+
+/**
  * Find and claim a pending step for an agent, returning the resolved input.
  * Respects condition expressions - skips steps whose conditions evaluate to false.
+ * Ensures sequential execution within each run (earlier steps must be done).
  */
 export function claimStep(agentId: string): ClaimResult {
   // First, cleanup any abandoned steps
   cleanupAbandonedSteps();
   const db = getDb();
 
-  // Find all pending steps for this agent, ordered by step_index
+  // Find all pending steps for this agent, ordered by run creation time then step_index
+  // This prioritizes older runs to ensure they complete before newer ones
   const steps = db.prepare(
-    "SELECT id, run_id, input_template, type, loop_config, condition, step_index FROM steps WHERE agent_id = ? AND status = 'pending' ORDER BY step_index ASC"
+    `SELECT s.id, s.run_id, s.input_template, s.type, s.loop_config, s.condition, s.step_index 
+     FROM steps s
+     JOIN runs r ON s.run_id = r.id
+     WHERE s.agent_id = ? AND s.status = 'pending' 
+     ORDER BY r.created_at ASC, s.step_index ASC`
   ).all(agentId) as { id: string; run_id: string; input_template: string; type: string; loop_config: string | null; condition: string | null; step_index: number }[];
 
   if (steps.length === 0) return { found: false };
 
-  // Get run context (same for all steps in a run)
-  const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(steps[0].run_id) as { context: string } | undefined;
-  const context: Record<string, string> = run ? JSON.parse(run.context) : {};
+  // Find first step that:
+  // 1. Has all previous steps in its run completed
+  // 2. Has no condition or condition evaluates to true
+  for (const s of steps) {
+    // Check if all previous steps in this run are complete
+    if (!arePreviousStepsComplete(s.run_id, s.step_index)) {
+      continue; // Skip - earlier steps in this run aren't done yet
+    }
 
-  // Find first step whose condition evaluates to true (or has no condition)
-  let step = steps.find(s => !s.condition || evaluateCondition(s.condition, context));
+    // Get run context for condition evaluation
+    const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(s.run_id) as { context: string } | undefined;
+    const context: Record<string, string> = run ? JSON.parse(run.context) : {};
 
-  if (!step) {
-    // All pending steps have conditions that evaluate to false
-    // This is normal - they may become eligible after previous steps complete
-    return { found: false };
+    // Check condition
+    if (!s.condition || evaluateCondition(s.condition, context)) {
+      // Found eligible step - proceed with claiming
+      return claimEligibleStep(s, agentId, context);
+    }
   }
+
+  // No eligible steps found (either blocked by incomplete previous steps or conditions)
+  return { found: false };
+}
+
+/**
+ * Claim an eligible step after all validations passed.
+ */
+function claimEligibleStep(
+  step: { id: string; run_id: string; input_template: string; type: string; loop_config: string | null; condition: string | null; step_index: number },
+  agentId: string,
+  context: Record<string, string>
+): ClaimResult {
+  const db = getDb();
 
   // T6: Loop step claim logic
   if (step.type === "loop") {
