@@ -183,6 +183,57 @@ function parseAndInsertStories(output: string, runId: string): void {
   }
 }
 
+// ── Abandoned Step Cleanup ──────────────────────────────────────────
+
+const ABANDONED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+
+/**
+ * Find steps that have been "running" for too long and reset them to pending.
+ * This catches cases where an agent claimed a step but never completed/failed it.
+ */
+function cleanupAbandonedSteps(): void {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - ABANDONED_THRESHOLD_MS).toISOString();
+
+  // Find running steps that haven't been updated recently
+  const abandonedSteps = db.prepare(
+    "SELECT id, step_id, run_id, retry_count, max_retries FROM steps WHERE status = 'running' AND updated_at < ?"
+  ).all(cutoff) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number }[];
+
+  for (const step of abandonedSteps) {
+    const newRetry = step.retry_count + 1;
+    if (newRetry >= step.max_retries) {
+      // Fail the step and run
+      db.prepare(
+        "UPDATE steps SET status = 'failed', output = 'Agent abandoned step without completing', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
+      ).run(newRetry, step.id);
+      db.prepare(
+        "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+      ).run(step.run_id);
+      scheduleRunCronTeardown(step.run_id);
+    } else {
+      // Reset to pending for retry
+      db.prepare(
+        "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
+      ).run(newRetry, step.id);
+    }
+  }
+
+  // Also reset any running stories that are abandoned
+  const abandonedStories = db.prepare(
+    "SELECT id, retry_count, max_retries, run_id FROM stories WHERE status = 'running' AND updated_at < ?"
+  ).all(cutoff) as { id: string; retry_count: number; max_retries: number; run_id: string }[];
+
+  for (const story of abandonedStories) {
+    const newRetry = story.retry_count + 1;
+    if (newRetry >= story.max_retries) {
+      db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
+    } else {
+      db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
+    }
+  }
+}
+
 // ── Claim ───────────────────────────────────────────────────────────
 
 interface ClaimResult {
@@ -196,6 +247,8 @@ interface ClaimResult {
  * Find and claim a pending step for an agent, returning the resolved input.
  */
 export function claimStep(agentId: string): ClaimResult {
+  // First, cleanup any abandoned steps
+  cleanupAbandonedSteps();
   const db = getDb();
 
   const step = db.prepare(

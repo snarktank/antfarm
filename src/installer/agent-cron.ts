@@ -11,6 +11,8 @@ function buildAgentPrompt(workflowId: string, agentId: string): string {
 
   return `You are an Antfarm workflow agent. Check for pending work and execute it.
 
+⚠️ CRITICAL: You MUST call "step complete" or "step fail" before ending your session. If you don't, the workflow will be stuck forever. This is non-negotiable.
+
 Step 1 — Check for pending work:
 \`\`\`
 node ${cli} step claim "${fullAgentId}"
@@ -19,32 +21,32 @@ node ${cli} step claim "${fullAgentId}"
 If output is "NO_WORK", reply HEARTBEAT_OK and stop.
 
 Step 2 — If JSON is returned, it contains: {"stepId": "...", "runId": "...", "input": "..."}
-The "input" field contains your FULLY RESOLVED task instructions. All template variables have been replaced with actual values. Read the input carefully and DO the work it describes. This is the core of your job.
+Save the stepId — you'll need it to report completion.
+The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
 
-Step 3 — After completing the work, format your output with KEY: value lines (e.g., STATUS: done, REPO: /path, BRANCH: name, etc.) as specified in the task instructions.
+Step 3 — Do the work described in the input. Format your output with KEY: value lines as specified.
 
-Step 4 — Report completion. Write your full output to a temp file, then pipe it:
+Step 4 — MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
 cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
 STATUS: done
-REPO: /path/to/repo
-BRANCH: feature-branch
-KEY: value
-...
+CHANGES: what you did
+TESTS: what tests you ran
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
 
-IMPORTANT: Always write output to a file first, then pipe via stdin. Do NOT pass output as a command-line argument — complex output (JSON, multi-line text) gets mangled by shell escaping.
-
-This automatically: saves your output, merges KEY: value pairs into the run context, and advances the pipeline to the next step.
-
-If the work FAILED and should be retried:
+If the work FAILED:
 \`\`\`
 node ${cli} step fail "<stepId>" "description of what went wrong"
 \`\`\`
 
-This handles retry logic automatically (retries up to max_retries, then fails the run).`;
+RULES:
+1. NEVER end your session without calling step complete or step fail
+2. Write output to a file first, then pipe via stdin (shell escaping breaks direct args)
+3. If you're unsure whether to complete or fail, call step fail with an explanation
+
+The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
 
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
@@ -64,7 +66,6 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
       sessionTarget: "isolated",
       agentId,
       payload: { kind: "agentTurn", message: prompt },
-      delivery: { mode: "none" },
       enabled: true,
     });
 

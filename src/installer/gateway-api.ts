@@ -36,7 +36,6 @@ export async function createAgentCronJob(job: {
   sessionTarget: string;
   agentId: string;
   payload: { kind: string; message: string };
-  delivery: { mode: string };
   enabled: boolean;
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   const gateway = await getGatewayConfig();
