@@ -109,6 +109,7 @@ export async function createAgentCronJob(job: {
     }
 
     args.push("--session", job.sessionTarget === "isolated" ? "isolated" : "main");
+    args.push("--best-effort-deliver");
 
     if (job.payload?.message) {
       args.push("--message", job.payload.message);
@@ -146,10 +147,11 @@ async function createAgentCronJobHTTP(job: {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (gateway.token) headers["Authorization"] = `Bearer ${gateway.token}`;
 
+    const jobWithDelivery = { ...job, delivery: { mode: "announce", bestEffort: true } };
     const response = await fetch(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "add", job }, sessionKey: "global" }),
+      body: JSON.stringify({ tool: "cron", args: { action: "add", job: jobWithDelivery }, sessionKey: "global" }),
     });
 
     if (response.status === 404) return null; // signal CLI fallback

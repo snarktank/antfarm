@@ -206,7 +206,7 @@ function cleanupAbandonedSteps(): void {
 
   // Find running steps that haven't been updated recently
   const abandonedSteps = db.prepare(
-    "SELECT id, step_id, run_id, retry_count, max_retries FROM steps WHERE status = 'running' AND updated_at < ?"
+    "SELECT s.id, s.step_id, s.run_id, s.retry_count, s.max_retries FROM steps s JOIN runs r ON r.id = s.run_id WHERE s.status = 'running' AND r.status = 'running' AND s.updated_at < ?"
   ).all(cutoff) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number }[];
 
   for (const step of abandonedSteps) {
@@ -235,7 +235,7 @@ function cleanupAbandonedSteps(): void {
 
   // Also reset any running stories that are abandoned
   const abandonedStories = db.prepare(
-    "SELECT id, retry_count, max_retries, run_id FROM stories WHERE status = 'running' AND updated_at < ?"
+    "SELECT st.id, st.retry_count, st.max_retries, st.run_id FROM stories st JOIN runs r ON r.id = st.run_id WHERE st.status = 'running' AND r.status = 'running' AND st.updated_at < ?"
   ).all(cutoff) as { id: string; retry_count: number; max_retries: number; run_id: string }[];
 
   for (const story of abandonedStories) {
@@ -266,7 +266,7 @@ export function claimStep(agentId: string): ClaimResult {
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT id, run_id, input_template, type, loop_config FROM steps WHERE agent_id = ? AND status = 'pending' LIMIT 1"
+    "SELECT s.id, s.run_id, s.input_template, s.type, s.loop_config FROM steps s JOIN runs r ON r.id = s.run_id WHERE s.agent_id = ? AND s.status = 'pending' AND r.status = 'running' ORDER BY r.created_at ASC LIMIT 1"
   ).get(agentId) as { id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
 
   if (!step) return { found: false };
