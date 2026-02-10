@@ -75,7 +75,24 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
   }
 }
 
-export async function removeAgentCrons(workflowId: string): Promise<void> {
+export async function removeAgentCrons(workflowId: string, opts?: { onlyIfNoActiveRuns?: boolean }): Promise<void> {
+  if (opts?.onlyIfNoActiveRuns) {
+    const db = getDb();
+    let shouldDelete = false;
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      shouldDelete = countActiveRuns(workflowId) === 0;
+      db.exec("COMMIT");
+    } catch (error) {
+      try {
+        db.exec("ROLLBACK");
+      } catch {}
+      throw error;
+    }
+
+    // Re-check immediately before deletion to narrow TOCTOU window.
+    if (!shouldDelete || countActiveRuns(workflowId) > 0) return;
+  }
   await deleteAgentCronJobs(`antfarm/${workflowId}/`);
 }
 
@@ -123,7 +140,5 @@ export async function ensureWorkflowCrons(workflow: WorkflowSpec): Promise<void>
  * Only removes if no other active runs exist for this workflow.
  */
 export async function teardownWorkflowCronsIfIdle(workflowId: string): Promise<void> {
-  const active = countActiveRuns(workflowId);
-  if (active > 0) return;
-  await removeAgentCrons(workflowId);
+  await removeAgentCrons(workflowId, { onlyIfNoActiveRuns: true });
 }

@@ -6,12 +6,13 @@ import { getDb } from "../db.js";
 const EVENTS_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
 const EVENTS_FILE = path.join(EVENTS_DIR, "events.jsonl");
 const MAX_EVENTS_SIZE = 10 * 1024 * 1024; // 10MB
+const NOTIFY_URL_TTL_MS = 60_000;
 
 export type EventType =
   | "run.started" | "run.completed" | "run.failed"
   | "step.pending" | "step.running" | "step.done" | "step.failed" | "step.timeout"
   | "story.started" | "story.done" | "story.verified" | "story.retry" | "story.failed"
-  | "pipeline.advanced";
+  | "pipeline.advanced" | "error";
 
 export interface AntfarmEvent {
   ts: string;
@@ -25,35 +26,58 @@ export interface AntfarmEvent {
   detail?: string;
 }
 
+let eventFileLock = false;
+
 export function emitEvent(evt: AntfarmEvent): void {
   try {
-    fs.mkdirSync(EVENTS_DIR, { recursive: true });
-    // Rotate if too large
-    try {
-      const stats = fs.statSync(EVENTS_FILE);
-      if (stats.size > MAX_EVENTS_SIZE) {
-        const rotated = EVENTS_FILE + ".1";
-        try { fs.unlinkSync(rotated); } catch {}
-        fs.renameSync(EVENTS_FILE, rotated);
+    if (eventFileLock) {
+      fs.mkdirSync(EVENTS_DIR, { recursive: true });
+      fs.appendFileSync(EVENTS_FILE, JSON.stringify(evt) + "\n");
+    } else {
+      eventFileLock = true;
+      try {
+        fs.mkdirSync(EVENTS_DIR, { recursive: true });
+        // Rotate if too large
+        try {
+          const stats = fs.statSync(EVENTS_FILE);
+          if (stats.size > MAX_EVENTS_SIZE) {
+            const rotated = EVENTS_FILE + ".1";
+            try {
+              fs.unlinkSync(rotated);
+            } catch {}
+            fs.renameSync(EVENTS_FILE, rotated);
+          }
+        } catch {}
+        fs.appendFileSync(EVENTS_FILE, JSON.stringify(evt) + "\n");
+      } catch {
+        // best-effort, never throw
+      } finally {
+        eventFileLock = false;
       }
-    } catch {}
-    fs.appendFileSync(EVENTS_FILE, JSON.stringify(evt) + "\n");
+    }
   } catch {
     // best-effort, never throw
   }
   fireWebhook(evt);
 }
 
-// In-memory cache: runId -> notify_url | null
-const notifyUrlCache = new Map<string, string | null>();
+interface NotifyUrlCacheEntry {
+  url: string | null;
+  ts: number;
+}
+
+// In-memory cache: runId -> { url, ts }
+const notifyUrlCache = new Map<string, NotifyUrlCacheEntry>();
 
 function getNotifyUrl(runId: string): string | null {
-  if (notifyUrlCache.has(runId)) return notifyUrlCache.get(runId)!;
+  const now = Date.now();
+  const cached = notifyUrlCache.get(runId);
+  if (cached && now - cached.ts < NOTIFY_URL_TTL_MS) return cached.url;
   try {
     const db = getDb();
     const row = db.prepare("SELECT notify_url FROM runs WHERE id = ?").get(runId) as { notify_url: string | null } | undefined;
     const url = row?.notify_url ?? null;
-    notifyUrlCache.set(runId, url);
+    notifyUrlCache.set(runId, { url, ts: now });
     return url;
   } catch {
     return null;
