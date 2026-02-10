@@ -3,7 +3,7 @@ import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
 
-const DEFAULT_EVERY_MS = 300_000; // 5 minutes
+const DEFAULT_EVERY_MS = 120_000; // 2 minutes
 
 function buildAgentPrompt(workflowId: string, agentId: string): string {
   const fullAgentId = `${workflowId}/${agentId}`;
