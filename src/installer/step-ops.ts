@@ -286,9 +286,10 @@ export function claimStep(agentId: string): ClaimResult {
 
       if (!nextStory) {
         // No more stories — mark step done and advance
+        const tsNow = new Date().toISOString();
         db.prepare(
-          "UPDATE steps SET status = 'done', updated_at = datetime('now') WHERE id = ?"
-        ).run(step.id);
+          "UPDATE steps SET status = 'done', completed_at = COALESCE(completed_at, ?), updated_at = ? WHERE id = ?"
+        ).run(tsNow, tsNow, step.id);
         emitEvent({ ts: new Date().toISOString(), event: "step.done", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, agentId: agentId });
         advancePipeline(step.run_id);
         return { found: false };
@@ -298,9 +299,10 @@ export function claimStep(agentId: string): ClaimResult {
       db.prepare(
         "UPDATE stories SET status = 'running', updated_at = datetime('now') WHERE id = ?"
       ).run(nextStory.id);
+      const tsNow = new Date().toISOString();
       db.prepare(
-        "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now') WHERE id = ?"
-      ).run(nextStory.id, step.id);
+        "UPDATE steps SET status = 'running', current_story_id = ?, claimed_at = COALESCE(claimed_at, ?), started_at = COALESCE(started_at, ?), updated_at = ? WHERE id = ?"
+      ).run(nextStory.id, tsNow, tsNow, tsNow, step.id);
 
       const wfId = getWorkflowId(step.run_id);
       emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: wfId, stepId: step.id, agentId: agentId });
@@ -344,10 +346,11 @@ export function claimStep(agentId: string): ClaimResult {
   }
 
   // Single step: existing logic
+  const tsNow = new Date().toISOString();
   db.prepare(
-    "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
-  ).run(step.id);
-  emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, agentId: agentId });
+    "UPDATE steps SET status = 'running', claimed_at = COALESCE(claimed_at, ?), started_at = COALESCE(started_at, ?), updated_at = ? WHERE id = ? AND status = 'pending'"
+  ).run(tsNow, tsNow, tsNow, step.id);
+  emitEvent({ ts: tsNow, event: "step.running", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, agentId: agentId });
 
   // Inject progress for any step in a run that has stories
   const hasStories = db.prepare(
@@ -428,9 +431,10 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
           "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
         ).run(verifyStep.id);
         // Loop step stays 'running'
+        const tsNow = new Date().toISOString();
         db.prepare(
-          "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ?"
-        ).run(step.id);
+          "UPDATE steps SET status = 'running', claimed_at = COALESCE(claimed_at, ?), started_at = COALESCE(started_at, ?), updated_at = ? WHERE id = ?"
+        ).run(tsNow, tsNow, tsNow, step.id);
         return { advanced: false, runCompleted: false };
       }
     }
@@ -452,9 +456,10 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   }
 
   // Single step: mark done and advance
+  const tsDone = new Date().toISOString();
   db.prepare(
-    "UPDATE steps SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?"
-  ).run(output, stepId);
+    "UPDATE steps SET status = 'done', output = ?, completed_at = COALESCE(completed_at, ?), updated_at = ? WHERE id = ?"
+  ).run(output, tsDone, tsDone, stepId);
   emitEvent({ ts: new Date().toISOString(), event: "step.done", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id });
 
   return advancePipeline(step.run_id);
@@ -542,9 +547,10 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
   }
 
   // All stories done — mark loop step done
+  const tsDone = new Date().toISOString();
   db.prepare(
-    "UPDATE steps SET status = 'done', updated_at = datetime('now') WHERE id = ?"
-  ).run(loopStepId);
+    "UPDATE steps SET status = 'done', completed_at = COALESCE(completed_at, ?), updated_at = ? WHERE id = ?"
+  ).run(tsDone, tsDone, loopStepId);
 
   // Also mark verify step done if it exists
   const loopStep = db.prepare("SELECT loop_config, run_id FROM steps WHERE id = ?").get(loopStepId) as { loop_config: string | null; run_id: string } | undefined;
@@ -673,4 +679,47 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     ).run(newRetryCount, stepId);
     return { retrying: true, runFailed: false };
   }
+}
+
+// ── Timing / Observability ─────────────────────────────────────────
+
+export interface StepTiming {
+  stepId: string;
+  status: string;
+  claimedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  claimToStartMs: number | null;
+  startToCompleteMs: number | null;
+  claimToCompleteMs: number | null;
+}
+
+function diffMs(a: string | null, b: string | null): number | null {
+  if (!a || !b) return null;
+  const da = new Date(a).getTime();
+  const db = new Date(b).getTime();
+  if (Number.isNaN(da) || Number.isNaN(db)) return null;
+  return db - da;
+}
+
+/**
+ * Get timing metrics for each step in a run.
+ * Useful for measuring agent latency (claim→start, start→complete).
+ */
+export function getStepTiming(runId: string): StepTiming[] {
+  const db = getDb();
+  const rows = db.prepare(
+    "SELECT step_id, status, claimed_at, started_at, completed_at FROM steps WHERE run_id = ? ORDER BY step_index ASC"
+  ).all(runId) as { step_id: string; status: string; claimed_at: string | null; started_at: string | null; completed_at: string | null }[];
+
+  return rows.map(r => ({
+    stepId: r.step_id,
+    status: r.status,
+    claimedAt: r.claimed_at,
+    startedAt: r.started_at,
+    completedAt: r.completed_at,
+    claimToStartMs: diffMs(r.claimed_at, r.started_at),
+    startToCompleteMs: diffMs(r.started_at, r.completed_at),
+    claimToCompleteMs: diffMs(r.claimed_at, r.completed_at),
+  }));
 }

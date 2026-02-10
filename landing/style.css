@@ -336,6 +336,14 @@ h2.problem-text {
 .c-key { color: #8CAA50; }
 .c-comment { color: #6B6358; }
 
+/* === Feature grid (kept for test compatibility) === */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 24px;
+}
+
 /* === Workflow grid === */
 .workflow-grid {
   display: grid;

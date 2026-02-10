@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antfarm — Glass Bowl</title>
+  <meta name="description" content="Interactive map of bundled Antfarm workflows." />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { overflow: hidden; }
+    .gb-shell { height: calc(100vh - 0px); display: grid; grid-template-rows: auto 1fr; }
+    .gb-header { border-bottom: 1px solid var(--border-light); padding: 14px 0; }
+    .gb-header-row { display:flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+    .gb-title { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+    .gb-help { font-size: 0.85rem; color: var(--text-muted); }
+    .gb-stage { position: relative; }
+    .gb-stage svg { width: 100%; height: 100%; display:block; background: radial-gradient(circle at 20% 10%, rgba(107,127,59,0.08), transparent 35%), radial-gradient(circle at 70% 60%, rgba(232,132,92,0.10), transparent 45%); }
+    .gb-tip {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(58, 50, 38, 0.92);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 12px;
+      max-width: 260px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+      transform: translate(10px, 10px);
+      display: none;
+      z-index: 10;
+    }
+    .gb-tip .t { font-weight: 600; margin-bottom: 3px; }
+    .gb-tip .d { opacity: 0.9; }
+
+    .gb-node { cursor: pointer; }
+    .gb-node circle { fill: #fff; stroke: var(--border); stroke-width: 1; }
+    .gb-node text { font-family: 'IBM Plex Mono', monospace; fill: var(--text-secondary); font-size: 12px; }
+    .gb-node:hover circle { stroke: var(--accent); stroke-width: 1.5; }
+
+    .gb-edge { stroke: rgba(58, 50, 38, 0.18); stroke-width: 1; }
+    .gb-edge-strong { stroke: rgba(107, 127, 59, 0.35); stroke-width: 1.25; }
+
+    .gb-badge { font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <main class="container gb-shell" id="glass-bowl">
+    <header class="gb-header">
+      <div class="gb-header-row">
+        <div>
+          <div class="gb-title">Glass Bowl</div>
+          <div class="gb-help">Pan: drag background · Zoom: scroll/pinch · Click a node to navigate</div>
+        </div>
+        <div class="gb-help"><a href="index.html">Back to landing</a></div>
+      </div>
+    </header>
+
+    <section class="gb-stage" aria-label="Interactive workflow map">
+      <div class="gb-tip" id="tip"><div class="t" id="tipTitle"></div><div class="d" id="tipDesc"></div></div>
+      <svg id="svg" role="img" aria-label="Workflow graph">
+        <g id="viewport">
+          <g id="edges"></g>
+          <g id="nodes"></g>
+        </g>
+      </svg>
+    </section>
+  </main>
+
+  <script type="module">
+    // Lightweight, dependency-free interactive graph.
+    // Goals:
+    // - Smooth incremental updates (no full re-render)
+    // - Zoom/pan
+    // - Hover tooltips
+    // - Click navigation
+
+    const svg = document.getElementById('svg');
+    const viewport = document.getElementById('viewport');
+    const edgesG = document.getElementById('edges');
+    const nodesG = document.getElementById('nodes');
+
+    const tip = document.getElementById('tip');
+    const tipTitle = document.getElementById('tipTitle');
+    const tipDesc = document.getElementById('tipDesc');
+
+    const state = {
+      scale: 1,
+      tx: 0,
+      ty: 0,
+      panning: false,
+      panStart: { x: 0, y: 0, tx: 0, ty: 0 },
+      nodes: new Map(), // id -> { data, el, labelEl }
+      edges: new Map(), // id -> { data, el }
+    };
+
+    const DATA = {
+      nodes: [
+        { id: 'feature-dev', x: 140, y: 140, r: 26, title: 'feature-dev', desc: 'Plan → implement → verify → test → PR → review', href: 'https://github.com/snarktank/antfarm#workflows' },
+        { id: 'security-audit', x: 420, y: 120, r: 26, title: 'security-audit', desc: 'Scan → prioritize → fix → verify → test → PR', href: 'https://github.com/snarktank/antfarm#workflows' },
+        { id: 'bug-fix', x: 320, y: 340, r: 26, title: 'bug-fix', desc: 'Triage → investigate → fix → verify → PR', href: 'https://github.com/snarktank/antfarm#workflows' },
+        { id: 'docs', x: 620, y: 240, r: 22, title: 'docs', desc: 'OpenClaw documentation and workflow guide', href: 'https://docs.openclaw.ai' },
+      ],
+      edges: [
+        { from: 'feature-dev', to: 'docs', strength: 'strong' },
+        { from: 'security-audit', to: 'docs', strength: 'strong' },
+        { from: 'bug-fix', to: 'docs', strength: 'strong' },
+      ]
+    };
+
+    function applyTransform() {
+      viewport.setAttribute('transform', `translate(${state.tx} ${state.ty}) scale(${state.scale})`);
+    }
+
+    function svgPoint(clientX, clientY) {
+      const pt = svg.createSVGPoint();
+      pt.x = clientX;
+      pt.y = clientY;
+      const ctm = svg.getScreenCTM();
+      return ctm ? pt.matrixTransform(ctm.inverse()) : { x: clientX, y: clientY };
+    }
+
+    function setTooltip(show, evt, node) {
+      if (!show) {
+        tip.style.display = 'none';
+        return;
+      }
+      tipTitle.textContent = node.title;
+      tipDesc.textContent = node.desc;
+      tip.style.display = 'block';
+      tip.style.left = `${evt.clientX}px`;
+      tip.style.top = `${evt.clientY}px`;
+    }
+
+    function upsertNode(n) {
+      const existing = state.nodes.get(n.id);
+      if (existing) {
+        existing.data = n;
+        return existing;
+      }
+
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.classList.add('gb-node');
+      g.dataset.nodeId = n.id;
+
+      const c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c.setAttribute('r', String(n.r));
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('dominant-baseline', 'middle');
+      label.textContent = n.id;
+
+      g.appendChild(c);
+      g.appendChild(label);
+
+      g.addEventListener('pointerenter', (e) => setTooltip(true, e, n));
+      g.addEventListener('pointerleave', () => setTooltip(false));
+      g.addEventListener('pointermove', (e) => {
+        if (tip.style.display !== 'none') {
+          tip.style.left = `${e.clientX}px`;
+          tip.style.top = `${e.clientY}px`;
+        }
+      });
+      g.addEventListener('click', () => {
+        // Click navigation
+        if (n.href) window.location.href = n.href;
+      });
+
+      nodesG.appendChild(g);
+      const rec = { data: n, el: g, labelEl: label };
+      state.nodes.set(n.id, rec);
+      return rec;
+    }
+
+    function edgeId(e) { return `${e.from}__${e.to}`; }
+
+    function upsertEdge(e) {
+      const id = edgeId(e);
+      const existing = state.edges.get(id);
+      if (existing) {
+        existing.data = e;
+        return existing;
+      }
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.classList.add('gb-edge');
+      if (e.strength === 'strong') line.classList.add('gb-edge-strong');
+      edgesG.appendChild(line);
+      const rec = { data: e, el: line };
+      state.edges.set(id, rec);
+      return rec;
+    }
+
+    function layout() {
+      // Update existing DOM nodes/edges in place (incremental update, no full re-render)
+      for (const n of DATA.nodes) {
+        const rec = upsertNode(n);
+        rec.el.setAttribute('transform', `translate(${n.x} ${n.y})`);
+        // Keep circle radius in sync
+        rec.el.querySelector('circle')?.setAttribute('r', String(n.r));
+      }
+
+      for (const e of DATA.edges) {
+        const rec = upsertEdge(e);
+        const a = DATA.nodes.find(n => n.id === e.from);
+        const b = DATA.nodes.find(n => n.id === e.to);
+        if (!a || !b) continue;
+        rec.el.setAttribute('x1', String(a.x));
+        rec.el.setAttribute('y1', String(a.y));
+        rec.el.setAttribute('x2', String(b.x));
+        rec.el.setAttribute('y2', String(b.y));
+      }
+    }
+
+    // Zoom / pan
+    svg.addEventListener('pointerdown', (e) => {
+      // Only pan when background is clicked.
+      if (e.target !== svg) return;
+      state.panning = true;
+      svg.setPointerCapture(e.pointerId);
+      state.panStart = { x: e.clientX, y: e.clientY, tx: state.tx, ty: state.ty };
+    });
+
+    svg.addEventListener('pointermove', (e) => {
+      if (!state.panning) return;
+      const dx = e.clientX - state.panStart.x;
+      const dy = e.clientY - state.panStart.y;
+      state.tx = state.panStart.tx + dx;
+      state.ty = state.panStart.ty + dy;
+      applyTransform();
+    });
+
+    svg.addEventListener('pointerup', (e) => {
+      if (!state.panning) return;
+      state.panning = false;
+      try { svg.releasePointerCapture(e.pointerId); } catch {}
+    });
+
+    svg.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = -e.deltaY;
+      const zoomFactor = Math.exp(delta * 0.0015);
+      const newScale = Math.min(3, Math.max(0.4, state.scale * zoomFactor));
+
+      // Zoom around cursor
+      const p = svgPoint(e.clientX, e.clientY);
+      const k = newScale / state.scale;
+      state.tx = p.x - (p.x - state.tx) * k;
+      state.ty = p.y - (p.y - state.ty) * k;
+      state.scale = newScale;
+      applyTransform();
+    }, { passive: false });
+
+    // Smooth incremental updates: add one node at a time, then settle.
+    // This demonstrates partial updates without recreating the SVG tree.
+    const staged = [
+      { id: 'install', x: 160, y: 260, r: 18, title: 'install', desc: 'Install workflows into OpenClaw with one command', href: 'https://github.com/snarktank/antfarm#install' },
+      { id: 'run', x: 520, y: 300, r: 18, title: 'run', desc: 'Kick off a workflow run with a task string', href: 'https://github.com/snarktank/antfarm#usage' },
+      { id: 'dashboard', x: 470, y: 420, r: 18, title: 'dashboard', desc: 'Monitor runs and agent output in the web UI', href: 'https://github.com/snarktank/antfarm#dashboard' },
+    ];
+
+    let stageIdx = 0;
+    let lastAdd = performance.now();
+
+    function tick(now) {
+      // Add staged nodes gradually.
+      if (stageIdx < staged.length && now - lastAdd > 650) {
+        const n = staged[stageIdx++];
+        DATA.nodes.push(n);
+        // Also connect it lightly to the closest workflow node.
+        const connectFrom = (n.id === 'dashboard') ? 'bug-fix' : 'feature-dev';
+        DATA.edges.push({ from: connectFrom, to: n.id, strength: 'light' });
+        lastAdd = now;
+      }
+
+      layout();
+      requestAnimationFrame(tick);
+    }
+
+    applyTransform();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
