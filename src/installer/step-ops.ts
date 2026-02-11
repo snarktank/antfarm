@@ -346,10 +346,21 @@ export function claimStep(agentId: string): ClaimResult {
         ).get(step.run_id) as { id: string } | undefined;
 
         if (failedStory) {
+          // No pending stories left, but failures remain — fail loop + run
+          db.prepare(
+            "UPDATE steps SET status = 'failed', output = ?, updated_at = datetime('now') WHERE id = ?"
+          ).run("Loop cannot continue because one or more stories failed", step.id);
+          db.prepare(
+            "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+          ).run(step.run_id);
+          const wfId = getWorkflowId(step.run_id);
+          emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: step.id, agentId: agentId, detail: "Loop has failed stories and no pending stories" });
+          emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Loop has failed stories and no pending stories" });
+          scheduleRunCronTeardown(step.run_id);
           return { found: false };
         }
 
-        // No more stories — mark step done and advance
+        // No pending or failed stories — mark step done and advance
         db.prepare(
           "UPDATE steps SET status = 'done', updated_at = datetime('now') WHERE id = ?"
         ).run(step.id);
@@ -630,6 +641,25 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
     db.prepare(
       "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
     ).run(loopStepId);
+    return { advanced: false, runCompleted: false };
+  }
+
+  const failedStory = db.prepare(
+    "SELECT id FROM stories WHERE run_id = ? AND status = 'failed' LIMIT 1"
+  ).get(runId) as { id: string } | undefined;
+
+  if (failedStory) {
+    // Nothing pending, but failures remain — fail loop + run
+    db.prepare(
+      "UPDATE steps SET status = 'failed', output = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run("Loop cannot continue because one or more stories failed", loopStepId);
+    db.prepare(
+      "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+    ).run(runId);
+    const wfId = getWorkflowId(runId);
+    emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId, workflowId: wfId, stepId: loopStepId, detail: "Loop has failed stories and no pending stories" });
+    emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId, workflowId: wfId, detail: "Loop has failed stories and no pending stories" });
+    scheduleRunCronTeardown(runId);
     return { advanced: false, runCompleted: false };
   }
 
