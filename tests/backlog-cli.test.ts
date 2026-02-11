@@ -6,9 +6,13 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// When compiled, this file is at dist/tests/backlog-cli.test.js
-// CLI is at dist/cli/cli.js (sibling of tests/)
-const CLI = join(__dirname, "..", "cli", "cli.js");
+// When compiled, __dirname is dist/tests/ and CLI is at dist/cli/cli.js → use ../cli/cli.js
+// When run via tsx from source, __dirname is tests/ → need dist/cli/cli.js
+// Detect: if __dirname contains "dist/tests", we're compiled
+const isCompiled = __dirname.includes(join("dist", "tests"));
+const CLI = isCompiled
+  ? join(__dirname, "..", "cli", "cli.js")
+  : join(__dirname, "..", "dist", "cli", "cli.js");
 const TEST_DB = "/tmp/antfarm-cli-test.db";
 
 function run(cmd: string): string {
