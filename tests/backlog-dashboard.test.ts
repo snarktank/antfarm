@@ -137,5 +137,9 @@ describe("Backlog Dashboard UI - Auto-refresh regression", () => {
   it("auto-refresh updates backlog data without dropping form handling", () => {
     assert.ok(html.includes("refreshBacklogCards();"), "interval should refresh cards list");
     assert.ok(html.includes("setInterval(async () =>"), "should use periodic auto-refresh");
+
+    const intervalBody = html.match(/setInterval\(async \(\) => \{([\s\S]*?)\}, 30000\);/);
+    assert.ok(intervalBody, "should define a 30s refresh interval");
+    assert.ok(!intervalBody[1].includes("refreshBoard()"), "interval should not rebuild the board when no workflow is selected");
   });
 });

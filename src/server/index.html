@@ -351,6 +351,8 @@ async function loadWorkflows() {
       }
     } catch {}
   }
+
+  if (!currentWf) refreshBoard();
 }
 
 function selectWorkflow(id) {
@@ -502,7 +504,6 @@ setInterval(async () => {
   await loadBacklog();
   refreshBacklogCards();
   if (currentWf) loadRuns();
-  else refreshBoard();
 }, 30000);
 </script>
 </body>
