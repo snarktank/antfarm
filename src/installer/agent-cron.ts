@@ -4,6 +4,7 @@ import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
+const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
 
 function buildAgentPrompt(workflowId: string, agentId: string): string {
   const fullAgentId = `${workflowId}/${agentId}`;
@@ -59,13 +60,14 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const cronName = `antfarm/${workflow.id}/${agent.id}`;
     const agentId = `${workflow.id}/${agent.id}`;
     const prompt = buildAgentPrompt(workflow.id, agent.id);
+    const timeoutSeconds = agent.timeoutSeconds ?? DEFAULT_AGENT_TIMEOUT_SECONDS;
 
     const result = await createAgentCronJob({
       name: cronName,
       schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
       agentId,
-      payload: { kind: "agentTurn", message: prompt },
+      payload: { kind: "agentTurn", message: prompt, timeoutSeconds },
       enabled: true,
     });
 

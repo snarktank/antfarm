@@ -50,6 +50,9 @@ function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
     if (agent.workspace.skills && !Array.isArray(agent.workspace.skills)) {
       throw new Error(`workflow.yml workspace.skills must be a list for agent "${agent.id}"`);
     }
+    if (agent.timeoutSeconds !== undefined && agent.timeoutSeconds <= 0) {
+      throw new Error(`workflow.yml agent "${agent.id}" timeoutSeconds must be positive`);
+    }
   }
 }
 
