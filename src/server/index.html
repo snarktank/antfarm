@@ -142,9 +142,9 @@
 body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg-page);color:var(--text-primary);min-height:100vh}
 header{background:var(--header-bg);border-bottom:2px solid var(--header-border);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 header img{height:36px;border-radius:6px}
-header h1{font-family:'Inter',sans-serif;font-size:22px;font-weight:600;color:#fff;letter-spacing:0}
+header h1{font-family:'Inter',sans-serif;font-size:var(--text-xl);font-weight:600;color:#fff;letter-spacing:0}
 header h1 span{color:var(--accent-highlight)}
-select{background:var(--header-select-bg);color:#fff;border:1px solid var(--header-select-border);border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer}
+select{background:var(--header-select-bg);color:#fff;border:1px solid var(--header-select-border);border-radius:6px;padding:6px 12px;font-size:var(--text-md);cursor:pointer}
 select option{background:var(--header-select-bg);color:#fff}
 select:focus{outline:none;border-color:#8ECFC0}
 
@@ -155,8 +155,8 @@ select:focus{outline:none;border-color:#8ECFC0}
 /* ── Board ─────────────────────────────────────────────────────── */
 .board{display:flex;gap:16px;padding:24px;overflow-x:auto;min-height:calc(100vh - 65px)}
 .column{min-width:240px;flex:1;background:var(--bg-surface);border:none;border-radius:8px;display:flex;flex-direction:column;box-shadow:0 2px 8px var(--shadow)}
-.column-header{padding:12px 16px;border-bottom:1px solid var(--border-light);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--accent-green);background:var(--bg-column-header);border-radius:8px 8px 0 0}
-.column-header .count{background:var(--accent-green);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px}
+.column-header{padding:12px 16px;border-bottom:1px solid var(--border-light);font-size:var(--text-base);font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--accent-green);background:var(--bg-column-header);border-radius:8px 8px 0 0}
+.column-header .count{background:var(--accent-green);color:#fff;border-radius:10px;padding:1px 8px;font-size:var(--text-xs);margin-left:8px}
 .cards{padding:8px;flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
 
 /* ── Cards ─────────────────────────────────────────────────────── */
@@ -202,7 +202,7 @@ select:focus{outline:none;border-color:#8ECFC0}
 
 /* ── Misc ──────────────────────────────────────────────────────── */
 .empty{color:var(--text-secondary);font-size:12px;text-align:center;padding:24px 8px}
-.refresh-note{color:rgba(255,255,255,.6);font-size:11px;margin-left:auto}
+.refresh-note{color:rgba(255,255,255,.6);font-size:var(--text-sm);margin-left:auto}
 @media(max-width:768px){.board{flex-direction:column}.column{min-width:unset}}
 .story-open{display:block!important}
 .story-chevron-open{transform:rotate(90deg)}
