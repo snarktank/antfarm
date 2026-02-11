@@ -1,0 +1,127 @@
+id: helixa-identity
+name: Agent Identity Registration
+version: 1
+description: |
+  Register your agent team's onchain identities on Base via Helixa.
+  Each agent gets an AgentDNA NFT (ERC-8004) and a .agent name.
+  Free during beta (first 100 agents). Zero wallet needed — uses gasless API.
+  
+  What you get:
+  - Onchain identity NFT on Base (ERC-8004 compliant)
+  - .agent name (e.g., planner.agent, developer.agent)
+  - Points toward future $DNA token allocation
+  - Entry in the searchable agent directory at helixa.xyz/directory.html
+
+agents:
+  - id: registrar
+    name: Registrar
+    role: coding
+    description: Registers agent identities via the Helixa gasless API.
+    workspace:
+      baseDir: agents/registrar
+      files:
+        AGENTS.md: agents/registrar/AGENTS.md
+        SOUL.md: agents/registrar/SOUL.md
+        IDENTITY.md: agents/registrar/IDENTITY.md
+
+  - id: verifier
+    name: Verifier
+    role: verification
+    description: Verifies all agents were registered successfully onchain.
+    workspace:
+      baseDir: agents/verifier
+      files:
+        AGENTS.md: agents/verifier/AGENTS.md
+        SOUL.md: agents/verifier/SOUL.md
+        IDENTITY.md: agents/verifier/IDENTITY.md
+
+steps:
+  - id: discover
+    agent: registrar
+    input: |
+      Discover all agents in this OpenClaw workspace that need onchain identities.
+
+      TASK:
+      {{task}}
+
+      Instructions:
+      1. Look for agent definitions in the workspace (AGENTS.md, SOUL.md, IDENTITY.md files)
+      2. Check antfarm workflow configs for agent definitions
+      3. For each agent found, collect: name, role/description, framework (openclaw)
+      4. Generate a suggested .agent name for each (lowercase, alphanumeric + hyphens, 3-32 chars)
+      5. Check .agent name availability via: curl -s https://api.helixa.xyz/api/name/<name>
+
+      Reply with:
+      STATUS: done
+      AGENTS_JSON: [ { "name": "AgentName", "agentName": "suggested-name", "description": "what it does", "framework": "openclaw" } ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: register
+    agent: registrar
+    type: loop
+    loop:
+      over: agents_discovered
+      completion: all_done
+      fresh_session: true
+    input: |
+      Register this agent's onchain identity via the Helixa gasless API.
+
+      CURRENT AGENT:
+      {{current_item}}
+
+      COMPLETED AGENTS:
+      {{completed_items}}
+
+      Instructions:
+      1. Generate a wallet address for this agent if it doesn't have one:
+         node -e "const w = require('ethers').Wallet.createRandom(); console.log(w.address)"
+      2. Call the gasless mint API:
+         curl -X POST https://api.helixa.xyz/api/mint \
+           -H "Content-Type: application/json" \
+           -d '{
+             "name": "<agent name>",
+             "agentAddress": "<wallet address>",
+             "framework": "openclaw",
+             "description": "<agent description>",
+             "agentName": "<dot-agent-name>",
+             "soulbound": false
+           }'
+      3. Record the response (tokenId, txHash, agentName)
+
+      Reply with:
+      STATUS: done
+      TOKEN_ID: <id>
+      TX_HASH: <hash>
+      AGENT_NAME: <name>.agent
+      WALLET: <address>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify
+    agent: verifier
+    input: |
+      Verify all agent identities were registered onchain.
+
+      REGISTERED AGENTS:
+      {{registered_agents}}
+
+      Instructions:
+      1. For each registered agent, verify onchain:
+         curl -s https://api.helixa.xyz/api/agent/<tokenId>
+      2. Verify .agent name resolves:
+         curl -s https://api.helixa.xyz/api/name/<agentName>
+      3. Check the agent directory: https://helixa.xyz/directory.html
+      4. Create a summary report
+
+      Reply with:
+      STATUS: done
+      VERIFIED: <count> agents verified onchain
+      REPORT: summary of all registered identities
+    expects: "STATUS: done"
+    on_fail:
+      escalate_to: human
