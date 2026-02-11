@@ -202,7 +202,8 @@ const ABANDONED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
  */
 function cleanupAbandonedSteps(): void {
   const db = getDb();
-  const cutoff = new Date(Date.now() - ABANDONED_THRESHOLD_MS).toISOString();
+  // Use SQLite-compatible datetime format (space separator, no T/Z) to match datetime('now') output
+  const cutoff = new Date(Date.now() - ABANDONED_THRESHOLD_MS).toISOString().replace("T", " ").replace(/\.\d{3}Z$/, "");
 
   // Find running steps that haven't been updated recently
   const abandonedSteps = db.prepare(
