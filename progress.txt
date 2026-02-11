@@ -34,3 +34,11 @@ Started: 2026-02-11 12:03:23 IST
 - Added `landing/__tests__/contact.test.js` using `node:test` to verify page structure and required elements.
 - **Learnings:** Landing HTML tests are string/regex-based and check for mechanically verifiable markers (e.g., `<form>` count, `@media`, viewport meta).
 ---
+
+## 2026-02-11 12:10 IST - US-002: Add client-side email validation and inline error messaging (single HTML file)
+- Added `isValidEmail(email)` helper and tightened submit-time email validation behavior.
+- Wired accessible inline error messaging: `#email-error` with `aria-live="polite"` and `aria-describedby` on the email input.
+- Added blur/input listeners to clear/update error messaging as the email becomes valid.
+- Files changed: `landing/contact.html`, `landing/__tests__/contact.test.js`
+- **Learnings:** For landing-page validation stories, tests assert presence of specific IDs/ARIA attributes plus event-handler hooks (string/regex markers) rather than executing DOM.
+---
