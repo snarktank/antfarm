@@ -125,9 +125,8 @@ async function loadBacklog() {
   try { backlogItems = await fetchJSON('/api/backlog'); } catch { backlogItems = []; }
 }
 
-function renderBacklogColumn() {
-  const wfOptions = workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
-  const cards = backlogItems.length === 0
+function renderBacklogCards() {
+  return backlogItems.length === 0
     ? '<div class="empty">No backlog items</div>'
     : backlogItems.map((item, idx) => {
         const desc = item.description ? (item.description.length > 80 ? item.description.slice(0, 77) + '…' : item.description) : '';
@@ -150,17 +149,67 @@ function renderBacklogColumn() {
           </div>
         </div>`;
       }).join('');
+}
 
-  return `<div class="column backlog-col">
-    <div class="column-header">Backlog<span class="count">${backlogItems.length}</span></div>
-    <div class="backlog-form">
-      <input type="text" id="bl-title" placeholder="Title" />
-      <textarea id="bl-desc" placeholder="Description (optional)"></textarea>
-      <select id="bl-workflow"><option value="">— workflow —</option>${wfOptions}</select>
-      <button onclick="addBacklogItem()">Add</button>
-    </div>
-    <div class="cards">${cards}</div>
+function renderBacklogForm() {
+  const wfOptions = workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+  return `<div class="backlog-form">
+    <input type="text" id="bl-title" placeholder="Title" />
+    <textarea id="bl-desc" placeholder="Description (optional)"></textarea>
+    <select id="bl-workflow"><option value="">— workflow —</option>${wfOptions}</select>
+    <button onclick="addBacklogItem()">Add</button>
   </div>`;
+}
+
+function renderBacklogColumn() {
+  return `<div class="column backlog-col">
+    <div class="column-header">Backlog<span class="count" id="backlog-count">${backlogItems.length}</span></div>
+    ${renderBacklogForm()}
+    <div class="cards" id="backlog-cards">${renderBacklogCards()}</div>
+  </div>`;
+}
+
+function refreshBacklogCards() {
+  const cards = document.getElementById('backlog-cards');
+  const count = document.getElementById('backlog-count');
+  if (cards) cards.innerHTML = renderBacklogCards();
+  if (count) count.textContent = String(backlogItems.length);
+}
+
+function getBacklogFormState() {
+  const title = document.getElementById('bl-title');
+  const desc = document.getElementById('bl-desc');
+  const workflow = document.getElementById('bl-workflow');
+  if (!title || !desc || !workflow) return null;
+  const active = document.activeElement;
+  return {
+    title: title.value,
+    desc: desc.value,
+    workflow: workflow.value,
+    activeId: active && active.id ? active.id : null,
+    selectionStart: active && typeof active.selectionStart === 'number' ? active.selectionStart : null,
+    selectionEnd: active && typeof active.selectionEnd === 'number' ? active.selectionEnd : null
+  };
+}
+
+function restoreBacklogFormState(state) {
+  if (!state) return;
+  const title = document.getElementById('bl-title');
+  const desc = document.getElementById('bl-desc');
+  const workflow = document.getElementById('bl-workflow');
+  if (!title || !desc || !workflow) return;
+  title.value = state.title;
+  desc.value = state.desc;
+  workflow.value = state.workflow;
+  if (state.activeId) {
+    const el = document.getElementById(state.activeId);
+    if (el) {
+      el.focus();
+      if (typeof state.selectionStart === 'number' && typeof state.selectionEnd === 'number' && typeof el.setSelectionRange === 'function') {
+        el.setSelectionRange(state.selectionStart, state.selectionEnd);
+      }
+    }
+  }
 }
 
 async function addBacklogItem() {
@@ -278,7 +327,9 @@ function findDispatchedRun(title) {
 function refreshBoard() {
   const board = document.getElementById('board');
   if (currentWf) { loadRuns(); return; }
+  const formState = getBacklogFormState();
   board.innerHTML = renderBacklogColumn() + '<div class="empty" style="margin:auto">Select a workflow</div>';
+  restoreBacklogFormState(formState);
 }
 
 async function loadWorkflows() {
@@ -305,7 +356,11 @@ async function loadWorkflows() {
 function selectWorkflow(id) {
   currentWf = workflows.find(w => w.id === id) || null;
   if (currentWf) loadRuns();
-  else document.getElementById('board').innerHTML = renderBacklogColumn() + '<div class="empty" style="margin:auto">Select a workflow</div>';
+  else {
+    const formState = getBacklogFormState();
+    document.getElementById('board').innerHTML = renderBacklogColumn() + '<div class="empty" style="margin:auto">Select a workflow</div>';
+    restoreBacklogFormState(formState);
+  }
 }
 
 async function loadRuns() {
@@ -322,6 +377,7 @@ function getActiveStepId(run) {
 
 function renderBoard(wf, runs) {
   const board = document.getElementById('board');
+  const formState = getBacklogFormState();
   const columns = {};
   wf.steps.forEach(s => { columns[s.id] = []; });
 
@@ -355,6 +411,7 @@ function renderBoard(wf, runs) {
       <div class="cards">${cardHTML}</div>
     </div>`;
   }).join('');
+  restoreBacklogFormState(formState);
 }
 
 const stepIcons = {done:'✓',running:'●',pending:'○',waiting:'◌',failed:'✗',error:'✗'};
@@ -441,7 +498,12 @@ async function loadStories(runId) {
 
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();
-setInterval(async () => { await loadBacklog(); if (currentWf) loadRuns(); else refreshBoard(); }, 30000);
+setInterval(async () => {
+  await loadBacklog();
+  refreshBacklogCards();
+  if (currentWf) loadRuns();
+  else refreshBoard();
+}, 30000);
 </script>
 </body>
 </html>
