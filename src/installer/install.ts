@@ -127,6 +127,10 @@ function upsertAgent(
   agent: { id: string; name?: string; model?: string; workspaceDir: string; agentDir: string; role: AgentRole },
 ) {
   const existing = list.find((entry) => entry.id === agent.id);
+
+  // Never overwrite the user's default (main) agent — it was configured outside antfarm
+  if (existing?.default === true) return;
+
   const payload: Record<string, unknown> = {
     id: agent.id,
     name: agent.name ?? agent.id,
