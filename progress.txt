@@ -1,18 +1,19 @@
 # Progress Log
-Run: 047f8650-e1d3-4695-bf25-8390e26b061c
-Task: Add easter egg ant command to antfarm CLI
-Started: 2026-02-11 05:47 ET
+Run: 2103e99d-50a9-4497-a0c7-65f8e856a83a
+Task: Create a simple HTML contact form with name, email, and message fields. Include inline CSS for basic styling and JavaScript for email validation. Single HTML file, responsive design.
+Started: 2026-02-11 12:03:23 IST
 
 ## Codebase Patterns
-- CLI entry: `src/cli/cli.ts`, commands matched via `group` variable from `process.argv[2]`
-- Dynamic imports used for command modules (e.g., `await import("./ant.js")`)
-- Build: `npm run build` runs `tsc -p tsconfig.json` + copies HTML + chmod
-- Tests: `node --test dist/<file>.test.js` (node:test + node:assert/strict)
-- ESM with NodeNext module resolution, `.js` extensions in imports
+- Landing page tests use `node:test` and read HTML/CSS directly from `landing/` using `fs` + `path` (see `landing/__tests__/*.test.js`).
+- CLI entry: `src/cli/cli.ts`, commands matched via `group` variable from `process.argv[2]`.
+- Dynamic imports used for command modules (e.g., `await import("./ant.js")`).
+- Build: `npm run build` runs `tsc -p tsconfig.json` + copies HTML + chmod.
+- Tests: `node --test dist/<file>.test.js` (node:test + node:assert/strict).
+- ESM with NodeNext module resolution, `.js` extensions in imports.
 
 ---
 
-## 2026-02-11 05:47 - US-001: Add ant easter egg module with ASCII art and quotes
+## 2026-02-11 05:47 ET - US-001: Add ant easter egg module with ASCII art and quotes
 - Created `src/cli/ant.ts` with `printAnt()` function, 10 quotes, ASCII ant art
 - Created `src/cli/ant.test.ts` with 4 tests (art output, quote output, 8+ unique quotes, no-throw)
 - Wired `ant` command into `src/cli/cli.ts` via dynamic import
@@ -20,10 +21,16 @@ Started: 2026-02-11 05:47 ET
 - **Learnings:** CLI uses simple if-chain for command routing, not a framework
 ---
 
-## 2026-02-11 05:52 - US-002: Wire ant command into CLI and add tests
+## 2026-02-11 05:52 ET - US-002: Wire ant command into CLI and add tests
 - Created `tests/ant.test.ts` with 3 CLI integration tests (ASCII art, quote output, hidden from help)
 - Tests use child_process.execFileSync to run the actual CLI binary
 - All acceptance criteria verified: CLI works, hidden from help, tests pass, build passes
 - Files changed: `tests/ant.test.ts` (new)
 - **Learnings:** Node 22 runs .ts files directly with type stripping; tests in `tests/` use this approach
+---
+
+## 2026-02-11 12:04 IST - US-001: Add responsive single-file contact form page (HTML + inline CSS)
+- Implemented `landing/contact.html` as a single-file responsive contact form with inline CSS and inline JS email validation.
+- Added `landing/__tests__/contact.test.js` using `node:test` to verify page structure and required elements.
+- **Learnings:** Landing HTML tests are string/regex-based and check for mechanically verifiable markers (e.g., `<form>` count, `@media`, viewport meta).
 ---

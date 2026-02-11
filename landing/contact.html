@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Contact — Antfarm</title>
+
+    <style>
+      :root {
+        --bg: #0b1020;
+        --card: #121a33;
+        --text: #eaf0ff;
+        --muted: #a9b6de;
+        --border: rgba(255, 255, 255, 0.14);
+        --accent: #7aa2ff;
+        --accent-2: #55d6be;
+        --danger: #ff6b6b;
+        --shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial,
+          "Apple Color Emoji",
+          "Segoe UI Emoji";
+        color: var(--text);
+        background:
+          radial-gradient(1200px 800px at 20% 0%, rgba(122, 162, 255, 0.25), transparent 55%),
+          radial-gradient(1000px 700px at 100% 20%, rgba(85, 214, 190, 0.18), transparent 50%),
+          var(--bg);
+        line-height: 1.45;
+      }
+
+      .page {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 32px 18px;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 720px;
+        background: color-mix(in srgb, var(--card) 88%, black);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--shadow);
+        padding: 28px;
+      }
+
+      header {
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 1.6rem;
+        letter-spacing: -0.02em;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      form {
+        margin-top: 18px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      label {
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 12px;
+        color: var(--text);
+        outline: none;
+      }
+
+      textarea {
+        min-height: 140px;
+        resize: vertical;
+      }
+
+      input::placeholder,
+      textarea::placeholder {
+        color: color-mix(in srgb, var(--muted) 85%, transparent);
+      }
+
+      input:focus,
+      textarea:focus {
+        border-color: color-mix(in srgb, var(--accent) 70%, white);
+        box-shadow: 0 0 0 4px rgba(122, 162, 255, 0.18);
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        justify-content: flex-start;
+        margin-top: 6px;
+      }
+
+      button[type='submit'] {
+        appearance: none;
+        border: 1px solid color-mix(in srgb, var(--accent) 55%, white);
+        background: linear-gradient(180deg, rgba(122, 162, 255, 0.35), rgba(122, 162, 255, 0.15));
+        color: var(--text);
+        border-radius: 12px;
+        padding: 11px 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button[type='submit']:hover {
+        border-color: color-mix(in srgb, var(--accent) 78%, white);
+        transform: translateY(-1px);
+      }
+
+      button[type='submit']:active {
+        transform: translateY(0);
+      }
+
+      .hint {
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .hint strong {
+        color: var(--text);
+      }
+
+      .error {
+        color: var(--danger);
+        font-weight: 600;
+      }
+
+      /* Responsive: tighten padding and keep comfortable tap targets */
+      @media (max-width: 520px) {
+        .card {
+          padding: 18px;
+          border-radius: 14px;
+        }
+
+        h1 {
+          font-size: 1.35rem;
+        }
+
+        .actions {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        button[type='submit'] {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="page">
+      <section class="card" aria-labelledby="contact-title">
+        <header>
+          <h1 id="contact-title">Contact us</h1>
+          <p>Send a note and we’ll get back to you.</p>
+        </header>
+
+        <form id="contact-form" novalidate>
+          <div class="field">
+            <label for="name">Name</label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              autocomplete="name"
+              required
+              placeholder="Jane Doe"
+            />
+          </div>
+
+          <div class="field">
+            <label for="email">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              inputmode="email"
+              required
+              placeholder="jane@example.com"
+            />
+            <div id="email-error" class="error" role="alert" aria-live="polite" hidden></div>
+          </div>
+
+          <div class="field">
+            <label for="message">Message</label>
+            <textarea
+              id="message"
+              name="message"
+              autocomplete="off"
+              required
+              placeholder="How can we help?"
+            ></textarea>
+          </div>
+
+          <div class="actions">
+            <button type="submit">Send message</button>
+            <div class="hint">Fields marked <strong>required</strong> must be filled in.</div>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        const form = document.getElementById('contact-form');
+        const emailInput = document.getElementById('email');
+        const emailError = document.getElementById('email-error');
+
+        if (!(form instanceof HTMLFormElement)) return;
+        if (!(emailInput instanceof HTMLInputElement)) return;
+
+        // Basic email validation: permissive but catches obvious mistakes.
+        // (This is supplemental to type="email" and required.)
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        function setEmailError(message) {
+          if (!(emailError instanceof HTMLElement)) return;
+          if (message) {
+            emailError.textContent = message;
+            emailError.hidden = false;
+            emailInput.setAttribute('aria-invalid', 'true');
+          } else {
+            emailError.textContent = '';
+            emailError.hidden = true;
+            emailInput.removeAttribute('aria-invalid');
+          }
+        }
+
+        function validateEmail() {
+          const value = emailInput.value.trim();
+          if (!value) {
+            setEmailError('Please enter your email.');
+            return false;
+          }
+          if (!emailPattern.test(value)) {
+            setEmailError('Please enter a valid email address.');
+            return false;
+          }
+          setEmailError('');
+          return true;
+        }
+
+        emailInput.addEventListener('input', () => {
+          // Only show validation feedback once the user begins interacting.
+          if (emailInput.value.length > 0) validateEmail();
+        });
+
+        form.addEventListener('submit', (event) => {
+          const ok = validateEmail();
+          // Allow native validation for other fields.
+          if (!ok) {
+            event.preventDefault();
+            emailInput.focus();
+            return;
+          }
+
+          if (!form.checkValidity()) {
+            event.preventDefault();
+            form.reportValidity();
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
