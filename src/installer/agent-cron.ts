@@ -2,8 +2,10 @@ import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAva
 import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
+import { cleanupAbandonedSteps } from "./step-ops.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
+const CLEANUP_INTERVAL_MS = 120_000; // 2 minutes
 
 function buildAgentPrompt(workflowId: string, agentId: string): string {
   const fullAgentId = `${workflowId}/${agentId}`;
@@ -49,10 +51,40 @@ RULES:
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
 
+async function setupCleanupCron(workflowId: string): Promise<void> {
+  const cronName = `antfarm/${workflowId}/cleanup`;
+  const cli = resolveAntfarmCli();
+
+  const prompt = `You are an Antfarm cleanup agent. Run the cleanup function to detect and recover abandoned steps.
+
+\`\`\`
+node ${cli} cleanup
+\`\`\`
+
+Reply HEARTBEAT_OK when done.`;
+
+  const result = await createAgentCronJob({
+    name: cronName,
+    schedule: { kind: "every", everyMs: CLEANUP_INTERVAL_MS, anchorMs: 0 },
+    sessionTarget: "isolated",
+    agentId: `${workflowId}/cleanup`,
+    payload: { kind: "agentTurn", message: prompt },
+    enabled: true,
+  });
+
+  if (!result.ok) {
+    throw new Error(`Failed to create cleanup cron job: ${result.error}`);
+  }
+}
+
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
   const agents = workflow.agents;
   // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
   const everyMs = (workflow as any).cron?.interval_ms ?? DEFAULT_EVERY_MS;
+  
+  // Set up cleanup cron first
+  await setupCleanupCron(workflow.id);
+  
   for (let i = 0; i < agents.length; i++) {
     const agent = agents[i];
     const anchorMs = i * 60_000; // stagger by 1 minute each

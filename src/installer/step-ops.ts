@@ -194,13 +194,13 @@ function parseAndInsertStories(output: string, runId: string): void {
 
 // ── Abandoned Step Cleanup ──────────────────────────────────────────
 
-const ABANDONED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+const ABANDONED_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutes
 
 /**
  * Find steps that have been "running" for too long and reset them to pending.
  * This catches cases where an agent claimed a step but never completed/failed it.
  */
-function cleanupAbandonedSteps(): void {
+export function cleanupAbandonedSteps(): void {
   const db = getDb();
   const cutoff = new Date(Date.now() - ABANDONED_THRESHOLD_MS).toISOString();
 

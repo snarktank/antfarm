@@ -6,7 +6,7 @@ import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
-import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
+import { claimStep, completeStep, failStep, getStories, cleanupAbandonedSteps } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -49,6 +49,8 @@ function printUsage() {
       "antfarm step complete <step-id>      Complete step (reads output from stdin)",
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "antfarm step stories <run-id>       List stories for a run",
+      "",
+      "antfarm cleanup                      Detect and recover abandoned steps",
       "",
       "antfarm logs [<lines>]               Show recent log entries",
       "",
@@ -245,6 +247,12 @@ async function main() {
     process.stderr.write(`Unknown step action: ${action}\n`);
     printUsage();
     process.exit(1);
+  }
+
+  if (group === "cleanup") {
+    cleanupAbandonedSteps();
+    process.stdout.write("Cleanup completed.\n");
+    return;
   }
 
   if (group === "logs") {
