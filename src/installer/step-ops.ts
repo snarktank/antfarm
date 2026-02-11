@@ -251,6 +251,7 @@ function cleanupAbandonedSteps(): void {
           db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
           db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(step.id);
           emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: `Story ${story.story_id} abandoned — reset to pending (story retry ${newRetry})` });
+          logger.info(`Abandoned step reset to pending (story retry ${newRetry})`, { runId: step.run_id, stepId: step.step_id });
         }
         continue;
       }
@@ -289,6 +290,28 @@ function cleanupAbandonedSteps(): void {
   for (const story of abandonedStories) {
     // Simply reset to pending without incrementing retry_count
     db.prepare("UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE id = ?").run(story.id);
+  }
+
+  // Recover stuck pipelines: loop step done but no subsequent step pending/running
+  const stuckLoops = db.prepare(`
+    SELECT s.id, s.run_id, s.step_index FROM steps s
+    JOIN runs r ON r.id = s.run_id
+    WHERE s.type = 'loop' AND s.status = 'done' AND r.status = 'running'
+    AND NOT EXISTS (
+      SELECT 1 FROM steps s2 WHERE s2.run_id = s.run_id 
+      AND s2.step_index > s.step_index 
+      AND s2.status IN ('pending', 'running')
+    )
+    AND EXISTS (
+      SELECT 1 FROM steps s3 WHERE s3.run_id = s.run_id 
+      AND s3.step_index > s.step_index 
+      AND s3.status = 'waiting'
+    )
+  `).all() as { id: string; run_id: string; step_index: number }[];
+
+  for (const stuck of stuckLoops) {
+    logger.info(`Recovering stuck pipeline after loop completion`, { runId: stuck.run_id, stepId: stuck.id });
+    advancePipeline(stuck.run_id);
   }
 }
 
@@ -652,7 +675,14 @@ function handleVerifyEachCompletion(
   delete context["verify_feedback"];
   db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), verifyStep.run_id);
 
-  return checkLoopContinuation(verifyStep.run_id, loopStepId);
+  try {
+    return checkLoopContinuation(verifyStep.run_id, loopStepId);
+  } catch (err) {
+    logger.error(`checkLoopContinuation failed, recovering: ${String(err)}`, { runId: verifyStep.run_id });
+    // Ensure loop step is at least pending so cron can retry
+    db.prepare("UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
+    return { advanced: false, runCompleted: false };
+  }
 }
 
 /**
