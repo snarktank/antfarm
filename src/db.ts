@@ -3,8 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const DB_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
-const DB_PATH = path.join(DB_DIR, "antfarm.db");
+const DB_DIR = process.env.ANTFARM_DB_DIR || path.join(os.homedir(), ".openclaw", "antfarm");
+const DB_PATH = process.env.ANTFARM_DB_PATH || path.join(DB_DIR, "antfarm.db");
 
 let _db: DatabaseSync | null = null;
 let _dbOpenedAt = 0;
@@ -48,6 +48,17 @@ function migrate(db: DatabaseSync): void {
       output TEXT,
       retry_count INTEGER DEFAULT 0,
       max_retries INTEGER DEFAULT 2,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS backlog_items (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      priority INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      target_workflow TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
