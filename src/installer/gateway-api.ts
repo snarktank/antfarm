@@ -149,7 +149,7 @@ async function createAgentCronJobHTTP(job: {
     const response = await fetch(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "add", job }, sessionKey: "global" }),
+      body: JSON.stringify({ tool: "cron", args: { action: "add", job }, sessionKey: "agent:main:main" }),
     });
 
     if (response.status === 404) return null; // signal CLI fallback
@@ -234,7 +234,7 @@ async function listCronJobsHTTP(): Promise<{ ok: boolean; jobs?: Array<{ id: str
     const response = await fetch(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "list" }, sessionKey: "global" }),
+      body: JSON.stringify({ tool: "cron", args: { action: "list" }, sessionKey: "agent:main:main" }),
     });
 
     if (response.status === 404) return null;
@@ -289,7 +289,7 @@ async function deleteCronJobHTTP(jobId: string): Promise<{ ok: boolean; error?: 
     const response = await fetch(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "remove", id: jobId }, sessionKey: "global" }),
+      body: JSON.stringify({ tool: "cron", args: { action: "remove", id: jobId }, sessionKey: "agent:main:main" }),
     });
 
     if (response.status === 404) return null;

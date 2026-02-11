@@ -7,10 +7,13 @@
 You don't need to hire a dev team. You need to define one. Antfarm gives you a team of specialized AI agents — planner, developer, verifier, tester, reviewer — that work together in reliable, repeatable workflows. One install. Zero infrastructure.
 
 ```
-$ install github.com/snarktank/antfarm
+git clone https://github.com/snarktank/antfarm.git ~/.openclaw/workspace/antfarm
+cd ~/.openclaw/workspace/antfarm && npm install && npm run build && npm link
 ```
 
-Tell your OpenClaw agent. That's it.
+Or just tell your OpenClaw agent: **"Clone and install antfarm from https://github.com/snarktank/antfarm"**
+
+> **Not on npm.** Antfarm is installed from GitHub, not the npm registry. There is an unrelated `antfarm` package on npm — that's not this.
 
 ---
 
