@@ -118,3 +118,28 @@ describe("Backlog Dashboard UI - Card rendering", () => {
     assert.ok(html.includes("item.status === 'dispatched'"), "should check not already dispatched");
   });
 });
+
+
+describe("Backlog Dashboard UI - Auto-refresh regression", () => {
+  it("separates backlog form from backlog cards rendering", () => {
+    assert.ok(html.includes("function renderBacklogForm()"), "should render form separately");
+    assert.ok(html.includes("function renderBacklogCards()"), "should render cards separately");
+    assert.ok(html.includes('id="backlog-cards"'), "should have dedicated cards container");
+    assert.ok(html.includes("function refreshBacklogCards()"), "should support cards-only refresh");
+  });
+
+  it("preserves backlog form state across board re-renders", () => {
+    assert.ok(html.includes("function getBacklogFormState()"), "should capture form state before rerender");
+    assert.ok(html.includes("function restoreBacklogFormState(state)"), "should restore form state after rerender");
+    assert.ok(html.includes("restoreBacklogFormState(formState);"), "should restore state in board rendering paths");
+  });
+
+  it("auto-refresh updates backlog data without dropping form handling", () => {
+    assert.ok(html.includes("refreshBacklogCards();"), "interval should refresh cards list");
+    assert.ok(html.includes("setInterval(async () =>"), "should use periodic auto-refresh");
+
+    const intervalBody = html.match(/setInterval\(async \(\) => \{([\s\S]*?)\}, 30000\);/);
+    assert.ok(intervalBody, "should define a 30s refresh interval");
+    assert.ok(!intervalBody[1].includes("refreshBoard()"), "interval should not rebuild the board when no workflow is selected");
+  });
+});
