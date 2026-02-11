@@ -441,7 +441,7 @@ async function loadStories(runId) {
 
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();
-setInterval(async () => { await loadBacklog(); if (currentWf) loadRuns(); else refreshBoard(); }, 30000);
+setInterval(async () => { if (currentWf) loadRuns(); }, 30000);
 </script>
 </body>
 </html>

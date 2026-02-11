@@ -65,3 +65,18 @@ Started: 2026-02-11T03:07:00
 - Files changed: tests/backlog-cli.test.ts
 - **Learnings:** CLI tests that shell out to `node <cli.js>` need path detection for compiled vs tsx execution contexts
 ---
+
+## 2026-02-11 03:57 - S5: Dashboard UI - Backlog item actions (edit, delete, dispatch, reorder)
+- Added click-to-open detail panel for backlog cards with editable title, description, workflow selector
+- Save button calls PATCH /api/backlog/:id, Delete button with confirm() calls DELETE
+- Dispatch button in panel calls POST /api/backlog/:id/dispatch (disabled when no workflow)
+- Up/down arrow reorder buttons on cards call POST /api/backlog/:id/reorder
+- Dispatched items show strikethrough title, reduced opacity, green left border
+- Dispatched items have "View dispatched run" link in detail panel
+- Detail panel disables all fields for dispatched items
+- Created tests/backlog-actions.test.ts with 28 tests covering all new UI interactions
+- Updated tests/backlog-dashboard.test.ts to match refactored dispatch logic
+- All 88 tests passing (28 actions + 21 dashboard + 16 API + 12 CRUD + 11 CLI)
+- Files changed: src/server/index.html, tests/backlog-actions.test.ts, tests/backlog-dashboard.test.ts
+- **Learnings:** Reusing the existing overlay/panel pattern from run details works well for backlog detail panels; event.stopPropagation() needed on nested buttons to prevent card click handler
+---
