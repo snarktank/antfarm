@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb } from "../db.js";
 import { resolveBundledWorkflowsDir } from "../installer/paths.js";
+import { runWorkflow } from "../installer/run.js";
+import { getItems, createItem, updateItem, deleteItem, reorderItem } from "../backlog.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
@@ -54,6 +56,15 @@ function getRunById(id: string): (RunInfo & { steps: StepInfo[] }) | null {
   return { ...run, steps };
 }
 
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString()));
+    req.on("error", reject);
+  });
+}
+
 function json(res: http.ServerResponse, data: unknown, status = 200) {
   res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
   res.end(JSON.stringify(data));
@@ -69,9 +80,90 @@ function serveHTML(res: http.ServerResponse) {
 }
 
 export function startDashboard(port = 3333): http.Server {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
+    const method = req.method ?? "GET";
+
+    // CORS preflight
+    if (method === "OPTIONS") {
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      });
+      return res.end();
+    }
+
+    // --- Backlog API ---
+    try {
+      if (p === "/api/backlog" && method === "GET") {
+        return json(res, getItems());
+      }
+
+      if (p === "/api/backlog" && method === "POST") {
+        const body = JSON.parse(await readBody(req));
+        if (!body.title || typeof body.title !== "string") {
+          return json(res, { error: "title is required" }, 400);
+        }
+        const item = createItem(body.title, body.description ?? "", undefined);
+        if (body.target_workflow) {
+          updateItem(item.id, { target_workflow: body.target_workflow });
+          item.target_workflow = body.target_workflow;
+        }
+        return json(res, item, 201);
+      }
+
+      const backlogIdMatch = p.match(/^\/api\/backlog\/([^/]+)$/);
+
+      if (backlogIdMatch && method === "PATCH") {
+        const body = JSON.parse(await readBody(req));
+        const updated = updateItem(backlogIdMatch[1], body);
+        if (!updated) return json(res, { error: "not found" }, 404);
+        return json(res, updated);
+      }
+
+      if (backlogIdMatch && method === "DELETE") {
+        const deleted = deleteItem(backlogIdMatch[1]);
+        if (!deleted) return json(res, { error: "not found" }, 404);
+        return json(res, { ok: true });
+      }
+
+      const reorderMatch = p.match(/^\/api\/backlog\/([^/]+)\/reorder$/);
+      if (reorderMatch && method === "POST") {
+        const body = JSON.parse(await readBody(req));
+        if (typeof body.priority !== "number") {
+          return json(res, { error: "priority must be a number" }, 400);
+        }
+        const reordered = reorderItem(reorderMatch[1], body.priority);
+        if (!reordered) return json(res, { error: "not found" }, 404);
+        return json(res, reordered);
+      }
+
+      const dispatchMatch = p.match(/^\/api\/backlog\/([^/]+)\/dispatch$/);
+      if (dispatchMatch && method === "POST") {
+        const items = getItems();
+        const item = items.find(i => i.id === dispatchMatch[1]);
+        if (!item) return json(res, { error: "not found" }, 404);
+        if (!item.target_workflow) {
+          return json(res, { error: "target_workflow is not set" }, 400);
+        }
+        // Validate workflow exists
+        const workflows = loadWorkflows();
+        if (!workflows.find(w => w.id === item.target_workflow)) {
+          return json(res, { error: "invalid workflow: " + item.target_workflow }, 400);
+        }
+        const run = await runWorkflow({ workflowId: item.target_workflow, taskTitle: item.title });
+        updateItem(item.id, { status: "dispatched" });
+        return json(res, { ok: true, run_id: run.id, status: "dispatched" });
+      }
+    } catch (err: unknown) {
+      if (err instanceof SyntaxError) {
+        return json(res, { error: "invalid JSON" }, 400);
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      return json(res, { error: msg }, 500);
+    }
 
     if (p === "/api/workflows") {
       return json(res, loadWorkflows());

@@ -1,0 +1,35 @@
+# Progress Log
+Run: cb386bdd-d5ae-4598-a622-187d6ec543e6
+Task: Build a backlog column for antfarm
+Started: 2026-02-11T03:07:00
+
+## Codebase Patterns
+- DB uses `node:sqlite` DatabaseSync (synchronous), not async
+- Cast DB results through `unknown`: `.get() as unknown as Type`
+- All tables created in `migrate()` in `src/db.ts`
+- DB path overridable via `ANTFARM_DB_PATH` env var (useful for tests)
+- Tests: `node:test` with `node:assert/strict`, compile with `tsconfig.test.json`, run with `ANTFARM_DB_PATH=/tmp/test.db node --test dist/tests/*.test.js`
+- Main build: `npm run build` (tsc with rootDir=src)
+- Test build needs separate tsconfig.test.json (rootDir=. to include tests/)
+
+---
+
+## 2026-02-11 03:07 - S1: Backlog DB schema and CRUD operations
+- Added `backlog_items` table to migrate() in db.ts
+- Created src/backlog.ts with createItem, getItems, updateItem, deleteItem, reorderItem
+- Added ANTFARM_DB_PATH env var support to db.ts for testability
+- Created tests/backlog.test.ts with 12 tests covering all CRUD ops
+- Created tsconfig.test.json for compiling tests
+- Files changed: src/db.ts, src/backlog.ts, tests/backlog.test.ts, tsconfig.test.json
+- **Learnings:** ESM modules need separate tsconfig for tests due to rootDir constraint; DB result casting requires `unknown` intermediate for strict TS
+---
+
+## 2026-02-11 03:17 - S2: Backlog REST API endpoints
+- Added REST API routes to dashboard.ts: GET/POST /api/backlog, PATCH/DELETE /api/backlog/:id, POST reorder & dispatch
+- Dispatch validates target_workflow is set and exists in loaded workflows, calls runWorkflow, updates status
+- Made server handler async to support body parsing
+- Added readBody helper, CORS preflight handling
+- Created tests/backlog-api.test.ts with 16 tests covering all endpoints, error cases, and edge cases
+- Files changed: src/server/dashboard.ts, tests/backlog-api.test.ts, .gitignore
+- **Learnings:** Dashboard server handler can be async with http.createServer; body parsing needs manual implementation (no express)
+---
