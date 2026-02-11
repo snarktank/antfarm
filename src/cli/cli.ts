@@ -8,6 +8,7 @@ import { readRecentLogs } from "../lib/logger.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
+import { createItem, getItems, updateItem, deleteItem, reorderItem, type BacklogItem } from "../backlog.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -50,12 +51,117 @@ function printUsage() {
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "antfarm step stories <run-id>       List stories for a run",
       "",
+      "antfarm backlog list                 List backlog items in priority order",
+      "antfarm backlog add <title>          Add item (--workflow <name>, --desc <text>)",
+      "antfarm backlog update <id>          Update item (--title, --desc, --workflow)",
+      "antfarm backlog delete <id>          Delete a backlog item",
+      "antfarm backlog dispatch <id>        Dispatch item to its target workflow",
+      "antfarm backlog reorder <id> <pos>   Move item to new priority position",
+      "",
       "antfarm logs [<lines>]               Show recent log entries",
       "",
       "antfarm version                      Show installed version",
       "antfarm update                       Pull latest, rebuild, and reinstall workflows",
     ].join("\n") + "\n",
   );
+}
+
+function resolveItemId(prefix: string | undefined): string | undefined {
+  if (!prefix) return undefined;
+  const items = getItems();
+  const match = items.find((i) => i.id === prefix || i.id.startsWith(prefix));
+  return match?.id ?? prefix;
+}
+
+function getFlag(args: string[], flag: string): string | undefined {
+  const idx = args.indexOf(flag);
+  if (idx !== -1 && args[idx + 1]) return args[idx + 1];
+  return undefined;
+}
+
+async function handleBacklog(args: string[]) {
+  const [action, ...rest] = args;
+
+  if (action === "list" || !action) {
+    const items = getItems();
+    if (items.length === 0) { console.log("No backlog items."); return; }
+    for (const item of items) {
+      const workflow = item.target_workflow ?? "-";
+      console.log(`${item.id.slice(0, 8)}  #${item.priority}  [${item.status.padEnd(10)}]  ${workflow.padEnd(16)}  ${item.title}`);
+    }
+    return;
+  }
+
+  if (action === "add") {
+    const titleParts: string[] = [];
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] === "--workflow" || rest[i] === "--desc") { i++; continue; }
+      titleParts.push(rest[i]);
+    }
+    const title = titleParts.join(" ").trim();
+    if (!title) { process.stderr.write("Missing title.\n"); process.exit(1); }
+    const workflow = getFlag(rest, "--workflow");
+    const desc = getFlag(rest, "--desc") ?? "";
+    const item = createItem(title, desc);
+    if (workflow) {
+      updateItem(item.id, { target_workflow: workflow });
+    }
+    console.log(`Created: ${item.id.slice(0, 8)} "${item.title}"`);
+    return;
+  }
+
+  if (action === "update") {
+    const id = resolveItemId(rest[0]);
+    if (!id) { process.stderr.write("Missing item id.\n"); process.exit(1); }
+    const updates: Partial<Pick<BacklogItem, "title" | "description" | "target_workflow">> = {};
+    const title = getFlag(rest, "--title");
+    const desc = getFlag(rest, "--desc");
+    const workflow = getFlag(rest, "--workflow");
+    if (title !== undefined) updates.title = title;
+    if (desc !== undefined) updates.description = desc;
+    if (workflow !== undefined) updates.target_workflow = workflow;
+    const result = updateItem(id, updates);
+    if (!result) { process.stderr.write(`Item not found: ${rest[0]}\n`); process.exit(1); }
+    console.log(`Updated: ${result.id.slice(0, 8)} "${result.title}"`);
+    return;
+  }
+
+  if (action === "delete") {
+    const id = resolveItemId(rest[0]);
+    if (!id) { process.stderr.write("Missing item id.\n"); process.exit(1); }
+    const ok = deleteItem(id);
+    if (!ok) { process.stderr.write(`Item not found: ${rest[0]}\n`); process.exit(1); }
+    console.log(`Deleted: ${id.slice(0, 8)}`);
+    return;
+  }
+
+  if (action === "dispatch") {
+    const id = rest[0];
+    if (!id) { process.stderr.write("Missing item id.\n"); process.exit(1); }
+    const items = getItems();
+    const item = items.find((i) => i.id === id || i.id.startsWith(id));
+    if (!item) { process.stderr.write(`Item not found: ${id}\n`); process.exit(1); }
+    if (!item.target_workflow) { process.stderr.write(`No target workflow set for item ${id.slice(0, 8)}. Use --workflow to set one.\n`); process.exit(1); }
+    const run = await runWorkflow({ workflowId: item.target_workflow, taskTitle: item.title + (item.description ? "\n\n" + item.description : "") });
+    updateItem(item.id, { status: "dispatched" });
+    console.log(`Dispatched: ${item.id.slice(0, 8)} → ${item.target_workflow} (run ${run.id.slice(0, 8)})`);
+    return;
+  }
+
+  if (action === "reorder") {
+    const id = resolveItemId(rest[0]);
+    if (!id) { process.stderr.write("Missing item id.\n"); process.exit(1); }
+    const pos = parseInt(rest[1], 10);
+    if (isNaN(pos)) { process.stderr.write("Missing or invalid position.\n"); process.exit(1); }
+    const result = reorderItem(id, pos);
+    if (!result) { process.stderr.write(`Item not found: ${rest[0]}\n`); process.exit(1); }
+    console.log(`Reordered: ${result.id.slice(0, 8)} → position ${pos}`);
+    return;
+  }
+
+  process.stderr.write(`Unknown backlog action: ${action}\n`);
+  printUsage();
+  process.exit(1);
 }
 
 async function main() {
@@ -245,6 +351,11 @@ async function main() {
     process.stderr.write(`Unknown step action: ${action}\n`);
     printUsage();
     process.exit(1);
+  }
+
+  if (group === "backlog") {
+    await handleBacklog(args.slice(1));
+    return;
   }
 
   if (group === "logs") {
