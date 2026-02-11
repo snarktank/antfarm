@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.2.2 — 2026-02-11
+
+### Fixed
+- Prevented mixed timestamp formats from triggering false abandoned-step cleanups
+- Guarded pipeline completion when steps or stories are failed/pending
+
+### Added
+- Per-agent timeout override for cron sessions via workflow agent `timeoutSeconds`
+
+## v0.2.1 — 2026-02-11
+
+### Fixed
+- Hardened pipeline state transitions to avoid marking runs completed on partial failure
+
 ## v0.2.0 — 2026-02-09
 
 ### Fixed
