@@ -46,3 +46,14 @@ Started: 2026-02-11T03:07:00
 - Files changed: src/cli/cli.ts, tests/backlog-cli.test.ts
 - **Learnings:** CLI tests need to use compiled paths (dist/cli/cli.js from dist/tests/); prefix ID matching needs fallback to raw input for proper error messages
 ---
+
+## 2026-02-11 03:37 - S4: Dashboard UI - Backlog column
+- Added Backlog column as leftmost column in src/server/index.html
+- Backlog form: title input, description textarea, workflow dropdown, Add button
+- Cards show title, truncated desc (2-line clamp), workflow badge, status badge, dispatch button
+- JS functions: loadBacklog, renderBacklogColumn, addBacklogItem, dispatchBacklog, refreshBoard
+- Backlog auto-refreshes with 30s interval alongside workflow runs
+- Created tests/backlog-dashboard.test.ts with 21 tests (HTML structure parsing, no server needed)
+- Files changed: src/server/index.html, tests/backlog-dashboard.test.ts
+- **Learnings:** Testing server-rendered HTML by reading the file directly avoids server lifecycle issues with node:test; resolve paths carefully when tests run from dist/
+---
