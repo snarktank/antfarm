@@ -6,7 +6,7 @@
 <title>Antfarm Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono&display=swap" rel="stylesheet">
 <style>
 /* ── Theme tokens ──────────────────────────────────────────────── */
 :root {
@@ -149,7 +149,7 @@ select option{background:var(--header-select-bg);color:#fff}
 select:focus{outline:none;border-color:#8ECFC0}
 
 /* ── Theme toggle ─────────────────────────────────────────────── */
-.theme-toggle{background:none;border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;cursor:pointer;padding:5px 8px;font-size:16px;line-height:1;transition:border-color .15s}
+.theme-toggle{background:none;border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;cursor:pointer;padding:5px 8px;font-size:var(--text-lg);line-height:1;transition:border-color .15s}
 .theme-toggle:hover{border-color:rgba(255,255,255,.5)}
 
 /* ── Board ─────────────────────────────────────────────────────── */
@@ -162,8 +162,8 @@ select:focus{outline:none;border-color:#8ECFC0}
 /* ── Cards ─────────────────────────────────────────────────────── */
 .card{background:var(--bg-surface-alt);border:1px solid var(--border);border-radius:6px;padding:var(--space-md);cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .card:hover{border-color:var(--accent-orange);box-shadow:0 2px 8px var(--accent-orange-subtle)}
-.card-title{font-size:var(--text-base);line-height:var(--leading-tight);font-weight:var(--font-medium);color:var(--text-primary);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-meta{font-size:var(--text-sm);color:var(--text-secondary);display:flex;justify-content:space-between;align-items:center}
+.card-title{font-size:var(--text-base);line-height:var(--leading-tight);font-weight:var(--font-medium);color:var(--text-primary);margin-bottom:6px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;text-overflow:ellipsis}
+.card-meta{font-size:var(--text-sm);color:var(--text-secondary);display:flex;justify-content:space-between;align-items:center;gap:var(--space-sm)}
 .card.done{border-left:3px solid var(--accent-green)}
 .card.failed,.card.error{border-left:3px solid var(--accent-orange)}
 
@@ -181,7 +181,7 @@ select:focus{outline:none;border-color:#8ECFC0}
 /* ── Steps ─────────────────────────────────────────────────────── */
 .steps-list{display:flex;flex-direction:column;gap:8px}
 .step-row{display:flex;align-items:center;gap:var(--space-md);padding:var(--space-md);background:var(--bg-surface-alt);border:1px solid var(--border);border-radius:6px}
-.step-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.step-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--text-sm);flex-shrink:0}
 .step-icon.done{background:var(--accent-green-subtle);color:var(--accent-green)}
 .step-icon.running{background:var(--accent-teal-subtle);color:var(--accent-teal)}
 .step-icon.pending{background:var(--accent-muted);color:var(--text-secondary)}
@@ -189,7 +189,7 @@ select:focus{outline:none;border-color:#8ECFC0}
 .step-icon.failed,.step-icon.error{background:var(--accent-orange-subtle);color:var(--accent-orange)}
 .step-name{font-size:var(--text-base);font-weight:var(--font-medium);color:var(--text-primary);flex:1}
 .step-agent{font-size:var(--text-sm);color:var(--text-secondary);font-family:'Geist Mono',monospace}
-.step-status{font-size:11px;text-transform:uppercase;font-weight:var(--font-semibold)}
+.step-status{font-size:var(--text-xs);text-transform:uppercase;font-weight:var(--font-semibold)}
 
 /* ── Badges ────────────────────────────────────────────────────── */
 .badge{font-size:var(--text-xs);font-weight:var(--font-semibold);padding:2px 6px;border-radius:4px;text-transform:uppercase}
