@@ -203,13 +203,13 @@ const ABANDONED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
  */
 function cleanupAbandonedSteps(): void {
   const db = getDb();
-  // Use SQLite datetime() to normalize both sides — handles mixed T/space formats in updated_at
-  const cutoffSec = Math.floor(ABANDONED_THRESHOLD_MS / 1000);
+  // Use numeric comparison so mixed timestamp formats don't break ordering.
+  const thresholdMs = ABANDONED_THRESHOLD_MS;
 
   // Find running steps that haven't been updated recently
   const abandonedSteps = db.prepare(
-    "SELECT id, step_id, run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE status = 'running' AND datetime(updated_at) < datetime('now', ?)"
-  ).all(`-${cutoffSec} seconds`) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null }[];
+    "SELECT id, step_id, run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE status = 'running' AND (julianday('now') - julianday(updated_at)) * 86400000 > ?"
+  ).all(thresholdMs) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null }[];
 
   for (const step of abandonedSteps) {
     // Loop steps: apply per-story retry, not per-step retry (#35)
@@ -266,8 +266,8 @@ function cleanupAbandonedSteps(): void {
 
   // Also reset any running stories that are abandoned
   const abandonedStories = db.prepare(
-    "SELECT id, retry_count, max_retries, run_id FROM stories WHERE status = 'running' AND datetime(updated_at) < datetime('now', ?)"
-  ).all(`-${cutoffSec} seconds`) as { id: string; retry_count: number; max_retries: number; run_id: string }[];
+    "SELECT id, retry_count, max_retries, run_id FROM stories WHERE status = 'running' AND (julianday('now') - julianday(updated_at)) * 86400000 > ?"
+  ).all(thresholdMs) as { id: string; retry_count: number; max_retries: number; run_id: string }[];
 
   for (const story of abandonedStories) {
     const newRetry = story.retry_count + 1;
@@ -321,6 +321,14 @@ export function claimStep(agentId: string): ClaimResult {
       ).get(step.run_id) as any | undefined;
 
       if (!nextStory) {
+        const failedStory = db.prepare(
+          "SELECT id FROM stories WHERE run_id = ? AND status = 'failed' LIMIT 1"
+        ).get(step.run_id) as { id: string } | undefined;
+
+        if (failedStory) {
+          return { found: false };
+        }
+
         // No more stories — mark step done and advance
         db.prepare(
           "UPDATE steps SET status = 'done', updated_at = datetime('now') WHERE id = ?"
@@ -575,7 +583,23 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
     "SELECT id FROM stories WHERE run_id = ? AND status = 'pending' LIMIT 1"
   ).get(runId) as { id: string } | undefined;
 
+  const failedStory = db.prepare(
+    "SELECT id FROM stories WHERE run_id = ? AND status = 'failed' LIMIT 1"
+  ).get(runId) as { id: string } | undefined;
+
+  const loopStatus = db.prepare(
+    "SELECT status FROM steps WHERE id = ?"
+  ).get(loopStepId) as { status: string } | undefined;
+
+  if (failedStory) {
+    // Failed stories remain; keep current step status (likely failed) and avoid advancing.
+    return { advanced: false, runCompleted: false };
+  }
+
   if (pendingStory) {
+    if (loopStatus?.status === "failed") {
+      return { advanced: false, runCompleted: false };
+    }
     // More stories — loop step back to pending
     db.prepare(
       "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
@@ -617,6 +641,14 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
   const next = db.prepare(
     "SELECT id FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
   ).get(runId) as { id: string } | undefined;
+
+  const incomplete = db.prepare(
+    "SELECT id FROM steps WHERE run_id = ? AND status IN ('failed', 'pending', 'running') LIMIT 1"
+  ).get(runId) as { id: string } | undefined;
+
+  if (!next && incomplete) {
+    return { advanced: false, runCompleted: false };
+  }
 
   const wfId = getWorkflowId(runId);
   if (next) {
