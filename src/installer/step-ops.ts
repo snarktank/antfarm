@@ -203,12 +203,13 @@ const ABANDONED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
  */
 function cleanupAbandonedSteps(): void {
   const db = getDb();
-  const cutoff = new Date(Date.now() - ABANDONED_THRESHOLD_MS).toISOString();
+  // Use SQLite datetime() to normalize both sides — handles mixed T/space formats in updated_at
+  const cutoffSec = Math.floor(ABANDONED_THRESHOLD_MS / 1000);
 
   // Find running steps that haven't been updated recently
   const abandonedSteps = db.prepare(
-    "SELECT id, step_id, run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE status = 'running' AND updated_at < ?"
-  ).all(cutoff) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null }[];
+    "SELECT id, step_id, run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE status = 'running' AND datetime(updated_at) < datetime('now', ?)"
+  ).all(`-${cutoffSec} seconds`) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null }[];
 
   for (const step of abandonedSteps) {
     // Loop steps: apply per-story retry, not per-step retry (#35)
@@ -265,8 +266,8 @@ function cleanupAbandonedSteps(): void {
 
   // Also reset any running stories that are abandoned
   const abandonedStories = db.prepare(
-    "SELECT id, retry_count, max_retries, run_id FROM stories WHERE status = 'running' AND updated_at < ?"
-  ).all(cutoff) as { id: string; retry_count: number; max_retries: number; run_id: string }[];
+    "SELECT id, retry_count, max_retries, run_id FROM stories WHERE status = 'running' AND datetime(updated_at) < datetime('now', ?)"
+  ).all(`-${cutoffSec} seconds`) as { id: string; retry_count: number; max_retries: number; run_id: string }[];
 
   for (const story of abandonedStories) {
     const newRetry = story.retry_count + 1;
