@@ -9,10 +9,41 @@ import { addSubagentAllowlist } from "./subagent-allowlist.js";
 import { installAntfarmSkill } from "./skill-install.js";
 import type { AgentRole, WorkflowInstallResult, WorkflowSpec } from "./types.js";
 
-function ensureAgentList(config: { agents?: { list?: Array<Record<string, unknown>> } }) {
+function ensureAgentList(config: { agents?: { list?: Array<Record<string, unknown>>; defaults?: Record<string, unknown> } }) {
   if (!config.agents) config.agents = {};
   if (!Array.isArray(config.agents.list)) config.agents.list = [];
   return config.agents.list;
+}
+
+/**
+ * Ensure the user's main agent is explicitly in the list with `default: true`.
+ * Without this, adding workflow agents to an empty list makes the first workflow
+ * agent the default — hijacking the user's main session (issue #41).
+ */
+function ensureMainAgentInList(
+  list: Array<Record<string, unknown>>,
+  config: { agents?: { defaults?: Record<string, unknown> } },
+) {
+  // If any entry already has default: true, the user has configured routing — don't touch it
+  if (list.some((entry) => entry.default === true)) return;
+
+  // If "main" agent already exists in the list, just mark it as default
+  const existing = list.find((entry) => entry.id === "main");
+  if (existing) {
+    existing.default = true;
+    return;
+  }
+
+  // Main agent isn't in the list — add a minimal entry so it stays the default.
+  // Respect workspace from agents.defaults if set; otherwise use the standard path.
+  const workspace = (config.agents?.defaults as Record<string, unknown>)?.workspace as string | undefined;
+  const entry: Record<string, unknown> = {
+    id: "main",
+    name: "Main",
+    default: true,
+  };
+  if (workspace) entry.workspace = workspace;
+  list.unshift(entry);
 }
 
 // ── Shared deny list: things no workflow agent should ever touch ──
@@ -158,6 +189,7 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
 
   const { path: configPath, config } = await readOpenClawConfig();
   const list = ensureAgentList(config);
+  ensureMainAgentInList(list, config);
   addSubagentAllowlist(config, provisioned.map((a) => a.id));
   for (const agent of provisioned) {
     // Extract the local agent id (after the workflow prefix slash)
