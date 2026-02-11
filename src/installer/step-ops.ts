@@ -7,6 +7,7 @@ import crypto from "node:crypto";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
+import { getMaxRoleTimeoutSeconds } from "./install.js";
 
 /**
  * Fire-and-forget cron teardown when a run ends.
@@ -195,7 +196,7 @@ function parseAndInsertStories(output: string, runId: string): void {
 
 // ── Abandoned Step Cleanup ──────────────────────────────────────────
 
-const ABANDONED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+const ABANDONED_THRESHOLD_MS = (getMaxRoleTimeoutSeconds() + 5 * 60) * 1000; // max role timeout + 5 min buffer
 
 /**
  * Find steps that have been "running" for too long and reset them to pending.
