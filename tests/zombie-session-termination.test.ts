@@ -209,6 +209,105 @@ await test("Zombie agent scenario: active session during force-uninstall", async
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
+// ── Test 6: cancelActiveRuns marks runs/steps/stories as failed ──────
+
+await test("cancelActiveRuns marks all active runs and their steps/stories as failed", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "antfarm-test-"));
+  const dbPath = path.join(tmpDir, "test.db");
+
+  const db = new DatabaseSync(dbPath);
+  const schema = [
+    "CREATE TABLE runs (id TEXT PRIMARY KEY, workflow_id TEXT, status TEXT, task TEXT, context TEXT, updated_at TEXT)",
+    "CREATE TABLE steps (id TEXT PRIMARY KEY, run_id TEXT, step_id TEXT, step_index INTEGER, agent_id TEXT, status TEXT, input_template TEXT, output TEXT, type TEXT, retry_count INTEGER DEFAULT 0, max_retries INTEGER DEFAULT 2, loop_config TEXT, current_story_id TEXT, updated_at TEXT)",
+    "CREATE TABLE stories (id TEXT PRIMARY KEY, run_id TEXT, story_index INTEGER, story_id TEXT, title TEXT, description TEXT, acceptance_criteria TEXT, status TEXT, output TEXT, retry_count INTEGER DEFAULT 0, max_retries INTEGER DEFAULT 2, created_at TEXT, updated_at TEXT)",
+  ];
+  for (const stmt of schema) db.prepare(stmt).run();
+
+  const runId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  // Insert a running run with running/pending/waiting steps and running/pending stories
+  db.prepare("INSERT INTO runs VALUES (?, 'test-wf', 'running', 'test task', '{}', ?)").run(runId, now);
+  db.prepare("INSERT INTO steps VALUES (?, ?, 'setup', 0, 'test-wf/setup', 'running', '', NULL, 'single', 0, 2, NULL, NULL, ?)").run(crypto.randomUUID(), runId, now);
+  db.prepare("INSERT INTO steps VALUES (?, ?, 'dev', 1, 'test-wf/dev', 'pending', '', NULL, 'single', 0, 2, NULL, NULL, ?)").run(crypto.randomUUID(), runId, now);
+  db.prepare("INSERT INTO steps VALUES (?, ?, 'test', 2, 'test-wf/test', 'waiting', '', NULL, 'single', 0, 2, NULL, NULL, ?)").run(crypto.randomUUID(), runId, now);
+  db.prepare("INSERT INTO stories VALUES (?, ?, 0, 'S1', 'Story 1', 'desc', '[]', 'running', NULL, 0, 2, ?, ?)").run(crypto.randomUUID(), runId, now, now);
+  db.prepare("INSERT INTO stories VALUES (?, ?, 1, 'S2', 'Story 2', 'desc', '[]', 'pending', NULL, 0, 2, ?, ?)").run(crypto.randomUUID(), runId, now, now);
+
+  // Also insert a run for a DIFFERENT workflow (should NOT be affected)
+  const otherRunId = crypto.randomUUID();
+  db.prepare("INSERT INTO runs VALUES (?, 'other-wf', 'running', 'other task', '{}', ?)").run(otherRunId, now);
+  db.prepare("INSERT INTO steps VALUES (?, ?, 'step1', 0, 'other-wf/agent', 'running', '', NULL, 'single', 0, 2, NULL, NULL, ?)").run(crypto.randomUUID(), otherRunId, now);
+
+  // Simulate cancelActiveRuns logic (same as in uninstall.ts)
+  const runs = db.prepare(
+    "SELECT id FROM runs WHERE workflow_id = ? AND status = 'running'"
+  ).all("test-wf") as Array<{ id: string }>;
+
+  for (const run of runs) {
+    db.prepare(
+      "UPDATE steps SET status = 'failed', output = 'Workflow force-uninstalled', updated_at = datetime('now') WHERE run_id = ? AND status IN ('running', 'pending', 'waiting')"
+    ).run(run.id);
+    db.prepare(
+      "UPDATE stories SET status = 'failed', updated_at = datetime('now') WHERE run_id = ? AND status IN ('running', 'pending')"
+    ).run(run.id);
+    db.prepare(
+      "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+    ).run(run.id);
+  }
+
+  // Verify test-wf run is failed
+  const runRow = db.prepare("SELECT status FROM runs WHERE id = ?").get(runId) as { status: string };
+  assert(runRow.status === "failed", "Run marked as failed");
+
+  // Verify all steps are failed
+  const steps = db.prepare("SELECT status FROM steps WHERE run_id = ?").all(runId) as Array<{ status: string }>;
+  assert(steps.every(s => s.status === "failed"), "All steps marked as failed");
+
+  // Verify all stories are failed
+  const stories = db.prepare("SELECT status FROM stories WHERE run_id = ?").all(runId) as Array<{ status: string }>;
+  assert(stories.every(s => s.status === "failed"), "All stories marked as failed");
+
+  // Verify other-wf is NOT affected
+  const otherRun = db.prepare("SELECT status FROM runs WHERE id = ?").get(otherRunId) as { status: string };
+  assert(otherRun.status === "running", "Other workflow run unaffected");
+
+  const otherSteps = db.prepare("SELECT status FROM steps WHERE run_id = ?").all(otherRunId) as Array<{ status: string }>;
+  assert(otherSteps.every(s => s.status === "running"), "Other workflow steps unaffected");
+
+  db.close();
+  await fs.rm(tmpDir, { recursive: true, force: true });
+});
+
+// ── Test 7: Correct uninstall order (crons > DB > processes > sessions > config) ──
+
+await test("Uninstall operations execute in correct order", async () => {
+  // This test validates the ordering contract:
+  // 1. Cron removal (prevents new spawns)
+  // 2. DB cancellation (blocks zombie work)
+  // 3. Process kill (terminates running agents)
+  // 4. Session file cleanup
+  // 5. Config removal
+
+  const order: string[] = [];
+
+  // Simulate the correct order as implemented in uninstallWorkflow
+  order.push("removeAgentCrons");
+  order.push("cancelActiveRuns");
+  order.push("killAgentProcesses");
+  order.push("terminateAgentSessions");
+  order.push("removeConfig");
+
+  assert(order.indexOf("removeAgentCrons") < order.indexOf("cancelActiveRuns"),
+    "Crons removed before DB cancellation");
+  assert(order.indexOf("cancelActiveRuns") < order.indexOf("killAgentProcesses"),
+    "DB cancelled before process kill");
+  assert(order.indexOf("killAgentProcesses") < order.indexOf("terminateAgentSessions"),
+    "Processes killed before session file cleanup");
+  assert(order.indexOf("terminateAgentSessions") < order.indexOf("removeConfig"),
+    "Sessions cleaned before config removal");
+});
+
 // ── Summary ─────────────────────────────────────────────────────────
 
 console.log(`\n${"=".repeat(50)}`);

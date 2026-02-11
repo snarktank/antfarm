@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { execSync } from "node:child_process";
+import os from "node:os";
+import { execSync, execFileSync } from "node:child_process";
 import { readOpenClawConfig, writeOpenClawConfig } from "./openclaw-config.js";
 import { removeMainAgentGuidance } from "./main-agent-guidance.js";
 import {
@@ -53,26 +54,113 @@ function getActiveRuns(workflowId?: string): Array<{ id: string; workflow_id: st
 /**
  * Terminate active agent sessions for a workflow by deleting session files.
  * This prevents zombie agents from continuing work after uninstall.
- * Related GitHub issue: Zombie agents from force-uninstalled workflows
+ * 
+ * Scans the filesystem for agent directories (workflow-id-agent-name pattern) rather than relying on 
+ * config.agents.list, because the config may have been partially cleaned by a previous failed uninstall.
+ * 
+ * Related GitHub issue: Zombie agents from force-uninstalled workflows (#45, #40)
  */
-async function terminateAgentSessions(workflowId: string, agentList: Array<Record<string, unknown>>): Promise<void> {
-  const prefix = `${workflowId}/`;
-  const agentsToTerminate = agentList.filter((entry) => {
-    const id = typeof entry.id === "string" ? entry.id : "";
-    return id.startsWith(prefix);
-  });
+async function terminateAgentSessions(workflowId: string): Promise<void> {
+  const openclawHome = path.join(os.homedir(), ".openclaw");
+  const agentsRoot = path.join(openclawHome, "agents");
+  
+  if (!(await pathExists(agentsRoot))) {
+    return; // No agents directory at all
+  }
 
-  for (const agent of agentsToTerminate) {
-    const agentDir = typeof agent.agentDir === "string" ? agent.agentDir : "";
-    if (!agentDir) continue;
+  const entries = await fs.readdir(agentsRoot, { withFileTypes: true });
+  const prefix = `${workflowId}-`;
 
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (!entry.name.startsWith(prefix)) continue;
+
+    const agentDir = path.join(agentsRoot, entry.name);
     const sessionsDir = path.join(agentDir, "sessions");
+
     if (await pathExists(sessionsDir)) {
       try {
         await fs.rm(sessionsDir, { recursive: true, force: true });
-        console.log(`✓ Terminated sessions for agent: ${agent.id}`);
+        console.log(`✓ Terminated sessions for agent: ${entry.name}`);
       } catch (err) {
-        console.warn(`⚠ Failed to terminate sessions for ${agent.id}:`, err);
+        console.warn(`⚠ Failed to terminate sessions for ${entry.name}:`, err);
+      }
+    }
+  }
+}
+
+/**
+ * Cancel all active runs for a workflow in the database.
+ * This is the critical defense against zombie agents — even if processes survive,
+ * claimStep() and completeStep() both check run status and reject work for failed runs.
+ */
+function cancelActiveRuns(workflowId: string): void {
+  try {
+    const db = getDb();
+    const runs = db.prepare(
+      "SELECT id FROM runs WHERE workflow_id = ? AND status = 'running'"
+    ).all(workflowId) as Array<{ id: string }>;
+
+    for (const run of runs) {
+      db.prepare(
+        "UPDATE steps SET status = 'failed', output = 'Workflow force-uninstalled', updated_at = datetime('now') WHERE run_id = ? AND status IN ('running', 'pending', 'waiting')"
+      ).run(run.id);
+      db.prepare(
+        "UPDATE stories SET status = 'failed', updated_at = datetime('now') WHERE run_id = ? AND status IN ('running', 'pending')"
+      ).run(run.id);
+      db.prepare(
+        "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+      ).run(run.id);
+      console.log(`✓ Cancelled active run: ${run.id}`);
+    }
+  } catch {
+    // DB might not exist yet
+  }
+}
+
+/**
+ * Best-effort kill of running agent processes for a workflow.
+ * Uses fuser to find processes with open file handles in agent session directories,
+ * then sends SIGTERM. Falls back gracefully if fuser is unavailable.
+ */
+async function killAgentProcesses(workflowId: string): Promise<void> {
+  const openclawHome = path.join(os.homedir(), ".openclaw");
+  const agentsRoot = path.join(openclawHome, "agents");
+
+  if (!(await pathExists(agentsRoot))) return;
+
+  const entries = await fs.readdir(agentsRoot, { withFileTypes: true });
+  const prefix = `${workflowId}-`;
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (!entry.name.startsWith(prefix)) continue;
+
+    const sessionsDir = path.join(agentsRoot, entry.name, "sessions");
+    if (!(await pathExists(sessionsDir))) continue;
+
+    // Find PIDs with open files in the sessions directory via fuser (no shell)
+    let pids: number[] = [];
+    try {
+      const stdout = execFileSync("fuser", [sessionsDir], {
+        encoding: "utf-8",
+        timeout: 5000,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      pids = stdout.trim().split(/\s+/).filter(Boolean).map((s) => parseInt(s, 10)).filter((n) => !isNaN(n));
+    } catch (err: any) {
+      // fuser returns exit code 1 when no processes found, but may still have stdout
+      if (err?.stdout) {
+        pids = String(err.stdout).trim().split(/\s+/).filter(Boolean).map((s) => parseInt(s, 10)).filter((n) => !isNaN(n));
+      }
+    }
+
+    for (const pid of pids) {
+      try {
+        process.kill(pid, "SIGTERM");
+        console.log(`✓ Sent SIGTERM to process ${pid} (agent: ${entry.name})`);
+      } catch {
+        // Process may have already exited
       }
     }
   }
@@ -100,15 +188,23 @@ export async function uninstallWorkflow(params: {
   workflowId: string;
   removeGuidance?: boolean;
 }): Promise<WorkflowInstallResult> {
-  // Step 1: Read config and terminate agent sessions FIRST to prevent zombie agents
-  const { path: configPath, config } = await readOpenClawConfig();
-  const list = Array.isArray(config.agents?.list) ? config.agents?.list : [];
-  
-  // Terminate sessions before removing anything else
-  await terminateAgentSessions(params.workflowId, list);
-  
+  // Step 1: Remove cron jobs FIRST to prevent new agent sessions from spawning
+  await removeAgentCrons(params.workflowId);
+
+  // Step 2: Cancel all active runs in DB — blocks zombie agents from claiming/completing work
+  cancelActiveRuns(params.workflowId);
+
+  // Step 3: Kill running agent processes (best-effort via fuser/SIGTERM)
+  await killAgentProcesses(params.workflowId);
+
+  // Step 4: Clean up session files
+  await terminateAgentSessions(params.workflowId);
+
+  // Step 5: Remove agents from config
   const workflowDir = resolveWorkflowDir(params.workflowId);
   const workflowWorkspaceDir = resolveWorkflowWorkspaceDir(params.workflowId);
+  const { path: configPath, config } = await readOpenClawConfig();
+  const list = Array.isArray(config.agents?.list) ? config.agents?.list : [];
   const nextList = filterAgentList(list, params.workflowId);
   const removedAgents = list.filter((entry) => !nextList.includes(entry));
   if (config.agents) {
@@ -135,7 +231,6 @@ export async function uninstallWorkflow(params: {
   }
 
   removeRunRecords(params.workflowId);
-  await removeAgentCrons(params.workflowId);
 
   for (const entry of removedAgents) {
     const agentDir = typeof entry.agentDir === "string" ? entry.agentDir : "";
@@ -159,8 +254,44 @@ export async function uninstallWorkflow(params: {
 }
 
 export async function uninstallAllWorkflows(): Promise<void> {
+  // Step 1: Remove all cron jobs FIRST to prevent new agent spawns
+  await deleteAgentCronJobs("antfarm/");
+
+  // Step 2: Cancel all active runs in DB and kill processes for each workflow
   const { path: configPath, config } = await readOpenClawConfig();
   const list = Array.isArray(config.agents?.list) ? config.agents?.list : [];
+
+  // Collect unique workflow IDs from agent list
+  const workflowIds = new Set<string>();
+  for (const entry of list) {
+    const id = typeof entry.id === "string" ? entry.id : "";
+    const slashIdx = id.indexOf("/");
+    if (slashIdx > 0) {
+      workflowIds.add(id.slice(0, slashIdx));
+    }
+  }
+  for (const wfId of workflowIds) {
+    cancelActiveRuns(wfId);
+    await killAgentProcesses(wfId);
+  }
+
+  // Step 3: Clean up session files for all workflows
+  const openclawHome = path.join(os.homedir(), ".openclaw");
+  const agentsRoot = path.join(openclawHome, "agents");
+  if (await pathExists(agentsRoot)) {
+    const agentEntries = await fs.readdir(agentsRoot, { withFileTypes: true });
+    for (const ae of agentEntries) {
+      if (!ae.isDirectory()) continue;
+      const sessionsDir = path.join(agentsRoot, ae.name, "sessions");
+      if (await pathExists(sessionsDir)) {
+        try {
+          await fs.rm(sessionsDir, { recursive: true, force: true });
+        } catch { /* best-effort */ }
+      }
+    }
+  }
+
+  // Step 4: Remove agents from config
   const removedAgents = list.filter((entry) => {
     const id = typeof entry.id === "string" ? entry.id : "";
     return id.includes("/");
@@ -178,9 +309,6 @@ export async function uninstallAllWorkflows(): Promise<void> {
 
   await removeMainAgentGuidance();
   await uninstallAntfarmSkill();
-
-  // Remove all antfarm cron jobs
-  await deleteAgentCronJobs("antfarm/");
 
   const workflowRoot = resolveWorkflowRoot();
   if (await pathExists(workflowRoot)) {
