@@ -57,6 +57,24 @@ select:focus{outline:none;border-color:#8ECFC0}
 .card.failed,.card.error{border-left:3px solid #E8845C}
 .empty{color:#8b8072;font-size:12px;text-align:center;padding:24px 8px}
 .refresh-note{color:rgba(255,255,255,.6);font-size:11px;margin-left:auto}
+.backlog-col{min-width:280px;max-width:320px;flex:0 0 280px}
+.backlog-form{padding:12px;border-bottom:1px solid #eee;display:flex;flex-direction:column;gap:8px}
+.backlog-form input,.backlog-form textarea,.backlog-form select{font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid #D4C4A0;border-radius:6px;background:#FAF8F5;color:#3A3226;resize:vertical}
+.backlog-form input:focus,.backlog-form textarea:focus,.backlog-form select:focus{outline:none;border-color:#6B7F3B}
+.backlog-form textarea{min-height:48px;max-height:96px}
+.backlog-form button{background:#6B7F3B;color:#fff;border:none;border-radius:6px;padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+.backlog-form button:hover{background:#5a6b32}
+.backlog-card{position:relative}
+.backlog-card .card-desc{font-size:11px;color:#8b8072;margin:4px 0 6px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4}
+.backlog-card .card-actions{display:flex;gap:6px;align-items:center;margin-top:6px}
+.backlog-card .dispatch-btn{background:#E8845C;color:#fff;border:none;border-radius:4px;padding:3px 8px;font-size:10px;font-weight:600;cursor:pointer;text-transform:uppercase}
+.backlog-card .dispatch-btn:hover{background:#d4603a}
+.backlog-card .dispatch-btn:disabled{opacity:.5;cursor:not-allowed}
+.badge-workflow{background:#8ECFC033;color:#3a9e8a;font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px}
+.badge-backlog-status{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px}
+.badge-backlog-draft{background:#D4C4A044;color:#8b8072}
+.badge-backlog-ready{background:#6B7F3B22;color:#6B7F3B}
+.badge-backlog-dispatched{background:#8ECFC033;color:#3a9e8a}
 @media(max-width:768px){.board{flex-direction:column}.column{min-width:unset}}
 .story-open{display:block!important}
 .story-chevron-open{transform:rotate(90deg)}
@@ -68,7 +86,7 @@ select:focus{outline:none;border-color:#8ECFC0}
   <select id="wf-select"><option value="">Loading...</option></select>
   <span class="refresh-note" id="refresh-note">Auto-refresh: 30s</span>
 </header>
-<div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
+<div class="board" id="board"><div class="empty" style="margin:auto">Loading...</div></div>
 <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
   <div class="panel" id="panel"></div>
 </div>
@@ -77,14 +95,83 @@ select:focus{outline:none;border-color:#8ECFC0}
 const API = '';
 let workflows = [];
 let currentWf = null;
+let backlogItems = [];
 
 async function fetchJSON(url) {
   const r = await fetch(API + url);
   return r.json();
 }
 
+async function loadBacklog() {
+  try { backlogItems = await fetchJSON('/api/backlog'); } catch { backlogItems = []; }
+}
+
+function renderBacklogColumn() {
+  const wfOptions = workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+  const cards = backlogItems.length === 0
+    ? '<div class="empty">No backlog items</div>'
+    : backlogItems.map(item => {
+        const desc = item.description ? (item.description.length > 80 ? item.description.slice(0, 77) + '…' : item.description) : '';
+        const wfBadge = item.target_workflow ? `<span class="badge-workflow">${esc(item.target_workflow)}</span>` : '';
+        const canDispatch = item.target_workflow && item.status !== 'dispatched';
+        return `<div class="card backlog-card">
+          <div class="card-title" title="${esc(item.title)}">${esc(item.title)}</div>
+          ${desc ? `<div class="card-desc">${esc(desc)}</div>` : ''}
+          <div class="card-meta">
+            <span class="badge-backlog-status badge-backlog-${item.status}">${item.status}</span>
+            ${wfBadge}
+          </div>
+          <div class="card-actions">
+            <button class="dispatch-btn" onclick="dispatchBacklog('${item.id}')" ${canDispatch ? '' : 'disabled'}>Dispatch</button>
+          </div>
+        </div>`;
+      }).join('');
+
+  return `<div class="column backlog-col">
+    <div class="column-header">Backlog<span class="count">${backlogItems.length}</span></div>
+    <div class="backlog-form">
+      <input type="text" id="bl-title" placeholder="Title" />
+      <textarea id="bl-desc" placeholder="Description (optional)"></textarea>
+      <select id="bl-workflow"><option value="">— workflow —</option>${wfOptions}</select>
+      <button onclick="addBacklogItem()">Add</button>
+    </div>
+    <div class="cards">${cards}</div>
+  </div>`;
+}
+
+async function addBacklogItem() {
+  const title = document.getElementById('bl-title').value.trim();
+  if (!title) return;
+  const desc = document.getElementById('bl-desc').value.trim();
+  const wf = document.getElementById('bl-workflow').value;
+  const body = { title, description: desc };
+  if (wf) body.target_workflow = wf;
+  await fetch(API + '/api/backlog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  document.getElementById('bl-title').value = '';
+  document.getElementById('bl-desc').value = '';
+  document.getElementById('bl-workflow').value = '';
+  await loadBacklog();
+  refreshBoard();
+}
+
+async function dispatchBacklog(id) {
+  try {
+    await fetch(API + `/api/backlog/${id}/dispatch`, { method: 'POST' });
+    await loadBacklog();
+    if (currentWf) await loadRuns();
+    else refreshBoard();
+  } catch (e) { console.error('Dispatch failed', e); }
+}
+
+function refreshBoard() {
+  const board = document.getElementById('board');
+  if (currentWf) { loadRuns(); return; }
+  board.innerHTML = renderBacklogColumn() + '<div class="empty" style="margin:auto">Select a workflow</div>';
+}
+
 async function loadWorkflows() {
   workflows = await fetchJSON('/api/workflows');
+  await loadBacklog();
   const sel = document.getElementById('wf-select');
   sel.innerHTML = '<option value="">— select workflow —</option>' +
     workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
@@ -106,7 +193,7 @@ async function loadWorkflows() {
 function selectWorkflow(id) {
   currentWf = workflows.find(w => w.id === id) || null;
   if (currentWf) loadRuns();
-  else document.getElementById('board').innerHTML = '<div class="empty" style="margin:auto">Select a workflow</div>';
+  else document.getElementById('board').innerHTML = renderBacklogColumn() + '<div class="empty" style="margin:auto">Select a workflow</div>';
 }
 
 async function loadRuns() {
@@ -132,7 +219,7 @@ function renderBoard(wf, runs) {
     if (col && columns[col]) columns[col].push(run);
   });
 
-  board.innerHTML = wf.steps.map(step => {
+  board.innerHTML = renderBacklogColumn() + wf.steps.map(step => {
     const cards = columns[step.id];
     const cardHTML = cards.length === 0
       ? '<div class="empty">No runs</div>'
@@ -242,7 +329,7 @@ async function loadStories(runId) {
 
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();
-setInterval(() => { if (currentWf) loadRuns(); }, 30000);
+setInterval(async () => { await loadBacklog(); if (currentWf) loadRuns(); else refreshBoard(); }, 30000);
 </script>
 </body>
 </html>
