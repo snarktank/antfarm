@@ -114,7 +114,7 @@ describe("Backlog Dashboard UI - Card rendering", () => {
   });
 
   it("dispatch button disabled when no target workflow or already dispatched", () => {
-    assert.ok(html.includes("canDispatch"), "should check dispatch eligibility");
-    assert.ok(html.includes("item.status !== 'dispatched'"), "should check not already dispatched");
+    assert.ok(html.includes("isDispatched"), "should check dispatch eligibility");
+    assert.ok(html.includes("item.status === 'dispatched'"), "should check not already dispatched");
   });
 });

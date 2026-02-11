@@ -78,6 +78,25 @@ select:focus{outline:none;border-color:#8ECFC0}
 @media(max-width:768px){.board{flex-direction:column}.column{min-width:unset}}
 .story-open{display:block!important}
 .story-chevron-open{transform:rotate(90deg)}
+.backlog-card.dispatched{opacity:.6;border-left:3px solid #3a9e8a}
+.backlog-card.dispatched .card-title{text-decoration:line-through;color:#8b8072}
+.reorder-btns{display:flex;flex-direction:column;gap:1px;margin-left:auto}
+.reorder-btns button{background:none;border:1px solid #D4C4A0;border-radius:3px;width:22px;height:16px;cursor:pointer;font-size:9px;line-height:1;color:#8b8072;padding:0;display:flex;align-items:center;justify-content:center}
+.reorder-btns button:hover{background:#f5f0e8;color:#3A3226}
+.bl-panel-field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.bl-panel-field label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:#6B7F3B}
+.bl-panel-field input,.bl-panel-field textarea,.bl-panel-field select{font-family:inherit;font-size:13px;padding:8px 10px;border:1px solid #D4C4A0;border-radius:6px;background:#FAF8F5;color:#3A3226;resize:vertical}
+.bl-panel-field textarea{min-height:80px}
+.bl-panel-actions{display:flex;gap:8px;margin-top:16px}
+.bl-panel-actions button{border:none;border-radius:6px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+.bl-btn-save{background:#6B7F3B;color:#fff}
+.bl-btn-save:hover{background:#5a6b32}
+.bl-btn-delete{background:#E8845C;color:#fff}
+.bl-btn-delete:hover{background:#d4603a}
+.bl-btn-dispatch{background:#3a9e8a;color:#fff}
+.bl-btn-dispatch:hover{background:#2d8a77}
+.bl-btn-dispatch:disabled{opacity:.5;cursor:not-allowed}
+.bl-run-link{display:inline-block;margin-top:8px;font-size:12px;color:#3a9e8a;text-decoration:underline;cursor:pointer}
 </style>
 </head>
 <body>
@@ -110,19 +129,24 @@ function renderBacklogColumn() {
   const wfOptions = workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
   const cards = backlogItems.length === 0
     ? '<div class="empty">No backlog items</div>'
-    : backlogItems.map(item => {
+    : backlogItems.map((item, idx) => {
         const desc = item.description ? (item.description.length > 80 ? item.description.slice(0, 77) + '…' : item.description) : '';
         const wfBadge = item.target_workflow ? `<span class="badge-workflow">${esc(item.target_workflow)}</span>` : '';
-        const canDispatch = item.target_workflow && item.status !== 'dispatched';
-        return `<div class="card backlog-card">
-          <div class="card-title" title="${esc(item.title)}">${esc(item.title)}</div>
-          ${desc ? `<div class="card-desc">${esc(desc)}</div>` : ''}
-          <div class="card-meta">
-            <span class="badge-backlog-status badge-backlog-${item.status}">${item.status}</span>
-            ${wfBadge}
-          </div>
-          <div class="card-actions">
-            <button class="dispatch-btn" onclick="dispatchBacklog('${item.id}')" ${canDispatch ? '' : 'disabled'}>Dispatch</button>
+        const isDispatched = item.status === 'dispatched';
+        return `<div class="card backlog-card ${isDispatched ? 'dispatched' : ''}" onclick="openBacklogDetail('${item.id}')">
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <div style="flex:1;min-width:0">
+              <div class="card-title" title="${esc(item.title)}">${esc(item.title)}</div>
+              ${desc ? `<div class="card-desc">${esc(desc)}</div>` : ''}
+              <div class="card-meta">
+                <span class="badge-backlog-status badge-backlog-${item.status}">${item.status}</span>
+                ${wfBadge}
+              </div>
+            </div>
+            <div class="reorder-btns" onclick="event.stopPropagation()">
+              <button onclick="reorderBacklog('${item.id}', ${item.priority - 1})" ${idx === 0 ? 'disabled' : ''} title="Move up">▲</button>
+              <button onclick="reorderBacklog('${item.id}', ${item.priority + 1})" ${idx === backlogItems.length - 1 ? 'disabled' : ''} title="Move down">▼</button>
+            </div>
           </div>
         </div>`;
       }).join('');
@@ -156,11 +180,99 @@ async function addBacklogItem() {
 
 async function dispatchBacklog(id) {
   try {
-    await fetch(API + `/api/backlog/${id}/dispatch`, { method: 'POST' });
+    const r = await fetch(API + `/api/backlog/${id}/dispatch`, { method: 'POST' });
+    const data = await r.json();
     await loadBacklog();
     if (currentWf) await loadRuns();
     else refreshBoard();
+    if (data.run_id) {
+      closePanel();
+    }
   } catch (e) { console.error('Dispatch failed', e); }
+}
+
+async function reorderBacklog(id, newPriority) {
+  await fetch(API + `/api/backlog/${id}/reorder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ priority: newPriority }) });
+  await loadBacklog();
+  refreshBoard();
+}
+
+async function openBacklogDetail(id) {
+  const item = backlogItems.find(i => i.id === id);
+  if (!item) return;
+  const wfOptions = workflows.map(w => `<option value="${w.id}" ${w.id === item.target_workflow ? 'selected' : ''}>${w.name}</option>`).join('');
+  const isDispatched = item.status === 'dispatched';
+  const panel = document.getElementById('panel');
+  panel.innerHTML = `
+    <button class="panel-close" onclick="closePanel()">✕</button>
+    <h2>Backlog Item</h2>
+    <div class="bl-panel-field">
+      <label>Title</label>
+      <input type="text" id="bl-edit-title" value="${esc(item.title)}" ${isDispatched ? 'disabled' : ''} />
+    </div>
+    <div class="bl-panel-field">
+      <label>Description</label>
+      <textarea id="bl-edit-desc" ${isDispatched ? 'disabled' : ''}>${esc(item.description || '')}</textarea>
+    </div>
+    <div class="bl-panel-field">
+      <label>Target Workflow</label>
+      <select id="bl-edit-wf" ${isDispatched ? 'disabled' : ''}>
+        <option value="">— none —</option>
+        ${wfOptions}
+      </select>
+    </div>
+    <div class="panel-meta">
+      <span>Status: <span class="badge-backlog-status badge-backlog-${item.status}">${item.status}</span></span>
+      <span>Priority: ${item.priority}</span>
+      <span>Created: ${new Date(item.created_at).toLocaleString()}</span>
+    </div>
+    ${isDispatched ? '<div class="bl-run-link" onclick="findDispatchedRun(\'' + esc(item.title) + '\')">View dispatched run →</div>' : ''}
+    <div class="bl-panel-actions">
+      ${!isDispatched ? `<button class="bl-btn-save" onclick="saveBacklogItem('${item.id}')">Save</button>` : ''}
+      <button class="bl-btn-dispatch" id="bl-dispatch-btn" onclick="dispatchBacklogFromPanel('${item.id}')" ${(!item.target_workflow || isDispatched) ? 'disabled' : ''}>Dispatch</button>
+      <button class="bl-btn-delete" onclick="deleteBacklogItem('${item.id}')">Delete</button>
+    </div>
+  `;
+  // Update dispatch button state when workflow changes
+  if (!isDispatched) {
+    document.getElementById('bl-edit-wf').addEventListener('change', function() {
+      document.getElementById('bl-dispatch-btn').disabled = !this.value;
+    });
+  }
+  document.getElementById('overlay').classList.add('open');
+}
+
+async function saveBacklogItem(id) {
+  const title = document.getElementById('bl-edit-title').value.trim();
+  const description = document.getElementById('bl-edit-desc').value.trim();
+  const target_workflow = document.getElementById('bl-edit-wf').value || null;
+  if (!title) return alert('Title is required');
+  await fetch(API + `/api/backlog/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, description, target_workflow }) });
+  await loadBacklog();
+  refreshBoard();
+  closePanel();
+}
+
+async function deleteBacklogItem(id) {
+  if (!confirm('Delete this backlog item?')) return;
+  await fetch(API + `/api/backlog/${id}`, { method: 'DELETE' });
+  await loadBacklog();
+  refreshBoard();
+  closePanel();
+}
+
+async function dispatchBacklogFromPanel(id) {
+  // Save first in case workflow was changed
+  const wf = document.getElementById('bl-edit-wf').value;
+  if (!wf) return;
+  await fetch(API + `/api/backlog/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_workflow: wf }) });
+  await dispatchBacklog(id);
+}
+
+function findDispatchedRun(title) {
+  closePanel();
+  // If a workflow is selected, the run should be visible on the board
+  // Just close panel — run is already on the board
 }
 
 function refreshBoard() {
