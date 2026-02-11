@@ -27,3 +27,35 @@ Started: 2026-02-11 05:47 ET
 - Files changed: `tests/ant.test.ts` (new)
 - **Learnings:** Node 22 runs .ts files directly with type stripping; tests in `tests/` use this approach
 ---
+
+## 2026-02-11 15:02 - US-002: Apply type scale tokens to header and column headers
+- Replaced hard-coded font-size values with CSS custom property tokens in 5 rules
+- header h1: 22px → var(--text-xl)
+- select: 14px → var(--text-md)
+- .column-header: 13px → var(--text-base), letter-spacing .5px → .6px
+- .column-header .count: 11px → var(--text-xs)
+- .refresh-note: 11px → var(--text-sm)
+- Files changed: src/server/index.html
+- **Learnings:** All CSS is minified on single lines; search by selector name not line structure
+---
+
+## 2026-02-11 15:07 - US-003: Apply type scale tokens to card styles
+- Replaced hard-coded font-size in .card-title (13px → var(--text-base)), added line-height: var(--leading-tight)
+- Replaced .card-meta font-size (11px → var(--text-sm))
+- Replaced .badge font-size (10px → var(--text-xs))
+- Replaced .empty font-size (12px → var(--text-sm))
+- Files changed: src/server/index.html
+- **Learnings:** Card styles are all single-line minified CSS rules; straightforward token substitution
+---
+
+## 2026-02-11 15:17 - US-004: Apply type scale tokens to panel and step styles
+- Replaced hard-coded font-size in 6 rules with CSS custom property tokens:
+  - .panel h2: 16px → var(--text-lg)
+  - .panel-task: 13px → var(--text-base), line-height 1.5 → var(--leading-relaxed)
+  - .panel-meta: 12px → var(--text-sm)
+  - .step-name: 13px → var(--text-base)
+  - .step-agent: 11px → var(--text-sm)
+  - .panel-close: 20px → var(--text-xl)
+- Files changed: src/server/index.html
+- **Learnings:** Panel and step styles follow same pattern as cards — straightforward token swap
+---
