@@ -6,14 +6,33 @@
 
 You don't need to hire a dev team. You need to define one. Antfarm gives you a team of specialized AI agents — planner, developer, verifier, tester, reviewer — that work together in reliable, repeatable workflows. One install. Zero infrastructure.
 
-```
-git clone https://github.com/snarktank/antfarm.git ~/.openclaw/workspace/antfarm
-cd ~/.openclaw/workspace/antfarm && npm install && npm run build && npm link
-```
-
 Or just tell your OpenClaw agent: **"Clone and install antfarm from https://github.com/snarktank/antfarm"**
 
+### Manual Install (Terminal)
+
+If you prefer to install manually or your agent can't do it:
+
+```bash
+# 1. Clone into your OpenClaw workspace
+git clone https://github.com/snarktank/antfarm.git ~/.openclaw/workspace/antfarm
+
+# 2. Build
+cd ~/.openclaw/workspace/antfarm
+npm install
+npm run build
+
+# 3. Link the CLI globally (makes `antfarm` available in your terminal)
+npm link
+
+# 4. Install workflows into OpenClaw (provisions agents, cron jobs, DB)
+antfarm install
+```
+
+After step 4, your agent team is ready. Run `antfarm workflow list` to see available workflows.
+
 > **Not on npm.** Antfarm is installed from GitHub, not the npm registry. There is an unrelated `antfarm` package on npm — that's not this.
+
+> **Requires Node.js >= 22.** If `antfarm` fails with a `node:sqlite` error, make sure you're running real Node.js 22+, not Bun's node wrapper (see [#54](https://github.com/snarktank/antfarm/issues/54)).
 
 ---
 
