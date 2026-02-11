@@ -27,3 +27,13 @@ Started: 2026-02-10T18:07:00-05:00
 - Created `tests/notifications-module.test.ts` with 11 tests — all passing
 - **Learnings:** `.all()` returns `Record<string, SQLOutputValue>[]` which needs double cast; tests must import from `dist/`
 ---
+
+## 2026-02-10 18:12 - US-002: Wire notification sending into step-ops pipeline completion
+- Replaced inline `sendRunNotification` in step-ops.ts with import from notifications.ts module
+- Removed inline `formatDuration` (now in notifications.ts)
+- Updated 5 call sites: advancePipeline, cleanupAbandonedSteps, handleVerifyEachCompletion, failStep (2 locations)
+- All calls are fire-and-forget (not awaited) — async Promise floats
+- Created tests/notification-wiring.test.ts with 8 structural tests verifying import, call sites, and fire-and-forget pattern
+- All 26 tests pass, typecheck passes
+- **Learnings:** The notifications module's sendRunNotification(runId) reads status from DB, so callers don't need to pass status
+---

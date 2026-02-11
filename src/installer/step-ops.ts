@@ -196,7 +196,7 @@ function parseAndInsertStories(output: string, runId: string): void {
 
 // ── Abandoned Step Cleanup ──────────────────────────────────────────
 
-const ABANDONED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+const ABANDONED_THRESHOLD_MS = 45 * 60 * 1000; // 45 minutes
 
 /**
  * Find steps that have been "running" for too long and reset them to pending.
