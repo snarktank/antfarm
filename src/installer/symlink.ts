@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, symlinkSync, unlinkSync, readlinkSync } from "fs";
+import { existsSync, mkdirSync, symlinkSync, unlinkSync, readlinkSync, lstatSync } from "fs";
 import { join } from "path";
 import { fileURLToPath } from "url";
 
@@ -30,13 +30,20 @@ export function ensureCliSymlink(): void {
     // already exists
   }
 
-  // Check existing symlink
+  // Check existing path
   if (existsSync(linkPath)) {
     try {
+      const stats = lstatSync(linkPath);
+      if (!stats.isSymbolicLink()) {
+        // Don't overwrite user-created files (e.g. bash wrappers for node resolution)
+        console.warn(`  ⚠ ${linkPath} exists and is not a symlink — skipping (remove it manually to let antfarm manage it)`);
+        return;
+      }
       const current = readlinkSync(linkPath);
       if (current === cliEntry) return; // already correct
     } catch {
-      // not a symlink or unreadable — replace it
+      // unreadable — skip to be safe
+      return;
     }
     try {
       unlinkSync(linkPath);
