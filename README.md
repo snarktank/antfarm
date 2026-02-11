@@ -137,9 +137,18 @@ You're installing agent teams that run code on your machine. We take that seriou
 
 Monitor runs, track step progress, and view agent output in real time.
 
-### Backlog (quick note)
+### Backlog usage (quick note)
 
 The dashboard includes a lightweight **Backlog** column for capturing run ideas before dispatching them into workflows. Keep items short and scoped so one backlog card can map to one small story when possible.
+
+CLI example:
+
+```bash
+antfarm backlog add "Add README backlog usage note" --workflow feature-dev
+antfarm backlog list
+```
+
+Backlog entries are stored in the local Antfarm SQLite DB (default path: `./antfarm.db`, or override with `ANTFARM_DB_PATH`).
 
 ![Antfarm dashboard](https://raw.githubusercontent.com/snarktank/antfarm/main/assets/dashboard-screenshot.png)
 
