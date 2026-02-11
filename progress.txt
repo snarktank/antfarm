@@ -59,3 +59,11 @@ Started: 2026-02-11 05:47 ET
 - Files changed: src/server/index.html
 - **Learnings:** Panel and step styles follow same pattern as cards — straightforward token swap
 ---
+
+## 2026-02-11 16:22 - US-006: Apply font-weight tokens and add base body line-height
+- Added line-height: var(--leading-normal) to body rule
+- Replaced hard-coded font-weight: 600 with var(--font-semibold) in: header h1, .column-header, .panel h2, .step-status, .badge
+- Replaced hard-coded font-weight: 500 with var(--font-medium) in: .card-title, .step-name
+- Files changed: src/server/index.html
+- **Learnings:** All 8 replacements were straightforward find-and-replace in the minified CSS lines
+---
