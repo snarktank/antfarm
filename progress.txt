@@ -9,6 +9,8 @@ Started: 2026-02-11T03:07:00
 - All tables created in `migrate()` in `src/db.ts`
 - DB path overridable via `ANTFARM_DB_PATH` env var (useful for tests)
 - Tests: `node:test` with `node:assert/strict`, compile with `tsconfig.test.json`, run with `ANTFARM_DB_PATH=/tmp/test.db node --test dist/tests/*.test.js`
+- CLI command groups: add handler in main(), delegate to async function (e.g., handleBacklog)
+- CLI supports ID prefix matching for user-facing commands
 - Main build: `npm run build` (tsc with rootDir=src)
 - Test build needs separate tsconfig.test.json (rootDir=. to include tests/)
 
@@ -32,4 +34,15 @@ Started: 2026-02-11T03:07:00
 - Created tests/backlog-api.test.ts with 16 tests covering all endpoints, error cases, and edge cases
 - Files changed: src/server/dashboard.ts, tests/backlog-api.test.ts, .gitignore
 - **Learnings:** Dashboard server handler can be async with http.createServer; body parsing needs manual implementation (no express)
+---
+
+## 2026-02-11 03:27 - S3: Backlog CLI commands
+- Added `antfarm backlog` command group in cli.ts: list, add, update, delete, dispatch, reorder
+- Supports --workflow, --desc flags on add; --title, --desc, --workflow on update
+- Prefix matching for item IDs (use first 8 chars of UUID)
+- Dispatch calls runWorkflow and marks item as "dispatched"
+- Updated printUsage() with all backlog commands
+- Created tests/backlog-cli.test.ts with 11 tests covering all commands and error cases
+- Files changed: src/cli/cli.ts, tests/backlog-cli.test.ts
+- **Learnings:** CLI tests need to use compiled paths (dist/cli/cli.js from dist/tests/); prefix ID matching needs fallback to raw input for proper error messages
 ---
