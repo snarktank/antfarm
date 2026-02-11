@@ -216,6 +216,7 @@
               type="email"
               autocomplete="email"
               inputmode="email"
+              aria-describedby="email-error"
               required
               placeholder="jane@example.com"
             />
@@ -254,6 +255,10 @@
         // (This is supplemental to type="email" and required.)
         const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+        function isValidEmail(email) {
+          return emailPattern.test(email);
+        }
+
         function setEmailError(message) {
           if (!(emailError instanceof HTMLElement)) return;
           if (message) {
@@ -273,7 +278,7 @@
             setEmailError('Please enter your email.');
             return false;
           }
-          if (!emailPattern.test(value)) {
+          if (!isValidEmail(value)) {
             setEmailError('Please enter a valid email address.');
             return false;
           }
@@ -281,10 +286,14 @@
           return true;
         }
 
-        emailInput.addEventListener('input', () => {
-          // Only show validation feedback once the user begins interacting.
-          if (emailInput.value.length > 0) validateEmail();
-        });
+        function maybeValidateEmail() {
+          // Avoid shouting errors on an untouched field, but always clear when valid.
+          if (emailInput.value.length === 0 && emailError instanceof HTMLElement && emailError.hidden) return;
+          validateEmail();
+        }
+
+        emailInput.addEventListener('input', maybeValidateEmail);
+        emailInput.addEventListener('blur', maybeValidateEmail);
 
         form.addEventListener('submit', (event) => {
           const ok = validateEmail();

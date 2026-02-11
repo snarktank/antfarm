@@ -49,4 +49,25 @@ describe('Contact page', () => {
     // Submit button
     assert.match(html, /<button[^>]*type="submit"/i, 'missing submit button');
   });
+
+  it('contact.html includes client-side email validation wiring and accessible inline error message', () => {
+    const html = readFileSync(resolve(landingDir, 'contact.html'), 'utf-8');
+
+    // Accessible error element
+    assert.match(html, /id="email-error"/i, 'missing #email-error element');
+    assert.match(html, /aria-live="polite"/i, 'missing aria-live="polite" on email error');
+
+    // Email input wired to error element
+    assert.match(
+      html,
+      /<input[^>]*id="email"[^>]*aria-describedby="email-error"/i,
+      'missing aria-describedby linking email input to #email-error',
+    );
+
+    // Validation helper exists (mechanically verifiable marker)
+    assert.match(html, /function\s+isValidEmail\s*\(/, 'missing isValidEmail(email) helper');
+
+    // Submit handler hook exists
+    assert.match(html, /addEventListener\(\s*['"]submit['"]\s*,/i, 'missing submit event handler');
+  });
 });
