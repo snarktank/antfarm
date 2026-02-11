@@ -1,9 +1,5 @@
-const uptime = process.uptime();
-const memory = process.memoryUsage();
-const status = {
+console.log(JSON.stringify({
   status: 'ok',
-  uptime,
-  memory
-};
-console.log(JSON.stringify(status));
-process.exit(0);
+  uptime: process.uptime(),
+  memory: process.memoryUsage()
+}, null, 2));
