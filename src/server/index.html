@@ -372,15 +372,15 @@ async function loadActivity(runId) {
     const time = t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     const agent = evt.agentId ? evt.agentId.split('/').pop() : '';
     const desc = formatEventDesc(evt);
-    return `<div style="display:flex;gap:12px;padding:4px 0;font-size:12px;line-height:1.5;border-bottom:1px solid var(--border-light)">
+    return `<div style="display:flex;gap:var(--space-md);padding:var(--space-xs) 0;font-size:var(--text-sm);line-height:1.5;border-bottom:1px solid var(--border-light)">
       <span style="color:var(--text-secondary);font-family:'Geist Mono',monospace;flex-shrink:0;min-width:44px">${time}</span>
       <span style="color:var(--accent-teal);font-family:'Geist Mono',monospace;min-width:70px;flex-shrink:0">${esc(agent)}</span>
       <span style="color:var(--text-primary)">${esc(desc)}</span>
     </div>`;
   }).join('');
   panel.innerHTML = `
-    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
-      <h3 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:12px">Activity</h3>
+    <div style="margin-top:var(--space-xl);border-top:1px solid var(--border);padding-top:20px">
+      <h3 style="font-size:var(--text-lg);font-weight:600;color:var(--text-primary);margin-bottom:var(--space-md)">Activity</h3>
       <div style="max-height:300px;overflow-y:auto">${rows}</div>
     </div>
   `;
@@ -398,10 +398,10 @@ async function loadStories(runId) {
   const done = stories.filter(s => s.status === 'done').length;
   const pct = Math.round((done / stories.length) * 100);
   panel.innerHTML = `
-    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h3 style="font-size:15px;font-weight:600;color:var(--text-primary)">Stories</h3>
-        <span style="font-size:13px;font-weight:600;color:var(--accent-green)">${done} / ${stories.length} done</span>
+    <div style="margin-top:var(--space-xl);border-top:1px solid var(--border);padding-top:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-md)">
+        <h3 style="font-size:var(--text-lg);font-weight:600;color:var(--text-primary)">Stories</h3>
+        <span style="font-size:var(--text-base);font-weight:600;color:var(--accent-green)">${done} / ${stories.length} done</span>
       </div>
       <div style="background:var(--accent-muted);border-radius:4px;height:8px;margin-bottom:16px;overflow:hidden">
         <div style="background:var(--accent-green);height:100%;width:${pct}%;border-radius:4px;transition:width .3s"></div>
