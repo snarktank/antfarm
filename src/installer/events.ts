@@ -18,6 +18,7 @@ export interface AntfarmEvent {
   event: EventType;
   runId: string;
   workflowId?: string;
+  /** Human-readable step name (e.g. "plan", "implement"), NOT the internal UUID. */
   stepId?: string;
   agentId?: string;
   storyId?: string;
