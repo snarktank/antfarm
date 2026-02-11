@@ -83,6 +83,12 @@ async function main() {
     return;
   }
 
+  if (group === "ant") {
+    const { printAnt } = await import("./ant.js");
+    printAnt();
+    return;
+  }
+
   if (group === "update") {
     const repoRoot = join(__dirname, "..", "..");
     console.log("Pulling latest...");
