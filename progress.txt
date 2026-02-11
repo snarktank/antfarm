@@ -67,3 +67,22 @@ Started: 2026-02-11 05:47 ET
 - Files changed: src/server/index.html
 - **Learnings:** All 8 replacements were straightforward find-and-replace in the minified CSS lines
 ---
+
+## 2026-02-11 16:42 - US-007: Tokenize inline styles in JS-generated HTML
+- Replaced font-size:12px → var(--text-sm) in loadActivity rows
+- Replaced font-size:15px → var(--text-lg) for h3 in both loadActivity and loadStories
+- Replaced font-size:13px → var(--text-base) for story progress counter
+- Replaced gap:12px → var(--space-md), padding:4px → var(--space-xs) in activity rows
+- Replaced margin-top:24px → var(--space-xl), margin-bottom:12px → var(--space-md) in both panels
+- Files changed: src/server/index.html
+- **Learnings:** JS template literals in loadStories/loadActivity contain significant inline styles; story detail section still has hardcoded 12px/11px/10px that could be tokenized in a future pass
+---
+
+## 2026-02-11 16:53 - US-008: Final polish — card title truncation and consistent mono sizing
+- Removed font-weight 700 from Google Fonts link (kept 400, 500, 600)
+- Changed .card-title from single-line ellipsis to -webkit-line-clamp: 2 multi-line truncation
+- Added gap: var(--space-sm) to .card-meta
+- Replaced bare pixel font-size values: .step-status (11px→var(--text-xs)), .theme-toggle (16px→var(--text-lg)), .step-icon (12px→var(--text-sm))
+- Files changed: src/server/index.html
+- **Learnings:** All bare pixel font-sizes in the style block are now tokenized
+---
