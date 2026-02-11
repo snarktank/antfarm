@@ -61,8 +61,8 @@ async function testHealthEndpoint(): Promise<void> {
       throw new Error(`Expected uptime to be a number, got ${typeof data.uptime}`);
     }
 
-    if (data.uptime < 0) {
-      throw new Error(`Expected uptime to be non-negative, got ${data.uptime}`);
+    if (data.uptime <= 0) {
+      throw new Error(`Expected uptime to be greater than 0, got ${data.uptime}`);
     }
 
     console.log("  ✓ Status code is 200");
