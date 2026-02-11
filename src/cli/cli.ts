@@ -21,6 +21,7 @@ import { getWorkflowStatus, listRuns } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
+import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
@@ -39,6 +40,44 @@ function getVersion(): string {
     return pkg.version ?? "unknown";
   } catch {
     return "unknown";
+  }
+}
+
+function formatEventTime(ts: string): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
+function formatEventLabel(evt: AntfarmEvent): string {
+  const labels: Record<string, string> = {
+    "run.started": "Run started",
+    "run.completed": "Run completed",
+    "run.failed": "Run failed",
+    "step.pending": "Step pending",
+    "step.running": "Claimed step",
+    "step.done": "Step completed",
+    "step.failed": "Step failed",
+    "step.timeout": "Step timed out",
+    "story.started": "Story started",
+    "story.done": "Story done",
+    "story.verified": "Story verified",
+    "story.retry": "Story retry",
+    "story.failed": "Story failed",
+    "pipeline.advanced": "Pipeline advanced",
+  };
+  return labels[evt.event] ?? evt.event;
+}
+
+function printEvents(events: AntfarmEvent[]): void {
+  if (events.length === 0) { console.log("No events yet."); return; }
+  for (const evt of events) {
+    const time = formatEventTime(evt.ts);
+    const agent = evt.agentId ? `  ${evt.agentId.split("/").pop()}` : "";
+    const label = formatEventLabel(evt);
+    const story = evt.storyTitle ? ` — ${evt.storyTitle}` : "";
+    const detail = evt.detail ? ` (${evt.detail})` : "";
+    const run = evt.runId ? `  [${evt.runId.slice(0, 8)}]` : "";
+    console.log(`${time}${run}${agent}  ${label}${story}${detail}`);
   }
 }
 
@@ -66,7 +105,8 @@ function printUsage() {
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "antfarm step stories <run-id>       List stories for a run",
       "",
-      "antfarm logs [<lines>]               Show recent log entries",
+      "antfarm logs [<lines>]               Show recent activity (from events)",
+      "antfarm logs <run-id>                Show activity for a specific run",
       "",
       "antfarm version                      Show installed version",
       "antfarm update                       Pull latest, rebuild, and reinstall workflows",
@@ -270,9 +310,20 @@ async function main() {
   }
 
   if (group === "logs") {
-    const lines = parseInt(args[1], 10) || 50;
-    const logs = await readRecentLogs(lines);
-    if (logs.length === 0) { console.log("No logs yet."); } else { for (const line of logs) console.log(line); }
+    const arg = args[1];
+    if (arg && !/^\d+$/.test(arg)) {
+      // Looks like a run ID (or prefix)
+      const events = getRunEvents(arg);
+      if (events.length === 0) {
+        console.log(`No events found for run matching "${arg}".`);
+      } else {
+        printEvents(events);
+      }
+      return;
+    }
+    const limit = parseInt(arg, 10) || 50;
+    const events = getRecentEvents(limit);
+    printEvents(events);
     return;
   }
 

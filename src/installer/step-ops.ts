@@ -6,6 +6,7 @@ import os from "node:os";
 import crypto from "node:crypto";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
+import { logger } from "../lib/logger.js";
 
 /**
  * Fire-and-forget cron teardown when a run ends.
@@ -339,6 +340,7 @@ export function claimStep(agentId: string): ClaimResult {
       const wfId = getWorkflowId(step.run_id);
       emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: wfId, stepId: step.id, agentId: agentId });
       emitEvent({ ts: new Date().toISOString(), event: "story.started", runId: step.run_id, workflowId: wfId, stepId: step.id, agentId: agentId, storyId: nextStory.story_id, storyTitle: nextStory.title });
+      logger.info(`Story started: ${nextStory.story_id} — ${nextStory.title}`, { runId: step.run_id, stepId: step.id });
 
       // Build story template vars
       const story: Story = {
@@ -382,6 +384,7 @@ export function claimStep(agentId: string): ClaimResult {
     "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
   ).run(step.id);
   emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, agentId: agentId });
+  logger.info(`Step claimed by ${agentId}`, { runId: step.run_id, stepId: step.id });
 
   // Inject progress for any step in a run that has stories
   const hasStories = db.prepare(
@@ -443,6 +446,7 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
       "UPDATE stories SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(output, step.current_story_id);
     emitEvent({ ts: new Date().toISOString(), event: "story.done", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, storyId: storyRow?.story_id, storyTitle: storyRow?.title });
+    logger.info(`Story done: ${storyRow?.story_id} — ${storyRow?.title}`, { runId: step.run_id, stepId: step.id });
 
     // Clear current_story_id, save output
     db.prepare(
@@ -492,6 +496,7 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
     "UPDATE steps SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?"
   ).run(output, stepId);
   emitEvent({ ts: new Date().toISOString(), event: "step.done", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id });
+  logger.info(`Step completed: ${step.step_id}`, { runId: step.run_id, stepId: step.id });
 
   return advancePipeline(step.run_id);
 }
@@ -625,6 +630,7 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
       "UPDATE runs SET status = 'completed', updated_at = datetime('now') WHERE id = ?"
     ).run(runId);
     emitEvent({ ts: new Date().toISOString(), event: "run.completed", runId, workflowId: wfId });
+    logger.info("Run completed", { runId, workflowId: wfId });
     archiveRunProgress(runId);
     scheduleRunCronTeardown(runId);
     return { advanced: false, runCompleted: true };

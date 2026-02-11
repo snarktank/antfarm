@@ -82,7 +82,22 @@ function fireWebhook(evt: AntfarmEvent): void {
   }
 }
 
-// Read events for a specific run
+// Read recent events (last N)
+export function getRecentEvents(limit = 50): AntfarmEvent[] {
+  try {
+    const content = fs.readFileSync(EVENTS_FILE, "utf-8");
+    const lines = content.trim().split("\n").filter(Boolean);
+    const events: AntfarmEvent[] = [];
+    for (const line of lines) {
+      try { events.push(JSON.parse(line) as AntfarmEvent); } catch {}
+    }
+    return events.slice(-limit);
+  } catch {
+    return [];
+  }
+}
+
+// Read events for a specific run (supports prefix match)
 export function getRunEvents(runId: string, limit = 200): AntfarmEvent[] {
   try {
     const content = fs.readFileSync(EVENTS_FILE, "utf-8");
@@ -91,7 +106,7 @@ export function getRunEvents(runId: string, limit = 200): AntfarmEvent[] {
     for (const line of lines) {
       try {
         const evt = JSON.parse(line) as AntfarmEvent;
-        if (evt.runId === runId) events.push(evt);
+        if (evt.runId === runId || evt.runId.startsWith(runId)) events.push(evt);
       } catch {}
     }
     return events.slice(-limit);
