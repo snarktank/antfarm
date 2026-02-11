@@ -137,6 +137,10 @@ You're installing agent teams that run code on your machine. We take that seriou
 
 Monitor runs, track step progress, and view agent output in real time.
 
+### Backlog (quick note)
+
+The dashboard includes a lightweight **Backlog** column for capturing run ideas before dispatching them into workflows. Keep items short and scoped so one backlog card can map to one small story when possible.
+
 ![Antfarm dashboard](https://raw.githubusercontent.com/snarktank/antfarm/main/assets/dashboard-screenshot.png)
 
 ![Antfarm dashboard detail](https://raw.githubusercontent.com/snarktank/antfarm/main/assets/dashboard-detail-screenshot.png)
