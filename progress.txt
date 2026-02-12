@@ -10,6 +10,7 @@ Started: 2026-02-11 05:47 ET
 - Tests: `node --test dist/<file>.test.js` (node:test + node:assert/strict)
 - ESM with NodeNext module resolution, `.js` extensions in imports
 - RTS dashboard source assets live in `src/server/rts.html` + `src/server/rts-sprites/`; `npm run build` must copy both into `dist/server/`
+- Feature structure world styling should be derived from a centralized helper (status -> visual state -> CSS class), then consumed in `renderWorld()` class selection
 
 ---
 
@@ -44,4 +45,12 @@ Started: 2026-02-11 05:47 ET
 - Added regression coverage in `tests/rts-escape-draft-cancel.test.ts` for helper behavior and Escape wiring in both `src/server/rts.html` and built `dist/server/rts.html`
 - Files changed: `src/server/rts.html`, `dist/server/rts.html`, `tests/rts-escape-draft-cancel.test.ts`, `progress.txt`
 - **Learnings:** Draft-only feature buildings are represented as `state.selected.type === 'building'` with `kind === 'feature'` and `committed === false`, so Escape draft-cancel must target that shape explicitly
+---
+
+## 2026-02-12 11:41 - US-003: Render draft and in-progress feature structures at half transparency
+- Added centralized run-status -> feature visual-state mapping helpers (`featureStructureVisualState` + `featureStructureClassName`) and used them from `renderWorld()` class selection for feature structures
+- Applied `.is-half-transparent` to draft and in-progress feature structures and `.is-failed` to failed structures while keeping done structures fully opaque
+- Added regression coverage in `tests/rts-feature-transparency-status.test.ts` validating helper presence, state mapping rules, render wiring, and transparency CSS class in both `src/server/rts.html` and built `dist/server/rts.html`
+- Files changed: `src/server/rts.html`, `dist/server/rts.html`, `tests/rts-feature-transparency-status.test.ts`, `progress.txt`
+- **Learnings:** Feature visual-state policy is now centralized and should be extended via status-set constants (non-terminal/success/failed) instead of adding ad-hoc class logic in rendering loops
 ---

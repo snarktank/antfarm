@@ -296,12 +296,28 @@ button:hover { border-color:#8de7ff; box-shadow:0 0 0 1px #95e6ff44 inset; }
 .building .title { font-size:12px; font-weight:600; margin-bottom:7px; }
 .meta { display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--muted); margin-bottom:7px; }
 .badge { font-size:10px; border:1px solid #5d8cae; border-radius:999px; padding:2px 6px; }
+.port-chip {
+  position:absolute;
+  left:8px;
+  top:8px;
+  z-index:5;
+  border:1px solid #4d7da0;
+  border-radius:999px;
+  padding:2px 7px;
+  font-size:10px;
+  line-height:1.1;
+  color:#c9edff;
+  background:#07172bcc;
+  font-family:'Geist Mono', monospace;
+}
 .progress { height:8px; border-radius:999px; border:1px solid #4f7693; overflow:hidden; background:#08101d; }
 .bar { height:100%; background:linear-gradient(90deg,#58ffe4,#66cbff); }
 .pr-link { display:block; margin-top:8px; font-size:11px; color:#a7efff; text-decoration:none; border:1px solid #4f8cae; border-radius:7px; padding:6px; }
 .ghost { opacity:.86; border-style:dashed; }
 .draft-ghost { opacity:.46; border-style:dashed; }
 .draft-ghost .iso-core { border-color:#86dcffa2; }
+.is-half-transparent { opacity:.5; }
+.is-failed { filter:saturate(0.7) hue-rotate(-18deg) brightness(0.92); }
 .unit {
   position:absolute;
   width:32px; height:32px;
@@ -1254,6 +1270,31 @@ function renderIsoEntity({ className, kind, x, y, z, innerHtml, onClick }) {
   return shell;
 }
 
+const NON_TERMINAL_RUN_STATUSES = new Set(['pending', 'running', 'retrying', 'queued', 'claimed', 'in_progress', 'waiting']);
+const SUCCESS_RUN_STATUSES = new Set(['done', 'completed', 'success']);
+const FAILED_RUN_STATUSES = new Set(['failed', 'error', 'canceled', 'cancelled', 'timeout', 'timed_out']);
+
+function normalizeRunStatus(status){
+  return String(status || '').trim().toLowerCase();
+}
+
+function featureStructureVisualState(building){
+  if (!building) return 'draft';
+  if (!building.committed || !building.runId) return 'draft';
+  const status = normalizeRunStatus(building.run?.status || building.phase || '');
+  if (SUCCESS_RUN_STATUSES.has(status)) return 'done';
+  if (FAILED_RUN_STATUSES.has(status)) return 'failed';
+  if (!status || NON_TERMINAL_RUN_STATUSES.has(status)) return 'in-progress';
+  return 'in-progress';
+}
+
+function featureStructureClassName(building){
+  const visualState = featureStructureVisualState(building);
+  if (visualState === 'draft' || visualState === 'in-progress') return 'is-half-transparent';
+  if (visualState === 'failed') return 'is-failed';
+  return '';
+}
+
 function renderWorld(){
   const world = document.getElementById('world');
   const pathLayer = document.getElementById('pathLayer');
@@ -1351,7 +1392,8 @@ function renderWorld(){
     const status = prettyStatus(b.run?.status || b.phase || 'waiting');
     const color = status === 'done' ? 'var(--ok)' : status === 'failed' ? 'var(--bad)' : 'var(--warn)';
     const movable = true;
-    const className = `${b.kind === 'feature' && !b.committed ? 'building ghost' : 'building'} ${movable ? 'movable' : ''}`;
+    const featureVisualClass = b.kind === 'feature' ? featureStructureClassName(b) : '';
+    const className = ['building', featureVisualClass, movable ? 'movable' : ''].filter(Boolean).join(' ');
     const el = renderIsoEntity({
       className,
       kind: b.kind === 'feature' ? 'feature' : 'run',
