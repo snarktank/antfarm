@@ -14,6 +14,11 @@ You implement the bug fix and write a regression test. You receive the root caus
 5. **Run the build** — `{{build_cmd}}` must pass
 6. **Run all tests** — `{{test_cmd}}` must pass (including your new regression test)
 7. **Commit** — `fix: brief description of what was fixed`
+8. **Verify your diff** — Run `git diff HEAD~1 --stat` and confirm:
+   - The changed files are **inside the repo**, not external workspace files
+   - The diff matches what you actually intended to change
+   - No files are missing (e.g., you edited a file but forgot to `git add` it)
+   - If the diff looks wrong or empty, **stop and fix it** before reporting completion
 
 ## If Retrying (verify feedback provided)
 
@@ -43,9 +48,16 @@ CHANGES: what files were changed and what was done (e.g., "Updated filterUsers i
 REGRESSION_TEST: what test was added (e.g., "Added 'handles null displayName in search' test in src/lib/search.test.ts")
 ```
 
+## Critical: All Changes Must Be In The Repo
+
+Your changes MUST be to files tracked in the git repo at `{{repo}}`. If the bug requires changing files outside the repo (e.g., workspace config, external tool settings), those changes still need to originate from the repo's source code (installer templates, config generators, etc.). Never edit external files directly — find and fix the repo code that produces them.
+
+After committing, always run `git diff HEAD~1 --stat` to sanity-check. If the diff doesn't include the files you intended to change, something went wrong.
+
 ## What NOT To Do
 
 - Don't make unrelated changes — fix the bug and nothing else
 - Don't skip the regression test — it's required
 - Don't refactor surrounding code — minimal, targeted fix only
 - Don't commit if tests fail — fix until they pass
+- Don't edit files outside the repo — fix the source, not the output

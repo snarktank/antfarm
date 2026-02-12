@@ -218,11 +218,17 @@ steps:
       4. Check for unintended side effects
       5. Verify the regression test would fail without the fix (review the diff logic)
 
+      MANDATORY first step:
+      - Run `git diff main..{{branch}} --stat` and `git diff main..{{branch}}`
+      - If the diff is empty or only contains trivial changes (version bumps, lockfiles), REJECT immediately
+      - Compare the diff against CHANGES claimed above — if they don't match, REJECT
+
       Bug-fix specific checks:
       - The regression test MUST test the specific bug scenario (not just a generic test)
       - The regression test assertions must fail if the fix were reverted
       - The fix should be minimal and targeted — not a refactor disguised as a bugfix
       - Check that the fix addresses the ROOT CAUSE, not just a symptom
+      - All changes must be to files INSIDE the repo — not external workspace files
 
       Reply with:
       STATUS: done
