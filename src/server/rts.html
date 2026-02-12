@@ -758,6 +758,13 @@ function pathLabel(pathValue){
   const parts = key.split('/');
   return parts[parts.length - 1] || 'base';
 }
+function runtimeLink(portValue){
+  const port = Number(portValue);
+  if (!Number.isFinite(port) || port < 1 || port > 65535) return '<span class="badge">unassigned</span>';
+  const host = `127.0.0.1:${Math.floor(port)}`;
+  const href = `http://${host}`;
+  return `<a class="pr-link" href="${href}" target="_blank" rel="noopener noreferrer">${host}</a>`;
+}
 function factionFromWorkflow(id){ return (id || 'neutral').split(/[^a-z0-9]+/i)[0] || 'neutral'; }
 function inferUnitModel(agentId, run){
   // TODO(server): expose per-agent runtime model metadata from run execution payload.
@@ -1681,7 +1688,7 @@ function renderSelection(){
     const b = s.data;
     const basePort = Number(b.port) || getPortForPath(b.repo || '') || 3333;
     const baseLabel = b.portLabel || pathLabel(b.repo || '');
-    panel.innerHTML = `<h3>Base Intel</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Role:</strong> ${esc(baseLabel)}</div><div class="kv"><strong>Port:</strong> ${basePort}</div><div class="kv"><strong>Buildings:</strong> ${(b.runs || []).length}</div>${renderSkillTree('orchestrator','Base Systems')}`;
+    panel.innerHTML = `<h3>Base Intel</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Role:</strong> ${esc(baseLabel)}</div><div class="kv"><strong>Runtime:</strong> ${runtimeLink(basePort)}</div><div class="kv"><strong>Buildings:</strong> ${(b.runs || []).length}</div>${renderSkillTree('orchestrator','Base Systems')}`;
     stopAgentStream();
     return;
   }
@@ -1690,12 +1697,12 @@ function renderSelection(){
     if (b.kind === 'feature') {
       setFeatureMode(true);
       const port = Number(b.port) || getPortForPath(b.worktreePath || b.repo || '') || 3334;
-      panel.innerHTML = `<h3>Feature Forge</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Worktree:</strong> ${esc(b.worktreePath || '-')}</div><div class="kv"><strong>Port:</strong> ${port}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run?.status || b.phase || 'draft'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress || 0}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
+      panel.innerHTML = `<h3>Feature Forge</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Worktree:</strong> ${esc(b.worktreePath || '-')}</div><div class="kv"><strong>Runtime:</strong> ${runtimeLink(port)}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run?.status || b.phase || 'draft'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress || 0}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
       if (!isEditingActionPanel()) renderRunSetupPanel(b.id);
       return;
     }
     const port = Number(b.port) || getPortForPath(b.worktreePath || b.repo || '') || 3334;
-    panel.innerHTML = `<h3>Structure Status</h3><div class="kv"><strong>Task:</strong> ${esc(b.run.task || '')}</div><div class="kv"><strong>Worktree:</strong> ${esc(b.worktreePath || '-')}</div><div class="kv"><strong>Port:</strong> ${port}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run.status || 'waiting'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
+    panel.innerHTML = `<h3>Structure Status</h3><div class="kv"><strong>Task:</strong> ${esc(b.run.task || '')}</div><div class="kv"><strong>Worktree:</strong> ${esc(b.worktreePath || '-')}</div><div class="kv"><strong>Runtime:</strong> ${runtimeLink(port)}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run.status || 'waiting'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
     renderRunAgentsConsole(b.run);
     return;
   }
@@ -2121,9 +2128,7 @@ function renderRunSetupPanel(targetDraftId){
     <label class="kv">Worktree path
       <input id="worktreePath" value="${esc(draft.worktreePath)}" />
     </label>
-    <label class="kv">Worktree port
-      <input id="worktreePort" type="number" min="1" max="65535" value="${esc(String(draft.port || 3334))}" />
-    </label>
+    <div class="kv"><strong>Runtime:</strong> ${runtimeLink(draft.port || 3334)}</div>
     <label class="kv">Feature prompt
       <textarea id="featurePrompt" rows="8" placeholder="Describe detailed scope, constraints, and acceptance criteria...">${esc(draft.prompt)}</textarea>
     </label>
@@ -2134,11 +2139,6 @@ function renderRunSetupPanel(targetDraftId){
   `;
 
   document.getElementById('worktreePath').addEventListener('input', e => { draft.worktreePath = e.target.value; queuePersist(); });
-  document.getElementById('worktreePort').addEventListener('input', e => {
-    draft.port = Number(e.target.value) || draft.port || 3334;
-    if (draft.worktreePath) setPortForPath(draft.worktreePath, draft.port);
-    queuePersist();
-  });
   document.getElementById('featurePrompt').addEventListener('input', e => { draft.prompt = e.target.value; queuePersist(); });
 
   const mutationNotice = document.getElementById('featureMutationNotice');
