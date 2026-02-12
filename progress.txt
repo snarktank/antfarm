@@ -79,3 +79,13 @@ Started: 2026-02-11 05:47 ET
 - Created tests/verify-prompt-frontend.test.ts with 7 tests covering all acceptance criteria
 - All tests pass, build passes, typecheck passes
 - Files changed: workflows/feature-dev/workflow.yml (modified), tests/verify-prompt-frontend.test.ts (new)
+
+## 2026-02-12 18:10 - S5: Update review step prompt with conditional browser verification
+- Added "Visual Review (Frontend Changes)" section to review step input in workflow.yml
+- Section references {{has_frontend_changes}} and instructs agent to use agent-browser skill
+- Focuses on design quality and polish (distinct from verify step's structural checks)
+- Evaluates: polish, color/typography consistency, layout balance, interactive element appearance, cohesion
+- When has_frontend_changes is 'false', instructs to skip visual review entirely
+- Created tests/review-prompt-frontend.test.ts with 7 tests covering all acceptance criteria
+- All tests pass, build passes, typecheck passes
+- Files changed: workflows/feature-dev/workflow.yml (modified), tests/review-prompt-frontend.test.ts (new)
