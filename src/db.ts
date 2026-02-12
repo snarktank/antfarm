@@ -69,7 +69,7 @@ function migrate(db: DatabaseSync): void {
     );
   `);
 
-  // Add columns to steps table for backwards compat
+  // Migrations
   const cols = db.prepare("PRAGMA table_info(steps)").all() as Array<{ name: string }>;
   const colNames = new Set(cols.map((c) => c.name));
 
@@ -82,12 +82,17 @@ function migrate(db: DatabaseSync): void {
   if (!colNames.has("current_story_id")) {
     db.exec("ALTER TABLE steps ADD COLUMN current_story_id TEXT");
   }
+  if (!colNames.has("on_gate")) {
+    db.exec("ALTER TABLE steps ADD COLUMN on_gate TEXT");
+  }
 
-  // Add columns to runs table for backwards compat
   const runCols = db.prepare("PRAGMA table_info(runs)").all() as Array<{ name: string }>;
   const runColNames = new Set(runCols.map((c) => c.name));
   if (!runColNames.has("notify_url")) {
     db.exec("ALTER TABLE runs ADD COLUMN notify_url TEXT");
+  }
+  if (!runColNames.has("delivery")) {
+    db.exec("ALTER TABLE runs ADD COLUMN delivery TEXT");
   }
 }
 

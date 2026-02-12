@@ -23,6 +23,7 @@ Shorthand used below: `antfarm-cli` means `node ~/.openclaw/workspace/antfarm/di
 | `feature-dev` | plan -> setup -> develop (stories) -> verify -> test -> PR -> review | New features, refactors |
 | `bug-fix` | triage -> investigate -> setup -> fix -> verify -> PR | Bug reports with reproduction steps |
 | `security-audit` | scan -> prioritize -> setup -> fix -> verify -> test -> PR | Codebase security review |
+| `spec-review` | spec -> **gate** (human approval) -> plan | Spec-first planning with human review |
 
 ## Core Commands
 
@@ -33,8 +34,8 @@ node ~/.openclaw/workspace/antfarm/dist/cli/cli.js install
 # Full uninstall (workflows, agents, crons, DB, dashboard)
 node ~/.openclaw/workspace/antfarm/dist/cli/cli.js uninstall [--force]
 
-# Start a run
-node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow run <workflow-id> "<detailed task with acceptance criteria>"
+# Start a run (with delivery instructions for notifications)
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow run <workflow-id> "<detailed task>" [--delivery "<instructions>"]
 
 # Check a run
 node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow status "<task or run-id prefix>"
@@ -90,6 +91,10 @@ node ~/.openclaw/workspace/antfarm/dist/cli/cli.js workflow uninstall --all [--f
 ## Creating Custom Workflows
 
 See `{baseDir}/../../docs/creating-workflows.md` for the full guide on writing workflow YAML, agent workspaces, step templates, and verification loops.
+
+## Human Gate Steps
+
+Workflows can include `gate: true` steps that pause for human approval. **Read [`gates.md`](gates.md) for full gate instructions** — delivery, gate codes, discussion flow, and editable artifacts.
 
 ## Agent Step Operations (used by agent cron jobs, not typically manual)
 

@@ -10,6 +10,7 @@ export async function runWorkflow(params: {
   workflowId: string;
   taskTitle: string;
   notifyUrl?: string;
+  delivery?: string;
 }): Promise<{ id: string; workflowId: string; task: string; status: string }> {
   const workflowDir = resolveWorkflowDir(params.workflowId);
   const workflow = await loadWorkflowSpec(workflowDir);
@@ -25,24 +26,26 @@ export async function runWorkflow(params: {
   db.exec("BEGIN");
   try {
     const notifyUrl = params.notifyUrl ?? workflow.notifications?.url ?? null;
+    const delivery = params.delivery ?? null;
     const insertRun = db.prepare(
-      "INSERT INTO runs (id, workflow_id, task, status, context, notify_url, created_at, updated_at) VALUES (?, ?, ?, 'running', ?, ?, ?, ?)"
+      "INSERT INTO runs (id, workflow_id, task, status, context, notify_url, delivery, created_at, updated_at) VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?)"
     );
-    insertRun.run(runId, workflow.id, params.taskTitle, JSON.stringify(initialContext), notifyUrl, now, now);
+    insertRun.run(runId, workflow.id, params.taskTitle, JSON.stringify(initialContext), notifyUrl, delivery, now, now);
 
     const insertStep = db.prepare(
-      "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, on_gate, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     for (let i = 0; i < workflow.steps.length; i++) {
       const step = workflow.steps[i];
       const stepUuid = crypto.randomUUID();
-      const agentId = `${workflow.id}/${step.agent}`;
-      const status = i === 0 ? "pending" : "waiting";
-      const maxRetries = step.max_retries ?? step.on_fail?.max_retries ?? 2;
-      const stepType = step.type ?? "single";
+      const agentId = step.gate ? `${workflow.id}/__gate__` : `${workflow.id}/${step.agent}`;
+      const status = i === 0 ? (step.gate ? "gate" : "pending") : "waiting";
+      const maxRetries = step.max_retries ?? step.on_fail?.max_retries ?? 0;
+      const stepType = step.gate ? "gate" : (step.type ?? "single");
       const loopConfig = step.loop ? JSON.stringify(step.loop) : null;
-      insertStep.run(stepUuid, runId, step.id, agentId, i, step.input, step.expects, status, maxRetries, stepType, loopConfig, now, now);
+      const onGate = step.on_gate ?? null;
+      insertStep.run(stepUuid, runId, step.id, agentId, i, step.input ?? "", step.expects ?? "", status, maxRetries, stepType, loopConfig, onGate, now, now);
     }
 
     db.exec("COMMIT");

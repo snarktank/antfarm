@@ -309,6 +309,128 @@ async function deleteCronJobHTTP(jobId: string): Promise<{ ok: boolean; error?: 
   }
 }
 
+/**
+ * Create a one-shot systemEvent cron job to notify the main session about a gate step.
+ */
+export async function notifyGate(stepId: string, runId: string): Promise<{ ok: boolean; error?: string }> {
+  // Look up delivery instructions and context from the run
+  let delivery: string | null = null;
+  let task = "";
+  let workflowId = "";
+  try {
+    const { getDb } = await import("../db.js");
+    const db = getDb();
+    const run = db.prepare("SELECT delivery, task, workflow_id FROM runs WHERE id = ?").get(runId) as { delivery: string | null; task: string; workflow_id: string } | undefined;
+    if (run) {
+      delivery = run.delivery;
+      task = run.task;
+      workflowId = run.workflow_id;
+    }
+  } catch { /* best-effort */ }
+
+  // Look up on_gate instructions from the step
+  let onGate = "";
+  try {
+    const { getDb: getDb2 } = await import("../db.js");
+    const db2 = getDb2();
+    const stepRow = db2.prepare("SELECT on_gate FROM steps WHERE run_id = ? AND step_id = ?").get(runId, stepId) as { on_gate: string | null } | undefined;
+    if (stepRow?.on_gate) {
+      onGate = stepRow.on_gate;
+    }
+  } catch { /* best-effort */ }
+
+  const gateInfo = JSON.stringify({
+    event: "gate",
+    stepId,
+    runId,
+    workflowId,
+    task,
+  });
+
+  const notifyInstructions = onGate
+    ? `\n\nWorkflow instructions for this gate:\n${onGate}`
+    : `\n\nPresent a summary of the spec/review to the human.`;
+
+  // Get the step DB id and derive a human-friendly gate code
+  let gateCode = "";
+  try {
+    const { getDb: getDb3 } = await import("../db.js");
+    const { gateCodeFromUuid } = await import("./step-ops.js");
+    const db3 = getDb3();
+    const stepRow = db3.prepare("SELECT id FROM steps WHERE run_id = ? AND step_id = ?").get(runId, stepId) as { id: string } | undefined;
+    if (stepRow) gateCode = gateCodeFromUuid(stepRow.id);
+  } catch { /* best-effort */ }
+
+  // Parse delivery — expects JSON: {"sessionKey": "...", "instructions": "..."}
+  let deliverySessionKey: string | null = null;
+  let deliveryInstructions: string | null = null;
+  if (delivery) {
+    try {
+      const parsed = JSON.parse(delivery);
+      deliverySessionKey = parsed.sessionKey ?? null;
+      deliveryInstructions = parsed.instructions ?? null;
+    } catch {
+      // If not JSON, treat entire string as instructions (legacy/fallback)
+      deliveryInstructions = delivery;
+    }
+  }
+  const deliveryBlock = deliveryInstructions
+    ? `\n\n📬 DELIVERY INSTRUCTIONS:\n${deliveryInstructions}`
+    : "";
+
+  const gateMessage = [
+    `📋 GATE NOTIFICATION — DISPLAY ONLY`,
+    ``,
+    `A workflow gate requires human review. Follow the instructions below, then STOP.`,
+    ``,
+    `GATE_JSON: ${gateInfo}`,
+    notifyInstructions,
+    ``,
+    `After following the instructions above, tell the human:`,
+    `"This gate is waiting for your approval. Reply 'approve ${gateCode}' to advance."`,
+    deliveryBlock,
+    ``,
+    `⛔ RULES:`,
+    `- Do NOT run the approve command yourself`,
+    `- Do NOT call 'step approve' for any reason`,
+    `- Do NOT approve, auto-approve, or advance the gate`,
+    `- ONLY present information and wait for the human to reply`,
+  ].join("\n");
+
+  const gateway = await getGatewayConfig();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (gateway.token) headers["Authorization"] = `Bearer ${gateway.token}`;
+
+  // Always fire via cron into main session (sessions_send is synchronous and can deadlock)
+  // Delivery instructions in the message tell the main agent where/how to deliver
+  const fireAt = new Date(Date.now() + 5_000).toISOString();
+  const job = {
+    name: `antfarm/gate-notify/${stepId}`,
+    schedule: { kind: "at" as const, at: fireAt },
+    sessionTarget: "main",
+    wakeMode: "now",
+    payload: {
+      kind: "systemEvent" as const,
+      text: gateMessage,
+    },
+  };
+
+  try {
+    const response = await fetch(`${gateway.url}/tools/invoke`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ tool: "cron", args: { action: "add", job }, sessionKey: "global" }),
+    });
+
+    if (response.status === 404) return { ok: false, error: "Gateway tools/invoke not available" };
+    if (!response.ok) return { ok: false, error: `Gateway returned ${response.status}` };
+    const result = await response.json();
+    return result.ok ? { ok: true } : { ok: false, error: result.error?.message ?? "Unknown error" };
+  } catch (err) {
+    return { ok: false, error: `Failed to notify gate: ${err}` };
+  }
+}
+
 export async function deleteAgentCronJobs(namePrefix: string): Promise<void> {
   const listResult = await listCronJobs();
   if (!listResult.ok || !listResult.jobs) return;

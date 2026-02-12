@@ -7,6 +7,42 @@ import crypto from "node:crypto";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
+import { notifyGate } from "./gateway-api.js";
+import { spawn, execSync } from "node:child_process";
+
+// ── Gate codes ───────────────────────────────────────────────────────
+// Deterministic two-word codes from step UUIDs — easier for humans than hex.
+
+const GATE_ADJECTIVES = [
+  "bold","brave","bright","brisk","calm","clear","clever","cool",
+  "crisp","daring","eager","fair","fast","fierce","firm","fleet",
+  "fond","fresh","gentle","glad","golden","grand","green","happy",
+  "hardy","keen","kind","light","lively","lucky","merry","mild",
+  "neat","nimble","noble","plain","plucky","proud","pure","quick",
+  "quiet","rapid","ready","rich","ripe","sharp","shy","sleek",
+  "slim","smart","snug","soft","solid","spry","steady","stout",
+  "strong","sure","sweet","swift","tall","true","warm","wise",
+];
+
+const GATE_NOUNS = [
+  "ant","badger","bear","beetle","bird","bison","bunny","cedar",
+  "cobra","coral","crane","crow","deer","eagle","elk","falcon",
+  "finch","fox","frog","gecko","goat","goose","gull","hawk",
+  "heron","horse","husky","iguana","jackal","jay","kite","koala",
+  "lark","lemur","lion","llama","lynx","moose","moth","newt",
+  "oak","otter","owl","panda","parrot","pike","pony","quail",
+  "raven","robin","salmon","seal","snail","sparrow","stork","swan",
+  "tiger","trout","turtle","viper","walrus","wasp","wolf","wren",
+];
+
+/** Derive a human-friendly two-word gate code from a step UUID. */
+export function gateCodeFromUuid(uuid: string): string {
+  const hex = uuid.replace(/-/g, "").slice(0, 3);
+  const num = parseInt(hex, 16);
+  const adj = GATE_ADJECTIVES[(num >> 6) & 0x3F];
+  const noun = GATE_NOUNS[num & 0x3F];
+  return `${adj}-${noun}`;
+}
 
 /**
  * Fire-and-forget cron teardown when a run ends.
@@ -638,6 +674,14 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
     return { advanced: false, runCompleted: false };
   }
 
+  // Guard: if any step is already in 'gate' status, do NOT advance past it
+  const gateBlocking = db.prepare(
+    "SELECT id FROM steps WHERE run_id = ? AND status = 'gate' LIMIT 1"
+  ).get(runId);
+  if (gateBlocking) {
+    return { advanced: false, runCompleted: false };
+  }
+
   const next = db.prepare(
     "SELECT id FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
   ).get(runId) as { id: string } | undefined;
@@ -652,6 +696,26 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
 
   const wfId = getWorkflowId(runId);
   if (next) {
+    // Check if this is a gate step
+    const nextStep = db.prepare("SELECT type FROM steps WHERE id = ?").get(next.id) as { type: string } | undefined;
+    if (nextStep?.type === "gate") {
+      db.prepare(
+        "UPDATE steps SET status = 'gate', updated_at = datetime('now') WHERE id = ?"
+      ).run(next.id);
+      emitEvent({ ts: new Date().toISOString(), event: "pipeline.advanced", runId, workflowId: wfId, stepId: next.id });
+      emitEvent({ ts: new Date().toISOString(), event: "step.gate", runId, workflowId: wfId, stepId: next.id, detail: "Awaiting human approval" });
+      // Get the step_id (human-readable) for the notification
+      const gateStepInfo = db.prepare("SELECT step_id FROM steps WHERE id = ?").get(next.id) as { step_id: string };
+      // Notify gate synchronously — detached spawn gets killed by exec sandbox teardown
+      const cliPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../dist/cli/cli.js");
+      try {
+        execSync(`node ${JSON.stringify(cliPath)} notify-gate ${JSON.stringify(gateStepInfo.step_id)} ${JSON.stringify(runId)}`, {
+          timeout: 30_000,
+          stdio: "ignore",
+        });
+      } catch { /* best-effort — gate is already set in DB regardless */ }
+      return { advanced: true, runCompleted: false };
+    }
     db.prepare(
       "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
     ).run(next.id);
@@ -691,6 +755,41 @@ export function archiveRunProgress(runId: string): void {
   fs.mkdirSync(archiveDir, { recursive: true });
   fs.copyFileSync(progressPath, path.join(archiveDir, "progress.txt"));
   fs.writeFileSync(progressPath, ""); // truncate
+}
+
+/**
+ * Approve a human gate step, advancing the pipeline.
+ */
+export function approveGate(code: string): { ok: boolean; error?: string; advanced?: boolean; runCompleted?: boolean } {
+  const db = getDb();
+  // Try word code match first, then fall back to UUID prefix match
+  const gateSteps = db.prepare(
+    "SELECT id, run_id, step_id, status, step_index FROM steps WHERE status = 'gate'"
+  ).all() as Array<{ id: string; run_id: string; step_id: string; status: string; step_index: number }>;
+  let step = gateSteps.find(s => gateCodeFromUuid(s.id) === code);
+  if (!step) {
+    // Fallback: UUID exact or prefix match
+    step = (db.prepare(
+      "SELECT id, run_id, step_id, status, step_index FROM steps WHERE (id = ? OR id LIKE ?) AND status = 'gate'"
+    ).get(code, `${code}%`) as typeof step) ?? undefined;
+  }
+  if (!step) {
+    return { ok: false, error: "No active gate found for that code" };
+  }
+  if (step.status !== "gate") {
+    return { ok: false, error: `Step "${step.step_id}" is "${step.status}", not "gate"` };
+  }
+  // Copy output from the preceding step so template vars flow through
+  const prevStep = db.prepare(
+    "SELECT output FROM steps WHERE run_id = ? AND step_index = ? AND status = 'done'"
+  ).get(step.run_id, step.step_index - 1) as { output: string } | undefined;
+  const output = prevStep?.output ?? "STATUS: done\nAPPROVED: true";
+  db.prepare("UPDATE steps SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?").run(output, step.id);
+  const wfId = getWorkflowId(step.run_id);
+  emitEvent({ ts: new Date().toISOString(), event: "step.approved", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: "Human gate approved" });
+  emitEvent({ ts: new Date().toISOString(), event: "step.done", runId: step.run_id, workflowId: wfId, stepId: step.step_id });
+  const result = advancePipeline(step.run_id);
+  return { ok: true, ...result };
 }
 
 /**

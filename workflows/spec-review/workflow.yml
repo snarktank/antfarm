@@ -1,0 +1,107 @@
+id: spec-review
+name: Spec Review
+version: 1
+description: |
+  Spec-first planning with a human approval gate.
+  A specwriter explores the codebase and writes a specification, a human
+  reviews and approves it, then a planner turns it into ordered stories.
+
+agents:
+  - id: specwriter
+    name: Specwriter
+    role: analysis
+    description: Explores codebase and writes a formal spec from a task description.
+    workspace:
+      baseDir: agents/specwriter
+      files:
+        AGENTS.md: agents/specwriter/AGENTS.md
+        SOUL.md: agents/specwriter/SOUL.md
+        IDENTITY.md: agents/specwriter/IDENTITY.md
+
+  - id: planner
+    name: Planner
+    role: analysis
+    description: Turns an approved spec into an ordered plan with stories.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
+steps:
+  # Step 1: Write a spec from the task description
+  - id: spec
+    agent: specwriter
+    input: |
+      Explore the codebase and write a formal specification for the following task.
+
+      TASK:
+      {{task}}
+
+      Instructions:
+      1. Explore the codebase — read key files, understand the stack, conventions, patterns
+      2. Write a clear, concise spec covering:
+         - Problem statement / motivation
+         - Proposed solution (what, not how)
+         - Scope: what's in, what's explicitly out
+         - Acceptance criteria (mechanically verifiable)
+         - Key technical constraints or dependencies
+      3. Do NOT design the implementation — that's the planner's job
+      4. Be specific enough that a planner can decompose this into stories
+
+      5. Save the spec as markdown to docs/plans/<spec_name>-<iso8601>.md where
+         <spec_name> is a slugified version of the task and <iso8601> is the current timestamp.
+         Create the docs/plans/ directory if it doesn't exist.
+
+      Reply with:
+      STATUS: done
+      REPO: /path/to/repo
+      SPEC_PATH: docs/plans/<the file you wrote>
+      SPEC: <the full spec text>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  # Step 2: Human reviews the spec before planning proceeds
+  - id: spec-approval
+    gate: true
+    on_gate: |
+      Render the spec to HTML for human review.
+      1. Read the spec markdown from {{spec_path}}
+      2. Use Pandoc to convert it: pandoc {{spec_path}} -f markdown -t html --standalone -o /var/www/plans/<matching-name>.html
+      3. Send the review URL (http://<hostname>/plans/<filename>) to the bound session
+      4. Ask the user to review and approve
+
+  # Step 3: Turn the approved spec into an implementation plan
+  - id: plan
+    agent: planner
+    input: |
+      Turn this approved spec into an ordered implementation plan with user stories.
+
+      REPO: {{repo}}
+      SPEC:
+      {{spec}}
+
+      ORIGINAL TASK:
+      {{task}}
+
+      Instructions:
+      1. Re-explore the codebase with the spec in mind
+      2. Break the spec into small, ordered user stories (max 20)
+      3. Order by dependency: schema/DB first, backend, frontend, integration
+      4. Each story must fit in ONE developer session (one context window)
+      5. Every acceptance criterion must be mechanically verifiable
+      6. Always include "Typecheck passes" as the last criterion in every story
+      7. Every story MUST include test criteria
+
+      Reply with:
+      STATUS: done
+      BRANCH: feature-branch-name
+      PLAN: <the full plan text>
+      STORIES_JSON: [ ... array of story objects ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human

@@ -43,13 +43,15 @@ export type LoopConfig = {
 
 export type WorkflowStep = {
   id: string;
-  agent: string;
-  type?: "single" | "loop";
+  agent?: string;
+  gate?: boolean;
+  type?: "single" | "loop" | "gate";
   loop?: LoopConfig;
-  input: string;
-  expects: string;
+  input?: string;
+  expects?: string;
   max_retries?: number;
   on_fail?: WorkflowStepFailure;
+  on_gate?: string;
 };
 
 export type Story = {
