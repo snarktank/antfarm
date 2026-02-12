@@ -1,0 +1,35 @@
+name: aria-scout-forge
+description: "Orchestration: Aria (Triage) -> Scout (Plan/Review) -> Forge (Execute)"
+version: 1.0.0
+
+agents:
+  - id: aria
+    name: Aria
+    role: analysis
+    model: ollama/qwen2.5:14b  # orquestração leve → fallback: gemini-3-flash → groq → pro-high
+
+  - id: scout
+    name: Scout
+    role: analysis
+    model: ollama/qwen2.5:14b  # planejamento/análise → fallback: gemini-3-flash → groq → pro-high
+
+  - id: forge
+    name: Forge
+    role: coding
+    model: google-antigravity/gemini-3-pro-high  # geração de código pesada → pro-high explícito
+
+steps:
+  - id: triage
+    agent: aria
+    prompt: "Triage this task: {{task}}"
+    expects: "result: done"
+
+  - id: plan
+    agent: scout
+    prompt: "Plan this task: {{task}}"
+    expects: "result: done"
+
+  - id: execute
+    agent: forge
+    prompt: "Execute this task: {{task}}"
+    expects: "result: done"

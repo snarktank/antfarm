@@ -46,3 +46,13 @@ Started: 2026-02-11 05:47 ET
 - Files changed: `package.json`, `tsconfig.json`, `tests/ant.test.ts`, `tests/build-artifacts.test.ts`, `tests/model-field-preservation.test.ts`
 - **Learnings:** Tests running from `dist/` need careful path resolution to find project root or artifacts
 ---
+
+## 2026-02-12 19:35 - HC-003: Verify CLI Runtime Execution
+- Verified built CLI executes correctly via shebang
+- Fixed `package.json` build paths to point to correct artifact location (`dist/src/cli/cli.js`)
+- Updated `src/cli/cli.ts` `getVersion` logic to support both source and build structures
+- Created `tests/cli-runtime.test.ts` to verify runtime execution
+- Updated `tests/ant.test.ts`, `tests/build-artifacts.test.ts`, `tests/cli.test.ts` to use correct build path
+- Files changed: `package.json`, `src/cli/cli.ts`, `tests/cli-runtime.test.ts`, `tests/ant.test.ts`, `tests/build-artifacts.test.ts`, `tests/cli.test.ts`
+- **Learnings:** Including `tests/` in `tsconfig.json` causes output structure to change to `dist/src` and `dist/tests`. `package.json` bin paths must match this structure.
+---

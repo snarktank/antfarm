@@ -26,17 +26,22 @@ import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/d
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const pkgPath = join(__dirname, "..", "..", "package.json");
 
 function getVersion(): string {
   try {
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+    // Try root relative to src/cli (2 levels up) -> source/ts-node
+    let path = join(__dirname, "..", "..", "package.json");
+    if (!existsSync(path)) {
+      // Try root relative to dist/src/cli (3 levels up) -> production build
+      path = join(__dirname, "..", "..", "..", "package.json");
+    }
+    const pkg = JSON.parse(readFileSync(path, "utf-8"));
     return pkg.version ?? "unknown";
   } catch {
     return "unknown";
@@ -120,6 +125,11 @@ async function main() {
 
   if (group === "version" || group === "--version" || group === "-v") {
     console.log(`antfarm v${getVersion()}`);
+    return;
+  }
+
+  if (group === "help" || group === "--help" || group === "-h") {
+    printUsage();
     return;
   }
 

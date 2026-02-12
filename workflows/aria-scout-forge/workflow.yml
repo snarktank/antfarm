@@ -1,0 +1,155 @@
+id: aria-scout-forge
+name: Aria-Scout-Forge
+version: 1.0.0
+description: "Orchestration: Aria (Triage) -> Scout (Plan/Review) -> Forge (Execute)"
+
+agents:
+  - id: aria
+    name: Aria
+    role: analysis
+    description: Orchestrator. Triages tasks, defines DoD and constraints.
+    workspace:
+      baseDir: agents/aria
+      files:
+        AGENTS.md: agents/aria/AGENTS.md
+        SOUL.md: agents/aria/SOUL.md
+        IDENTITY.md: agents/aria/IDENTITY.md
+
+  - id: scout
+    name: Scout
+    role: analysis
+    description: Planner & Reviewer. Breaks down tasks and verifies evidence.
+    workspace:
+      baseDir: agents/scout
+      files:
+        AGENTS.md: agents/scout/AGENTS.md
+        SOUL.md: agents/scout/SOUL.md
+        IDENTITY.md: agents/scout/IDENTITY.md
+
+  - id: forge
+    name: Forge
+    role: coding
+    description: Executor. Builds features and generates evidence.
+    workspace:
+      baseDir: agents/forge
+      files:
+        AGENTS.md: agents/forge/AGENTS.md
+        SOUL.md: agents/forge/SOUL.md
+        IDENTITY.md: agents/forge/IDENTITY.md
+
+steps:
+  - id: triage
+    agent: aria
+    input: |
+      Incoming Task: "{{task}}"
+
+      Analyze this task.
+      1. Refine the objective.
+      2. Create a strict Definition of Done (DoD).
+      3. List constraints.
+      4. Set priority.
+
+      Reply with a JSON block:
+      ```json
+      {
+        "dod": "...",
+        "constraints": ["..."],
+        "priority": "..."
+      }
+      ```
+    expects: "JSON output with dod"
+
+  - id: plan
+    agent: scout
+    input: |
+      Task: "{{task}}"
+      DoD: "{{steps.triage.output.dod}}"
+      Constraints: {{steps.triage.output.constraints}}
+
+      Create a "Task Pack" for Forge.
+      1. Break implementation into atomic steps.
+      2. Identify necessary skills.
+      3. Define exact evidence required.
+
+      Reply with a JSON block:
+      ```json
+      {
+        "task_pack": {
+          "steps": ["..."],
+          "skills": ["..."],
+          "required_evidence": ["..."]
+        }
+      }
+      ```
+    expects: "JSON output with task_pack"
+
+  - id: implement
+    agent: forge
+    input: |
+      Execute the Task Pack.
+      
+      Steps:
+      {{steps.plan.output.task_pack.steps}}
+
+      Skills to Apply:
+      {{steps.plan.output.task_pack.skills}}
+
+      Requirements:
+      {{steps.plan.output.task_pack.required_evidence}}
+
+      Perform the work. Write code. Run tests.
+      
+      Reply with a JSON block:
+      ```json
+      {
+        "status": "completed",
+        "evidence": {
+          "summary": "...",
+          "files_changed": ["..."],
+          "test_results": "..."
+        }
+      }
+      ```
+    expects: "JSON output with status completed"
+
+  - id: verify
+    agent: scout
+    input: |
+      Review Forge's work.
+
+      DoD:
+      {{steps.triage.output.dod}}
+
+      Evidence Provided:
+      {{steps.implement.output.evidence}}
+
+      Verdict:
+      - PASS: If all DoD items are met.
+      - FAIL: If anything is missing.
+
+      Reply with a JSON block:
+      ```json
+      {
+        "verdict": "pass",
+        "feedback": "..."
+      }
+      ```
+      (or verdict: "fail")
+    expects: "JSON output with verdict"
+
+  - id: finalize
+    agent: scout
+    input: |
+      Finalize the run.
+      
+      Task: {{task}}
+      Result: {{steps.verify.output.verdict}}
+      Feedback: {{steps.verify.output.feedback}}
+
+      Generate a final summary report.
+      
+      Reply with JSON:
+      ```json
+      { "final_report": "..." }
+      ```
+    expects: "JSON output with final_report"

@@ -13,6 +13,7 @@ agents:
   - id: planner
     name: Planner
     role: analysis
+    model: ollama/qwen2.5:14b  # decomposição/orquestração → leve; fallback → pro-high
     description: Decomposes tasks into ordered user stories.
     workspace:
       baseDir: agents/planner
@@ -24,6 +25,7 @@ agents:
   - id: setup
     name: Setup
     role: coding
+    model: ollama/qwen2.5:14b  # setup de ambiente → leve; fallback → pro-high
     description: Prepares environment, creates branch, establishes baseline.
     workspace:
       baseDir: agents/setup
@@ -35,6 +37,7 @@ agents:
   - id: developer
     name: Developer
     role: coding
+    model: google-antigravity/gemini-3-pro-high  # geração de código pesada → pro-high explícito
     description: Implements features, writes tests, creates PRs.
     workspace:
       baseDir: agents/developer
@@ -46,6 +49,7 @@ agents:
   - id: verifier
     name: Verifier
     role: verification
+    model: groq/llama-3.3-70b-versatile  # QA rápida → groq/flash; fallback → pro-high
     description: Quick sanity check - did developer actually do the work?
     workspace:
       baseDir: agents/verifier
@@ -57,6 +61,7 @@ agents:
   - id: tester
     name: Tester
     role: testing
+    model: groq/llama-3.3-70b-versatile  # testes de integração → groq/flash; fallback → pro-high
     description: Integration and E2E testing after all stories are implemented.
     workspace:
       baseDir: agents/tester
@@ -68,6 +73,7 @@ agents:
   - id: reviewer
     name: Reviewer
     role: analysis
+    model: google-antigravity/gemini-3-pro-high  # code review crítico → pro-high explícito
     description: Reviews PRs, requests changes or approves.
     workspace:
       baseDir: agents/reviewer
