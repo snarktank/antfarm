@@ -96,6 +96,7 @@ agents:
   - id: my-agent            # Unique within this workflow
     name: My Agent           # Display name
     role: coding             # Controls tool access (see Agent Roles below)
+    timeoutSeconds: 900      # Optional: override the role's default timeout (seconds)
     description: What it does.
     timeoutSeconds: 1800     # Optional: override isolated session timeout (seconds)
     workspace:
@@ -128,6 +129,8 @@ Roles control what tools each agent has access to during execution:
 | `testing` | Read + exec + browser/web for E2E testing, NO write | tester |
 | `pr` | Read + exec only — runs `gh pr create` | pr |
 | `scanning` | Read + exec + web search for CVE lookups, NO write | scanner |
+
+Each role has a default timeout (20 or 30 min depending on role). Set `timeoutSeconds` on an agent to override it.
 
 ### Step Definition
 

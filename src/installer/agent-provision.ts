@@ -8,6 +8,7 @@ export type ProvisionedAgent = {
   id: string;
   name?: string;
   model?: string;
+  timeoutSeconds?: number;
   workspaceDir: string;
   agentDir: string;
 };
@@ -86,6 +87,7 @@ export async function provisionAgents(params: {
       id: `${params.workflow.id}/${agent.id}`,
       name: agent.name,
       model: agent.model,
+      timeoutSeconds: agent.timeoutSeconds,
       workspaceDir,
       agentDir,
     });
