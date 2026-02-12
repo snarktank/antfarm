@@ -1,0 +1,29 @@
+id: research-deep
+name: Research Deep - 60 Min
+version: 1
+description: Deep research workflow with enforced 60-minute duration.
+
+agents:
+  - id: researcher
+    name: Deep Researcher
+    role: analysis
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+
+steps:
+  - id: research
+    agent: researcher
+    input: |
+      {{task}}
+      
+      CRITICAL: 60 MINUTES MINIMUM
+      Use sleep commands to pace yourself.
+      Do NOT finish early.
+      
+      Reply with:
+      STATUS: done
+      TIME: [minutes spent]
+      OUTPUT: {{output_file}}
+    expects: "STATUS: done"

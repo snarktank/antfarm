@@ -1,0 +1,256 @@
+id: research-deep-v2
+name: Research Deep v2 - Marketing Intelligence
+version: 2
+description: |
+  Enhanced 60-minute deep research workflow with structured marketing frameworks,
+  competitive benchmarking, customer journey mapping, and channel-specific analysis.
+  Produces comprehensive research reports with actionable insights.
+
+agents:
+  - id: researcher
+    name: Deep Researcher v2
+    role: analysis
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+
+steps:
+  - id: research
+    agent: researcher
+    input: |
+      {{task}}
+      
+      ============================================
+      RESEARCH-DEEP V2 - STRUCTURED FRAMEWORK
+      ============================================
+      
+      CRITICAL: 60 MINUTES MINIMUM
+      Use sleep commands to pace yourself.
+      Do NOT finish early.
+      
+      ============================================
+      REQUIRED OUTPUT STRUCTURE (8 SECTIONS)
+      ============================================
+      
+      Your report MUST include ALL 8 sections below:
+      
+      ## SECTION 1: EXECUTIVE SUMMARY
+      - 3-5 critical insights (bullet points)
+      - Primary recommendation
+      - Key opportunity identified
+      
+      ## SECTION 2: AUDIENCE & PSYCHOLOGY
+      ### 2.1 Demographics & Behavior
+      - Key stats, segments, trends
+      ### 2.2 Jobs to Be Done (JTBD)
+      - What "job" does the audience hire this product/experience to do?
+      ### 2.3 Psychological Drivers
+      - Emotional motivators
+      - Behavioral economics principles
+      - Cognitive biases relevant to this audience
+      ### 2.4 Marketing Frameworks Applied
+      - Explicitly state which frameworks apply (AIDA, PAS, Social Proof, etc.)
+      
+      ## SECTION 3: COMPETITIVE BENCHMARKING (REQUIRED)
+      ### 3.1 Competitor Analysis (Minimum 3)
+      For each competitor analyze:
+      - Positioning & messaging
+      - Channel strategy
+      - Creative approach
+      - Strengths & weaknesses
+      ### 3.2 Differentiation Opportunities
+      - White space identified
+      - Unique angles to exploit
+      - Positioning gaps
+      
+      ## SECTION 4: CHANNEL-SPECIFIC ANALYSIS
+      For EACH channel (Instagram, YouTube, Paid Media, Web, CRM):
+      
+      ### 4.X [CHANNEL NAME]
+      **Insights:** What works in this channel for this industry
+      **Best Practices:** Proven tactics and formats
+      **Gaps Identified:** What's missing from competitors
+      **Marketing Frameworks Applied:**
+        - Instagram: Hook Templates, AIDA, Visual Storytelling
+        - YouTube: PAS, Peak-End Rule, Retention Optimization
+        - Paid Media: AIDA, Loss Aversion, Anchoring, Social Proof
+        - Web: Hick's Law, Zeigarnik Effect, CRO Checklist
+        - CRM: Welcome Series, Reciprocity, Consistency
+      **Creative Opportunities:** Specific execution ideas
+      
+      ## SECTION 5: CUSTOMER JOURNEY MAPPING
+      ### 5.1 Journey Touchpoints
+      - Awareness → Consideration → Decision → Retention → Advocacy
+      ### 5.2 Content Mapping
+      - What content at each stage
+      ### 5.3 Friction Points
+      - Where do users drop off
+      ### 5.4 Optimization Opportunities
+      
+      ## SECTION 6: CREATIVE EXECUTION
+      ### 6.1 Concept Connections
+      - How insights connect to the brief/concept
+      ### 6.2 Channel-Specific Executions
+      - Specific creative ideas per channel
+      ### 6.3 Hook/Angle Strategy
+      - Primary hooks for attention capture
+      ### 6.4 Production Notes
+      - Technical specs, formats, timelines
+      
+      ## SECTION 7: MEASUREMENT & KPIs
+      ### 7.1 Channel Metrics
+      | Channel | Primary KPI | Secondary KPIs | Target Benchmark |
+      ### 7.2 Testing Framework
+      - A/B test priorities
+      - Success criteria
+      ### 7.3 Attribution Model
+      - How to measure cross-channel impact
+      
+      ## SECTION 8: SOURCES & METHODOLOGY
+      ### 8.1 Search Strategy (60+ queries minimum)
+      Document queries in 4 phases:
+      - PHASE 1: Broad Discovery (10 queries) - industry trends, behavior
+      - PHASE 2: Channel Deep Dive (30 queries) - 6 per channel minimum
+      - PHASE 3: Competitive Intelligence (10 queries) - competitor analysis
+      - PHASE 4: Psychology & Behavior (10 queries) - drivers, biases, JTBD
+      ### 8.2 Key Sources
+      ### 8.3 Research Limitations
+      
+      ============================================
+      MANDATORY MARKETING FRAMEWORKS
+      ============================================
+      
+      You MUST explicitly apply and mention:
+      
+      1. JTBD (Jobs to Be Done) - Frame around outcomes, not features
+      2. AIDA - Attention → Interest → Desire → Action
+      3. PAS - Problem → Agitation → Solution (for YouTube/Video)
+      4. Competitive Analysis - Minimum 3 competitors
+      5. Customer Journey Mapping
+      
+      CHANNEL-SPECIFIC FRAMEWORKS:
+      
+      INSTAGRAM:
+      - Hook Templates (Question, Number, Story, Contrast, Controversy)
+      - AIDA for post structure
+      - Visual Storytelling principles
+      - Hashtag strategy
+      
+      YOUTUBE:
+      - PAS for 15-30s structure
+      - Peak-End Rule (experience judged by peak and end)
+      - First 5 seconds optimization
+      - Retention tactics
+      
+      PAID MEDIA:
+      - AIDA for campaign structure
+      - Loss Aversion ("don't miss out")
+      - Anchoring (price/value framing)
+      - Social Proof (numbers, testimonials)
+      - Scarcity/Urgency tactics
+      
+      WEB/DIGITAL:
+      - Hick's Law (fewer options = more conversion)
+      - Zeigarnik Effect (unfinished tasks create tension)
+      - CRO Elements checklist (value prop, trust signals, CTAs)
+      - Progressive profiling
+      
+      CRM/EMAIL:
+      - Welcome Series structure
+      - Reciprocity Principle (give first)
+      - Consistency/Commitment (small steps first)
+      - Segmentation strategy
+      
+      ============================================
+      RESEARCH QUALITY STANDARDS
+      ============================================
+      
+      1. MINIMUM 60 SEARCH QUERIES (document all)
+      2. MINIMUM 3 COMPETITORS ANALYZED
+      3. ALL 5 CHANNELS MUST HAVE DEDICATED SECTIONS
+      4. EVERY CHANNEL MUST HAVE FRAMEWORKS APPLIED SECTION
+      5. CUSTOMER JOURNEY MUST BE MAPPED
+      6. KPIs MUST BE SPECIFIC WITH BENCHMARKS
+      
+      ============================================
+      OUTPUT FORMAT
+      ============================================
+      
+      Save research to: {{output_file}}
+      
+      Reply with:
+      STATUS: done
+      TIME: [minutes spent]
+      SEARCHES: [number of queries]
+      OUTPUT: {{output_file}}
+    expects: "STATUS: done"
+
+---
+# WORKFLOW CONFIGURATION
+config:
+  minDuration: 60
+  minSearches: 60
+  requiredSections: 8
+  requiredChannels:
+    - Instagram
+    - YouTube
+    - Paid Media
+    - Web
+    - CRM
+  requiredFrameworks:
+    - JTBD
+    - AIDA
+    - PAS
+    - Competitive Analysis
+    - Customer Journey Mapping
+  outputTemplate: |
+    # [CONCEPT] Deep Research Report
+    
+    **Research Date:** [Date]
+    **Duration:** 60 minutes
+    **Total Searches:** [Count]
+    **Channels:** Instagram, YouTube, Paid Media, Web, CRM
+    
+    ---
+    
+    ## EXECUTIVE SUMMARY
+    
+    ## 1. AUDIENCE & PSYCHOLOGY
+    ### 1.1 Demographics & Behavior
+    ### 1.2 Jobs to Be Done (JTBD)
+    ### 1.3 Psychological Drivers
+    ### 1.4 Marketing Frameworks Applied
+    
+    ## 2. COMPETITIVE BENCHMARKING
+    ### 2.1 Competitor Analysis
+    ### 2.2 Differentiation Opportunities
+    
+    ## 3. CHANNEL-SPECIFIC ANALYSIS
+    ### 3.1 Instagram
+    ### 3.2 YouTube
+    ### 3.3 Paid Media
+    ### 3.4 Web/Digital
+    ### 3.5 CRM
+    
+    ## 4. CUSTOMER JOURNEY MAPPING
+    ### 4.1 Journey Touchpoints
+    ### 4.2 Content Mapping
+    ### 4.3 Friction Points
+    ### 4.4 Optimization Opportunities
+    
+    ## 5. CREATIVE EXECUTION
+    ### 5.1 Concept Connections
+    ### 5.2 Channel-Specific Executions
+    ### 5.3 Hook/Angle Strategy
+    ### 5.4 Production Notes
+    
+    ## 6. MEASUREMENT & KPIs
+    ### 6.1 Channel Metrics
+    ### 6.2 Testing Framework
+    ### 6.3 Attribution Model
+    
+    ## 7. SOURCES & METHODOLOGY
+    ### 7.1 Search Strategy
+    ### 7.2 Key Sources
+    ### 7.3 Research Limitations

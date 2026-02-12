@@ -74,9 +74,15 @@ function runCli(args: string[]): Promise<string> {
   return new Promise(async (resolve, reject) => {
     const bin = await findOpenclawBinary();
     const finalArgs = bin === "npx" ? ["openclaw", ...args] : args;
+    const commandStr = `${bin} ${finalArgs.join(" ")}`;
     execFile(bin, finalArgs, { timeout: 30_000 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr || err.message));
-      else resolve(stdout);
+      if (err) {
+        const exitCode = err.code !== undefined ? `(exit code ${err.code})` : "";
+        const errorDetail = stderr?.trim() || err.message || "Unknown error";
+        reject(new Error(`Command failed: ${commandStr} ${exitCode}. ${errorDetail}`));
+      } else {
+        resolve(stdout);
+      }
     });
   });
 }

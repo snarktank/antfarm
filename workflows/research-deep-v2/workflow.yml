@@ -1,0 +1,105 @@
+id: research-deep-v2
+name: Research Deep V2 - Quality Insights
+version: 2.0
+description: Deep research workflow with structured frameworks, channel-specific analysis, and quality insights (not just quantity).
+
+agents:
+  - id: researcher
+    name: Deep Researcher v2
+    role: analysis
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+        RESEARCH_FRAMEWORKS.md: agents/researcher/RESEARCH_FRAMEWORKS.md
+
+steps:
+  - id: research
+    agent: researcher
+    input: |
+      RESEARCH OBJECTIVE: {{objective}}
+      TARGET AUDIENCE: {{audience}}
+      CHANNELS TO ANALYZE: {{channels}}
+      
+      Execute deep research following the frameworks in RESEARCH_FRAMEWORKS.md.
+      
+      STRUCTURED OUTPUT REQUIRED - Use this exact format:
+      
+      # Executive Summary
+      - Key Insight 1: [insight concreto de negocio]
+      - Key Insight 2: [insight concreto de negocio]
+      - Key Insight 3: [insight concreto de negocio]
+      
+      # Consumer Insights (JTBD Framework)
+      ## Job Principal
+      - Qué trabajo quiere hacer el cliente
+      - Circunstancias del job
+      
+      ## Soluciones Actuales
+      - Cómo lo resuelven hoy
+      - Limitaciones de las soluciones actuales
+      
+      ## Gaps Identificados
+      - Oportunidades no atendidas
+      - Puntos de fricción
+      
+      # Análisis por Canal
+      {{#each channels}}
+      ## {{this}}
+      - Qué funciona: [evidencia concreta]
+      - Qué NO funciona: [evidencia concreta]
+      - Oportunidades: [3-5 oportunidades específicas]
+      {{/each}}
+      
+      # Behavioral Psychology Triggers
+      - Loss Aversion: [oportunidades identificadas]
+      - Social Proof: [cómo aplicar]
+      - Scarcity/Urgency: [mecánicas posibles]
+      - Anchoring: [estrategias de pricing/messaging]
+      - Reciprocity: [qué dar primero]
+      
+      # Competitive Landscape
+      - Líderes: [quiénes dominan y por qué]
+      - Differentiation Gaps: [donde nadie está]
+      - Messaging Analysis: [qué mensajes usan]
+      
+      # Recomendaciones Accionables
+      ## Prioridad 1 (Implementar primero)
+      - Acción: [concreta y medible]
+      - Canales: [dónde ejecutar]
+      - Expected Impact: [qué resultado esperar]
+      
+      ## Prioridad 2
+      [misma estructura]
+      
+      ## Prioridad 3
+      [misma estructura]
+      
+      RESEARCH DEPTH REQUIREMENTS:
+      1. MINIMUM 3 LAYERS per major insight:
+         - Layer 1: Descubrimiento inicial
+         - Layer 2: Profundización (buscar específicamente más sobre el hallazgo)
+         - Layer 3: Validación (buscar evidencia de que el insight es real)
+      
+      2. MINIMUM 3 SOURCES per key claim:
+         - 1 fuente primaria (datos, estudios)
+         - 1 fuente secundaria (análisis)
+         - 1 fuente contraria (objeciones/críticas)
+      
+      3. FRAMEWORK VALIDATION:
+         - Cada sección DEBE usar el framework especificado
+         - No reportar datos crudos - aplicar el framework
+      
+      4. SYNTHESIS REQUIREMENT:
+         - 30% del tiempo en búsqueda
+         - 70% del tiempo en análisis y síntesis
+      
+      Save final report to: {{output_file}}
+      
+      Reply with:
+      STATUS: done
+      OUTPUT: {{output_file}}
+      TIME_SPENT: [minutes]
+      INSIGHTS_COUNT: [número de insights de calidad]
+      SOURCES_VALIDATED: [número de fuentes validadas]
+    expects: "STATUS: done"

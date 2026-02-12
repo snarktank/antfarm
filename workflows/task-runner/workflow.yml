@@ -1,0 +1,64 @@
+id: task-runner
+name: Task Runner
+version: 1
+description: Universal task runner for all delegated tasks. Provides visibility in antfarm dashboard for any type of work.
+
+agents:
+  - id: executor
+    name: Task Executor
+    role: coding
+    model: kimi-coding/k2p5
+    description: Executes any delegated task using available tools and skills.
+    workspace:
+      baseDir: agents/executor
+      files:
+        AGENTS.md: agents/executor/AGENTS.md
+        SOUL.md: agents/executor/SOUL.md
+        IDENTITY.md: agents/executor/IDENTITY.md
+
+  - id: monitor
+    name: Task Monitor
+    role: verification
+    model: kimi-coding/k2p5
+    description: Verifies task completion and quality.
+    workspace:
+      baseDir: agents/monitor
+      files:
+        AGENTS.md: agents/monitor/AGENTS.md
+        SOUL.md: agents/monitor/SOUL.md
+        IDENTITY.md: agents/monitor/IDENTITY.md
+
+steps:
+  - id: execute
+    agent: executor
+    input: |
+      Execute this task:
+      {{task}}
+      
+      Use all available tools to complete the work.
+      Save outputs to appropriate directories.
+      Document progress.
+      
+      Reply with:
+      STATUS: done
+      OUTPUT: what was accomplished
+      FILES: paths to generated files
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: verify
+    agent: monitor
+    input: |
+      Verify this task completion:
+      {{output}}
+      
+      Check:
+      - Was the task fully completed?
+      - Are outputs in correct locations?
+      - Is quality acceptable?
+      
+      Reply:
+      STATUS: done
+      or
+      STATUS: retry with ISSUES
+    expects: "STATUS: done"

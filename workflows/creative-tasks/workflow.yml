@@ -1,0 +1,100 @@
+id: creative-tasks
+name: Creative Tasks
+version: 2
+description: Workflow for creative research with enforced 60-minute deep research duration.
+
+agents:
+  - id: planner
+    name: Creative Planner
+    role: analysis
+    description: Decomposes creative tasks into structured research plans.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
+  - id: researcher
+    name: Creative Researcher
+    role: analysis
+    description: Executes EXACTLY 60 minutes of deep research. Must not complete early.
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+        SOUL.md: agents/researcher/SOUL.md
+        IDENTITY.md: agents/researcher/IDENTITY.md
+
+  - id: reviewer
+    name: Creative Reviewer
+    role: analysis
+    description: Reviews research quality and verifies 60-minute depth requirement.
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: agents/reviewer/AGENTS.md
+        SOUL.md: agents/reviewer/SOUL.md
+        IDENTITY.md: agents/reviewer/IDENTITY.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      Create structured research plan for:
+      {{task}}
+      
+      Define: objectives, key questions, sources, deliverables.
+      
+      STATUS: done
+      RESEARCH_PLAN: [plan]
+    expects: "STATUS: done"
+
+  - id: research
+    agent: researcher
+    input: |
+      EXECUTE EXACTLY 60 MINUTES OF RESEARCH:
+      
+      Plan: {{research_plan}}
+      Task: {{task}}
+      
+      MANDATORY REQUIREMENTS:
+      - Duration: EXACTLY 60 minutes (minimum 50, maximum 70)
+      - Minimum 15 web_search queries
+      - Minimum 10 web_fetch operations
+      - Multiple source cross-referencing
+      - Pace yourself with sleep commands
+      
+      If finished early, do MORE research:
+      - Counter-examples
+      - Edge cases
+      - Adjacent topics
+      - Deeper data points
+      
+      STATUS: done
+      RESEARCH_OUTPUT: [comprehensive findings]
+      INSIGHTS: [key insights by channel]
+    expects: "STATUS: done"
+    max_retries: 1
+
+  - id: review
+    agent: reviewer
+    input: |
+      Verify research quality:
+      {{research_output}}
+      
+      CHECK:
+      - Took ~60 minutes? (not 10-15 min)
+      - Minimum 15 searches conducted?
+      - Deep insights (not surface-level)?
+      - Sources cited?
+      - Thought starter format?
+      
+      If too shallow or too fast: STATUS: retry
+      If good: STATUS: done
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: research
+      max_retries: 1
+      on_exhausted:
+        escalate_to: human
