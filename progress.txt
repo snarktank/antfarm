@@ -36,3 +36,11 @@ Started: 2026-02-11 05:47 ET
 - All 3 tests pass, build passes, typecheck passes
 - 2 pre-existing landing test failures unrelated to this story (missing id="features", id="quickstart", .feature-grid)
 - **Learnings:** Landing page uses plain HTML, no build pipeline yet for HTML transforms
+
+## 2026-02-12 17:15 - story-2: Add version badge to landing page HTML and CSS, wire into build
+- Added .version-badge styles to landing/style.css (pill badge, accent green bg, mono font)
+- Updated package.json build script to run `node scripts/inject-version.js` after tsc
+- Added version badge test to landing/__tests__/landing.test.js (checks element exists + valid semver)
+- Build successfully injects version 0.2.3 into landing page
+- Version badge test passes; 2 pre-existing test failures unchanged (missing id="features", .feature-grid)
+- Files changed: landing/style.css, package.json, landing/__tests__/landing.test.js
