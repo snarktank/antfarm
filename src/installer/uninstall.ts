@@ -117,16 +117,11 @@ export async function uninstallWorkflow(params: {
     if (!agentDir) {
       continue;
     }
-    if (await pathExists(agentDir)) {
-      await fs.rm(agentDir, { recursive: true, force: true });
-    }
-    // Also remove the parent directory if it's now empty
+    // Remove the entire parent directory (e.g. ~/.openclaw/agents/bug-fix-triager/)
+    // since both agent/ and sessions/ inside it are antfarm-managed
     const parentDir = path.dirname(agentDir);
     if (await pathExists(parentDir)) {
-      const remaining = await fs.readdir(parentDir).catch(() => ["placeholder"]);
-      if (remaining.length === 0) {
-        await fs.rm(parentDir, { recursive: true, force: true });
-      }
+      await fs.rm(parentDir, { recursive: true, force: true });
     }
   }
 
@@ -207,16 +202,11 @@ export async function uninstallAllWorkflows(): Promise<void> {
     if (!agentDir) {
       continue;
     }
-    if (await pathExists(agentDir)) {
-      await fs.rm(agentDir, { recursive: true, force: true });
-    }
-    // Also remove the parent directory if it's now empty
+    // Remove the entire parent directory (e.g. ~/.openclaw/agents/bug-fix-triager/)
+    // since both agent/ and sessions/ inside it are antfarm-managed
     const parentDir = path.dirname(agentDir);
     if (await pathExists(parentDir)) {
-      const remaining = await fs.readdir(parentDir).catch(() => ["placeholder"]);
-      if (remaining.length === 0) {
-        await fs.rm(parentDir, { recursive: true, force: true });
-      }
+      await fs.rm(parentDir, { recursive: true, force: true });
     }
   }
 
