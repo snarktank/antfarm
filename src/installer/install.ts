@@ -7,7 +7,7 @@ import { readOpenClawConfig, writeOpenClawConfig, type OpenClawConfig } from "./
 import { updateMainAgentGuidance } from "./main-agent-guidance.js";
 import { addSubagentAllowlist } from "./subagent-allowlist.js";
 import { installAntfarmSkill } from "./skill-install.js";
-import type { AgentRole, WorkflowInstallResult, WorkflowSpec } from "./types.js";
+import type { AgentRole, WorkflowInstallResult } from "./types.js";
 
 function ensureAgentList(config: { agents?: { list?: Array<Record<string, unknown>>; defaults?: Record<string, unknown> } }) {
   if (!config.agents) config.agents = {};
@@ -58,15 +58,19 @@ const DEFAULT_SESSION_MAINTENANCE = {
 } as const;
 
 /**
- * Per-role tool policies using OpenClaw's profile + allow/deny system.
+ * Per-role defaults: tool policies + timeout overrides.
  *
  * Profile "coding" provides: group:fs (read/write/edit/apply_patch),
  *   group:runtime (exec/process), group:sessions, group:memory, image.
  * We then use deny to remove tools each role shouldn't have.
  *
- * Roles without a profile entry use allow-lists for tighter control.
+ * timeoutSeconds: heavy roles (coding, testing) get 30 min; lighter roles 20 min.
+ * If a role has no timeoutSeconds, OpenClaw's global default (600s) applies.
  */
-const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[]; deny: string[] }> = {
+const TIMEOUT_20_MIN = 1200;
+const TIMEOUT_30_MIN = 1800;
+
+const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[]; deny: string[]; timeoutSeconds: number }> = {
   // analysis: read code, run git/grep, reason — no writing, no web, no browser
   analysis: {
     profile: "coding",
@@ -76,6 +80,7 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
       "image", "tts",                  // unnecessary
       "group:ui",                      // no browser/canvas
     ],
+    timeoutSeconds: TIMEOUT_20_MIN,  // codebase exploration + reasoning
   },
 
   // coding: full read/write/exec — the workhorses (developer, fixer, setup)
@@ -86,6 +91,7 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
       "image", "tts",                  // unnecessary
       "group:ui",                      // no browser/canvas
     ],
+    timeoutSeconds: TIMEOUT_30_MIN,  // implements code + build + tests
   },
 
   // verification: read + exec but NO write — preserves independent verification integrity
@@ -97,6 +103,7 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
       "image", "tts",                  // unnecessary
       "group:ui",                      // no browser/canvas
     ],
+    timeoutSeconds: TIMEOUT_20_MIN,  // code review + runs tests
   },
 
   // testing: read + exec + browser/web for E2E, NO write
@@ -108,6 +115,7 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
       "write", "edit", "apply_patch",  // testers don't write production code
       "image", "tts",                  // unnecessary
     ],
+    timeoutSeconds: TIMEOUT_30_MIN,  // full test suites + E2E
   },
 
   // pr: just needs read + exec (for `gh pr create`)
@@ -119,6 +127,7 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
       "image", "tts",                  // unnecessary
       "group:ui",                      // no browser/canvas
     ],
+    timeoutSeconds: TIMEOUT_20_MIN,  // quick task, no special-casing
   },
 
   // scanning: read + exec + web (CVE lookups), NO write
@@ -131,8 +140,17 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
       "image", "tts",                  // unnecessary
       "group:ui",                      // no browser/canvas
     ],
+    timeoutSeconds: TIMEOUT_20_MIN,  // security scanning + web lookups
   },
 };
+
+/**
+ * Return the highest configured role timeout (seconds).
+ * Used by step-ops to derive the abandoned-step threshold.
+ */
+export function getMaxRoleTimeoutSeconds(): number {
+  return Math.max(...Object.values(ROLE_POLICIES).map(r => r.timeoutSeconds));
+}
 
 const SUBAGENT_POLICY = { allowAgents: [] as string[] };
 
@@ -153,11 +171,11 @@ function inferRole(agentId: string): AgentRole {
 }
 
 function buildToolsConfig(role: AgentRole): Record<string, unknown> {
-  const policy = ROLE_TOOL_POLICIES[role];
+  const defaults = ROLE_POLICIES[role];
   const tools: Record<string, unknown> = {};
-  if (policy.profile) tools.profile = policy.profile;
-  if (policy.alsoAllow?.length) tools.alsoAllow = policy.alsoAllow;
-  tools.deny = policy.deny;
+  if (defaults.profile) tools.profile = defaults.profile;
+  if (defaults.alsoAllow?.length) tools.alsoAllow = defaults.alsoAllow;
+  tools.deny = defaults.deny;
   return tools;
 }
 
@@ -189,7 +207,7 @@ function ensureSessionMaintenance(config: OpenClawConfig): void {
 
 function upsertAgent(
   list: Array<Record<string, unknown>>,
-  agent: { id: string; name?: string; model?: string; workspaceDir: string; agentDir: string; role: AgentRole },
+  agent: { id: string; name?: string; model?: string; timeoutSeconds?: number; workspaceDir: string; agentDir: string; role: AgentRole },
 ) {
   const existing = list.find((entry) => entry.id === agent.id);
   // Never overwrite the user's default (main) agent — it was configured outside antfarm.
@@ -203,6 +221,8 @@ function upsertAgent(
     subagents: SUBAGENT_POLICY,
   };
   if (agent.model) payload.model = agent.model;
+  const timeout = agent.timeoutSeconds ?? ROLE_POLICIES[agent.role]?.timeoutSeconds;
+  if (timeout !== undefined) payload.timeoutSeconds = timeout;
   if (existing) Object.assign(existing, payload);
   else list.push(payload);
 }
