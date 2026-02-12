@@ -5,17 +5,20 @@ import { getDb } from "../db.js";
 import { logger } from "../lib/logger.js";
 import { ensureWorkflowCrons } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
+import "./immediate-handoff.js";
 
 export async function runWorkflow(params: {
   workflowId: string;
   taskTitle: string;
   notifyUrl?: string;
+  deferInitialKick?: boolean;
 }): Promise<{ id: string; workflowId: string; task: string; status: string }> {
   const workflowDir = resolveWorkflowDir(params.workflowId);
   const workflow = await loadWorkflowSpec(workflowDir);
   const db = getDb();
   const now = new Date().toISOString();
   const runId = crypto.randomUUID();
+  let firstStepDbId = "";
 
   const initialContext: Record<string, string> = {
     task: params.taskTitle,
@@ -37,12 +40,14 @@ export async function runWorkflow(params: {
     for (let i = 0; i < workflow.steps.length; i++) {
       const step = workflow.steps[i];
       const stepUuid = crypto.randomUUID();
-      const agentId = `${workflow.id}/${step.agent}`;
+      // Scope agent identity to this run so each building/run owns its own agent set.
+      const agentId = `${workflow.id}/${step.agent}@run:${runId}`;
       const status = i === 0 ? "pending" : "waiting";
       const maxRetries = step.max_retries ?? step.on_fail?.max_retries ?? 2;
       const stepType = step.type ?? "single";
       const loopConfig = step.loop ? JSON.stringify(step.loop) : null;
       insertStep.run(stepUuid, runId, step.id, agentId, i, step.input, step.expects, status, maxRetries, stepType, loopConfig, now, now);
+      if (i === 0) firstStepDbId = stepUuid;
     }
 
     db.exec("COMMIT");
@@ -63,6 +68,9 @@ export async function runWorkflow(params: {
   }
 
   emitEvent({ ts: new Date().toISOString(), event: "run.started", runId, workflowId: workflow.id });
+  if (!params.deferInitialKick && firstStepDbId) {
+    emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId, workflowId: workflow.id, stepId: firstStepDbId });
+  }
 
   await logger.info(`Run started: "${params.taskTitle}"`, {
     workflowId: workflow.id,

@@ -610,6 +610,9 @@ const skillTrees = {
 };
 
 function esc(s){ return (s||'').replace(/[&<>\"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+function baseAgentId(agentId){
+  return String(agentId || '').replace(/@run:[^/]+$/, '');
+}
 async function json(url){
   const r = await fetch(url);
   const data = await r.json();
@@ -2337,13 +2340,13 @@ function renderAgentStatusList(agents, run){
   const rows = agents.length
     ? agents.map(a => `
       <div class="agent-row ${state.stream.agentId === a.agentId && state.stream.runId === run?.id ? 'active' : ''}" data-agent="${esc(a.agentId)}" data-run="${esc(run?.id || '')}">
-        <div class="agent-meta"><span class="status-dot" style="background:${statusTone(a.status)}"></span><span class="agent-name" title="${esc(a.agentId)}">${esc(a.agentId)}</span></div>
+        <div class="agent-meta"><span class="status-dot" style="background:${statusTone(a.status)}"></span><span class="agent-name" title="${esc(a.agentId)}">${esc(baseAgentId(a.agentId))}</span></div>
         <div class="agent-actions">
           <span class="badge">${esc(prettyStatus(a.status))}</span>
           ${canRestartAgentStatus(a.status)
             ? `<button class="agent-restart" data-restart-agent="${esc(a.agentId)}" data-restart-run="${esc(run?.id || '')}">restart</button>`
             : ''}
-          ${String(a.agentId || '').toLowerCase().endsWith('/developer') ? `<button class="agent-redo" data-redo-run="${esc(run?.id || '')}" title="Requeue PR step for developer">redo</button>` : ''}
+          ${baseAgentId(a.agentId).toLowerCase().endsWith('/developer') ? `<button class="agent-redo" data-redo-run="${esc(run?.id || '')}" title="Requeue PR step for developer">redo</button>` : ''}
         </div>
       </div>`).join('')
     : '<div class="notice">No assigned agents yet.</div>';

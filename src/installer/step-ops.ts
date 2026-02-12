@@ -32,6 +32,10 @@ function getWorkflowId(runId: string): string | undefined {
   } catch { return undefined; }
 }
 
+function toBaseAgentId(agentId: string): string {
+  return String(agentId || "").replace(/@run:[^/]+$/, "");
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────
 
 /**
@@ -68,7 +72,8 @@ function getAgentWorkspacePath(agentId: string): string | null {
   try {
     const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    const agent = config.agents?.list?.find((a: any) => a.id === agentId);
+    const baseAgentId = toBaseAgentId(agentId);
+    const agent = config.agents?.list?.find((a: any) => a.id === agentId || a.id === baseAgentId);
     return agent?.workspace ?? null;
   } catch {
     return null;
@@ -250,6 +255,7 @@ function cleanupAbandonedSteps(): void {
           db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
           db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(step.id);
           emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: `Story ${story.story_id} abandoned — reset to pending (story retry ${newRetry})` });
+          emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId: step.run_id, workflowId: wfId, stepId: step.id });
         }
         continue;
       }
@@ -275,7 +281,9 @@ function cleanupAbandonedSteps(): void {
       db.prepare(
         "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
       ).run(newRetry, step.id);
-      emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.step_id, detail: `Reset to pending (retry ${newRetry})` });
+      const wfId = getWorkflowId(step.run_id);
+      emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: `Reset to pending (retry ${newRetry})` });
+      emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId: step.run_id, workflowId: wfId, stepId: step.id });
     }
   }
 
@@ -311,16 +319,37 @@ export function claimStep(agentId: string): ClaimResult {
   cleanupAbandonedSteps();
   const db = getDb();
 
-  const step = db.prepare(
-    `SELECT s.id, s.run_id, s.input_template, s.type, s.loop_config
-     FROM steps s
-     JOIN runs r ON r.id = s.run_id
-     WHERE s.agent_id = ? AND s.status = 'pending'
-       AND r.status NOT IN ('failed', 'cancelled')
-     LIMIT 1`
-  ).get(agentId) as { id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
+  let step: { id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const scopedPattern = `${agentId}@run:%`;
+    step = db.prepare(
+      `SELECT s.id, s.run_id, s.input_template, s.type, s.loop_config
+       FROM steps s
+       JOIN runs r ON r.id = s.run_id
+       WHERE (s.agent_id = ? OR s.agent_id LIKE ?) AND s.status = 'pending'
+         AND r.status NOT IN ('failed', 'cancelled')
+       ORDER BY datetime(s.updated_at) ASC, s.step_index ASC
+       LIMIT 1`
+    ).get(agentId, scopedPattern) as { id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
 
-  if (!step) return { found: false };
+    if (!step) {
+      db.exec("COMMIT");
+      return { found: false };
+    }
+
+    const claimed = db.prepare(
+      "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
+    ).run(step.id);
+    if (Number(claimed.changes || 0) < 1) {
+      db.exec("COMMIT");
+      return { found: false };
+    }
+    db.exec("COMMIT");
+  } catch (err) {
+    try { db.exec("ROLLBACK"); } catch {}
+    throw err;
+  }
 
   // Get run context
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string } | undefined;
@@ -404,10 +433,7 @@ export function claimStep(agentId: string): ClaimResult {
     }
   }
 
-  // Single step: existing logic
-  db.prepare(
-    "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
-  ).run(step.id);
+  // Single step: step has already been atomically transitioned to running.
   emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, agentId: agentId });
   logger.info(`Step claimed by ${agentId}`, { runId: step.run_id, stepId: step.id });
 
@@ -490,6 +516,7 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
         db.prepare(
           "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
         ).run(verifyStep.id);
+        emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: verifyStep.id });
         // Loop step stays 'running'
         db.prepare(
           "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ?"
@@ -580,6 +607,7 @@ function handleVerifyEachCompletion(
 
     // Set loop step back to pending for retry
     db.prepare("UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
+    emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId: verifyStep.run_id, workflowId: getWorkflowId(verifyStep.run_id), stepId: loopStepId });
     return { advanced: false, runCompleted: false };
   }
 
@@ -620,6 +648,7 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
     db.prepare(
       "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
     ).run(loopStepId);
+    emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId, workflowId: getWorkflowId(runId), stepId: loopStepId });
     return { advanced: false, runCompleted: false };
   }
 
@@ -746,6 +775,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
       // Retry the story
       db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
       db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(stepId);
+      emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId });
       return { retrying: true, runFailed: false };
     }
   }
@@ -769,6 +799,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     db.prepare(
       "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(newRetryCount, stepId);
+    emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId });
     return { retrying: true, runFailed: false };
   }
 }
