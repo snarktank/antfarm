@@ -574,6 +574,7 @@ const state = {
   baseDrafts: [],
   featureBuildings: [],
   runLayoutOverrides: {},
+  portByPath: {},
   live: { ts:'', activeRunCount:0, pendingRunCount:0, runningAgentCount:0, activeAgents:[] },
   diag: null,
   liveStream: null,
@@ -631,6 +632,7 @@ function snapshotPersistableState(){
     baseDrafts: state.baseDrafts || [],
     featureBuildings: state.featureBuildings || [],
     runLayoutOverrides: state.runLayoutOverrides || {},
+    portByPath: state.portByPath || {},
     selected: state.selected || null,
     camera: state.camera || { x:0, y:0 }
   };
@@ -672,6 +674,9 @@ async function hydratePersistedState(){
     });
   }
   if (persisted.runLayoutOverrides && typeof persisted.runLayoutOverrides === 'object') state.runLayoutOverrides = persisted.runLayoutOverrides;
+  if (persisted.portByPath && typeof persisted.portByPath === 'object') {
+    state.portByPath = persisted.portByPath;
+  }
   if (persisted.camera && typeof persisted.camera === 'object') {
     state.camera = {
       x: Number(persisted.camera.x) || 0,
@@ -711,6 +716,46 @@ function getRepo(run){
 function getWorktreeDefault(repo){
   const clean = repo.split('/').pop() || 'repo';
   return `../${clean}-feature-${Date.now().toString().slice(-4)}`;
+}
+function normalizePathKey(raw){
+  return String(raw || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
+}
+function inferPortFromPath(pathValue){
+  const key = normalizePathKey(pathValue);
+  if (!key) return null;
+  if (/\/antfarm$/.test(key)) return 3333;
+  const featureMatch = key.match(/antfarm-feature-(\d+)/i);
+  if (featureMatch) {
+    const n = Number(featureMatch[1] || 0);
+    if (Number.isFinite(n)) return 3400 + (n % 400);
+  }
+  return null;
+}
+function getPortForPath(pathValue){
+  const key = normalizePathKey(pathValue);
+  if (!key) return null;
+  const mapped = Number(state.portByPath?.[key]);
+  if (Number.isFinite(mapped) && mapped > 0 && mapped < 65536) return mapped;
+  return inferPortFromPath(key);
+}
+function setPortForPath(pathValue, portValue){
+  const key = normalizePathKey(pathValue);
+  const port = Number(portValue);
+  if (!key) return;
+  if (!Number.isFinite(port) || port < 1 || port > 65535) return;
+  state.portByPath = {
+    ...(state.portByPath || {}),
+    [key]: Math.floor(port),
+  };
+}
+function pathLabel(pathValue){
+  const key = normalizePathKey(pathValue);
+  if (!key) return 'base';
+  const featureMatch = key.match(/antfarm-feature-(\d+)/i);
+  if (featureMatch) return `feature-${featureMatch[1]}`;
+  if (/\/antfarm$/.test(key)) return 'master';
+  const parts = key.split('/');
+  return parts[parts.length - 1] || 'base';
 }
 function factionFromWorkflow(id){ return (id || 'neutral').split(/[^a-z0-9]+/i)[0] || 'neutral'; }
 function inferUnitModel(agentId, run){
@@ -891,24 +936,32 @@ function rebuildScene(){
   runsByRepo.forEach((runs, repo) => {
     const existingCustom = customByRepo.get(repo);
     if (existingCustom) {
-      mergedBases.push({ ...existingCustom, runs, source:'custom' });
+      const resolvedPort = Number(existingCustom.port) || getPortForPath(existingCustom.repo) || 3333;
+      if (existingCustom.repo) setPortForPath(existingCustom.repo, resolvedPort);
+      mergedBases.push({ ...existingCustom, runs, source:'custom', port: resolvedPort, portLabel: pathLabel(existingCustom.repo) });
       usedCustomBaseIds.add(existingCustom.id);
       return;
     }
+    const resolvedPort = getPortForPath(repo) || 3333;
+    setPortForPath(repo, resolvedPort);
     mergedBases.push({
       id:`base-run-${autoIndex}`,
       x: 90 + (autoIndex%3)*320,
       y: 80 + Math.floor(autoIndex/3)*220,
       repo,
       runs,
-      source:'run'
+      source:'run',
+      port: resolvedPort,
+      portLabel: pathLabel(repo)
     });
     autoIndex += 1;
   });
 
   (state.customBases || []).forEach((cb) => {
     if (usedCustomBaseIds.has(cb.id)) return;
-    mergedBases.push({ ...cb, runs: cb.runs || [], source:'custom' });
+    const resolvedPort = Number(cb.port) || getPortForPath(cb.repo) || 3333;
+    if (cb.repo) setPortForPath(cb.repo, resolvedPort);
+    mergedBases.push({ ...cb, runs: cb.runs || [], source:'custom', port: resolvedPort, portLabel: pathLabel(cb.repo) });
   });
 
   const buildings = [];
@@ -929,7 +982,11 @@ function rebuildScene(){
           x: Number(override?.x ?? (base.x + GRID_SIZE + (ri%2)*(runFp.w + GRID_SIZE))),
           y: Number(override?.y ?? (base.y + baseFp.h + GRID_SIZE + Math.floor(ri/2)*(runFp.h + GRID_SIZE))),
           progress: runProgress(run),
-          prUrl: extractPrUrl(run)
+          prUrl: extractPrUrl(run),
+          repo: getRepo(run),
+          worktreePath: parseContext(run).worktreePath || '',
+          port: getPortForPath(parseContext(run).worktreePath || '') || Number(base.port) + 1,
+          portLabel: pathLabel(parseContext(run).worktreePath || '')
         });
       }
 
@@ -957,13 +1014,18 @@ function rebuildScene(){
 
   (state.featureBuildings || []).forEach((fb) => {
     const run = fb.runId ? (state.runs || []).find(r => r.id === fb.runId) : null;
+    const fallbackPort = getPortForPath(fb.worktreePath || '') || getPortForPath(fb.repo || '') || 3334;
+    const port = Number(fb.port) || fallbackPort;
+    if (fb.worktreePath) setPortForPath(fb.worktreePath, port);
     buildings.push({
       ...fb,
       kind: 'feature',
       run,
       progress: run ? runProgress(run) : 0,
       prUrl: run ? extractPrUrl(run) : null,
-      phase: run ? (run.status || 'running') : 'draft'
+      phase: run ? (run.status || 'running') : 'draft',
+      port,
+      portLabel: pathLabel(fb.worktreePath || fb.repo || '')
     });
   });
 
