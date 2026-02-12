@@ -43,6 +43,12 @@ If `antfarm` fails with a `node:sqlite` error, your `node` binary may be Bun's w
 - **Traceable runs**: Runs are stored by task title so you can check status without hunting through logs.
 - **Clean lifecycle**: Install, update, or uninstall workflows without manual cleanup.
 
+## Frontend Asset Notes
+
+- RTS dashboard source is in `src/server/rts.html`.
+- RTS sprite assets are in `src/server/rts-sprites/`.
+- `npm run build` copies `src/server/index.html`, `src/server/rts.html`, and `src/server/rts-sprites/*` into `dist/server/`.
+
 ## What It Changes in OpenClaw
 
 - Adds workflow agents to `openclaw.json` (your main agent stays default).

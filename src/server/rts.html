@@ -1,0 +1,2298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Antfarm RTS Command Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;700&family=Geist+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-a:#050913;
+  --bg-b:#081325;
+  --bg-c:#0a1a31;
+  --corpus-ice:#e6fbff;
+  --corpus-teal:#6ff8ff;
+  --corpus-blue:#68c7ff;
+  --corpus-line:#7fcbff5a;
+  --panel:#0b1a2dcc;
+  --panel-edge:#73c7ff55;
+  --muted:#8aa3be;
+  --ok:#4df5bf;
+  --warn:#ffd06b;
+  --bad:#ff7198;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:Inter,system-ui,sans-serif;
+  color:var(--corpus-ice);
+  min-height:100vh;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 12% 12%, #1e3258 0%, #0b1528 24%, transparent 52%),
+    radial-gradient(circle at 88% 18%, #163755 0%, #0a1426 25%, transparent 58%),
+    linear-gradient(165deg,var(--bg-c) 0%,var(--bg-b) 45%,var(--bg-a) 100%);
+}
+.notice { font-size:11px; color:var(--muted); }
+button,select,input,textarea {
+  border:1px solid #4f799f;
+  background:#0b1b30;
+  color:var(--corpus-ice);
+  border-radius:8px;
+  padding:7px 10px;
+}
+button { cursor:pointer; }
+button:hover { border-color:#8de7ff; box-shadow:0 0 0 1px #95e6ff44 inset; }
+.layout { position:relative; width:100vw; height:100vh; }
+.world-wrap {
+  position:relative;
+  inset:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#050913;
+}
+.world-bg {
+  position:absolute; inset:0;
+  background-image:url('/rts-sprites/bg-dark-tile-test.png?v=20260212b');
+  background-repeat:repeat;
+  background-size:128px 128px;
+  background-position:calc(var(--cam-x, 0px) * -0.75) calc(var(--cam-y, 0px) * -0.75);
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+}
+.world {
+  position:absolute;
+  inset:0;
+}
+.path-layer {
+  pointer-events:none;
+}
+.rts-path {
+  position:absolute;
+  height:2px;
+  transform-origin:left center;
+  border-radius:999px;
+  background:linear-gradient(90deg,#5ec8ff55 0%, #89efffaa 48%, #5ec8ff44 100%);
+  box-shadow:0 0 8px #6ad8ff55;
+}
+.rts-path.active {
+  background:linear-gradient(90deg,#77ffd899 0%, #8fd8ffcc 48%, #77ffd888 100%);
+  box-shadow:0 0 14px #76ffe099;
+}
+.build-note {
+  position:absolute;
+  min-width:130px;
+  max-width:220px;
+  border:1px solid #79dcffb2;
+  border-radius:8px;
+  background:#0a1f34ee;
+  padding:6px 8px;
+  color:#dff8ff;
+  font-size:10px;
+  line-height:1.25;
+  box-shadow:0 6px 14px #00000077;
+  pointer-events:auto;
+}
+.build-note a {
+  color:#95f1ff;
+  text-decoration:none;
+  border-bottom:1px solid #95f1ff66;
+}
+.panel {
+  background:var(--panel);
+  border:1px solid var(--panel-edge);
+  border-radius:12px;
+  padding:12px;
+}
+.panel h3 {
+  font-family:Orbitron,sans-serif;
+  font-size:12px;
+  letter-spacing:.5px;
+  margin-bottom:9px;
+  color:var(--corpus-teal);
+}
+.hud {
+  position:absolute;
+  top:12px;
+  left:12px;
+  right:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+  pointer-events:none;
+  z-index:50;
+}
+.hud-left,
+.hud-right { display:flex; gap:8px; pointer-events:auto; }
+.hud-right { flex-direction:column; width:min(360px, 34vw); max-height:calc(100vh - 24px); overflow:auto; }
+.layout.feature-mode .hud-right { width:min(560px, 52vw); max-height:calc(100vh - 24px); }
+.layout.feature-mode #livePanel,
+.layout.feature-mode #selectionPanel { display:none; }
+.layout.feature-mode #actionPanel { min-height:calc(100vh - 120px); }
+.command-bar {
+  position:absolute;
+  left:50%;
+  bottom:12px;
+  transform:translateX(-50%);
+  border:1px solid var(--panel-edge);
+  border-radius:12px;
+  background:linear-gradient(180deg,#09172d,#081224);
+  display:flex;
+  align-items:center;
+  width:min(760px, calc(100vw - 24px));
+  z-index:60;
+}
+.command-left {
+  display:none;
+}
+.command-title { font-family:Orbitron,sans-serif; font-size:11px; color:#8cdcff; letter-spacing:.6px; }
+.command-icon-btn {
+  appearance:none;
+  width:38px;
+  height:38px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid #5584ab;
+  border-radius:10px;
+  background:linear-gradient(160deg,#0f2842 0%,#0a1e34 60%,#081629 100%);
+}
+.command-icon-btn img {
+  width:24px;
+  height:24px;
+  object-fit:contain;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+}
+.command-grid {
+  padding:10px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  overflow-x:auto;
+  overflow-y:hidden;
+}
+.palette-card {
+  appearance:none;
+  border:1px solid #5584ab;
+  width:88px;
+  height:88px;
+  min-width:88px;
+  border-radius:12px;
+  background:linear-gradient(150deg,#0f2842 0%,#0a1e34 58%,#081629 100%);
+  box-shadow:0 7px 14px #00000066;
+  cursor:grab;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+}
+.palette-card:hover {
+  border-color:#8de7ff;
+  box-shadow:0 0 0 1px #95e6ff44 inset, 0 8px 18px #0000007a;
+}
+.palette-card.active {
+  border-color:#8de7ff;
+  box-shadow:0 0 0 1px #95e6ff77 inset, 0 0 20px #57dfff4f;
+}
+.palette-card:active { cursor:grabbing; }
+.palette-sprite {
+  width:56px;
+  height:56px;
+  object-fit:contain;
+  opacity:.95;
+  filter:none;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+}
+.palette-card .hotkey {
+  font-size:10px;
+  color:#8cdcff;
+  position:absolute;
+  right:6px;
+  bottom:4px;
+  font-family:'Geist Mono', monospace;
+  letter-spacing:.5px;
+}
+.world-wrap.drop-armed { outline:2px dashed #8de7ff; outline-offset:-6px; }
+.placement-layer { pointer-events:none; }
+.placement-ghost { opacity:.45; border-style:dashed; }
+.placement-ghost.invalid .building-sprite { filter:hue-rotate(-42deg) saturate(1.25) brightness(1.05); }
+.building-sprite {
+  width:var(--sprite-w,100%);
+  height:var(--sprite-h,100%);
+  object-fit:contain;
+  display:block;
+  pointer-events:none;
+  filter:none;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+}
+.build-card {
+  border:1px solid #3f6283;
+  border-radius:10px;
+  padding:8px;
+  background:linear-gradient(150deg,#0e223a 0%,#091a2f 58%,#081629 100%);
+  box-shadow:0 9px 16px #00000066;
+}
+.build-card strong { display:block; font-size:12px; margin-bottom:5px; color:#caf4ff; }
+.build-card small { color:var(--muted); font-size:11px; display:block; }
+.kv { font-size:12px; color:var(--muted); margin-bottom:7px; }
+.kv strong { color:var(--corpus-ice); }
+.entity {
+  position:absolute;
+  transform-style:preserve-3d;
+  filter:none;
+  pointer-events:auto;
+}
+.iso-core {
+  position:relative;
+  border:none;
+  background:none;
+  overflow:visible;
+}
+.iso-core:before {
+  content:none;
+  position:absolute;
+  inset:-1px;
+  background:linear-gradient(130deg,#d9fbff2f 0%,transparent 28%,transparent 65%,#58deff2f 100%);
+  pointer-events:none;
+}
+.iso-top,
+.iso-side {
+  display:none;
+}
+.iso-top {
+  left:0;
+  right:0;
+}
+.iso-side {
+  top:0;
+  right:0;
+}
+.base { width:var(--footprint-w,176px); height:var(--footprint-h,132px); }
+.base .iso-core { width:100%; height:100%; border-radius:0; padding:0; }
+.movable { cursor:move; }
+.base .name { font-size:12px; font-weight:700; color:#baf5ff; }
+.base .repo { margin-top:6px; font-size:11px; color:#9eb5cb; font-family:'Geist Mono', monospace; }
+.base .conduit {
+  margin-top:12px;
+  height:8px;
+  border-radius:999px;
+  border:1px solid #7de7ff7a;
+  background:linear-gradient(90deg,#40d8ff,#8fffff,#4ec9ff);
+  box-shadow:0 0 10px #62deff77;
+}
+.building { width:var(--footprint-w,132px); min-height:var(--footprint-h,88px); }
+.building .iso-core { border-radius:0; padding:0; min-height:var(--footprint-h,88px); cursor:pointer; }
+.building .title { font-size:12px; font-weight:600; margin-bottom:7px; }
+.meta { display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--muted); margin-bottom:7px; }
+.badge { font-size:10px; border:1px solid #5d8cae; border-radius:999px; padding:2px 6px; }
+.progress { height:8px; border-radius:999px; border:1px solid #4f7693; overflow:hidden; background:#08101d; }
+.bar { height:100%; background:linear-gradient(90deg,#58ffe4,#66cbff); }
+.pr-link { display:block; margin-top:8px; font-size:11px; color:#a7efff; text-decoration:none; border:1px solid #4f8cae; border-radius:7px; padding:6px; }
+.ghost { opacity:.86; border-style:dashed; }
+.draft-ghost { opacity:.46; border-style:dashed; }
+.draft-ghost .iso-core { border-color:#86dcffa2; }
+.unit {
+  position:absolute;
+  width:32px; height:32px;
+  background:url('/rts-sprites/unit-cephalon-test.png?v=20260212b') center/contain no-repeat;
+  filter:none;
+  cursor:pointer;
+  animation:float-unit 1.8s ease-in-out infinite alternate;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+}
+.unit-model-chip {
+  position:absolute;
+  transform:translate(13px,-9px);
+  background:#0d2035d9;
+  border:1px solid #5486a8;
+  border-radius:999px;
+  padding:1px 6px;
+  white-space:nowrap;
+  font-size:9px;
+  color:#a3efff;
+  pointer-events:none;
+}
+.subunit {
+  position:absolute;
+  width:16px; height:16px;
+  background:url('/rts-sprites/subunit-cephalon-test.png?v=20260212b') center/contain no-repeat;
+  filter:none;
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+}
+.camera-hint {
+  position:absolute;
+  left:12px;
+  bottom:152px;
+  pointer-events:none;
+  z-index:45;
+  background:#0b1a2fbd;
+  border:1px solid #436f91;
+  border-radius:8px;
+  padding:6px 8px;
+}
+@keyframes float-unit { from { transform:translateY(-2px); } to { transform:translateY(2px); } }
+.skill-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.skill { border:1px solid #416e90; border-radius:8px; padding:6px; font-size:11px; background:#0a1b2f; }
+input[type="text"], input:not([type]), textarea { width:100%; margin-top:4px; }
+textarea { min-height:132px; resize:vertical; font-family:Inter,system-ui,sans-serif; }
+.status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+.agent-list { display:flex; flex-direction:column; gap:6px; margin-top:8px; }
+.agent-row {
+  border:1px solid #3f6788;
+  border-radius:8px;
+  padding:7px 8px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  font-size:11px;
+  background:#0b1a2f;
+  cursor:pointer;
+}
+.agent-row:hover { border-color:#85dfff; }
+.agent-row.active { border-color:#8de7ff; box-shadow:0 0 0 1px #95e6ff44 inset; }
+.agent-meta { display:flex; align-items:center; gap:6px; min-width:0; }
+.agent-name { font-family:'Geist Mono', monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px; }
+.agent-actions { display:flex; align-items:center; gap:6px; }
+.agent-restart {
+  border:1px solid #7f95b0;
+  background:#122237;
+  color:#cbe9ff;
+  border-radius:6px;
+  padding:2px 6px;
+  font-size:10px;
+}
+.agent-restart:hover { border-color:#a1c6ea; }
+.agent-redo {
+  border:1px solid #5f9b78;
+  background:#102a1f;
+  color:#cfffe4;
+  border-radius:6px;
+  padding:2px 6px;
+  font-size:10px;
+}
+.agent-redo:hover { border-color:#81d6a9; }
+.term-wrap {
+  margin-top:8px;
+  border:1px solid #456c8d;
+  border-radius:8px;
+  background:#040b14;
+  overflow:hidden;
+}
+.term-head {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:6px 8px;
+  border-bottom:1px solid #34556f;
+  font-size:10px;
+  color:var(--muted);
+}
+.term-actions {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.term-copy {
+  border:1px solid #7f95b0;
+  background:#122237;
+  color:#cbe9ff;
+  border-radius:6px;
+  padding:2px 6px;
+  font-size:10px;
+}
+.term-copy:hover { border-color:#a1c6ea; }
+.term-view {
+  max-height:420px;
+  min-height:280px;
+  overflow:auto;
+  padding:12px;
+  font-family:'Geist Mono', monospace;
+  font-size:13px;
+  line-height:1.55;
+  white-space:pre;
+  color:#c9f5ff;
+  background:#020913;
+}
+.cli-panel {
+  border:1px solid #3b6384;
+  border-radius:8px;
+  background:#050d17;
+  padding:8px;
+}
+.cli-head {
+  display:flex;
+  justify-content:space-between;
+  font-family:'Geist Mono', monospace;
+  font-size:10px;
+  color:#8bdfff;
+  margin-bottom:6px;
+}
+.cli-body {
+  max-height:200px;
+  overflow:auto;
+  font-family:'Geist Mono', monospace;
+  font-size:11px;
+  line-height:1.35;
+  white-space:pre;
+  color:#c9f5ff;
+}
+.unit.live-running { filter:saturate(1.1) brightness(1.05); }
+.unit.live-stale { filter:hue-rotate(-30deg) saturate(1.2); }
+@media (max-width:1180px) {
+  .command-grid { flex-wrap:wrap; }
+  .hud { flex-direction:column; right:auto; width:min(360px, calc(100vw - 24px)); }
+  .hud-right { width:100%; max-height:42vh; }
+  .camera-hint { bottom:170px; }
+}
+@media (max-width:760px) {
+  .hud {
+    top:8px;
+    left:8px;
+    right:8px;
+    width:calc(100vw - 16px);
+  }
+  .hud-left {
+    width:100%;
+    justify-content:space-between;
+    flex-wrap:wrap;
+  }
+  .hud-right {
+    width:100%;
+    max-height:36vh;
+  }
+  .command-bar {
+    left:8px;
+    right:8px;
+    width:auto;
+    transform:none;
+    bottom:8px;
+  }
+  .palette-card {
+    width:72px;
+    height:72px;
+    min-width:72px;
+  }
+  .palette-sprite {
+    width:44px;
+    height:44px;
+  }
+  .term-view {
+    min-height:180px;
+    max-height:260px;
+    font-size:12px;
+  }
+}
+</style>
+</head>
+<body>
+  <div class="layout">
+    <div class="world-wrap" id="worldWrap">
+      <div class="world-bg"></div>
+      <div id="world" class="world"></div>
+      <div id="pathLayer" class="world path-layer"></div>
+      <div id="placementLayer" class="world placement-layer"></div>
+    </div>
+    <div class="hud">
+      <div class="hud-left panel">
+        <div class="command-title">BUILD</div>
+        <button id="cancelPlacementBtn" class="command-icon-btn" title="Cancel placement (Esc)" aria-label="Cancel placement (Escape)">
+          <img src="/rts-sprites/cancel-button.svg?v=20260212" alt="" aria-hidden="true" />
+        </button>
+        <button id="deleteSelectedBtn" class="command-icon-btn" title="Delete selected (Delete)" aria-label="Delete selected (Delete)">
+          <img src="/rts-sprites/delete-button.svg?v=20260212" alt="" aria-hidden="true" />
+        </button>
+        <a href="/" title="Classic board" aria-label="Classic board" style="color:var(--corpus-ice);text-decoration:none;font-size:14px;border:1px solid #4c7da2;border-radius:8px;padding:7px 10px;text-align:center;">[]</a>
+        <div class="notice" id="placementNotice">IDLE</div>
+      </div>
+      <div class="hud-right">
+        <div class="panel" id="livePanel">
+          <h3>Live Agent TTY</h3>
+          <div class="notice">Loading machine state...</div>
+        </div>
+        <div class="panel" id="selectionPanel">
+          <h3>Selection Panel</h3>
+          <div class="notice">Select base/building/unit for RTS-style intel and actions.</div>
+        </div>
+        <div class="panel" id="actionPanel">
+          <h3>Action Console</h3>
+          <div class="notice">Use build icons to place Base or Feature Forge.</div>
+        </div>
+      </div>
+    </div>
+
+    <section class="command-bar">
+      <div class="command-grid">
+        <button class="palette-card" draggable="true" data-building="base" title="Base Core (B)">
+          <img class="palette-sprite" src="/rts-sprites/base-core-corpus-test.png?v=20260212b" alt="" />
+          <span class="hotkey">B</span>
+        </button>
+        <button class="palette-card" draggable="true" data-building="feature" title="Feature Forge (F)">
+          <img class="palette-sprite" src="/rts-sprites/feature-forge-corpus-test.png?v=20260212b" alt="" />
+          <span class="hotkey">F</span>
+        </button>
+      </div>
+    </section>
+  </div>
+
+<script>
+const state = {
+  workflows: [], runs: [],
+  localRepos: [],
+  placementMode: null,
+  bases: [], units: [], buildings: [],
+  customBases: [],
+  baseDrafts: [],
+  featureBuildings: [],
+  runLayoutOverrides: {},
+  live: { ts:'', activeRunCount:0, pendingRunCount:0, runningAgentCount:0, activeAgents:[] },
+  diag: null,
+  liveStream: null,
+  runSig: '',
+  selected: null,
+  persistTimer: null,
+  camera: { x: 0, y: 0 },
+  cameraDrag: { active:false, startX:0, startY:0, originX:0, originY:0 },
+  draggingEntity: null,
+  draggingMoved: false,
+  suppressWorldClick: false,
+  stream: {
+    runId: null,
+    agentId: null,
+    targetLines: [],
+    displayedLines: [],
+    pollTimer: null,
+    revealTimer: null,
+    stepStatus: 'idle',
+    loading: false
+  },
+  streamSelectionByRun: {},
+  featureMode: false
+};
+
+const skillTrees = {
+  architect: ['System Mapping','Dependency Radar','Design Sync','API Stability'],
+  builder: ['Code Synthesis','Refactor Pulse','Patch Weaving','Perf Trim'],
+  verifier: ['Spec Scan','Regression Sweep','Edge Probe','Release Gate'],
+  orchestrator: ['Task Routing','Priority Queue','Load Balancing','Auto Recovery'],
+  subagent: ['Micro-task','Orbit Assist','Retry Loop','Signal Relay']
+};
+
+function esc(s){ return (s||'').replace(/[&<>\"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+async function json(url){
+  const r = await fetch(url);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data?.error || `request_failed:${r.status}`);
+  return data;
+}
+async function postJson(url, body){
+  const r = await fetch(url, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (!r.ok || data?.ok === false) throw new Error(data?.error || data?.next || `request_failed:${r.status}`);
+  return data;
+}
+
+function snapshotPersistableState(){
+  return {
+    customBases: state.customBases || [],
+    baseDrafts: state.baseDrafts || [],
+    featureBuildings: state.featureBuildings || [],
+    runLayoutOverrides: state.runLayoutOverrides || {},
+    selected: state.selected || null,
+    camera: state.camera || { x:0, y:0 }
+  };
+}
+
+function queuePersist(){
+  if (state.persistTimer) clearTimeout(state.persistTimer);
+  state.persistTimer = setTimeout(async () => {
+    const payload = snapshotPersistableState();
+    try {
+      await postJson('/api/rts/state', { state: payload });
+      localStorage.setItem('antfarm-rts-state', JSON.stringify(payload));
+    } catch {
+      try { localStorage.setItem('antfarm-rts-state', JSON.stringify(payload)); } catch {}
+    }
+  }, 250);
+}
+
+async function hydratePersistedState(){
+  let persisted = null;
+  try {
+    const r = await json('/api/rts/state');
+    persisted = r?.state || null;
+  } catch {}
+  if (!persisted) {
+    try { persisted = JSON.parse(localStorage.getItem('antfarm-rts-state') || 'null'); } catch { persisted = null; }
+  }
+  if (!persisted || typeof persisted !== 'object') return;
+  if (Array.isArray(persisted.customBases)) state.customBases = persisted.customBases;
+  if (Array.isArray(persisted.baseDrafts)) state.baseDrafts = persisted.baseDrafts;
+  if (Array.isArray(persisted.featureBuildings)) {
+    const seen = new Set();
+    state.featureBuildings = persisted.featureBuildings.filter((fb) => {
+      const runKey = fb?.runId ? `run:${fb.runId}` : "";
+      const key = runKey || `draft:${fb?.id || ""}:${fb?.repo || ""}:${fb?.x || 0}:${fb?.y || 0}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+  if (persisted.runLayoutOverrides && typeof persisted.runLayoutOverrides === 'object') state.runLayoutOverrides = persisted.runLayoutOverrides;
+  if (persisted.camera && typeof persisted.camera === 'object') {
+    state.camera = {
+      x: Number(persisted.camera.x) || 0,
+      y: Number(persisted.camera.y) || 0
+    };
+  }
+  if (!state.featureBuildings.length && Array.isArray(persisted.setupDrafts)) {
+    state.featureBuildings = persisted.setupDrafts.map(d => ({ ...d, kind:'feature', phase:'draft' }));
+  }
+  // unified view: no persisted workflow filter
+  if (persisted.selected && typeof persisted.selected === 'object') {
+    if (persisted.selected.type === 'featureDraft' && persisted.selected.data) {
+      state.selected = { type:'building', data:{ ...persisted.selected.data, kind:'feature', phase:'draft' } };
+    } else {
+      state.selected = persisted.selected;
+    }
+  }
+}
+function parseContext(run){ try { return JSON.parse(run.context || '{}'); } catch { return {}; } }
+function extractPrUrl(run){
+  const candidates = [run.task, run.context, ...(run.steps||[]).map(s=>s.output||'')].join('\n');
+  const m = candidates.match(/https?:\/\/[^\s)]+\/pull\/[0-9]+/i);
+  return m ? m[0] : null;
+}
+function runProgress(run){
+  const steps = run.steps || [];
+  if (!steps.length) return 0;
+  const done = steps.filter(s => s.status === 'done' || s.status === 'skipped').length;
+  return Math.round((done / steps.length) * 100);
+}
+function getRepo(run){
+  const ctx = parseContext(run);
+  // Prefer original base repo path so run/feature buildings stay attached
+  // to the user-placed movable base instead of worktree-derived auto bases.
+  return ctx.baseRepoPath || ctx.repoPath || ctx.repo || ctx.repository || 'workspace-repo';
+}
+function getWorktreeDefault(repo){
+  const clean = repo.split('/').pop() || 'repo';
+  return `../${clean}-feature-${Date.now().toString().slice(-4)}`;
+}
+function factionFromWorkflow(id){ return (id || 'neutral').split(/[^a-z0-9]+/i)[0] || 'neutral'; }
+function inferUnitModel(agentId, run){
+  // TODO(server): expose per-agent runtime model metadata from run execution payload.
+  const ctx = parseContext(run);
+  const modelMap = ctx.agentModels || ctx.modelsByAgent || ctx.models;
+  if (modelMap && typeof modelMap === 'object' && modelMap[agentId]) return String(modelMap[agentId]);
+  if (ctx.model && typeof ctx.model === 'string') return ctx.model;
+  return 'unknown';
+}
+
+const GRID_SIZE = 22;
+const FOOTPRINTS = {
+  base: { cols: 8, rows: 6, spriteW: 206, spriteH: 132 },
+  feature: { cols: 6, rows: 4, spriteW: 186, spriteH: 98 },
+  run: { cols: 6, rows: 4, spriteW: 186, spriteH: 98 }
+};
+
+function buildingFootprint(kind){
+  const key = (kind === 'base' || kind === 'feature' || kind === 'run') ? kind : 'run';
+  const fp = FOOTPRINTS[key];
+  return {
+    cols: fp.cols,
+    rows: fp.rows,
+    w: fp.cols * GRID_SIZE,
+    h: fp.rows * GRID_SIZE,
+    spriteW: fp.spriteW,
+    spriteH: fp.spriteH
+  };
+}
+
+function centerPointFor(kind, x, y){
+  const fp = buildingFootprint(kind);
+  return { x: Number(x || 0) + (fp.w / 2), y: Number(y || 0) + (fp.h / 2) };
+}
+
+function getLiveAgentEntry(runId, agentId){
+  const list = state.live?.activeAgents || [];
+  return list.find((a) => a.runId === runId && a.agentId === agentId) || null;
+}
+
+function runTargetCenterMap(){
+  const targets = new Map();
+  (state.buildings || []).forEach((b) => {
+    const rid = b.run?.id || b.runId || (b.kind === 'run' ? b.id : '');
+    if (!rid) return;
+    const centerRaw = centerPointFor(b.kind === 'feature' ? 'feature' : 'run', b.x, b.y);
+    const center = { x: centerRaw.x, y: centerRaw.y, kind: b.kind };
+    const current = targets.get(rid);
+    if (!current || (current.kind === 'run' && b.kind === 'feature')) targets.set(rid, center);
+  });
+  return targets;
+}
+
+function activeRunAgentMap(){
+  const m = new Map();
+  const list = Array.isArray(state.live?.activeAgents) ? state.live.activeAgents : [];
+  list.forEach((entry) => {
+    if (!entry?.runId || !entry?.agentId) return;
+    if (!m.has(entry.runId)) m.set(entry.runId, entry.agentId);
+  });
+  return m;
+}
+
+function renderLiveConsole(){
+  const panel = document.getElementById('livePanel');
+  if (!panel) return;
+  const live = state.live || {};
+  const diag = state.diag || {};
+  const agents = Array.isArray(live.activeAgents) ? live.activeAgents : [];
+  const stamp = live.ts ? new Date(live.ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '--:--:--';
+  const cronCount = Number(diag?.cron?.matchingCount || 0);
+  const blocked = diag?.likelyBlockedReason ? `WARN ${diag.likelyBlockedReason}` : '';
+  const lines = agents.length
+    ? agents.slice(0, 120).map((a) => {
+      const age = typeof a.ageSec === 'number' ? String(a.ageSec).padStart(3, ' ') : ' --';
+      const status = a.stale ? 'STALE' : 'RUN';
+      const agentShort = String(a.agentId || '').split('/').pop() || a.agentId || 'unknown';
+      const runShort = String(a.runId || '').slice(0, 8);
+      return `${status} ${age}s  ${runShort}  ${agentShort}  ${a.stepId || 'step'}`;
+    }).join('\n')
+    : 'IDLE  no active agents';
+
+  panel.innerHTML = `
+    <h3>Live Agent TTY</h3>
+    <div class="cli-panel">
+      <div class="cli-head">
+        <span>RUN ${live.activeRunCount || 0} | WAIT ${live.pendingRunCount || 0} | AGENT ${live.runningAgentCount || 0} | CRON ${cronCount}</span>
+        <span>${esc(stamp)}</span>
+      </div>
+      <div class="cli-body">${esc(lines)}</div>
+    </div>
+    <div class="notice" style="margin-top:6px">Source: Antfarm DB step state on this machine. ${esc(blocked)}</div>
+  `;
+}
+
+function runsSignature(runs){
+  return (runs || [])
+    .map((r) => `${r.id}:${r.status}:${r.updated_at || ''}`)
+    .sort()
+    .join('|');
+}
+
+async function boot(){
+  await hydratePersistedState();
+  state.workflows = await json('/api/workflows');
+  try { state.localRepos = await json('/api/local-repos'); } catch { state.localRepos = []; }
+  await refreshRuntimeState(true);
+  rebuildScene();
+  renderLiveConsole();
+  startLiveStream();
+  queuePersist();
+}
+
+async function refreshRuntimeState(throwOnError = false){
+  try {
+    const [runs, liveRes, diagRes] = await Promise.all([
+      json('/api/runs'),
+      json('/api/rts/live'),
+      json('/api/rts/diag?workflow=feature-dev')
+    ]);
+    const nextSig = runsSignature(runs);
+    const runsChanged = nextSig !== state.runSig;
+    state.runs = runs;
+    state.runSig = nextSig;
+    state.live = (liveRes && liveRes.live) ? liveRes.live : state.live;
+    state.diag = (diagRes && diagRes.diag) ? diagRes.diag : state.diag;
+    return runsChanged;
+  } catch (err) {
+    if (throwOnError) throw err;
+    return false;
+  }
+}
+
+function startLiveStream(){
+  if (state.liveStream) {
+    try { state.liveStream.close(); } catch {}
+    state.liveStream = null;
+  }
+  try {
+    const es = new EventSource('/api/rts/live/stream');
+    es.addEventListener('live', (evt) => {
+      try {
+        const payload = JSON.parse(evt.data || '{}');
+        state.live = payload || state.live;
+        if (Number(state.live?.runningAgentCount || 0) > 0) rebuildScene();
+        else renderUnitsLiveState();
+        renderLiveConsole();
+      } catch {}
+    });
+    es.onerror = () => {
+      try { es.close(); } catch {}
+      state.liveStream = null;
+    };
+    state.liveStream = es;
+  } catch {
+    state.liveStream = null;
+  }
+}
+
+function rebuildScene(){
+  updateCameraVisuals();
+  const customByRepo = new Map();
+  (state.customBases || []).forEach((cb) => {
+    if (cb?.repo) customByRepo.set(cb.repo, cb);
+  });
+
+  const runsByRepo = new Map();
+  (state.runs || []).forEach((run) => {
+    const repo = getRepo(run);
+    if (!runsByRepo.has(repo)) runsByRepo.set(repo, []);
+    runsByRepo.get(repo).push(run);
+  });
+
+  const mergedBases = [];
+  const usedCustomBaseIds = new Set();
+  let autoIndex = 0;
+  runsByRepo.forEach((runs, repo) => {
+    const existingCustom = customByRepo.get(repo);
+    if (existingCustom) {
+      mergedBases.push({ ...existingCustom, runs, source:'custom' });
+      usedCustomBaseIds.add(existingCustom.id);
+      return;
+    }
+    mergedBases.push({
+      id:`base-run-${autoIndex}`,
+      x: 90 + (autoIndex%3)*320,
+      y: 80 + Math.floor(autoIndex/3)*220,
+      repo,
+      runs,
+      source:'run'
+    });
+    autoIndex += 1;
+  });
+
+  (state.customBases || []).forEach((cb) => {
+    if (usedCustomBaseIds.has(cb.id)) return;
+    mergedBases.push({ ...cb, runs: cb.runs || [], source:'custom' });
+  });
+
+  const buildings = [];
+  const units = [];
+  const runBaseCenters = new Map();
+  const baseFp = buildingFootprint('base');
+  const runFp = buildingFootprint('run');
+  const linkedFeatureRunIds = new Set((state.featureBuildings || []).map((f) => f.runId).filter(Boolean));
+  mergedBases.forEach(base => {
+    (base.runs || []).forEach((run, ri) => {
+      runBaseCenters.set(run.id, centerPointFor('base', base.x, base.y));
+      if (!linkedFeatureRunIds.has(run.id)) {
+        const override = state.runLayoutOverrides?.[run.id];
+        buildings.push({
+          id: run.id,
+          kind: 'run',
+          run,
+          x: Number(override?.x ?? (base.x + GRID_SIZE + (ri%2)*(runFp.w + GRID_SIZE))),
+          y: Number(override?.y ?? (base.y + baseFp.h + GRID_SIZE + Math.floor(ri/2)*(runFp.h + GRID_SIZE))),
+          progress: runProgress(run),
+          prUrl: extractPrUrl(run)
+        });
+      }
+
+      const faction = factionFromWorkflow(run.workflow_id);
+      const agents = [...new Set((run.steps||[]).map(s => s.agent_id).filter(Boolean))];
+      agents.forEach((agent, ai) => {
+        units.push({
+          id: `${run.id}-u-${ai}`,
+          runId: run.id,
+          label: agent.split('/').pop(),
+          full: agent,
+          faction,
+          model: inferUnitModel(agent, run),
+          x: base.x + baseFp.w + 26 + (ai*24),
+          y: base.y + 10 + (ri*24),
+          homeX: base.x + baseFp.w + 26 + (ai*24),
+          homeY: base.y + 10 + (ri*24),
+          baseCenterX: base.x + (baseFp.w / 2),
+          baseCenterY: base.y + (baseFp.h / 2),
+          subagents: 2 + (ai % 3)
+        });
+      });
+    });
+  });
+
+  (state.featureBuildings || []).forEach((fb) => {
+    const run = fb.runId ? (state.runs || []).find(r => r.id === fb.runId) : null;
+    buildings.push({
+      ...fb,
+      kind: 'feature',
+      run,
+      progress: run ? runProgress(run) : 0,
+      prUrl: run ? extractPrUrl(run) : null,
+      phase: run ? (run.status || 'running') : 'draft'
+    });
+  });
+
+  state.bases = mergedBases;
+  state.buildings = buildings;
+  const runTargets = runTargetCenterMap();
+  const activeMap = activeRunAgentMap();
+  const nowSec = Date.now() / 1000;
+  state.units = units.map((u, idx) => {
+    const target = runTargets.get(u.runId);
+    const activeAgent = activeMap.get(u.runId);
+    const isActive = !!target && activeAgent === u.full;
+    if (!isActive || !target) return u;
+    const homeX = Number(u.homeX ?? u.x);
+    const homeY = Number(u.homeY ?? u.y);
+    const tx = Number(target.x);
+    const ty = Number(target.y);
+    const cycle = 0.8 + (((u.runId.charCodeAt(0) || 7) + idx) % 5) * 0.07;
+    const phase = nowSec * cycle;
+    const pingPong = (Math.sin(phase) + 1) / 2;
+    const x = homeX + (tx - homeX) * pingPong;
+    const y = homeY + (ty - homeY) * pingPong;
+    return { ...u, x, y, moving: true };
+  });
+
+  if (state.selected?.type === 'building') {
+    const fresh = state.buildings.find(b => b.id === state.selected.data.id);
+    if (fresh) state.selected = { type:'building', data:fresh };
+    else state.selected = null;
+  } else if (state.selected?.type === 'unit') {
+    const fresh = state.units.find(u => u.runId === state.selected.data.runId && u.full === state.selected.data.full);
+    if (fresh) state.selected = { type:'unit', data:fresh };
+    else state.selected = null;
+  } else if (state.selected?.type === 'baseDraft') {
+    const fresh = (state.baseDrafts || []).find(d => d.id === state.selected.data.id);
+    if (fresh) state.selected = { type:'baseDraft', data:fresh };
+    else state.selected = null;
+  } else if (state.selected?.type === 'base') {
+    const fresh = state.bases.find(b => b.id === state.selected.data.id);
+    if (fresh) state.selected = { type:'base', data:fresh };
+    else state.selected = null;
+  }
+
+  renderWorld();
+  if (state.selected) renderSelection();
+  if (state.selected?.type === 'building' && state.selected.data?.kind === 'feature' && !isEditingActionPanel()) {
+    renderRunSetupPanel(state.selected.data.id);
+  }
+}
+
+function setPlacement(mode){
+  state.placementMode = mode;
+  const notice = document.getElementById('placementNotice');
+  if (!mode) notice.textContent = 'IDLE';
+  else if (mode === 'base') notice.textContent = 'BASE';
+  else notice.textContent = 'FORGE';
+  document.querySelectorAll('.palette-card[data-building]').forEach((card) => {
+    card.classList.toggle('active', card.getAttribute('data-building') === mode);
+  });
+  if (!mode) hidePlacementGhost();
+}
+
+function placeBaseAt(x,y){
+  const draft = {
+    id:`clone-draft-${Date.now()}`,
+    x,y,
+    repoUrl:'',
+    targetPath:'',
+    existingRepoPath:'',
+    label:'New Base',
+    committed:false
+  };
+  state.baseDrafts.push(draft);
+  state.selected = { type:'baseDraft', data:draft };
+  queuePersist();
+  rebuildScene();
+  renderSelection();
+  renderBaseCloneForm(draft);
+}
+
+function nearBase(x,y){
+  return state.bases.find((b) => {
+    const center = centerPointFor('base', b.x, b.y);
+    return Math.hypot(center.x - x, center.y - y) < 240;
+  }) || null;
+}
+
+function placeFeatureAt(x,y){
+  const center = centerPointFor('feature', x, y);
+  const base = nearBase(center.x, center.y);
+  if (!base) {
+    alert('Feature Request structures must be placed near a Base.');
+    return;
+  }
+  const featureBuilding = {
+    id: `feature-${Date.now()}`,
+    kind:'feature',
+    phase:'draft',
+    committed:false,
+    runId: null,
+    x, y,
+    repo: base.repo || 'unlinked-repo',
+    worktreePath: getWorktreeDefault(base.repo || 'repo'),
+    prompt: '',
+    assignments: []
+  };
+  state.featureBuildings.push(featureBuilding);
+  state.selected = { type:'building', data:featureBuilding };
+  queuePersist();
+  rebuildScene();
+  renderSelection();
+  renderRunSetupPanel(featureBuilding.id);
+}
+
+function structureMarkup(kind){
+  if (kind === 'base') {
+    return `<img class="building-sprite" src="/rts-sprites/base-core-corpus-test.png?v=20260212b" alt="" />`;
+  }
+  if (kind === 'feature') {
+    return `<img class="building-sprite" src="/rts-sprites/feature-forge-corpus-test.png?v=20260212b" alt="" />`;
+  }
+  return `<img class="building-sprite" src="/rts-sprites/feature-forge-corpus-test.png?v=20260212b" alt="" />`;
+}
+
+function snapPlacement(kind, worldX, worldY){
+  const { w, h } = buildingFootprint(kind);
+  return {
+    x: Math.round((worldX - (w / 2)) / GRID_SIZE) * GRID_SIZE,
+    y: Math.round((worldY - (h / 2)) / GRID_SIZE) * GRID_SIZE
+  };
+}
+
+function hidePlacementGhost(){
+  placementLayerEl.innerHTML = '';
+}
+
+function setFeatureMode(active){
+  state.featureMode = !!active;
+  const layout = document.querySelector('.layout');
+  if (!layout) return;
+  layout.classList.toggle('feature-mode', state.featureMode);
+}
+
+function worldToScreen(x, y){
+  return { x: x - state.camera.x, y: y - state.camera.y };
+}
+
+function screenToWorld(clientX, clientY){
+  const rect = worldEl.getBoundingClientRect();
+  const sx = clientX - rect.left;
+  const sy = clientY - rect.top;
+  return { sx, sy, x: sx + state.camera.x, y: sy + state.camera.y };
+}
+
+function updateCameraVisuals(){
+  worldWrapEl.style.setProperty('--cam-x', `${state.camera.x}px`);
+  worldWrapEl.style.setProperty('--cam-y', `${state.camera.y}px`);
+}
+
+function showPlacementGhost(kind, worldX, worldY){
+  if (!kind) return hidePlacementGhost();
+  const point = snapPlacement(kind, worldX, worldY);
+  const screen = worldToScreen(point.x, point.y);
+  const center = centerPointFor(kind, point.x, point.y);
+  const invalid = kind === 'feature' && !nearBase(center.x, center.y);
+  const className = kind === 'base' ? 'base' : 'building';
+  const fp = buildingFootprint(kind);
+  placementLayerEl.innerHTML = `
+    <div class="entity ${className} placement-ghost ${invalid ? 'invalid' : ''}" style="left:${screen.x}px;top:${screen.y}px;z-index:${100 + Math.floor(point.y)};--footprint-w:${fp.w}px;--footprint-h:${fp.h}px;--sprite-w:${fp.spriteW}px;--sprite-h:${fp.spriteH}px">
+      <div class="iso-core">${structureMarkup(kind)}</div>
+    </div>
+  `;
+}
+
+function localPointInWorld(event){
+  return screenToWorld(event.clientX, event.clientY);
+}
+
+function isEditingActionPanel(){
+  const panel = document.getElementById('actionPanel');
+  const active = document.activeElement;
+  if (!panel || !active || !panel.contains(active)) return false;
+  return ['INPUT','TEXTAREA','SELECT'].includes(active.tagName);
+}
+
+function updateCustomBasePosition(id, x, y){
+  const i = state.customBases.findIndex(b => b.id === id);
+  if (i < 0) return;
+  state.customBases[i] = { ...state.customBases[i], x, y };
+}
+
+function removeBaseDraftById(id){
+  state.baseDrafts = (state.baseDrafts || []).filter(d => d.id !== id);
+}
+
+function updateFeaturePosition(id, x, y){
+  const i = state.featureBuildings.findIndex(b => b.id === id);
+  if (i < 0) return;
+  state.featureBuildings[i] = { ...state.featureBuildings[i], x, y };
+}
+
+function updateRunBuildingPosition(id, x, y){
+  state.runLayoutOverrides = {
+    ...(state.runLayoutOverrides || {}),
+    [id]: { x, y }
+  };
+}
+
+function updateBaseDraftPosition(id, x, y){
+  const i = state.baseDrafts.findIndex(d => d.id === id);
+  if (i < 0) return;
+  state.baseDrafts[i] = { ...state.baseDrafts[i], x, y };
+}
+
+async function deleteSelectedStructure(){
+  const s = state.selected;
+  if (!s) return;
+  if (s.type === 'base' && s.data?.source === 'custom') {
+    state.customBases = state.customBases.filter(b => b.id !== s.data.id);
+    state.selected = null;
+    queuePersist();
+    rebuildScene();
+    renderSelection();
+    renderRunSetupPanel(null);
+    return;
+  }
+  if (s.type === 'baseDraft') {
+    removeBaseDraftById(s.data.id);
+    state.selected = null;
+    queuePersist();
+    rebuildScene();
+    renderSelection();
+    renderRunSetupPanel(null);
+    return;
+  }
+  if (s.type === 'building' && s.data?.kind === 'feature') {
+    if (s.data?.runId) {
+      try {
+        await postJson('/api/rts/building/delete', { runId: s.data.runId });
+        state.runs = await json('/api/runs');
+      } catch (err) {
+        alert(`Delete failed: ${err.message || err}`);
+        return;
+      }
+      if (state.runLayoutOverrides && typeof state.runLayoutOverrides === 'object') {
+        delete state.runLayoutOverrides[s.data.runId];
+      }
+    }
+    state.featureBuildings = state.featureBuildings.filter(b => b.id !== s.data.id);
+    state.selected = null;
+    queuePersist();
+    rebuildScene();
+    renderSelection();
+    renderRunSetupPanel(null);
+    return;
+  }
+  if (s.type === 'building' && s.data?.kind === 'run') {
+    try {
+      await postJson('/api/rts/building/delete', { runId: s.data.id });
+      state.runs = await json('/api/runs');
+    } catch (err) {
+      alert(`Delete failed: ${err.message || err}`);
+      return;
+    }
+    state.featureBuildings = (state.featureBuildings || []).filter((b) => b.runId !== s.data.id);
+    if (state.runLayoutOverrides && typeof state.runLayoutOverrides === 'object') {
+      delete state.runLayoutOverrides[s.data.id];
+    }
+    state.selected = null;
+    queuePersist();
+    rebuildScene();
+    renderSelection();
+    renderRunSetupPanel(null);
+  }
+}
+
+function renderIsoEntity({ className, kind, x, y, z, innerHtml, onClick }) {
+  const shell = document.createElement('div');
+  const screen = worldToScreen(x, y);
+  const fp = buildingFootprint(kind || 'run');
+  shell.className = `entity ${className}`;
+  shell.style.left = `${screen.x}px`;
+  shell.style.top = `${screen.y}px`;
+  shell.style.zIndex = String(100 + Math.floor(z || y));
+  shell.style.setProperty('--footprint-w', `${fp.w}px`);
+  shell.style.setProperty('--footprint-h', `${fp.h}px`);
+  shell.style.setProperty('--sprite-w', `${fp.spriteW}px`);
+  shell.style.setProperty('--sprite-h', `${fp.spriteH}px`);
+  shell.innerHTML = `<div class="iso-core">${innerHtml}</div>`;
+  shell.onclick = onClick;
+  return shell;
+}
+
+function renderWorld(){
+  const world = document.getElementById('world');
+  const pathLayer = document.getElementById('pathLayer');
+  world.innerHTML = '';
+  if (pathLayer) pathLayer.innerHTML = '';
+
+  const runTargets = runTargetCenterMap();
+  const activeMap = activeRunAgentMap();
+  if (pathLayer) {
+    (state.bases || []).forEach((base) => {
+      (base.runs || []).forEach((run) => {
+        const target = runTargets.get(run.id);
+        if (!target) return;
+        const from = centerPointFor('base', base.x, base.y);
+        const sx = from.x;
+        const sy = from.y;
+        const ex = target.x;
+        const ey = target.y;
+        const dx = ex - sx;
+        const dy = ey - sy;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 1) return;
+        const start = worldToScreen(sx, sy);
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+        const active = !!activeMap.get(run.id);
+        const line = document.createElement('div');
+        line.className = `rts-path ${active ? 'active' : ''}`;
+        line.style.left = `${start.x}px`;
+        line.style.top = `${start.y}px`;
+        line.style.width = `${dist}px`;
+        line.style.transform = `rotate(${angle}deg)`;
+        pathLayer.appendChild(line);
+      });
+    });
+  }
+
+  state.bases.forEach(base => {
+    const movable = base.source === 'custom';
+    const el = renderIsoEntity({
+      className:`base ${movable ? 'movable' : ''}`,
+      kind:'base',
+      x:base.x,
+      y:base.y,
+      innerHtml: structureMarkup('base'),
+      onClick:() => { state.selected = { type:'base', data:base }; renderSelection(); }
+    });
+    if (movable) {
+      el.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        if (state.placementMode) return;
+        e.stopPropagation();
+        const point = screenToWorld(e.clientX, e.clientY);
+        state.draggingEntity = {
+          type: 'base',
+          id: base.id,
+          offsetX: point.x - base.x,
+          offsetY: point.y - base.y
+        };
+        state.draggingMoved = false;
+      });
+    }
+    world.appendChild(el);
+  });
+
+  (state.baseDrafts || []).forEach((draft) => {
+    const el = renderIsoEntity({
+      className:'base draft-ghost movable',
+      kind:'base',
+      x:draft.x,
+      y:draft.y,
+      innerHtml: structureMarkup('base'),
+      onClick:() => {
+        state.selected = { type:'baseDraft', data:draft };
+        renderSelection();
+        renderBaseCloneForm(draft);
+      }
+    });
+    el.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (state.placementMode) return;
+      e.stopPropagation();
+      const point = screenToWorld(e.clientX, e.clientY);
+      state.draggingEntity = {
+        type: 'baseDraft',
+        id: draft.id,
+        offsetX: point.x - draft.x,
+        offsetY: point.y - draft.y
+      };
+      state.draggingMoved = false;
+    });
+    world.appendChild(el);
+  });
+
+  state.buildings.forEach(b => {
+    const status = prettyStatus(b.run?.status || b.phase || 'waiting');
+    const color = status === 'done' ? 'var(--ok)' : status === 'failed' ? 'var(--bad)' : 'var(--warn)';
+    const movable = true;
+    const className = `${b.kind === 'feature' && !b.committed ? 'building ghost' : 'building'} ${movable ? 'movable' : ''}`;
+    const el = renderIsoEntity({
+      className,
+      kind: b.kind === 'feature' ? 'feature' : 'run',
+      x:b.x,
+      y:b.y,
+      innerHtml:`
+        ${structureMarkup(b.kind === 'feature' ? 'feature' : 'run')}
+        <div class="progress" style="position:absolute;left:12px;right:12px;bottom:8px"><div class="bar" style="width:${b.progress || 0}%;background:${color}"></div></div>
+      `,
+      onClick:() => {
+        state.selected = { type:'building', data:b };
+        renderSelection();
+        if (b.kind === 'feature') renderRunSetupPanel(b.id);
+      }
+    });
+    if (movable) {
+      el.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        if (state.placementMode) return;
+        e.stopPropagation();
+        const point = screenToWorld(e.clientX, e.clientY);
+        state.draggingEntity = {
+          type: b.kind === 'feature' ? 'feature' : 'run',
+          id: b.id,
+          offsetX: point.x - b.x,
+          offsetY: point.y - b.y
+        };
+        state.draggingMoved = false;
+      });
+    }
+    world.appendChild(el);
+  });
+
+  state.units.forEach(u => {
+    const el = document.createElement('div');
+    const liveEntry = getLiveAgentEntry(u.runId, u.full);
+    el.className = `unit ${liveEntry ? (liveEntry.stale ? 'live-stale' : 'live-running') : ''}`;
+    if (u.moving) el.classList.add('moving');
+    const p = worldToScreen(u.x, u.y);
+    el.style.left = `${p.x}px`;
+    el.style.top = `${p.y}px`;
+    el.style.zIndex = String(300 + Math.floor(u.y));
+    el.title = `${u.label} • model: ${u.model || 'unknown'}${liveEntry ? ` • ${liveEntry.stale ? 'stale' : 'running'}` : ''}`;
+    el.dataset.runId = u.runId;
+    el.dataset.agentId = u.full;
+    el.dataset.baseTitle = `${u.label} • model: ${u.model || 'unknown'}`;
+    el.onclick = () => { state.selected = { type:'unit', data:u }; renderSelection(); };
+    world.appendChild(el);
+
+    for (let i = 0; i < u.subagents; i++) {
+      const angle = (Date.now()/620 + i * (Math.PI*2 / u.subagents));
+      const sx = u.x + 8 + Math.cos(angle) * 22;
+      const sy = u.y + 8 + Math.sin(angle) * 16;
+      const sp = worldToScreen(sx, sy);
+      const sub = document.createElement('div');
+      sub.className = 'subunit';
+      sub.style.left = `${sp.x}px`;
+      sub.style.top = `${sp.y}px`;
+      sub.style.zIndex = String(290 + Math.floor(sy));
+      sub.title = `subagent • ${u.faction}`;
+      sub.onclick = () => { state.selected = { type:'subunit', data:u }; renderSelection(); };
+      world.appendChild(sub);
+    }
+  });
+
+  state.buildings.forEach((b) => {
+    const status = String(b.run?.status || '').toLowerCase();
+    if (!(status === 'completed' || status === 'done')) return;
+    if (!b.prUrl) return;
+    const pos = worldToScreen(Number(b.x || 0) + 26, Number(b.y || 0) - 42);
+    const note = document.createElement('div');
+    note.className = 'build-note';
+    note.style.left = `${pos.x}px`;
+    note.style.top = `${pos.y}px`;
+    note.innerHTML = `PR READY<br><a href="${esc(b.prUrl)}" target="_blank" rel="noopener">Open pull request</a>`;
+    world.appendChild(note);
+  });
+}
+
+function renderUnitsLiveState(){
+  const nodes = document.querySelectorAll('.unit[data-run-id][data-agent-id]');
+  nodes.forEach((node) => {
+    const runId = node.getAttribute('data-run-id') || '';
+    const agentId = node.getAttribute('data-agent-id') || '';
+    const baseTitle = node.getAttribute('data-base-title') || '';
+    const liveEntry = getLiveAgentEntry(runId, agentId);
+    node.classList.remove('live-running', 'live-stale');
+    if (liveEntry) node.classList.add(liveEntry.stale ? 'live-stale' : 'live-running');
+    node.title = `${baseTitle}${liveEntry ? ` • ${liveEntry.stale ? 'stale' : 'running'}` : ''}`;
+  });
+}
+
+function renderSkillTree(type, heading){
+  const nodes = skillTrees[type] || skillTrees.builder;
+  return `<div class="build-card" style="margin-top:8px"><div class="kv"><strong>${heading}</strong></div><div class="skill-grid">${nodes.map(n=>`<div class="skill">${esc(n)}</div>`).join('')}</div></div>`;
+}
+
+function renderRunAgentsConsole(run, selectedAgentId){
+  const panel = document.getElementById('actionPanel');
+  setFeatureMode(false);
+  if (!run) {
+    panel.innerHTML = `<h3>Action Console</h3><div class="notice">No run selected.</div>`;
+    stopAgentStream();
+    return;
+  }
+  const agents = deriveRunAgents(run);
+  panel.innerHTML = `
+    <h3>Agent Status Console</h3>
+    <div class="kv"><strong>Run:</strong> ${esc(run.id.slice(0, 12))}</div>
+    <div class="kv"><strong>Task:</strong> ${esc(run.task || '')}</div>
+    <div class="notice" id="restartNotice">Select an agent row; restart forces requeue and kick.</div>
+    ${renderAgentStatusList(agents, run)}
+    <div class="notice" style="margin-top:8px">Read-only terminal stream. No command input available.</div>
+  `;
+  const rows = panel.querySelectorAll('#assignedAgentList .agent-row');
+  rows.forEach(row => {
+    row.addEventListener('click', () => {
+      const runId = row.getAttribute('data-run');
+      const agentId = row.getAttribute('data-agent');
+      if (!runId || !agentId) return;
+      state.streamSelectionByRun[runId] = agentId;
+      startAgentStream(runId, agentId);
+      panel.querySelectorAll('#assignedAgentList .agent-row').forEach(r => r.classList.remove('active'));
+      row.classList.add('active');
+    });
+  });
+  const restartBtns = panel.querySelectorAll('#assignedAgentList .agent-restart');
+  restartBtns.forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const runId = btn.getAttribute('data-restart-run');
+      const agentId = btn.getAttribute('data-restart-agent');
+      if (!runId || !agentId) return;
+      const restartNotice = panel.querySelector('#restartNotice');
+      try {
+        btn.disabled = true;
+        if (restartNotice) restartNotice.textContent = `Restarting ${agentId}...`;
+        const rr = await postJson('/api/rts/agent/restart', { runId, agentId });
+        state.runs = await json('/api/runs');
+        rebuildScene();
+        const refreshed = (state.runs || []).find(r => r.id === runId);
+        if (refreshed) renderRunAgentsConsole(refreshed, agentId);
+        if (restartNotice) restartNotice.textContent = rr?.kicked
+          ? `Restarted ${agentId}: pending emitted, kick sent.`
+          : `Restarted ${agentId}: pending emitted, waiting for cron fallback.`;
+      } catch (err) {
+        if (restartNotice) restartNotice.textContent = `Restart failed: ${err.message || err}`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+  const redoBtns = panel.querySelectorAll('#assignedAgentList .agent-redo');
+  redoBtns.forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const runId = btn.getAttribute('data-redo-run');
+      const restartNotice = panel.querySelector('#restartNotice');
+      if (!runId) return;
+      try {
+        btn.disabled = true;
+        if (restartNotice) restartNotice.textContent = 'Redoing PR step for developer...';
+        const rr = await postJson('/api/rts/agent/redo-pr', { runId });
+        state.runs = await json('/api/runs');
+        rebuildScene();
+        const refreshed = (state.runs || []).find(r => r.id === runId);
+        if (refreshed) renderRunAgentsConsole(refreshed, 'feature-dev/developer');
+        if (restartNotice) restartNotice.textContent = rr?.kicked
+          ? 'PR step requeued and kicked immediately.'
+          : 'PR step requeued; waiting for cron fallback.';
+      } catch (err) {
+        if (restartNotice) restartNotice.textContent = `Redo failed: ${err.message || err}`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+  renderTerminalViewer();
+  const preferredAgent = selectedAgentId || state.streamSelectionByRun[run.id] || (state.stream.runId === run.id ? state.stream.agentId : null);
+  if (preferredAgent) {
+    const row = panel.querySelector(`#assignedAgentList .agent-row[data-agent="${CSS.escape(preferredAgent)}"]`);
+    if (row && !(state.stream.runId === run.id && state.stream.agentId === preferredAgent)) row.click();
+  }
+}
+
+function renderSelection(){
+
+  queuePersist();
+  const panel = document.getElementById('selectionPanel');
+  const s = state.selected;
+  if (!s) {
+    panel.innerHTML = `<h3>Selection Panel</h3><div class="notice">Select base/building/unit for RTS-style intel and actions.</div>`;
+    return;
+  }
+
+  if (s.type === 'base') {
+    setFeatureMode(false);
+    const b = s.data;
+    panel.innerHTML = `<h3>Base Intel</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Buildings:</strong> ${(b.runs || []).length}</div>${renderSkillTree('orchestrator','Base Systems')}`;
+    stopAgentStream();
+    return;
+  }
+  if (s.type === 'building') {
+    const b = s.data;
+    if (b.kind === 'feature') {
+      setFeatureMode(true);
+      panel.innerHTML = `<h3>Feature Forge</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run?.status || b.phase || 'draft'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress || 0}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
+      if (!isEditingActionPanel()) renderRunSetupPanel(b.id);
+      return;
+    }
+    panel.innerHTML = `<h3>Structure Status</h3><div class="kv"><strong>Task:</strong> ${esc(b.run.task || '')}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run.status || 'waiting'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
+    renderRunAgentsConsole(b.run);
+    return;
+  }
+  if (s.type === 'unit') {
+    setFeatureMode(false);
+    const u = s.data;
+    panel.innerHTML = `<h3>Unit Profile</h3><div class="kv"><strong>Agent:</strong> ${esc(u.label)}</div><div class="kv"><strong>Model:</strong> <span class="badge">${esc(u.model || 'unknown')}</span></div><div class="kv"><strong>Subagents:</strong> ${u.subagents}</div>${renderSkillTree('architect','Operator Skill Grid')}`;
+    const run = (state.runs || []).find(r => r.id === u.runId);
+    renderRunAgentsConsole(run, u.full);
+    return;
+  }
+  if (s.type === 'subunit') {
+    setFeatureMode(false);
+    const u = s.data;
+    panel.innerHTML = `<h3>Subagent Drone</h3><div class="kv"><strong>Parent unit:</strong> ${esc(u.label)}</div><div class="kv"><strong>Faction:</strong> ${esc(u.faction)}</div>${renderSkillTree('subagent','Subagent Modules')}`;
+    stopAgentStream();
+    return;
+  }
+  if (s.type === 'baseDraft') {
+    setFeatureMode(false);
+    panel.innerHTML = `<h3>Base Placement Draft</h3><div class="notice">Configure git clone details in Action Console to finalize this base.</div>`;
+    stopAgentStream();
+    return;
+  }
+}
+
+function renderBaseCloneForm(draft){
+  setFeatureMode(false);
+  const panel = document.getElementById('actionPanel');
+  const repoOptions = (state.localRepos || []).map(r => `<option value="${esc(r.path)}">${esc(r.name)} • ${esc(r.path)}</option>`).join('');
+  panel.innerHTML = `
+    <h3>Base Setup</h3>
+    <div class="kv"><strong>Placement:</strong> x ${Math.round(draft.x)}, y ${Math.round(draft.y)}</div>
+    <label class="kv">Use existing local repo
+      <select id="existingRepoSelect">
+        <option value="">— none / create via clone —</option>
+        ${repoOptions}
+      </select>
+    </label>
+    <label class="kv">Repository URL (for clone)
+      <input id="cloneRepoUrl" placeholder="https://github.com/org/repo.git" value="${esc(draft.repoUrl || '')}" />
+    </label>
+    <label class="kv">Target path
+      <input id="cloneTargetPath" placeholder="../repo-worktree" value="${esc(draft.targetPath || '')}" />
+    </label>
+    <button id="saveBaseCloneBtn">Create Base</button>
+    <div class="notice" style="margin-top:7px" id="baseMutationNotice">Select an existing repo OR provide clone URL + target path.</div>
+  `;
+
+  const existingRepoSelect = document.getElementById('existingRepoSelect');
+  existingRepoSelect.addEventListener('change', (e) => {
+    draft.existingRepoPath = e.target.value || '';
+    if (draft.existingRepoPath) {
+      draft.targetPath = draft.existingRepoPath;
+      const pathInput = document.getElementById('cloneTargetPath');
+      if (pathInput) pathInput.value = draft.targetPath;
+    }
+    queuePersist();
+  });
+  document.getElementById('cloneRepoUrl').addEventListener('input', e => { draft.repoUrl = e.target.value; queuePersist(); });
+  document.getElementById('cloneTargetPath').addEventListener('input', e => { draft.targetPath = e.target.value; queuePersist(); });
+
+  const submitBaseDraft = async () => {
+    const usingExisting = !!draft.existingRepoPath;
+    const notice = document.getElementById('baseMutationNotice');
+    try {
+      if (!usingExisting && (!draft.repoUrl || !draft.targetPath)) throw new Error('Choose an existing repo, or provide repo URL and target path.');
+      if (usingExisting && !draft.targetPath) throw new Error('Existing repo path is required.');
+
+      notice.textContent = 'Creating base...';
+      const payload = usingExisting
+        ? { useExistingRepoPath: draft.existingRepoPath }
+        : { repoUrl: draft.repoUrl, targetPath: draft.targetPath };
+      const result = await postJson('/api/rts/base/clone', { ...payload, placement: { x: draft.x, y: draft.y } });
+      const base = {
+        id:`custom-base-${Date.now()}`,
+        x:draft.x,
+        y:draft.y,
+        repo:result.repoPath,
+        source:'custom',
+        cloneMeta: {
+          mode: result.mode,
+          repoUrl: draft.repoUrl || '',
+          targetPath: draft.targetPath || result.repoPath,
+          existingRepoPath: draft.existingRepoPath || ''
+        },
+        runs:[]
+      };
+      removeBaseDraftById(draft.id);
+      state.customBases.push(base);
+      state.selected = { type:'base', data:base };
+      queuePersist();
+      panel.innerHTML = `<h3>Base Setup</h3><div class="kv"><strong>Base created.</strong></div><div class="kv"><strong>Repo:</strong> ${esc(base.repo)}</div><div class="kv"><strong>Mode:</strong> ${esc(result.mode)}</div><div class="notice">Ready for feature worktree and run setup.</div>`;
+      rebuildScene();
+      renderSelection();
+    } catch (err) {
+      notice.textContent = `Error: ${err.message || err}`;
+    }
+  };
+  document.getElementById('saveBaseCloneBtn').onclick = submitBaseDraft;
+  ['cloneRepoUrl', 'cloneTargetPath'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      submitBaseDraft();
+    });
+  });
+}
+
+function inferAgentPool(workflowId = 'feature-dev'){
+  const wf = (state.workflows || []).find(w => w.id === workflowId);
+  const fromWorkflow = [...new Set((wf?.steps || []).map(s => s.agent).filter(Boolean))];
+  if (fromWorkflow.length) return fromWorkflow;
+  const fromSteps = [...new Set((state.runs||[]).flatMap(r => (r.steps||[]).map(s => s.agent_id).filter(Boolean)))];
+  return fromSteps.length ? fromSteps : ['feature-dev/planner','feature-dev/setup','feature-dev/developer','feature-dev/verifier','feature-dev/tester','feature-dev/reviewer'];
+}
+
+function workflowSlots(workflowId = 'feature-dev'){
+  const wf = (state.workflows || []).find(w => w.id === workflowId);
+  const wfSteps = wf?.steps || [];
+  if (wfSteps.length) return wfSteps.map((s, i) => ({ id: s.id || `step-${i+1}`, defaultAgent: s.agent || '' }));
+  return ['discovery','spec','scaffold','implement','refactor','verify','handoff'].map((id) => ({ id, defaultAgent: '' }));
+}
+
+function autoAssignSlots(slots, agentPool){
+  return slots.map((slot, i) => slot.defaultAgent || agentPool[i % agentPool.length] || `agent-${i+1}`);
+}
+
+function statusTone(status){
+  if (status === 'done') return 'var(--ok)';
+  if (status === 'running') return 'var(--warn)';
+  if (status === 'stale') return '#ff8faa';
+  if (status === 'failed') return 'var(--bad)';
+  if (status === 'skipped') return '#9fb5c6';
+  return '#6b859e';
+}
+
+function prettyStatus(status){
+  if (status === 'pending') return 'waiting';
+  return status || 'idle';
+}
+
+function canRestartAgentStatus(status){
+  const s = String(status || '').toLowerCase();
+  return s !== 'waiting' && s !== 'idle' && s !== 'skipped';
+}
+
+function findRelevantRun(draft){
+  if (!draft) return null;
+  if (draft.runId) return (state.runs || []).find(r => r.id === draft.runId) || null;
+  return null;
+}
+
+function getSlotStatus(run, slotId, agentId){
+  if (!run) return 'idle';
+  const steps = run.steps || [];
+  const bySlot = steps.filter(s => s.step_id === slotId);
+  const byAgent = steps.filter(s => s.agent_id === agentId);
+  const candidate = bySlot.find(s => !agentId || s.agent_id === agentId) || byAgent.find(s => !slotId || s.step_id === slotId) || bySlot[0] || byAgent[0];
+  return candidate?.status || 'idle';
+}
+
+function deriveAssignedAgents(slots, draft, run){
+  const assigned = draft.assignments || [];
+  return slots.map((slot, i) => {
+    const agentId = assigned[i] || slot.defaultAgent || '';
+    return {
+      slotId: slot.id,
+      agentId,
+      status: getSlotStatus(run, slot.id, agentId)
+    };
+  }).filter(a => a.agentId);
+}
+
+function deriveRunAgents(run){
+  const map = new Map();
+  (run?.steps || []).forEach(step => {
+    if (!step.agent_id) return;
+    if (!map.has(step.agent_id)) map.set(step.agent_id, []);
+    map.get(step.agent_id).push(step.status || 'pending');
+  });
+  return Array.from(map.entries()).map(([agentId, statuses]) => {
+    const live = getLiveAgentEntry(run?.id, agentId);
+    let status = 'waiting';
+    if (live && !live.stale) status = 'running';
+    else if (live && live.stale) status = 'stale';
+    else if (statuses.includes('running')) status = 'running';
+    else if (statuses.includes('failed')) status = 'failed';
+    else if (statuses.every(s => s === 'done' || s === 'skipped')) status = 'done';
+    else if (statuses.includes('pending')) status = 'waiting';
+    return { agentId, status };
+  });
+}
+
+function formatEventLine(evt){
+  const t = new Date(evt.ts || Date.now());
+  const hhmmss = t.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  const detail = evt.detail ? ` ${evt.detail}` : '';
+  return `[${hhmmss}] ${evt.event}${detail}`;
+}
+
+function formatActivityDesc(evt) {
+  const e = evt.event;
+  const story = evt.storyTitle ? `${evt.storyId}: "${evt.storyTitle}"` : (evt.storyId || '');
+  switch (e) {
+    case 'run.started': return 'Run started';
+    case 'run.completed': return 'Run completed';
+    case 'run.failed': return `Run failed${evt.detail ? `: ${evt.detail}` : ''}`;
+    case 'step.pending': return 'Step pending';
+    case 'step.running': return 'Claimed step';
+    case 'step.done': return 'Step completed';
+    case 'step.failed': return `Step failed${evt.detail ? `: ${evt.detail}` : ''}`;
+    case 'step.timeout': return `Step timed out${evt.detail ? `: ${evt.detail}` : ''}`;
+    case 'story.started': return `Claimed story ${story}`;
+    case 'story.done': return `Completed ${story}`;
+    case 'story.verified': return `Verified ${story}`;
+    case 'story.retry': return `Retry ${story}${evt.detail ? `: ${evt.detail}` : ''}`;
+    case 'story.failed': return `Story failed ${story}${evt.detail ? `: ${evt.detail}` : ''}`;
+    case 'pipeline.advanced': return 'Pipeline advanced';
+    default: return `${e}${evt.detail ? `: ${evt.detail}` : ''}`;
+  }
+}
+
+async function startAgentStream(runId, agentId){
+  if (state.stream.runId === runId && state.stream.agentId === agentId) return;
+  stopAgentStream();
+  state.stream = { ...state.stream, runId, agentId, targetLines: [], displayedLines: [], stepStatus:'idle', loading:true };
+  renderTerminalViewer();
+
+  const poll = async () => {
+    if (!state.stream.runId || !state.stream.agentId) return;
+    try {
+      const [events, run] = await Promise.all([
+        json(`/api/runs/${state.stream.runId}/events`),
+        json(`/api/runs/${state.stream.runId}`)
+      ]);
+      const runActivityLines = (events || []).map((evt) => {
+        const t = new Date(evt.ts || Date.now());
+        const time = t.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        const agentShort = evt.agentId ? String(evt.agentId).split('/').pop() : '--';
+        return `[${time}] ${agentShort} ${formatActivityDesc(evt)}`;
+      });
+      const agentSteps = (run.steps || []).filter(step => step.agent_id === state.stream.agentId);
+      const agentStepIdSet = new Set(agentSteps.map((s) => s.id));
+      const agentEvents = (events || [])
+        .filter((evt) => {
+          if (evt.agentId === state.stream.agentId) return true;
+          if (evt.stepId && agentStepIdSet.has(evt.stepId)) return true;
+          return false;
+        })
+        .map(formatEventLine);
+      const stepOutputs = (run.steps || [])
+        .filter(step => step.agent_id === state.stream.agentId && step.output)
+        .flatMap(step => String(step.output).split('\n').filter(Boolean).map(line => `[${step.step_id}] ${line}`));
+      const failedStep = agentSteps.find((step) => step.status === 'failed');
+      const runningStep = agentSteps.find((step) => step.status === 'running');
+      const fallback = (!agentEvents.length && !stepOutputs.length && failedStep)
+        ? [`[${failedStep.step_id}] STATUS: failed`, failedStep.output ? String(failedStep.output) : 'No output captured for failed step.']
+        : [];
+      if (failedStep && failedStep.output && !stepOutputs.length) {
+        fallback.push(`[${failedStep.step_id}] FAILURE: ${String(failedStep.output).slice(0, 800)}`);
+      }
+      if (!agentEvents.length && !stepOutputs.length && !failedStep && agentSteps.length) {
+        const newest = [...agentSteps].sort((a, b) => Date.parse(String(b.updated_at || 0)) - Date.parse(String(a.updated_at || 0)))[0];
+        if (newest) fallback.push(`[${newest.step_id}] ${prettyStatus(newest.status)} • last update ${newest.updated_at || 'unknown'}`);
+      }
+      if (!agentEvents.length && !stepOutputs.length && !failedStep && runningStep) {
+        fallback.push(`[${runningStep.step_id}] Agent is running. Waiting for first output...`);
+      }
+      if (!agentEvents.length && !stepOutputs.length && runActivityLines.length) {
+        fallback.push('[activity] No agent-scoped lines yet; showing latest run activity:');
+        fallback.push(...runActivityLines.slice(-12));
+      }
+      const unique = [...new Set([...agentEvents, ...stepOutputs, ...fallback])];
+      state.stream.targetLines = unique;
+      state.stream.stepStatus = deriveRunAgents(run).find(a => a.agentId === state.stream.agentId)?.status || 'idle';
+      state.stream.loading = false;
+      renderTerminalViewer();
+    } catch {
+      state.stream.loading = false;
+      renderTerminalViewer();
+    }
+  };
+
+  await poll();
+  state.stream.pollTimer = setInterval(poll, 3000);
+  state.stream.revealTimer = setInterval(() => {
+    if (!state.stream.runId || !state.stream.agentId) return;
+    const nextIndex = state.stream.displayedLines.length;
+    if (nextIndex >= state.stream.targetLines.length) return;
+    state.stream.displayedLines.push(state.stream.targetLines[nextIndex]);
+    renderTerminalViewer();
+  }, 90);
+}
+
+function stopAgentStream(){
+  if (state.stream.pollTimer) clearInterval(state.stream.pollTimer);
+  if (state.stream.revealTimer) clearInterval(state.stream.revealTimer);
+  state.stream.pollTimer = null;
+  state.stream.revealTimer = null;
+}
+
+function renderTerminalViewer(){
+  const host = document.getElementById('terminalViewerHost');
+  if (!host) return;
+  if (!state.stream.runId || !state.stream.agentId) {
+    host.innerHTML = `<div class="notice" style="margin-top:8px">Click an agent row to view live read-only output stream.</div>`;
+    return;
+  }
+  const content = state.stream.displayedLines.length
+    ? esc(state.stream.displayedLines.join('\n'))
+    : (state.stream.loading ? 'Connecting to run events...' : 'No output yet for this agent.');
+  host.innerHTML = `
+    <div class="term-wrap">
+      <div class="term-head">
+        <span>read-only terminal • ${esc(state.stream.agentId)}</span>
+        <div class="term-actions">
+          <span><span class="status-dot" style="background:${statusTone(state.stream.stepStatus)}"></span>${esc(prettyStatus(state.stream.stepStatus))}</span>
+          <button class="term-copy" id="copyAgentOutputBtn" type="button">copy</button>
+        </div>
+      </div>
+      <pre class="term-view">${content}</pre>
+    </div>
+  `;
+  const term = host.querySelector('.term-view');
+  if (term) term.scrollTop = term.scrollHeight;
+  const copyBtn = host.querySelector('#copyAgentOutputBtn');
+  if (copyBtn) {
+    copyBtn.onclick = async () => {
+      const lines = state.stream.displayedLines.length ? state.stream.displayedLines : state.stream.targetLines;
+      const text = lines.length ? lines.join('\n') : 'No output yet for this agent.';
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = 'copied';
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', 'true');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); copyBtn.textContent = 'copied'; }
+        catch { copyBtn.textContent = 'copy failed'; }
+        document.body.removeChild(ta);
+      }
+      setTimeout(() => { copyBtn.textContent = 'copy'; }, 1200);
+    };
+  }
+}
+
+function renderAgentStatusList(agents, run){
+  const rows = agents.length
+    ? agents.map(a => `
+      <div class="agent-row ${state.stream.agentId === a.agentId && state.stream.runId === run?.id ? 'active' : ''}" data-agent="${esc(a.agentId)}" data-run="${esc(run?.id || '')}">
+        <div class="agent-meta"><span class="status-dot" style="background:${statusTone(a.status)}"></span><span class="agent-name" title="${esc(a.agentId)}">${esc(a.agentId)}</span></div>
+        <div class="agent-actions">
+          <span class="badge">${esc(prettyStatus(a.status))}</span>
+          ${canRestartAgentStatus(a.status)
+            ? `<button class="agent-restart" data-restart-agent="${esc(a.agentId)}" data-restart-run="${esc(run?.id || '')}">restart</button>`
+            : ''}
+          ${String(a.agentId || '').toLowerCase().endsWith('/developer') ? `<button class="agent-redo" data-redo-run="${esc(run?.id || '')}" title="Requeue PR step for developer">redo</button>` : ''}
+        </div>
+      </div>`).join('')
+    : '<div class="notice">No assigned agents yet.</div>';
+  return `<div class="build-card" style="margin-top:8px"><div class="kv"><strong>Assigned Agents</strong></div><div class="agent-list" id="assignedAgentList">${rows}</div><div id="terminalViewerHost"></div></div>`;
+}
+
+function renderRunSetupPanel(targetDraftId){
+  const panel = document.getElementById('actionPanel');
+  const draft = targetDraftId ? state.featureBuildings.find(d => d.id === targetDraftId) : state.featureBuildings[state.featureBuildings.length - 1];
+  if (!draft) {
+    setFeatureMode(false);
+    panel.innerHTML = `<h3>Action Console</h3><div class="notice">Use command cards to place Base or Feature Request structures.</div>`;
+    stopAgentStream();
+    return;
+  }
+  setFeatureMode(true);
+  const slots = workflowSlots('feature-dev');
+  const agentOptions = inferAgentPool();
+  if (!draft.assignments.length) draft.assignments = autoAssignSlots(slots, agentOptions);
+  draft.assignments = slots.map((slot, i) =>
+    String(draft.assignments[i] || slot.defaultAgent || agentOptions[i % agentOptions.length] || `feature-dev/${slot.id}`));
+  const run = draft.runId ? (state.runs || []).find(r => r.id === draft.runId) : null;
+  const hasRun = !!run;
+  const isDraft = !draft.committed;
+
+  panel.innerHTML = `
+    <h3>${isDraft ? 'Feature Draft Setup' : 'Feature Run Console'}</h3>
+    <div class="kv"><strong>Repo:</strong> ${esc(draft.repo)}</div>
+    <label class="kv">Worktree path
+      <input id="worktreePath" value="${esc(draft.worktreePath)}" />
+    </label>
+    <label class="kv">Feature prompt
+      <textarea id="featurePrompt" rows="8" placeholder="Describe detailed scope, constraints, and acceptance criteria...">${esc(draft.prompt)}</textarea>
+    </label>
+    ${!hasRun ? `
+      <div class="build-card" style="margin-top:8px">
+        <div class="kv"><strong>Auto Assign (Build Time)</strong></div>
+        <button id="autoAssignBtn">Auto-assign ${slots.length} agents in order</button>
+        <div id="assignmentRows" style="margin-top:7px"></div>
+      </div>
+    ` : ''}
+    ${hasRun ? renderAgentStatusList(deriveAssignedAgents(slots, draft, run), run) : ''}
+    <button id="launchFeatureRunBtn" style="margin-top:8px">${isDraft ? 'Create Worktree + Start Run' : 'Relaunch Run'}</button>
+    <button id="preparePrBtn" style="margin-top:6px">Check / Prepare PR Link</button>
+    <div class="notice" style="margin-top:8px" id="featureMutationNotice">Ready to execute backend actions.</div>
+  `;
+
+  const rows = document.getElementById('assignmentRows');
+  if (rows) {
+    rows.innerHTML = slots.map((slot, i) => {
+      const agent = draft.assignments[i] || '';
+      const st = getSlotStatus(run, slot.id, agent);
+      return `<div class="kv">${esc(slot.id)}: <input data-slot="${i}" value="${esc(agent)}" /><span class="badge" style="margin-left:6px"><span class="status-dot" style="background:${statusTone(st)}"></span>${esc(prettyStatus(st))}</span></div>`;
+    }).join('');
+  }
+
+  const autoAssignBtn = document.getElementById('autoAssignBtn');
+  if (autoAssignBtn) {
+    autoAssignBtn.onclick = () => {
+      draft.assignments = autoAssignSlots(slots, agentOptions);
+      queuePersist();
+      renderRunSetupPanel(draft.id);
+    };
+  }
+  if (rows) {
+    [...rows.querySelectorAll('input')].forEach((inp, i) => {
+      inp.addEventListener('input', () => {
+        draft.assignments[i] = inp.value;
+        queuePersist();
+        renderRunSetupPanel(draft.id);
+      });
+    });
+  }
+
+  document.getElementById('worktreePath').addEventListener('input', e => { draft.worktreePath = e.target.value; queuePersist(); });
+  document.getElementById('featurePrompt').addEventListener('input', e => { draft.prompt = e.target.value; queuePersist(); });
+
+  const mutationNotice = document.getElementById('featureMutationNotice');
+  let launchInFlight = false;
+  document.getElementById('launchFeatureRunBtn').addEventListener('click', async () => {
+    if (launchInFlight) return;
+    launchInFlight = true;
+    const launchBtn = document.getElementById('launchFeatureRunBtn');
+    if (launchBtn) launchBtn.disabled = true;
+    try {
+      mutationNotice.textContent = 'Creating worktree + starting workflow run...';
+      const branchName = `feature/${(draft.prompt || 'task').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,32) || 'task'}-${Date.now().toString().slice(-5)}`;
+      const assignments = slots.map((slot, i) => ({ stepId: slot.id, agentId: draft.assignments[i] || '' })).filter(a => a.agentId);
+      const previousRunId = draft.runId || null;
+      const runResult = await postJson('/api/rts/feature/run', {
+        workflowId: 'feature-dev',
+        taskTitle: draft.prompt || `Feature request for ${draft.repo}`,
+        prompt: draft.prompt,
+        baseRepoPath: draft.repo,
+        worktreePath: draft.worktreePath,
+        branchName,
+        assignments
+      });
+
+      draft.worktreePath = runResult.worktreePath || draft.worktreePath;
+      draft.runId = runResult.run.id;
+      draft.phase = 'running';
+      draft.committed = true;
+      if (previousRunId && previousRunId !== draft.runId && state.runLayoutOverrides && typeof state.runLayoutOverrides === 'object') {
+        delete state.runLayoutOverrides[previousRunId];
+      }
+      mutationNotice.textContent = `Run started: ${runResult.run.id.slice(0,12)} (${runResult.branchName})`;
+      state.runs = await json('/api/runs');
+      queuePersist();
+      rebuildScene();
+    } catch (err) {
+      mutationNotice.textContent = `Error: ${err.message || err}`;
+    } finally {
+      launchInFlight = false;
+      const btn = document.getElementById('launchFeatureRunBtn');
+      if (btn) btn.disabled = false;
+    }
+  });
+
+  document.getElementById('preparePrBtn').addEventListener('click', async () => {
+    try {
+      const latestRun = draft.runId ? (state.runs || []).find(r => r.id === draft.runId) : null;
+      if (!latestRun) throw new Error('No run found for this draft/repo yet.');
+      mutationNotice.textContent = 'Checking PR status...';
+      const pr = await fetch('/api/pr/prepare', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ runId: latestRun.id })
+      }).then(async (r) => ({ ok:r.ok, data: await r.json() }));
+      if (pr.ok && pr.data?.prUrl) mutationNotice.textContent = `PR detected: ${pr.data.prUrl}`;
+      else mutationNotice.textContent = pr.data?.next ? `PR waiting: ${pr.data.next}` : `PR status: ${pr.data?.error || 'unknown'}`;
+    } catch (err) {
+      mutationNotice.textContent = `Error: ${err.message || err}`;
+    }
+  });
+
+  if (hasRun) {
+    const agentRows = panel.querySelectorAll('#assignedAgentList .agent-row');
+    agentRows.forEach(row => {
+      row.addEventListener('click', () => {
+        const runId = row.getAttribute('data-run');
+        const agentId = row.getAttribute('data-agent');
+        if (!runId || !agentId) return;
+        state.streamSelectionByRun[runId] = agentId;
+        startAgentStream(runId, agentId);
+        panel.querySelectorAll('#assignedAgentList .agent-row').forEach(r => r.classList.remove('active'));
+        row.classList.add('active');
+      });
+    });
+    const restartBtns = panel.querySelectorAll('#assignedAgentList .agent-restart');
+    restartBtns.forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const runId = btn.getAttribute('data-restart-run');
+        const agentId = btn.getAttribute('data-restart-agent');
+        if (!runId || !agentId) return;
+        try {
+          const rr = await postJson('/api/rts/agent/restart', { runId, agentId });
+          state.runs = await json('/api/runs');
+          rebuildScene();
+          renderRunSetupPanel(draft.id);
+          const mutationNotice = document.getElementById('featureMutationNotice');
+          if (mutationNotice) mutationNotice.textContent = rr?.kicked
+            ? 'Agent restarted and kicked immediately.'
+            : 'Agent restarted (kick unavailable); cron fallback will pick it up.';
+        } catch (err) {
+          const mutationNotice = document.getElementById('featureMutationNotice');
+          if (mutationNotice) mutationNotice.textContent = `Restart failed: ${err.message || err}`;
+        }
+      });
+    });
+    const redoBtns = panel.querySelectorAll('#assignedAgentList .agent-redo');
+    redoBtns.forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const runId = btn.getAttribute('data-redo-run');
+        if (!runId) return;
+        try {
+          btn.disabled = true;
+          const mutationNotice = document.getElementById('featureMutationNotice');
+          if (mutationNotice) mutationNotice.textContent = 'Redoing PR step for developer...';
+          const rr = await postJson('/api/rts/agent/redo-pr', { runId });
+          state.runs = await json('/api/runs');
+          rebuildScene();
+          renderRunSetupPanel(draft.id);
+          if (mutationNotice) mutationNotice.textContent = rr?.kicked
+            ? 'PR step requeued and kicked immediately.'
+            : 'PR step requeued; waiting for cron fallback.';
+        } catch (err) {
+          const mutationNotice = document.getElementById('featureMutationNotice');
+          if (mutationNotice) mutationNotice.textContent = `Redo failed: ${err.message || err}`;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+    renderTerminalViewer();
+    const activeRow = panel.querySelector('#assignedAgentList .agent-row .badge')?.closest('.agent-row');
+    const runningRow = [...agentRows].find((row) => (row.textContent || '').toLowerCase().includes('running'));
+    const pinnedAgent = state.streamSelectionByRun[run.id] || (state.stream.runId === run.id ? state.stream.agentId : null);
+    const pinnedRow = pinnedAgent ? panel.querySelector(`#assignedAgentList .agent-row[data-agent="${CSS.escape(pinnedAgent)}"]`) : null;
+    const preferred = pinnedRow || runningRow || activeRow || agentRows[0];
+    if (preferred) {
+      const runId = preferred.getAttribute('data-run');
+      const agentId = preferred.getAttribute('data-agent');
+      if (!(runId && agentId && state.stream.runId === runId && state.stream.agentId === agentId)) preferred.click();
+    }
+  } else {
+    stopAgentStream();
+  }
+}
+
+// controls
+const worldEl = document.getElementById('world');
+const worldWrapEl = document.getElementById('worldWrap');
+const placementLayerEl = document.getElementById('placementLayer');
+let dragBuildingType = null;
+document.getElementById('cancelPlacementBtn').addEventListener('click', () => setPlacement(null));
+document.getElementById('deleteSelectedBtn').addEventListener('click', () => deleteSelectedStructure());
+
+// Placement must win over any entity drag/select path.
+worldWrapEl.addEventListener('mousedown', (e) => {
+  if (!state.placementMode) return;
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const point = localPointInWorld(e);
+  const snapped = snapPlacement(state.placementMode, point.x, point.y);
+  if (state.placementMode === 'base') placeBaseAt(snapped.x, snapped.y);
+  if (state.placementMode === 'feature') placeFeatureAt(snapped.x, snapped.y);
+  state.suppressWorldClick = false;
+  setPlacement(null);
+}, true);
+
+document.querySelectorAll('.palette-card[data-building]').forEach((card) => {
+  card.addEventListener('click', () => setPlacement(card.getAttribute('data-building')));
+  card.addEventListener('dragstart', (e) => {
+    const kind = card.getAttribute('data-building');
+    dragBuildingType = kind;
+    setPlacement(kind);
+    e.dataTransfer?.setData('text/plain', kind || '');
+    worldWrapEl.classList.add('drop-armed');
+  });
+  card.addEventListener('dragend', () => {
+    dragBuildingType = null;
+    worldWrapEl.classList.remove('drop-armed');
+    hidePlacementGhost();
+  });
+});
+
+worldWrapEl.addEventListener('dragover', (e) => {
+  if (!dragBuildingType) return;
+  e.preventDefault();
+  const point = localPointInWorld(e);
+  showPlacementGhost(dragBuildingType, point.x, point.y);
+});
+worldWrapEl.addEventListener('drop', (e) => {
+  if (!dragBuildingType) return;
+  e.preventDefault();
+  const point = localPointInWorld(e);
+  const snapped = snapPlacement(dragBuildingType, point.x, point.y);
+  if (dragBuildingType === 'base') placeBaseAt(snapped.x, snapped.y);
+  if (dragBuildingType === 'feature') placeFeatureAt(snapped.x, snapped.y);
+  dragBuildingType = null;
+  worldWrapEl.classList.remove('drop-armed');
+  setPlacement(null);
+});
+worldWrapEl.addEventListener('dragleave', (e) => {
+  if (!dragBuildingType) return;
+  if (e.relatedTarget && worldWrapEl.contains(e.relatedTarget)) return;
+  hidePlacementGhost();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (state.featureMode && !e.target?.closest?.('input,textarea,select') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const rows = [...document.querySelectorAll('#assignedAgentList .agent-row')];
+    if (rows.length) {
+      e.preventDefault();
+      const currentIndex = rows.findIndex((row) => row.classList.contains('active'));
+      const dir = e.key === 'ArrowDown' ? 1 : -1;
+      const nextIndex = currentIndex < 0 ? (dir > 0 ? 0 : rows.length - 1) : (currentIndex + dir + rows.length) % rows.length;
+      rows[nextIndex].click();
+      rows[nextIndex].scrollIntoView({ block: 'nearest' });
+      return;
+    }
+  }
+  if (e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  if (e.key === 'b' || e.key === 'B') setPlacement('base');
+  if (e.key === 'f' || e.key === 'F') setPlacement('feature');
+  if (e.key === 'Escape') setPlacement(null);
+  if (e.key === 'Delete' || e.key === 'Backspace') deleteSelectedStructure();
+});
+
+worldWrapEl.addEventListener('mousemove', (e) => {
+  if (state.cameraDrag.active) {
+    state.camera.x = state.cameraDrag.originX - (e.clientX - state.cameraDrag.startX);
+    state.camera.y = state.cameraDrag.originY - (e.clientY - state.cameraDrag.startY);
+    updateCameraVisuals();
+    rebuildScene();
+    const kind = dragBuildingType || state.placementMode;
+    if (kind) {
+      const point = localPointInWorld(e);
+      showPlacementGhost(kind, point.x, point.y);
+    }
+    return;
+  }
+  if (state.draggingEntity) {
+    const point = localPointInWorld(e);
+    const kind = (state.draggingEntity.type === 'base' || state.draggingEntity.type === 'baseDraft') ? 'base' : 'feature';
+    const snapped = snapPlacement(kind, point.x - state.draggingEntity.offsetX + (buildingFootprint(kind).w / 2), point.y - state.draggingEntity.offsetY + (buildingFootprint(kind).h / 2));
+    state.draggingMoved = true;
+    if (state.draggingEntity.type === 'base') updateCustomBasePosition(state.draggingEntity.id, snapped.x, snapped.y);
+    else if (state.draggingEntity.type === 'baseDraft') updateBaseDraftPosition(state.draggingEntity.id, snapped.x, snapped.y);
+    else if (state.draggingEntity.type === 'feature') updateFeaturePosition(state.draggingEntity.id, snapped.x, snapped.y);
+    else updateRunBuildingPosition(state.draggingEntity.id, snapped.x, snapped.y);
+    queuePersist();
+    rebuildScene();
+    return;
+  }
+  const kind = dragBuildingType || state.placementMode;
+  if (!kind) return;
+  const point = localPointInWorld(e);
+  showPlacementGhost(kind, point.x, point.y);
+});
+worldWrapEl.addEventListener('mouseleave', hidePlacementGhost);
+
+worldWrapEl.addEventListener('mousedown', (e) => {
+  if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+    e.preventDefault();
+    state.cameraDrag = {
+      active:true,
+      startX:e.clientX,
+      startY:e.clientY,
+      originX:state.camera.x,
+      originY:state.camera.y
+    };
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (state.draggingEntity && state.draggingMoved) state.suppressWorldClick = true;
+  state.cameraDrag.active = false;
+  state.draggingEntity = null;
+  state.draggingMoved = false;
+});
+
+worldEl.addEventListener('click', (e) => {
+  if (state.placementMode) {
+    const point = localPointInWorld(e);
+    const snapped = snapPlacement(state.placementMode, point.x, point.y);
+    if (state.placementMode === 'base') placeBaseAt(snapped.x, snapped.y);
+    if (state.placementMode === 'feature') placeFeatureAt(snapped.x, snapped.y);
+    state.suppressWorldClick = false;
+    setPlacement(null);
+    return;
+  }
+  if (state.suppressWorldClick) {
+    state.suppressWorldClick = false;
+    return;
+  }
+});
+
+boot();
+updateCameraVisuals();
+setInterval(async () => {
+  const runsChanged = await refreshRuntimeState(false);
+  if (!state.liveStream) startLiveStream();
+  if (runsChanged || Number(state.live?.runningAgentCount || 0) > 0) rebuildScene();
+  else renderUnitsLiveState();
+  renderLiveConsole();
+}, 2000);
+
+window.addEventListener('beforeunload', () => {
+  if (state.liveStream) {
+    try { state.liveStream.close(); } catch {}
+    state.liveStream = null;
+  }
+  try { localStorage.setItem('antfarm-rts-state', JSON.stringify(snapshotPersistableState())); } catch {}
+});
+</script>
+</body>
+</html>

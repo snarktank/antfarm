@@ -9,6 +9,7 @@ Started: 2026-02-11 05:47 ET
 - Build: `npm run build` runs `tsc -p tsconfig.json` + copies HTML + chmod
 - Tests: `node --test dist/<file>.test.js` (node:test + node:assert/strict)
 - ESM with NodeNext module resolution, `.js` extensions in imports
+- RTS dashboard source assets live in `src/server/rts.html` + `src/server/rts-sprites/`; `npm run build` must copy both into `dist/server/`
 
 ---
 
@@ -26,4 +27,13 @@ Started: 2026-02-11 05:47 ET
 - All acceptance criteria verified: CLI works, hidden from help, tests pass, build passes
 - Files changed: `tests/ant.test.ts` (new)
 - **Learnings:** Node 22 runs .ts files directly with type stripping; tests in `tests/` use this approach
+---
+
+## 2026-02-12 11:34 - US-001: Replace text-only cancel/delete controls with RTS sprite buttons
+- Added RTS source page at `src/server/rts.html` and switched BUILD control buttons to icon-backed sprite buttons while preserving IDs/click wiring
+- Added new sprite assets: `src/server/rts-sprites/cancel-button.svg` and `src/server/rts-sprites/delete-button.svg`
+- Updated build pipeline to copy `src/server/rts.html` and all `src/server/rts-sprites/*` assets into `dist/server/`
+- Added regression test `tests/rts-command-controls.test.ts` to validate sprite references, accessibility labels/titles, and src/dist asset presence
+- Files changed: `package.json`, `src/server/rts.html`, `src/server/rts-sprites/cancel-button.svg`, `src/server/rts-sprites/delete-button.svg`, `tests/rts-command-controls.test.ts`, `dist/server/rts.html`, `dist/server/rts-sprites/*`, `progress.txt`
+- **Learnings:** RTS UI is distributed from `dist/server/rts.html` but should be maintained from `src/server/rts.html` and copied during build
 ---
