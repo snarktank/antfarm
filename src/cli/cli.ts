@@ -26,9 +26,11 @@ import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/d
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { execSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import type { RunInfo, StepInfo } from "../installer/status.js";
+import type { Story } from "../installer/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -81,6 +83,99 @@ function printEvents(events: AntfarmEvent[]): void {
   }
 }
 
+function formatSummaryMarkdown(run: RunInfo, steps: StepInfo[], stories: Story[]): string {
+  const now = new Date();
+  const created = new Date(run.created_at);
+  const updated = new Date(run.updated_at);
+  const durationMs = updated.getTime() - created.getTime();
+  const durationMin = Math.round(durationMs / 60000);
+  const durationStr = durationMin >= 60
+    ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m`
+    : `${durationMin}m`;
+
+  const allDone = steps.every(s => s.status === "done");
+  const anyFailed = steps.some(s => s.status === "failed");
+  const result = run.status === "completed" ? "✅ PASS"
+    : run.status === "failed" ? "❌ FAIL"
+    : "⚠️ IN PROGRESS";
+
+  const recommendation = run.status === "completed" ? "DEPLOY"
+    : run.status === "failed" ? "FIX REQUIRED"
+    : "WAITING";
+
+  // Parse context for PR link
+  let prLink = "";
+  try {
+    const ctx = JSON.parse(run.context);
+    prLink = ctx.pr || ctx.PR || "";
+  } catch {}
+
+  // Find verify step output
+  let verifyOutput = "";
+  const verifyStep = steps.find(s => s.step_id === "verify");
+  if (verifyStep?.output) {
+    const match = verifyStep.output.match(/VERIFIED:\s*([\s\S]*?)(?:STATUS:|$)/i);
+    verifyOutput = match ? match[1].trim() : verifyStep.output.slice(0, 500);
+  }
+
+  const lines = [
+    "# Antfarm Run Summary",
+    "",
+    `**Run ID:** ${run.id}`,
+    `**Workflow:** ${run.workflow_id}`,
+    `**Status:** ${run.status}`,
+    `**Started:** ${created.toISOString().replace("T", " ").slice(0, 19)}`,
+    `**Completed:** ${run.status === "running" ? "—" : updated.toISOString().replace("T", " ").slice(0, 19)}`,
+    `**Duration:** ${durationStr}`,
+    "",
+    "## Result",
+    result,
+    "",
+    "## Task",
+    run.task,
+    "",
+  ];
+
+  if (stories.length > 0) {
+    lines.push("## Stories");
+    for (const s of stories) {
+      const check = s.status === "done" ? "x" : " ";
+      const suffix = s.status === "failed" ? " ❌" : s.status === "running" ? " 🔄" : "";
+      lines.push(`- [${check}] ${s.storyId}: ${s.title}${suffix}`);
+    }
+    lines.push("");
+  }
+
+  lines.push("## Steps");
+  lines.push("| Step | Agent | Status | Retries |");
+  lines.push("|------|-------|--------|---------|");
+  for (const s of steps) {
+    const statusIcon = s.status === "done" ? "✅" : s.status === "failed" ? "❌" : s.status === "running" ? "🔄" : "⏳";
+    lines.push(`| ${s.step_id} | ${s.agent_id.split("/").pop()} | ${statusIcon} ${s.status} | ${s.retry_count} |`);
+  }
+  lines.push("");
+
+  if (verifyOutput) {
+    lines.push("## Verification");
+    lines.push(verifyOutput);
+    lines.push("");
+  }
+
+  if (prLink) {
+    lines.push("## PR");
+    lines.push(prLink);
+    lines.push("");
+  }
+
+  lines.push("## Recommendation");
+  lines.push(`**${recommendation}**`);
+  lines.push("");
+  lines.push(`---`);
+  lines.push(`Generated: ${now.toISOString()}`);
+
+  return lines.join("\n");
+}
+
 function printUsage() {
   process.stdout.write(
     [
@@ -93,6 +188,7 @@ function printUsage() {
       "antfarm workflow uninstall --all     Uninstall all workflows (--force to override)",
       "antfarm workflow run <name> <task>   Start a workflow run",
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
+      "antfarm workflow status <query> --output <file>  Write summary to file",
       "antfarm workflow runs                List all workflow runs",
       "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
       "",
@@ -375,11 +471,41 @@ async function main() {
   }
 
   if (action === "status") {
-    const query = args.slice(2).join(" ").trim();
+    // Parse --output flag
+    const outputIdx = args.indexOf("--output");
+    let outputPath: string | undefined;
+    const queryArgs = args.slice(2).filter((arg, idx) => {
+      if (arg === "--output") return false;
+      if (idx > 0 && args[idx + 1] === "--output") return true;
+      if (outputIdx !== -1 && idx === outputIdx + 1 - 2) {
+        outputPath = arg;
+        return false;
+      }
+      return true;
+    });
+    
+    // Simpler parsing: find --output and its value
+    if (outputIdx !== -1 && args[outputIdx + 1]) {
+      outputPath = args[outputIdx + 1];
+    }
+    const query = args.slice(2).filter(a => a !== "--output" && a !== outputPath).join(" ").trim();
+    
     if (!query) { process.stderr.write("Missing search query.\n"); printUsage(); process.exit(1); }
     const result = getWorkflowStatus(query);
     if (result.status === "not_found") { process.stdout.write(`${result.message}\n`); return; }
     const { run, steps } = result;
+    const stories = getStories(run.id);
+
+    // If --output specified, write markdown summary to file
+    if (outputPath) {
+      const summary = formatSummaryMarkdown(run, steps, stories);
+      mkdirSync(dirname(outputPath), { recursive: true });
+      writeFileSync(outputPath, summary);
+      console.log(`✓ Summary written to ${outputPath}`);
+      return;
+    }
+
+    // Default: terminal output
     const lines = [
       `Run: ${run.id}`,
       `Workflow: ${run.workflow_id}`,
@@ -391,7 +517,6 @@ async function main() {
       "Steps:",
       ...steps.map((s) => `  [${s.status}] ${s.step_id} (${s.agent_id})`),
     ];
-    const stories = getStories(run.id);
     if (stories.length > 0) {
       const done = stories.filter((s) => s.status === "done").length;
       const running = stories.filter((s) => s.status === "running").length;
