@@ -49,6 +49,8 @@ agents:
     description: Quick sanity check - did developer actually do the work?
     workspace:
       baseDir: agents/verifier
+      skills:
+        - agent-browser
       files:
         AGENTS.md: ../../agents/shared/verifier/AGENTS.md
         SOUL.md: ../../agents/shared/verifier/SOUL.md
@@ -71,6 +73,8 @@ agents:
     description: Reviews PRs, requests changes or approves.
     workspace:
       baseDir: agents/reviewer
+      skills:
+        - agent-browser
       files:
         AGENTS.md: agents/reviewer/AGENTS.md
         SOUL.md: agents/reviewer/SOUL.md
