@@ -208,10 +208,26 @@ function cleanupAbandonedSteps(): void {
 
   // Find running steps that haven't been updated recently
   const abandonedSteps = db.prepare(
-    "SELECT id, step_id, run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE status = 'running' AND (julianday('now') - julianday(updated_at)) * 86400000 > ?"
-  ).all(thresholdMs) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null }[];
+    "SELECT id, step_id, run_id, retry_count, max_retries, type, current_story_id, loop_config FROM steps WHERE status = 'running' AND (julianday('now') - julianday(updated_at)) * 86400000 > ?"
+  ).all(thresholdMs) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null; loop_config: string | null }[];
 
   for (const step of abandonedSteps) {
+    if (step.type === "loop" && !step.current_story_id && step.loop_config) {
+      try {
+        const loopConfig: LoopConfig = JSON.parse(step.loop_config);
+        if (loopConfig.verifyEach && loopConfig.verifyStep) {
+          const verifyStatus = db.prepare(
+            "SELECT status FROM steps WHERE run_id = ? AND step_id = ? LIMIT 1"
+          ).get(step.run_id, loopConfig.verifyStep) as { status: string } | undefined;
+          if (verifyStatus?.status === "pending" || verifyStatus?.status === "running") {
+            continue;
+          }
+        }
+      } catch {
+        // If loop config is malformed, fall through to abandonment handling.
+      }
+    }
+
     // Loop steps: apply per-story retry, not per-step retry (#35)
     if (step.type === "loop" && step.current_story_id) {
       const story = db.prepare(
