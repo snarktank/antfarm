@@ -2156,6 +2156,16 @@ function buildPrStatusLines(run, events){
   if ((status === 'waiting' || status === 'pending') && runStatus === 'running') return [];
 
   const lines = [];
+  if ((status === 'waiting' || status === 'pending') && (runStatus === 'failed' || runStatus === 'cancelled')) {
+    const blockedBy = (run?.steps || [])
+      .filter((step) => String(step.step_id || '').toLowerCase() !== 'pr')
+      .find((step) => step.status === 'failed');
+    const blockerLabel = blockedBy ? prettyStepName(String(blockedBy.step_id || blockedBy.id || 'step')) : 'an earlier step';
+    lines.push(`[pr] PR step did not run because ${blockerLabel} failed.`);
+    if (blockedBy?.output) {
+      lines.push(`[pr] Blocking reason: ${summarizeSingleLine(String(blockedBy.output), 240)}`);
+    }
+  } else
   if (status === 'failed') lines.push('[pr] PR step failed, so no pull request was created.');
   else if (status === 'done') lines.push('[pr] PR step completed but no pull request URL was found.');
   else if (status === 'running') lines.push('[pr] PR step is running. Waiting for `gh pr create` output.');
@@ -2388,6 +2398,7 @@ function renderRunSetupPanel(targetDraftId){
   const run = draft.runId ? (state.runs || []).find(r => r.id === draft.runId) : null;
   const hasRun = !!run;
   const isDraft = !draft.committed;
+  const promptReadOnlyAttr = isDraft ? '' : ' readonly';
   if (!draft.port) {
     draft.port = getPortForPath(draft.worktreePath || '') || getPortForPath(draft.repo || '') || 3334;
   }
@@ -2400,7 +2411,7 @@ function renderRunSetupPanel(targetDraftId){
     </label>
     <div class="kv"><strong>Runtime:</strong> ${runtimeLink(draft.port || 3334)}</div>
     <label class="kv">Feature prompt
-      <textarea id="featurePrompt" rows="8" placeholder="Describe detailed scope, constraints, and acceptance criteria...">${esc(draft.prompt)}</textarea>
+      <textarea id="featurePrompt" rows="8" placeholder="Describe detailed scope, constraints, and acceptance criteria..."${promptReadOnlyAttr}>${esc(draft.prompt)}</textarea>
     </label>
     ${hasRun ? renderAgentStatusList(deriveRunAgents(run), run) : ''}
     <button id="launchFeatureRunBtn" style="margin-top:8px">${isDraft ? 'Create Worktree + Start Run' : 'Relaunch Run'}</button>
