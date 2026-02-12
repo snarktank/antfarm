@@ -972,6 +972,11 @@ function rebuildScene(){
   const linkedFeatureRunIds = new Set((state.featureBuildings || []).map((f) => f.runId).filter(Boolean));
   mergedBases.forEach(base => {
     (base.runs || []).forEach((run, ri) => {
+      const runCtx = parseContext(run);
+      const runWorktreePath = String(runCtx.worktreePath || '');
+      const runRepoPath = String(runCtx.repoPath || runCtx.baseRepoPath || getRepo(run) || '');
+      const basePort = Number(base.port) || getPortForPath(base.repo || '') || 3333;
+      const runPort = getPortForPath(runWorktreePath) || getPortForPath(runRepoPath) || (basePort + 1);
       runBaseCenters.set(run.id, centerPointFor('base', base.x, base.y));
       if (!linkedFeatureRunIds.has(run.id)) {
         const override = state.runLayoutOverrides?.[run.id];
@@ -983,10 +988,10 @@ function rebuildScene(){
           y: Number(override?.y ?? (base.y + baseFp.h + GRID_SIZE + Math.floor(ri/2)*(runFp.h + GRID_SIZE))),
           progress: runProgress(run),
           prUrl: extractPrUrl(run),
-          repo: getRepo(run),
-          worktreePath: parseContext(run).worktreePath || '',
-          port: getPortForPath(parseContext(run).worktreePath || '') || Number(base.port) + 1,
-          portLabel: pathLabel(parseContext(run).worktreePath || '')
+          repo: runRepoPath,
+          worktreePath: runWorktreePath,
+          port: runPort,
+          portLabel: pathLabel(runWorktreePath || runRepoPath)
         });
       }
 
@@ -1095,6 +1100,7 @@ function placeBaseAt(x,y){
     repoUrl:'',
     targetPath:'',
     existingRepoPath:'',
+    port: 3333,
     label:'New Base',
     committed:false
   };
@@ -1129,6 +1135,7 @@ function placeFeatureAt(x,y){
     x, y,
     repo: base.repo || 'unlinked-repo',
     worktreePath: getWorktreeDefault(base.repo || 'repo'),
+    port: (Number(base.port) || getPortForPath(base.repo || '') || 3333) + 1,
     prompt: '',
     assignments: []
   };
@@ -1395,12 +1402,14 @@ function renderWorld(){
 
   state.bases.forEach(base => {
     const movable = base.source === 'custom';
+    const basePort = Number(base.port) || getPortForPath(base.repo || '') || 3333;
+    const baseLabel = base.portLabel || pathLabel(base.repo || '');
     const el = renderIsoEntity({
       className:`base ${movable ? 'movable' : ''}`,
       kind:'base',
       x:base.x,
       y:base.y,
-      innerHtml: structureMarkup('base'),
+      innerHtml: `${structureMarkup('base')}<div class="port-chip">${esc(baseLabel)} :${basePort}</div>`,
       onClick:() => { state.selected = { type:'base', data:base }; renderSelection(); }
     });
     if (movable) {
@@ -1456,6 +1465,8 @@ function renderWorld(){
     const movable = true;
     const featureVisualClass = b.kind === 'feature' ? featureStructureClassName(b) : '';
     const className = ['building', featureVisualClass, movable ? 'movable' : ''].filter(Boolean).join(' ');
+    const buildPort = Number(b.port) || getPortForPath(b.worktreePath || b.repo || '') || 3334;
+    const buildLabel = b.portLabel || pathLabel(b.worktreePath || b.repo || '');
     const el = renderIsoEntity({
       className,
       kind: b.kind === 'feature' ? 'feature' : 'run',
@@ -1463,6 +1474,7 @@ function renderWorld(){
       y:b.y,
       innerHtml:`
         ${structureMarkup(b.kind === 'feature' ? 'feature' : 'run')}
+        <div class="port-chip">${esc(buildLabel)} :${buildPort}</div>
         <div class="progress" style="position:absolute;left:12px;right:12px;bottom:8px"><div class="bar" style="width:${b.progress || 0}%;background:${color}"></div></div>
       `,
       onClick:() => {
@@ -1663,7 +1675,9 @@ function renderSelection(){
   if (s.type === 'base') {
     setFeatureMode(false);
     const b = s.data;
-    panel.innerHTML = `<h3>Base Intel</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Buildings:</strong> ${(b.runs || []).length}</div>${renderSkillTree('orchestrator','Base Systems')}`;
+    const basePort = Number(b.port) || getPortForPath(b.repo || '') || 3333;
+    const baseLabel = b.portLabel || pathLabel(b.repo || '');
+    panel.innerHTML = `<h3>Base Intel</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Role:</strong> ${esc(baseLabel)}</div><div class="kv"><strong>Port:</strong> ${basePort}</div><div class="kv"><strong>Buildings:</strong> ${(b.runs || []).length}</div>${renderSkillTree('orchestrator','Base Systems')}`;
     stopAgentStream();
     return;
   }
@@ -1671,11 +1685,13 @@ function renderSelection(){
     const b = s.data;
     if (b.kind === 'feature') {
       setFeatureMode(true);
-      panel.innerHTML = `<h3>Feature Forge</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run?.status || b.phase || 'draft'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress || 0}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
+      const port = Number(b.port) || getPortForPath(b.worktreePath || b.repo || '') || 3334;
+      panel.innerHTML = `<h3>Feature Forge</h3><div class="kv"><strong>Repo:</strong> ${esc(b.repo || 'unlinked')}</div><div class="kv"><strong>Worktree:</strong> ${esc(b.worktreePath || '-')}</div><div class="kv"><strong>Port:</strong> ${port}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run?.status || b.phase || 'draft'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress || 0}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
       if (!isEditingActionPanel()) renderRunSetupPanel(b.id);
       return;
     }
-    panel.innerHTML = `<h3>Structure Status</h3><div class="kv"><strong>Task:</strong> ${esc(b.run.task || '')}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run.status || 'waiting'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
+    const port = Number(b.port) || getPortForPath(b.worktreePath || b.repo || '') || 3334;
+    panel.innerHTML = `<h3>Structure Status</h3><div class="kv"><strong>Task:</strong> ${esc(b.run.task || '')}</div><div class="kv"><strong>Worktree:</strong> ${esc(b.worktreePath || '-')}</div><div class="kv"><strong>Port:</strong> ${port}</div><div class="kv"><strong>Status:</strong> ${esc(prettyStatus(b.run.status || 'waiting'))}</div><div class="kv"><strong>Progress:</strong> ${b.progress}%</div>${b.prUrl ? `<a class="pr-link" href="${b.prUrl}" target="_blank">OPEN PULL REQUEST</a>` : '<div class="notice">No PR link detected yet.</div>'}${renderSkillTree('builder','Run Build Matrix')}`;
     renderRunAgentsConsole(b.run);
     return;
   }
@@ -1721,6 +1737,9 @@ function renderBaseCloneForm(draft){
     <label class="kv">Target path
       <input id="cloneTargetPath" placeholder="../repo-worktree" value="${esc(draft.targetPath || '')}" />
     </label>
+    <label class="kv">Base port
+      <input id="basePortInput" type="number" min="1" max="65535" value="${esc(String(draft.port || 3333))}" />
+    </label>
     <button id="saveBaseCloneBtn">Create Base</button>
     <div class="notice" style="margin-top:7px" id="baseMutationNotice">Select an existing repo OR provide clone URL + target path.</div>
   `;
@@ -1730,13 +1749,20 @@ function renderBaseCloneForm(draft){
     draft.existingRepoPath = e.target.value || '';
     if (draft.existingRepoPath) {
       draft.targetPath = draft.existingRepoPath;
+      draft.port = getPortForPath(draft.existingRepoPath) || draft.port || 3333;
       const pathInput = document.getElementById('cloneTargetPath');
       if (pathInput) pathInput.value = draft.targetPath;
+      const portInput = document.getElementById('basePortInput');
+      if (portInput) portInput.value = String(draft.port);
     }
     queuePersist();
   });
   document.getElementById('cloneRepoUrl').addEventListener('input', e => { draft.repoUrl = e.target.value; queuePersist(); });
   document.getElementById('cloneTargetPath').addEventListener('input', e => { draft.targetPath = e.target.value; queuePersist(); });
+  document.getElementById('basePortInput').addEventListener('input', e => {
+    draft.port = Number(e.target.value) || draft.port || 3333;
+    queuePersist();
+  });
 
   const submitBaseDraft = async () => {
     const usingExisting = !!draft.existingRepoPath;
@@ -1755,6 +1781,8 @@ function renderBaseCloneForm(draft){
         x:draft.x,
         y:draft.y,
         repo:result.repoPath,
+        port: Number(draft.port) || getPortForPath(result.repoPath) || 3333,
+        portLabel: pathLabel(result.repoPath),
         source:'custom',
         cloneMeta: {
           mode: result.mode,
@@ -1764,6 +1792,7 @@ function renderBaseCloneForm(draft){
         },
         runs:[]
       };
+      setPortForPath(base.repo, base.port);
       removeBaseDraftById(draft.id);
       state.customBases.push(base);
       state.selected = { type:'base', data:base };
@@ -2064,12 +2093,18 @@ function renderRunSetupPanel(targetDraftId){
   const run = draft.runId ? (state.runs || []).find(r => r.id === draft.runId) : null;
   const hasRun = !!run;
   const isDraft = !draft.committed;
+  if (!draft.port) {
+    draft.port = getPortForPath(draft.worktreePath || '') || getPortForPath(draft.repo || '') || 3334;
+  }
 
   panel.innerHTML = `
     <h3>${isDraft ? 'Feature Draft Setup' : 'Feature Run Console'}</h3>
     <div class="kv"><strong>Repo:</strong> ${esc(draft.repo)}</div>
     <label class="kv">Worktree path
       <input id="worktreePath" value="${esc(draft.worktreePath)}" />
+    </label>
+    <label class="kv">Worktree port
+      <input id="worktreePort" type="number" min="1" max="65535" value="${esc(String(draft.port || 3334))}" />
     </label>
     <label class="kv">Feature prompt
       <textarea id="featurePrompt" rows="8" placeholder="Describe detailed scope, constraints, and acceptance criteria...">${esc(draft.prompt)}</textarea>
@@ -2115,6 +2150,11 @@ function renderRunSetupPanel(targetDraftId){
   }
 
   document.getElementById('worktreePath').addEventListener('input', e => { draft.worktreePath = e.target.value; queuePersist(); });
+  document.getElementById('worktreePort').addEventListener('input', e => {
+    draft.port = Number(e.target.value) || draft.port || 3334;
+    if (draft.worktreePath) setPortForPath(draft.worktreePath, draft.port);
+    queuePersist();
+  });
   document.getElementById('featurePrompt').addEventListener('input', e => { draft.prompt = e.target.value; queuePersist(); });
 
   const mutationNotice = document.getElementById('featureMutationNotice');
@@ -2140,6 +2180,8 @@ function renderRunSetupPanel(targetDraftId){
       });
 
       draft.worktreePath = runResult.worktreePath || draft.worktreePath;
+      draft.port = Number(draft.port) || getPortForPath(draft.worktreePath || '') || 3334;
+      setPortForPath(draft.worktreePath, draft.port);
       draft.runId = runResult.run.id;
       draft.phase = 'running';
       draft.committed = true;

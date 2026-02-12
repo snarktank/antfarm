@@ -206,6 +206,17 @@ export function startDashboard(port = 3333): http.Server {
       });
     }
 
+    if (p === "/api/rts/runtime" && method === "GET") {
+      return json(res, {
+        ok: true,
+        runtime: {
+          cwd: process.cwd(),
+          port,
+          startedAt: new Date().toISOString(),
+        },
+      });
+    }
+
     const eventsMatch = p.match(/^\/api\/runs\/([^/]+)\/events$/);
     if (eventsMatch) {
       return json(res, getRunEvents(eventsMatch[1]));
