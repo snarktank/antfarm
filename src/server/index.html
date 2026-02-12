@@ -157,7 +157,8 @@ select:focus{outline:none;border-color:#8ECFC0}
 .step-row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-surface-alt);border:1px solid var(--border);border-radius:6px}
 .step-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
 .step-icon.done{background:var(--accent-green-subtle);color:var(--accent-green)}
-.step-icon.running{background:var(--accent-teal-subtle);color:var(--accent-teal)}
+.step-icon.running{background:var(--accent-teal-subtle);color:var(--accent-teal);animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(1.1)}}
 .step-icon.pending{background:var(--accent-muted);color:var(--text-secondary)}
 .step-icon.waiting{background:var(--accent-muted);color:var(--text-secondary)}
 .step-icon.failed,.step-icon.error{background:var(--accent-orange-subtle);color:var(--accent-orange)}
@@ -167,7 +168,8 @@ select:focus{outline:none;border-color:#8ECFC0}
 
 /* ── Badges ────────────────────────────────────────────────────── */
 .badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;text-transform:uppercase}
-.badge-running{background:var(--accent-teal-subtle);color:var(--accent-teal)}
+.badge-running{background:var(--accent-teal-subtle);color:var(--accent-teal);animation:pulse-badge 1.5s ease-in-out infinite}
+@keyframes pulse-badge{0%,100%{opacity:1}50%{opacity:.6}}
 .badge-done,.badge-completed{background:var(--accent-green-subtle);color:var(--accent-green)}
 .badge-failed,.badge-error{background:var(--accent-orange-subtle);color:var(--accent-orange)}
 .badge-waiting{background:var(--accent-muted);color:var(--text-secondary)}
@@ -187,7 +189,7 @@ select:focus{outline:none;border-color:#8ECFC0}
   <h1><span>antfarm</span> dashboard</h1>
   <select id="wf-select"><option value="">Loading...</option></select>
   <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
-  <span class="refresh-note" id="refresh-note">Auto-refresh: 30s</span>
+  <span class="refresh-note" id="refresh-note">Auto-refresh: 5s</span>
 </header>
 <div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
 <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
@@ -410,7 +412,7 @@ async function loadStories(runId) {
 
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();
-setInterval(() => { if (currentWf) loadRuns(); }, 30000);
+setInterval(() => { if (currentWf) loadRuns(); }, 5000);
 
 // ── Theme toggle ──────────────────────────────────────────────────
 (function initTheme() {
