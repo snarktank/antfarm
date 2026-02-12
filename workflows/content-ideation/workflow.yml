@@ -1,0 +1,117 @@
+# Content Ideation Workflow
+# Run weekly or on-demand to fill the topic queue
+# Completes in one sweep
+
+id: content-ideation
+name: Content Ideation
+version: 1
+description: |
+  Generates and prioritizes content topics for BowTied Slinger.
+  Analyzes what's working, finds gaps, outputs a prioritized queue.
+
+agents:
+  - id: analyst
+    name: Content Analyst
+    role: analysis
+    model: anthropic/claude-opus-4-6
+    description: Analyzes past performance and trends.
+    workspace:
+      baseDir: agents/analyst
+      files:
+        AGENTS.md: agents/analyst/AGENTS.md
+
+  - id: researcher
+    name: Topic Researcher
+    role: analysis
+    model: anthropic/claude-opus-4-6
+    description: Researches trending topics and gaps.
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+
+  - id: strategist
+    name: Content Strategist
+    role: analysis
+    description: Prioritizes topics by potential impact.
+    workspace:
+      baseDir: agents/strategist
+      files:
+        AGENTS.md: agents/strategist/AGENTS.md
+        STYLE_GUIDE.md: ../../../substack/STYLE_GUIDE.md
+
+steps:
+  - id: analyze
+    agent: analyst
+    input: |
+      Analyze BowTied Slinger content performance:
+      
+      Focus area: {{task}}
+      
+      Check:
+      - What topics have performed well? (if data available)
+      - What questions do beginners ask in Amazon FBA communities?
+      - What content gaps exist in the niche?
+
+      Use web search to research:
+      - Reddit r/FulfillmentByAmazon, r/AmazonSeller common questions
+      - Twitter/X discussions about wholesale, retail arbitrage
+      - Competitor Substacks in the space
+
+      Reply with:
+      STATUS: done
+      TRENDING_TOPICS: 5-10 topics people are asking about
+      CONTENT_GAPS: areas not well covered
+      INSIGHTS: key observations
+    expects: "STATUS: done"
+    retries: 2
+
+  - id: research
+    agent: researcher
+    input: |
+      Deep-dive on these potential topics:
+      
+      TRENDING: {{trending_topics}}
+      GAPS: {{content_gaps}}
+      FOCUS: {{task}}
+
+      For each promising topic, assess:
+      - Search volume / interest level
+      - Competition (is it oversaturated?)
+      - Actionability (can we give real advice?)
+      - Fit with BowTied Slinger voice
+
+      Reply with:
+      STATUS: done
+      VETTED_TOPICS: 5-8 topics with brief assessment each
+    expects: "STATUS: done"
+    retries: 2
+
+  - id: prioritize
+    agent: strategist
+    input: |
+      Prioritize these topics for the content queue:
+      
+      VETTED_TOPICS: {{vetted_topics}}
+      FOCUS: {{task}}
+
+      Rank by:
+      1. Audience demand (what do they need?)
+      2. Differentiation (can we say something new?)
+      3. Actionability (concrete takeaways?)
+      4. Timeliness (seasonal/trending factor?)
+
+      Save prioritized queue to: ~/clawd/substack/queue/topics.md
+      
+      Format:
+      ## Priority 1
+      **Topic:** ...
+      **Angle:** ...
+      **Why now:** ...
+
+      Reply with:
+      STATUS: done
+      QUEUE_PATH: ~/clawd/substack/queue/topics.md
+      TOP_3: brief list of top 3 topics
+    expects: "STATUS: done"
+    retries: 1

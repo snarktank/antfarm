@@ -62,12 +62,15 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const prompt = buildAgentPrompt(workflow.id, agent.id);
     const timeoutSeconds = agent.timeoutSeconds ?? DEFAULT_AGENT_TIMEOUT_SECONDS;
 
+    const delivery = agent.delivery ?? { mode: "none" };
+
     const result = await createAgentCronJob({
       name: cronName,
       schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
       agentId,
       payload: { kind: "agentTurn", message: prompt, timeoutSeconds },
+      delivery,
       enabled: true,
     });
 

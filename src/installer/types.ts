@@ -23,6 +23,7 @@ export type WorkflowAgent = {
   role?: AgentRole;
   model?: string;
   timeoutSeconds?: number;
+  delivery?: { mode: string; channel?: string; to?: string };
   workspace: WorkflowAgentFiles;
 };
 

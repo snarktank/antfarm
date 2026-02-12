@@ -1,0 +1,277 @@
+# Content Production Workflow v2
+# Input: Single topic → Output: SEO-optimized, humanized draft + Twitter thread
+# Completes in one sweep, ends at human review gate
+
+id: content-production
+name: Content Production
+version: 2
+description: |
+  Full production pipeline with SEO, humanization, and quality gates.
+  Research → SEO → Write → Humanize → Fact-check → Edit → Final QA
+
+agents:
+  - id: researcher
+    name: Researcher
+    role: analysis
+    model: anthropic/claude-opus-4-6
+    description: Deep research with sources and data points.
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+        STYLE_GUIDE.md: ../../../substack/STYLE_GUIDE.md
+
+  - id: seo-specialist
+    name: SEO Specialist
+    role: analysis
+    description: Keyword research and SEO structure.
+    workspace:
+      baseDir: agents/seo-specialist
+      files:
+        AGENTS.md: agents/seo-specialist/AGENTS.md
+
+  - id: writer
+    name: Writer
+    role: coding
+    description: Writes draft and thread in BowTied Slinger voice.
+    workspace:
+      baseDir: agents/writer
+      files:
+        AGENTS.md: agents/writer/AGENTS.md
+        STYLE_GUIDE.md: ../../../substack/STYLE_GUIDE.md
+
+  - id: humanizer
+    name: Humanizer
+    role: verification
+    description: Removes AI patterns, adds human voice.
+    workspace:
+      baseDir: agents/humanizer
+      files:
+        AGENTS.md: agents/humanizer/AGENTS.md
+        STYLE_GUIDE.md: ../../../substack/STYLE_GUIDE.md
+
+  - id: fact-checker
+    name: Fact Checker
+    role: verification
+    description: Verifies claims, checks links, flags issues.
+    workspace:
+      baseDir: agents/fact-checker
+      files:
+        AGENTS.md: agents/fact-checker/AGENTS.md
+
+  - id: editor
+    name: Editor
+    role: verification
+    description: Polishes for readability and tone.
+    workspace:
+      baseDir: agents/editor
+      files:
+        AGENTS.md: agents/editor/AGENTS.md
+        STYLE_GUIDE.md: ../../../substack/STYLE_GUIDE.md
+
+steps:
+  - id: research
+    agent: researcher
+    input: |
+      Research this topic for a BowTied Slinger Substack post:
+      
+      TOPIC: {{task}}
+
+      Find:
+      - 3-5 actionable insights with specifics
+      - Real examples or mini case studies (with details)
+      - Common mistakes beginners make
+      - Data points or stats (with sources)
+      - Contrarian or non-obvious angles
+      - Personal anecdotes or stories if findable
+
+      Save research to: ~/clawd/substack/research/{{task | slugify}}.md
+
+      Reply with:
+      STATUS: done
+      RESEARCH_PATH: path to saved file
+      KEY_INSIGHTS: 3-5 bullet summary
+    expects: "STATUS: done"
+    retries: 2
+
+  - id: seo
+    agent: seo-specialist
+    input: |
+      Create SEO strategy for this content:
+      
+      TOPIC: {{task}}
+      RESEARCH: {{research_path}}
+
+      Provide:
+      1. PRIMARY KEYWORD: Main search term to target
+      2. SECONDARY KEYWORDS: 3-5 related terms to weave in
+      3. TITLE OPTIONS: 3 SEO-optimized headlines (include primary keyword)
+      4. META DESCRIPTION: 150-160 char summary for search
+      5. H2 STRUCTURE: Recommended subheadings using keywords
+      6. INTERNAL LINKING: Topics to link to (if we have related content)
+
+      Save to: ~/clawd/substack/seo/{{task | slugify}}-seo.md
+
+      Reply with:
+      STATUS: done
+      SEO_PATH: path to saved file
+      PRIMARY_KEYWORD: the main keyword
+      RECOMMENDED_TITLE: best headline option
+    expects: "STATUS: done"
+    retries: 2
+
+  - id: write
+    agent: writer
+    input: |
+      Write a Substack post AND Twitter thread:
+      
+      TOPIC: {{task}}
+      RESEARCH: {{research_path}}
+      SEO: {{seo_path}}
+      PRIMARY_KEYWORD: {{primary_keyword}}
+      TITLE: {{recommended_title}}
+
+      Read ~/clawd/substack/STYLE_GUIDE.md for voice guidelines.
+
+      Requirements:
+      - Use the recommended title (or improve it)
+      - Naturally incorporate primary + secondary keywords
+      - Follow the H2 structure from SEO plan
+      - Include meta description at top of file
+      - 1200-1800 words for depth
+      - Twitter thread: 8-12 tweets
+
+      Formatting for readability:
+      - Short paragraphs (2-3 sentences max)
+      - Use headers every 200-300 words
+      - Bullet points for lists
+      - Bold key phrases sparingly
+
+      Save to:
+      - Draft: ~/clawd/substack/drafts/{{task | slugify}}.md
+      - Thread: ~/clawd/substack/threads/{{task | slugify}}.md
+
+      Reply with:
+      STATUS: done
+      DRAFT_PATH: path to draft
+      THREAD_PATH: path to thread
+      WORD_COUNT: approximate
+    expects: "STATUS: done"
+    retries: 2
+
+  - id: humanize
+    agent: humanizer
+    input: |
+      Remove AI patterns and humanize this draft:
+      
+      DRAFT: {{draft_path}}
+      THREAD: {{thread_path}}
+
+      Read ~/clawd/substack/STYLE_GUIDE.md for target voice.
+
+      DETECT AND FIX:
+      
+      1. AI SENTENCE STARTERS (remove/vary):
+         - "In today's..." / "In the world of..."
+         - "It's important to note..."
+         - "Let's dive into..."
+         - "When it comes to..."
+         - "This is where..."
+         
+      2. AI TRANSITION PHRASES (replace with natural flow):
+         - "Furthermore" / "Moreover" / "Additionally"
+         - "In conclusion" / "To summarize"
+         - "That being said"
+         - "It's worth mentioning"
+         
+      3. AI STRUCTURE PATTERNS (break up):
+         - Every paragraph same length
+         - Predictable intro→body→conclusion in each section
+         - Overuse of numbered lists
+         - Too many rhetorical questions
+         
+      4. ADD HUMAN ELEMENTS:
+         - Contractions (don't, won't, can't)
+         - Occasional incomplete sentences for emphasis
+         - Varied sentence lengths (mix short punchy + longer)
+         - Specific details over vague claims
+         - Mild opinion/personality ("I hate when..." "This drives me nuts...")
+         - Occasional colloquialisms
+         
+      5. READABILITY CHECK:
+         - Aim for 8th grade reading level
+         - No sentences over 25 words
+         - Vary paragraph lengths (1-4 sentences)
+         
+      Overwrite both files with humanized versions.
+
+      Reply with:
+      STATUS: done
+      AI_PATTERNS_FIXED: number of patterns replaced
+      CHANGES_SUMMARY: what you changed
+      READABILITY_SCORE: estimated grade level
+    expects: "STATUS: done"
+    retries: 2
+
+  - id: fact-check
+    agent: fact-checker
+    input: |
+      Fact-check this draft:
+      
+      DRAFT: {{draft_path}}
+      RESEARCH: {{research_path}}
+
+      Check:
+      - Are claims accurate and supported?
+      - Do any links need to be added/verified?
+      - Are numbers/stats correct?
+      - Any potentially problematic statements?
+      - Did humanization introduce any inaccuracies?
+
+      If issues found, note them in the draft with [FACT-CHECK: note].
+
+      Reply with:
+      STATUS: done
+      ISSUES_FOUND: number of issues
+      ISSUES: list of issues (or "none")
+    expects: "STATUS: done"
+    retries: 1
+
+  - id: edit
+    agent: editor
+    input: |
+      Final polish for this draft and thread:
+      
+      DRAFT: {{draft_path}}
+      THREAD: {{thread_path}}
+      FACT_CHECK_ISSUES: {{issues}}
+      SEO: {{seo_path}}
+
+      Read ~/clawd/substack/STYLE_GUIDE.md for voice guidelines.
+
+      FINAL CHECKS:
+      
+      1. HOOK: First 2 sentences must grab attention
+      2. CTA: Clear call-to-action at end
+      3. TONE: Matches BowTied Slinger voice throughout
+      4. SEO: Keywords appear naturally (not stuffed)
+      5. FORMATTING:
+         - Headers break up text well
+         - Bullets used appropriately
+         - Bold used sparingly
+         - No walls of text
+      6. THREAD: Each tweet stands alone, max 280 chars
+      7. FACT-CHECK: Address any flagged issues
+
+      Overwrite both files with final versions.
+
+      Reply with:
+      STATUS: done
+      DRAFT_PATH: {{draft_path}}
+      THREAD_PATH: {{thread_path}}
+      TITLE: final headline
+      META_DESCRIPTION: final meta description
+      READY_FOR_REVIEW: yes
+      SUMMARY: 2-3 sentence summary of the piece
+    expects: "STATUS: done"
+    retries: 1

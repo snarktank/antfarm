@@ -1,0 +1,79 @@
+# Content Analysis Workflow
+# Run weekly to analyze published content performance
+# Feeds insights back to ideation
+
+id: content-analysis
+name: Content Analysis
+version: 1
+description: |
+  Weekly review of published content performance.
+  Identifies winners, losers, and patterns.
+  Outputs insights for next ideation cycle.
+
+agents:
+  - id: analyst
+    name: Performance Analyst
+    role: analysis
+    model: anthropic/claude-opus-4-6
+    description: Analyzes metrics and identifies patterns.
+    workspace:
+      baseDir: agents/analyst
+      files:
+        AGENTS.md: agents/analyst/AGENTS.md
+
+  - id: strategist
+    name: Strategy Advisor
+    role: analysis
+    description: Translates data into actionable recommendations.
+    workspace:
+      baseDir: agents/strategist
+      files:
+        AGENTS.md: agents/strategist/AGENTS.md
+
+steps:
+  - id: gather
+    agent: analyst
+    input: |
+      Analyze content performance for: {{task}}
+
+      Review:
+      - Recent Substack posts (opens, clicks, comments, shares)
+      - Twitter thread performance (impressions, engagement)
+      - Subscriber growth trends
+      - Any direct feedback or replies
+
+      Note: If metrics aren't directly accessible, use available signals
+      (comments, replies, retweets) as proxies.
+
+      Reply with:
+      STATUS: done
+      TOP_PERFORMERS: posts/threads that did well and why
+      UNDERPERFORMERS: what didn't work and why
+      ENGAGEMENT_PATTERNS: when/what gets most engagement
+    expects: "STATUS: done"
+    retries: 2
+
+  - id: recommend
+    agent: strategist
+    input: |
+      Generate recommendations based on this analysis:
+      
+      TOP_PERFORMERS: {{top_performers}}
+      UNDERPERFORMERS: {{underperformers}}
+      PATTERNS: {{engagement_patterns}}
+      
+      Provide:
+      1. What to do MORE of
+      2. What to STOP doing
+      3. What to TEST next
+      4. Specific topic angles based on what worked
+
+      Save insights to: ~/clawd/substack/analysis/{{task | slugify}}-insights.md
+
+      Reply with:
+      STATUS: done
+      INSIGHTS_PATH: path to saved file
+      KEY_RECOMMENDATIONS: 3-5 bullet summary
+      TOPIC_SUGGESTIONS: 2-3 specific topics to add to queue
+    expects: "STATUS: done"
+    retries: 1
