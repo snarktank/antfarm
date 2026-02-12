@@ -76,6 +76,10 @@ function validateSteps(steps: WorkflowStep[], workflowDir: string) {
       throw new Error(`workflow.yml has duplicate step id "${step.id}" in ${workflowDir}`);
     }
     ids.add(step.id);
+    // Gate steps don't need agent, input, or expects
+    if (step.gate) {
+      continue;
+    }
     if (!step.agent?.trim()) {
       throw new Error(`workflow.yml missing step.agent for step "${step.id}"`);
     }

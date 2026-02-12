@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.0 — 2026-02-11
+
+### Added
+- **Human gate steps** — workflows can now include `gate: true` steps that pause execution and wait for human approval before advancing. This lets you insert review checkpoints into any pipeline (e.g. approve a spec before planning begins).
+- **Delivery instructions** — `workflow run --delivery <json>` tells the main agent how and where to surface gate notifications (Slack thread, terminal, etc.). Antfarm is transport-agnostic; delivery logic lives in agent guidance, not in core.
+- **Gate codes** — notifications include a two-word code (e.g. `bold-falcon`) the human uses to discuss or approve a gate inline, without leaving their current context. Gate codes are a workaround for an OpenClaw bug where `sessions_send` strips channel identity; once that's fixed, gates will notify the thread directly.
+- **`on_gate` directive** — workflow steps can specify custom notification instructions in YAML, giving workflow authors control over what the human sees at each gate.
+- **`spec-review` workflow** — new bundled workflow: spec → gate (human approval) → plan. First workflow to use gating.
+- **`antfarm step approve <gate-code>`** — CLI command to approve a pending gate step and advance the pipeline.
+- Dedicated `gates.md` skill documentation covering delivery, gate codes, discussion flow, and editable artifacts.
+
 ## v0.2.2 — 2026-02-11
 
 ### Fixed

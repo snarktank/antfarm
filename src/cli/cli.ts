@@ -23,7 +23,8 @@ import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
-import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
+import { claimStep, completeStep, failStep, approveGate, getStories } from "../installer/step-ops.js";
+import { getDb } from "../db.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -91,7 +92,7 @@ function printUsage() {
       "antfarm workflow install <name>      Install a workflow",
       "antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
       "antfarm workflow uninstall --all     Uninstall all workflows (--force to override)",
-      "antfarm workflow run <name> <task>   Start a workflow run",
+      "antfarm workflow run <name> <task>   Start a workflow run [--delivery <instructions>]",
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
       "antfarm workflow runs                List all workflow runs",
       "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
@@ -103,6 +104,7 @@ function printUsage() {
       "antfarm step claim <agent-id>       Claim pending step, output resolved input as JSON",
       "antfarm step complete <step-id>      Complete step (reads output from stdin)",
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
+      "antfarm step approve <step-id>       Approve a human gate step",
       "antfarm step stories <run-id>       List stories for a run",
       "",
       "antfarm logs [<lines>]               Show recent activity (from events)",
@@ -260,6 +262,16 @@ async function main() {
     return;
   }
 
+  // Internal command: notify-gate (called by detached spawn from advancePipeline)
+  if (group === "notify-gate") {
+    const stepId = action; // arg positions shift: notify-gate <stepId> <runId>
+    const notifyRunId = target;
+    if (!stepId || !notifyRunId) { process.exit(1); }
+    const { notifyGate } = await import("../installer/gateway-api.js");
+    await notifyGate(stepId, notifyRunId).catch(() => {});
+    process.exit(0);
+  }
+
   if (group === "step") {
     if (action === "claim") {
       if (!target) { process.stderr.write("Missing agent-id.\n"); process.exit(1); }
@@ -291,6 +303,16 @@ async function main() {
       if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
       const error = args.slice(3).join(" ").trim() || "Unknown error";
       const result = failStep(target, error);
+      process.stdout.write(JSON.stringify(result) + "\n");
+      return;
+    }
+    if (action === "approve") {
+      if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
+      const result = approveGate(target);
+      if (!result.ok) {
+        process.stderr.write(`${result.error}\n`);
+        process.exit(1);
+      }
       process.stdout.write(JSON.stringify(result) + "\n");
       return;
     }
@@ -516,15 +538,20 @@ async function main() {
 
   if (action === "run") {
     let notifyUrl: string | undefined;
+    let delivery: string | undefined;
     const runArgs = args.slice(3);
-    const nuIdx = runArgs.indexOf("--notify-url");
-    if (nuIdx !== -1) {
-      notifyUrl = runArgs[nuIdx + 1];
-      runArgs.splice(nuIdx, 2);
+    for (const flag of ["--notify-url", "--delivery"] as const) {
+      const idx = runArgs.indexOf(flag);
+      if (idx !== -1) {
+        const val = runArgs[idx + 1];
+        runArgs.splice(idx, 2);
+        if (flag === "--notify-url") notifyUrl = val;
+        else if (flag === "--delivery") delivery = val;
+      }
     }
     const taskTitle = runArgs.join(" ").trim();
     if (!taskTitle) { process.stderr.write("Missing task title.\n"); printUsage(); process.exit(1); }
-    const run = await runWorkflow({ workflowId: target, taskTitle, notifyUrl });
+    const run = await runWorkflow({ workflowId: target, taskTitle, notifyUrl, delivery });
     process.stdout.write(
       [`Run: ${run.id}`, `Workflow: ${run.workflowId}`, `Task: ${run.task}`, `Status: ${run.status}`].join("\n") + "\n",
     );
