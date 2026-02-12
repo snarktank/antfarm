@@ -7,7 +7,14 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 
-const CLI = path.resolve(import.meta.dirname, "..", "dist", "cli", "cli.js");
+const currentDir = import.meta.dirname;
+// If running from dist/tests, project root is two levels up.
+// If running from tests, project root is one level up.
+const projectRoot = currentDir.endsWith(path.join("dist", "tests"))
+  ? path.resolve(currentDir, "..", "..")
+  : path.resolve(currentDir, "..");
+
+const CLI = path.join(projectRoot, "dist", "cli", "cli.js");
 
 describe("antfarm ant (CLI)", () => {
   it("prints ASCII art containing ant body characters", () => {

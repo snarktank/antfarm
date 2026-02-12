@@ -5,7 +5,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const distDir = path.resolve(__dirname, "../dist");
+
+// If running from dist/tests, project root is two levels up.
+// If running from tests, project root is one level up.
+const projectRoot = __dirname.endsWith(path.join("dist", "tests"))
+  ? path.resolve(__dirname, "..", "..")
+  : path.resolve(__dirname, "..");
+
+const distDir = path.join(projectRoot, "dist");
 
 test("Build Artifacts: cli.js exists and is executable", () => {
   const cliPath = path.join(distDir, "cli/cli.js");

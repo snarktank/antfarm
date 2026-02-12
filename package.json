@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && cp src/server/index.html dist/server/index.html && chmod +x dist/cli/cli.js",
-    "start": "node dist/cli/cli.js"
+    "start": "node dist/cli/cli.js",
+    "test": "node --test dist/tests/*.test.js"
   },
   "dependencies": {
     "json5": "^2.2.3",

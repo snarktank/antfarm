@@ -7,7 +7,7 @@ Started: 2026-02-11 05:47 ET
 - CLI entry: `src/cli/cli.ts`, commands matched via `group` variable from `process.argv[2]`
 - Dynamic imports used for command modules (e.g., `await import("./ant.js")`)
 - Build: `npm run build` runs `tsc -p tsconfig.json` + copies HTML + chmod
-- Tests: `node --test dist/<file>.test.js` (node:test + node:assert/strict)
+- Tests: `node --test dist/tests/*.test.js` (runs compiled tests from dist/)
 - ESM with NodeNext module resolution, `.js` extensions in imports
 
 ---
@@ -26,4 +26,23 @@ Started: 2026-02-11 05:47 ET
 - All acceptance criteria verified: CLI works, hidden from help, tests pass, build passes
 - Files changed: `tests/ant.test.ts` (new)
 - **Learnings:** Node 22 runs .ts files directly with type stripping; tests in `tests/` use this approach
+---
+
+## 2026-02-11 12:22 - HC-001: Validate Core Build and Type Safety
+- Validated build process and artifacts
+- Added `tests/build-artifacts.test.ts` to verify build outputs
+- Ran `npm install` and `npm run build` successfully
+- Verified `dist/cli/cli.js` executable and `dist/server/index.html` presence
+- **Learnings:** Build script handles copying assets and setting permissions correctly
+---
+
+## 2026-02-12 11:55 - HC-002: Configure and Verify Test Runner
+- Updated `tsconfig.json` to include `tests/` and remove `rootDir: src` so tests compile to `dist/tests/`
+- Added `test` script to `package.json`: `node --test dist/tests/*.test.js`
+- Fixed imports in `tests/model-field-preservation.test.ts` to point to `src` instead of `dist`
+- Updated `tests/ant.test.ts` and `tests/build-artifacts.test.ts` to correctly resolve project root when run from `dist/tests/`
+- Verified `npm run build` produces `dist/tests/` with compiled tests
+- Verified `npm test` runs all tests successfully
+- Files changed: `package.json`, `tsconfig.json`, `tests/ant.test.ts`, `tests/build-artifacts.test.ts`, `tests/model-field-preservation.test.ts`
+- **Learnings:** Tests running from `dist/` need careful path resolution to find project root or artifacts
 ---

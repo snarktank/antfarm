@@ -9,8 +9,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import YAML from "yaml";
-import type { WorkflowAgent, WorkflowSpec } from "../dist/installer/types.js";
-import { loadWorkflowSpec } from "../dist/installer/workflow-spec.js";
+import type { WorkflowAgent, WorkflowSpec } from "../src/installer/types.js";
+import { loadWorkflowSpec } from "../src/installer/workflow-spec.js";
 
 const TEST_WORKFLOW_WITH_MODELS = `
 id: test-workflow
