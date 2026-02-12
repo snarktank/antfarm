@@ -8,12 +8,15 @@ import { getDb } from "../db.js";
 import { resolveBundledWorkflowsDir } from "../installer/paths.js";
 import { runWorkflow } from "../installer/run.js";
 import { teardownWorkflowCronsIfIdle } from "../installer/agent-cron.js";
+import { emitEvent } from "../installer/events.js";
+import { createImmediateHandoffHandler } from "../installer/immediate-handoff.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
 import { getRunEvents } from "../installer/events.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const immediateHandoff = createImmediateHandoffHandler();
 
 interface WorkflowDef {
   id: string;
@@ -258,8 +261,20 @@ function upsertLayoutEntitiesFromState(nextState: Record<string, unknown>): void
   const seenFeatureIds = new Set<string>();
   const seenRunIds = new Set<string>();
   const runs = db.prepare("SELECT id, context FROM runs").all() as Array<{ id: string; context: string }>;
+  const runIdSet = new Set(runs.map((r) => r.id));
   const runByWorktree = new Map<string, string>();
   const runByWorktreeBase = new Map<string, string>();
+  const existingPosById = new Map<string, { x: number; y: number }>();
+  const existingRunPosByRunId = new Map<string, { x: number; y: number }>();
+  const existingRows = db.prepare(
+    "SELECT id, entity_type, run_id, x, y FROM rts_layout_entities"
+  ).all() as Array<{ id: string; entity_type: string; run_id: string | null; x: number; y: number }>;
+  for (const row of existingRows) {
+    existingPosById.set(String(row.id), { x: Number(row.x), y: Number(row.y) });
+    if (row.entity_type === "run" && row.run_id) {
+      existingRunPosByRunId.set(String(row.run_id), { x: Number(row.x), y: Number(row.y) });
+    }
+  }
   for (const run of runs) {
     let ctx: Record<string, unknown> = {};
     try {
@@ -281,45 +296,75 @@ function upsertLayoutEntitiesFromState(nextState: Record<string, unknown>): void
       if (!id) continue;
       seenBaseIds.add(id);
       const repoPath = String(base?.repo ?? "");
-      const x = Number(base?.x ?? 0);
-      const y = Number(base?.y ?? 0);
-      upsert.run(id, "base", null, repoPath || null, null, Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0, JSON.stringify(base), now);
+      const incomingX = Number(base?.x ?? 0);
+      const incomingY = Number(base?.y ?? 0);
+      const existing = existingPosById.get(id);
+      const x = Number.isFinite(existing?.x) ? Number(existing!.x) : (Number.isFinite(incomingX) ? incomingX : 0);
+      const y = Number.isFinite(existing?.y) ? Number(existing!.y) : (Number.isFinite(incomingY) ? incomingY : 0);
+      const payload = { ...base, x, y };
+      upsert.run(id, "base", null, repoPath || null, null, x, y, JSON.stringify(payload), now);
     }
     for (const feature of featureBuildings) {
       const id = String(feature?.id ?? "");
       if (!id) continue;
-      seenFeatureIds.add(id);
+      // Snapshot writes cannot create feature layout rows. Creation must come
+      // from explicit actions (/api/rts/layout/position or /api/rts/feature/run).
+      if (!existingPosById.has(id)) continue;
       const repoPath = String(feature?.repo ?? "");
       const worktreePath = absolutizePath(String(feature?.worktreePath ?? ""), repoPath) || String(feature?.worktreePath ?? "");
       const runIdRaw = feature?.runId;
       let runId = (runIdRaw === null || runIdRaw === undefined || String(runIdRaw).trim() === "") ? null : String(runIdRaw);
+      if (runId && !runIdSet.has(runId)) runId = null;
       if (!runId) {
         const absWt = absolutizePath(worktreePath, repoPath);
         const inferred = runByWorktree.get(absWt) || runByWorktreeBase.get(path.basename(absWt || worktreePath));
         if (inferred) runId = inferred;
       }
-      const x = Number(feature?.x ?? 0);
-      const y = Number(feature?.y ?? 0);
+      const committedRaw = feature?.committed;
+      const committed = committedRaw === true || String(committedRaw || "").toLowerCase() === "true";
+      // Prevent stale "launched" ghosts (dead runId but committed=true) from being reinserted.
+      if (!runId && committed) continue;
+      // Run-backed feature rows are positioned via /api/rts/layout/position and
+      // launch reconciliation; ignore state snapshot x/y for them to avoid drift.
+      if (runId) continue;
+      seenFeatureIds.add(id);
+      const incomingX = Number(feature?.x ?? 0);
+      const incomingY = Number(feature?.y ?? 0);
+      const existing = existingPosById.get(id);
+      const x = Number.isFinite(existing?.x) ? Number(existing!.x) : (Number.isFinite(incomingX) ? incomingX : 0);
+      const y = Number.isFinite(existing?.y) ? Number(existing!.y) : (Number.isFinite(incomingY) ? incomingY : 0);
       const payload = {
         ...feature,
         runId: runId ?? feature.runId ?? null,
         committed: runId ? true : feature.committed,
         worktreePath,
+        x,
+        y,
       };
-      upsert.run(id, "feature", runId, repoPath || null, worktreePath || null, Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0, JSON.stringify(payload), now);
+      upsert.run(id, "feature", runId, repoPath || null, worktreePath || null, x, y, JSON.stringify(payload), now);
     }
     for (const [runId, pos] of Object.entries(runLayoutOverrides)) {
       if (!runId) continue;
       seenRunIds.add(runId);
       const id = `run:${runId}`;
-      const x = Number(pos?.x ?? 0);
-      const y = Number(pos?.y ?? 0);
-      upsert.run(id, "run", runId, null, null, Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0, JSON.stringify({ runId, x, y }), now);
+      // Snapshot writes cannot create run layout rows.
+      if (!existingRunPosByRunId.has(runId) && !existingPosById.has(id)) continue;
+      const incomingX = Number(pos?.x ?? 0);
+      const incomingY = Number(pos?.y ?? 0);
+      const existing = existingRunPosByRunId.get(runId) || existingPosById.get(id);
+      const x = Number.isFinite(existing?.x) ? Number(existing!.x) : (Number.isFinite(incomingX) ? incomingX : 0);
+      const y = Number.isFinite(existing?.y) ? Number(existing!.y) : (Number.isFinite(incomingY) ? incomingY : 0);
+      upsert.run(id, "run", runId, null, null, x, y, JSON.stringify({ runId, x, y }), now);
     }
     const baseRows = db.prepare("SELECT id FROM rts_layout_entities WHERE entity_type = 'base'").all() as Array<{ id: string }>;
     for (const row2 of baseRows) if (!seenBaseIds.has(row2.id)) deleteById.run(row2.id);
-    const featureRows = db.prepare("SELECT id FROM rts_layout_entities WHERE entity_type = 'feature'").all() as Array<{ id: string }>;
-    for (const row2 of featureRows) if (!seenFeatureIds.has(row2.id)) deleteById.run(row2.id);
+    const featureRows = db.prepare("SELECT id, run_id FROM rts_layout_entities WHERE entity_type = 'feature'").all() as Array<{ id: string; run_id: string | null }>;
+    for (const row2 of featureRows) {
+      if (seenFeatureIds.has(row2.id)) continue;
+      // Keep run-backed feature rows even if the latest state snapshot omitted them.
+      if (row2.run_id && runIdSet.has(row2.run_id)) continue;
+      deleteById.run(row2.id);
+    }
     const runRows = db.prepare("SELECT id, run_id FROM rts_layout_entities WHERE entity_type = 'run'").all() as Array<{ id: string; run_id: string | null }>;
     for (const row2 of runRows) {
       const id = row2.run_id || (String(row2.id || "").startsWith("run:") ? String(row2.id).slice(4) : "");
@@ -336,16 +381,41 @@ function saveRtsState(nextState: unknown): Record<string, unknown> {
   const db = getDb();
   ensureRtsTables(db);
   const safe = (nextState && typeof nextState === "object") ? nextState as Record<string, unknown> : {};
+  const nonLayoutState: Record<string, unknown> = { ...safe };
+  delete nonLayoutState.customBases;
+  delete nonLayoutState.featureBuildings;
+  delete nonLayoutState.runLayoutOverrides;
+  upsertLayoutEntitiesFromState(safe);
+  const derived = getRtsState();
+  const canonical = {
+    ...nonLayoutState,
+    customBases: Array.isArray(derived.customBases) ? derived.customBases : [],
+    featureBuildings: Array.isArray(derived.featureBuildings) ? derived.featureBuildings : [],
+    runLayoutOverrides: (derived.runLayoutOverrides && typeof derived.runLayoutOverrides === "object")
+      ? derived.runLayoutOverrides
+      : {},
+  };
   const now = new Date().toISOString();
   db.prepare(
     "INSERT INTO rts_state (id, state_json, updated_at) VALUES (1, ?, ?) " +
     "ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at"
-  ).run(JSON.stringify(safe), now);
-  upsertLayoutEntitiesFromState(safe);
-  return safe;
+  ).run(JSON.stringify(canonical), now);
+  return canonical;
 }
 
 function getRtsLiveStatus(): Record<string, unknown> {
+  const workerTotal = (() => {
+    try {
+      const jobsPath = path.join(os.homedir(), ".openclaw", "cron", "jobs.json");
+      if (!fs.existsSync(jobsPath)) return 0;
+      const raw = JSON.parse(fs.readFileSync(jobsPath, "utf-8")) as { jobs?: Array<{ name?: string; enabled?: boolean }> };
+      const jobs = Array.isArray(raw.jobs) ? raw.jobs : [];
+      return jobs.filter((j) => j.enabled !== false && String(j.name || "").startsWith("antfarm/")).length;
+    } catch {
+      return 0;
+    }
+  })();
+
   const db = getDb();
   const runningAgentCount = Number((db.prepare("SELECT COUNT(*) AS c FROM steps WHERE status = 'running'").get() as { c: number }).c || 0);
   const activeRunCount = Number((db.prepare("SELECT COUNT(*) AS c FROM runs WHERE status = 'running'").get() as { c: number }).c || 0);
@@ -358,6 +428,7 @@ function getRtsLiveStatus(): Record<string, unknown> {
     runningAgentCount,
     activeRunCount,
     pendingRunCount,
+    workerTotal,
     activeAgents: rows.map((r) => ({
       runId: r.run_id,
       agentId: r.agent_id,
@@ -404,6 +475,17 @@ function resolveWorktreePath(baseRepoPath: string, worktreePath: string): string
   const trimmed = worktreePath.trim();
   if (!trimmed) return path.resolve(path.dirname(baseRepoPath), `${path.basename(baseRepoPath)}-feature-${Date.now().toString().slice(-4)}`);
   return path.isAbsolute(trimmed) ? path.normalize(trimmed) : path.resolve(baseRepoPath, trimmed);
+}
+
+function branchExists(baseRepoPath: string, branchName: string): boolean {
+  const trimmed = String(branchName || "").trim();
+  if (!trimmed) return false;
+  try {
+    execFileSync("git", ["-C", baseRepoPath, "rev-parse", "--verify", "--quiet", `refs/heads/${trimmed}`], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function resolveRunRecord(runIdOrPrefix: string): { id: string; status: string; workflow_id: string; context: string } | null {
@@ -557,6 +639,7 @@ function upsertLayoutPosition(input: {
   worktreePath?: string | null;
   x: number;
   y: number;
+  allowCreate?: boolean;
 }): { id: string; entityType: string; runId: string | null } {
   const db = getDb();
   ensureRtsTables(db);
@@ -579,6 +662,12 @@ function upsertLayoutPosition(input: {
       if (byRun?.id) id = byRun.id;
     }
     if (!id || id.startsWith("feature-run-")) id = runId ? `feature-${runId}` : `feature-${Date.now()}`;
+    if (!runId) {
+      const exists = db.prepare("SELECT 1 as ok FROM rts_layout_entities WHERE id = ? LIMIT 1").get(id) as { ok: number } | undefined;
+      if (!exists && !input.allowCreate) {
+        throw new Error("feature_layout_create_not_allowed");
+      }
+    }
   } else {
     if (!id) throw new Error("entityId is required for base layout");
   }
@@ -701,7 +790,10 @@ export function startDashboard(port = 3333): http.Server {
           baseRepoPath?: string;
           worktreePath?: string;
           branchName?: string;
-          assignments?: string[];
+          draftId?: string;
+          draftX?: number;
+          draftY?: number;
+          draftPort?: number;
         };
         const workflowId = (body.workflowId || "feature-dev").trim();
         const taskTitle = (body.taskTitle || body.prompt || "Feature request").trim();
@@ -718,12 +810,19 @@ export function startDashboard(port = 3333): http.Server {
 
         if (!fs.existsSync(worktreePath)) {
           const args = ["-C", baseRepoPath, "worktree", "add"];
-          if (branchName) args.push("-b", branchName);
-          args.push(worktreePath);
+          if (branchName) {
+            if (branchExists(baseRepoPath, branchName)) {
+              args.push(worktreePath, branchName);
+            } else {
+              args.push("-b", branchName, worktreePath);
+            }
+          } else {
+            args.push(worktreePath);
+          }
           execFileSync("git", args, { stdio: "pipe" });
         }
 
-        const run = await runWorkflow({ workflowId, taskTitle });
+        const run = await runWorkflow({ workflowId, taskTitle, deferInitialKick: true });
         const db = getDb();
         const row = db.prepare("SELECT context FROM runs WHERE id = ?").get(run.id) as { context: string } | undefined;
         const context = parseRunContext(row?.context ?? "{}");
@@ -735,7 +834,6 @@ export function startDashboard(port = 3333): http.Server {
           repoPath: baseRepoPath,
           worktreePath,
           branchName,
-          assignments: Array.isArray(body.assignments) ? body.assignments : [],
         };
         db.prepare("UPDATE runs SET context = ?, updated_at = ? WHERE id = ?").run(
           JSON.stringify(nextContext),
@@ -743,7 +841,62 @@ export function startDashboard(port = 3333): http.Server {
           run.id
         );
 
-        return json(res, { ok: true, run: getRunById(run.id), worktreePath, branchName });
+        const firstStep = db.prepare(
+          "SELECT id FROM steps WHERE run_id = ? AND step_index = 0 AND status = 'pending' LIMIT 1"
+        ).get(run.id) as { id: string } | undefined;
+        let layout: { id: string; entityType: string; runId: string | null } | null = null;
+        const draftId = String(body.draftId || "").trim();
+        const draftX = Number(body.draftX);
+        const draftY = Number(body.draftY);
+        const draftPort = Number(body.draftPort);
+        const layoutId = draftId || `feature-${run.id}`;
+        layout = upsertLayoutPosition({
+          entityType: "feature",
+          entityId: layoutId,
+          runId: run.id,
+          repoPath: baseRepoPath,
+          worktreePath,
+          x: Number.isFinite(draftX) ? draftX : 0,
+          y: Number.isFinite(draftY) ? draftY : 0,
+        });
+        try {
+          const row2 = db.prepare("SELECT payload_json FROM rts_layout_entities WHERE id = ?").get(layout.id) as { payload_json: string } | undefined;
+          let payload: Record<string, unknown> = {};
+          try {
+            const parsed = JSON.parse(row2?.payload_json || "{}");
+            if (parsed && typeof parsed === "object") payload = parsed as Record<string, unknown>;
+          } catch {}
+          const nextPayload: Record<string, unknown> = {
+            ...payload,
+            id: layout.id,
+            kind: "feature",
+            repo: baseRepoPath,
+            worktreePath,
+            runId: run.id,
+            committed: true,
+            phase: "running",
+            x: Number.isFinite(draftX) ? draftX : Number(payload.x || 0),
+            y: Number.isFinite(draftY) ? draftY : Number(payload.y || 0),
+          };
+          if (Number.isFinite(draftPort) && draftPort > 0) nextPayload.port = draftPort;
+          db.prepare(
+            "UPDATE rts_layout_entities SET payload_json = ?, updated_at = ? WHERE id = ?"
+          ).run(JSON.stringify(nextPayload), new Date().toISOString(), layout.id);
+        } catch {}
+        try {
+          db.prepare(
+            "DELETE FROM rts_layout_entities WHERE entity_type = 'feature' AND id <> ? AND (run_id = ? OR worktree_path = ?)"
+          ).run(layout.id, run.id, worktreePath);
+        } catch {}
+        if (firstStep?.id) {
+          const evt = { ts: new Date().toISOString(), event: "step.pending" as const, runId: run.id, workflowId, stepId: firstStep.id };
+          emitEvent(evt);
+          try {
+            await immediateHandoff(evt);
+          } catch {}
+        }
+
+        return json(res, { ok: true, run: getRunById(run.id), worktreePath, branchName, layout });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return json(res, { ok: false, error: message }, 500);
@@ -781,6 +934,7 @@ export function startDashboard(port = 3333): http.Server {
           worktreePath?: string | null;
           x?: number;
           y?: number;
+          allowCreate?: boolean;
         };
         const entityType = body.entityType;
         if (entityType !== "base" && entityType !== "feature" && entityType !== "run") {
@@ -794,6 +948,7 @@ export function startDashboard(port = 3333): http.Server {
           worktreePath: body.worktreePath ?? null,
           x: Number(body.x ?? 0),
           y: Number(body.y ?? 0),
+          allowCreate: body.allowCreate === true,
         });
         return json(res, { ok: true, ...result });
       } catch (err) {

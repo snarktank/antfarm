@@ -524,7 +524,7 @@ textarea { min-height:132px; resize:vertical; font-family:Inter,system-ui,sans-s
     </div>
     <div class="hud">
       <div class="hud-left panel">
-        <div class="command-title">BUILD-TRACE</div>
+        <div class="command-title">BUILD TRACE 2</div>
         <button id="cancelPlacementBtn" class="command-icon-btn" title="Cancel placement (Esc)" aria-label="Cancel placement (Escape)">
           <img src="/rts-sprites/cancel-button.svg?v=20260212" alt="" aria-hidden="true" />
         </button>
@@ -770,8 +770,8 @@ function getRepo(run){
   const ctx = parseContext(run);
   // Prefer original base repo path so run/feature buildings stay attached
   // to the user-placed movable base instead of worktree-derived auto bases.
-  const raw = ctx.baseRepoPath || ctx.repoPath || ctx.repo || ctx.repository || ctx.worktreePath || state.runtime?.cwd || 'workspace-repo';
-  return normalizePathKey(raw).replace(/-feature-[^/]+$/i, '') || 'workspace-repo';
+  const raw = ctx.baseRepoPath || ctx.repoPath || ctx.repo || ctx.repository || ctx.worktreePath || '';
+  return normalizePathKey(raw).replace(/-feature-[^/]+$/i, '');
 }
 function getWorktreeDefault(repo){
   const clean = repo.split('/').pop() || 'repo';
@@ -927,6 +927,7 @@ function renderLiveConsole(){
   const agents = Array.isArray(live.activeAgents) ? live.activeAgents : [];
   const stamp = live.ts ? new Date(live.ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '--:--:--';
   const cronCount = Number(diag?.cron?.matchingCount || 0);
+  const workerTotal = Number(live?.workerTotal || cronCount || 0);
   const blocked = diag?.likelyBlockedReason ? `WARN ${diag.likelyBlockedReason}` : '';
   const runtimeLine = state.runtime?.cwd ? `${state.runtime.cwd} @ :${state.runtime.port || 3333}` : '';
   const lines = agents.length
@@ -943,7 +944,7 @@ function renderLiveConsole(){
     <h3>Live Agent TTY</h3>
     <div class="cli-panel">
       <div class="cli-head">
-        <span>RUN ${live.activeRunCount || 0} | WAIT ${live.pendingRunCount || 0} | AGENT ${live.runningAgentCount || 0} | CRON ${cronCount}</span>
+        <span>RUN ${live.activeRunCount || 0} | WAIT ${live.pendingRunCount || 0} | AGENT ${live.runningAgentCount || 0} | WORKERS ${workerTotal}</span>
         <span>${esc(stamp)}</span>
       </div>
       <div class="cli-body">${esc(lines)}</div>
@@ -1033,7 +1034,9 @@ function rebuildScene(){
 
   const runsByRepo = new Map();
   (state.runs || []).forEach((run) => {
-    const repo = baseRepoKey(getRepo(run));
+    const rawRepo = normalizePathKey(getRepo(run));
+    if (!rawRepo) return;
+    const repo = baseRepoKey(rawRepo);
     if (!runsByRepo.has(repo)) runsByRepo.set(repo, []);
     runsByRepo.get(repo).push(run);
   });
@@ -1083,12 +1086,7 @@ function rebuildScene(){
       .filter((f) => f?.runId)
       .map((f) => [f.runId, f])
   );
-  const inferredFeatureRunIds = new Set(
-    (state.runs || [])
-      .filter((run) => String(run?.workflow_id || '') === 'feature-dev')
-      .map((run) => run.id)
-  );
-  const linkedFeatureRunIds = new Set([...persistedFeatureByRunId.keys(), ...inferredFeatureRunIds]);
+  const linkedFeatureRunIds = new Set([...persistedFeatureByRunId.keys()]);
   const runDefaultLayout = new Map();
   mergedBases.forEach(base => {
     (base.runs || []).forEach((run, ri) => {
@@ -1165,38 +1163,6 @@ function rebuildScene(){
       port,
       worktreePath: worktreePath || worktreePathRaw,
       portLabel: pathLabel(worktreePath || repoPath || '')
-    });
-  });
-
-  (state.runs || []).forEach((run) => {
-    if (String(run?.workflow_id || '') !== 'feature-dev') return;
-    if (persistedFeatureByRunId.has(run.id)) return;
-    const runCtx = parseContext(run);
-    const runWorktreePath = String(runCtx.worktreePath || '');
-    const runRepoPath = baseRepoKey(String(runCtx.baseRepoPath || runCtx.repoPath || getRepo(run) || ''));
-    const inferredBase = mergedBases.find((base) => (base.runs || []).some((r) => r.id === run.id));
-    const fallbackPos = runDefaultLayout.get(run.id) || {
-      x: Number((inferredBase?.x || 90) + GRID_SIZE),
-      y: Number((inferredBase?.y || 80) + baseFp.h + GRID_SIZE),
-    };
-    const override = state.runLayoutOverrides?.[run.id];
-    const basePort = Number(inferredBase?.port) || getPortForPath(runRepoPath) || 3333;
-    const runPort = getPortForPath(runWorktreePath) || getPortForPath(runRepoPath) || (basePort + 1);
-    buildings.push({
-      id: `feature-run-${run.id}`,
-      kind: 'feature',
-      committed: true,
-      runId: run.id,
-      run,
-      x: Number(override?.x ?? fallbackPos.x),
-      y: Number(override?.y ?? fallbackPos.y),
-      progress: runProgress(run),
-      prUrl: extractPrUrl(run),
-      repo: runRepoPath,
-      worktreePath: runWorktreePath,
-      phase: run.status || 'running',
-      port: runPort,
-      portLabel: pathLabel(runWorktreePath || runRepoPath)
     });
   });
 
@@ -1347,10 +1313,19 @@ function placeFeatureAt(x,y){
     repo: base.repo || 'unlinked-repo',
     worktreePath: getWorktreeDefault(base.repo || 'repo'),
     port: (Number(base.port) || getPortForPath(base.repo || '') || 3333) + 1,
-    prompt: '',
-    assignments: []
+    prompt: ''
   };
   state.featureBuildings.push(featureBuilding);
+  void postJson('/api/rts/layout/position', {
+    entityType: 'feature',
+    entityId: featureBuilding.id,
+    runId: null,
+    repoPath: featureBuilding.repo || null,
+    worktreePath: featureBuilding.worktreePath || null,
+    x: featureBuilding.x,
+    y: featureBuilding.y,
+    allowCreate: true
+  }).catch(() => {});
   state.selected = { type:'building', data:featureBuilding };
   queuePersist();
   rebuildScene();
@@ -1589,7 +1564,6 @@ function normalizeFeatureDraft(raw){
     repo,
     worktreePath: String(src.worktreePath || ''),
     prompt: String(src.prompt || ''),
-    assignments: Array.isArray(src.assignments) ? src.assignments.map((v) => String(v || '')) : [],
     runId,
     committed,
     phase: String(src.phase || (committed ? 'running' : 'draft')),
@@ -2077,34 +2051,6 @@ function renderBaseCloneForm(draft){
   });
 }
 
-function inferAgentPool(workflowId = 'feature-dev'){
-  const wf = (state.workflows || []).find(w => w.id === workflowId);
-  const fromWorkflow = [...new Set((wf?.steps || []).map(s => s.agent).filter(Boolean))];
-  if (fromWorkflow.length) return fromWorkflow;
-  const fromSteps = [...new Set((state.runs||[]).flatMap(r => (r.steps||[]).map(s => s.agent_id).filter(Boolean)))];
-  return fromSteps.length ? fromSteps : ['feature-dev/planner','feature-dev/setup','feature-dev/developer','feature-dev/verifier','feature-dev/tester','feature-dev/reviewer'];
-}
-
-function workflowSlots(workflowId = 'feature-dev'){
-  const wf = (state.workflows || []).find(w => w.id === workflowId);
-  const wfSteps = wf?.steps || [];
-  if (wfSteps.length) return wfSteps.map((s, i) => ({ id: s.id || `step-${i+1}`, defaultAgent: s.agent || '' }));
-  return ['discovery','spec','scaffold','implement','refactor','verify','handoff'].map((id) => ({ id, defaultAgent: '' }));
-}
-
-function autoAssignSlots(slots, agentPool){
-  return slots.map((slot, i) => slot.defaultAgent || agentPool[i % agentPool.length] || `agent-${i+1}`);
-}
-
-function deriveLaunchAssignments(slots, draft, agentPool){
-  return slots
-    .map((slot, i) => ({
-      stepId: slot.id,
-      agentId: String(draft.assignments?.[i] || slot.defaultAgent || agentPool[i % agentPool.length] || `feature-dev/${slot.id}`)
-    }))
-    .filter((a) => a.agentId);
-}
-
 function statusTone(status){
   if (status === 'done') return 'var(--ok)';
   if (status === 'running') return 'var(--warn)';
@@ -2130,27 +2076,6 @@ function findRelevantRun(draft){
   return null;
 }
 
-function getSlotStatus(run, slotId, agentId){
-  if (!run) return 'idle';
-  const steps = run.steps || [];
-  const bySlot = steps.filter(s => s.step_id === slotId);
-  const byAgent = steps.filter(s => s.agent_id === agentId);
-  const candidate = bySlot.find(s => !agentId || s.agent_id === agentId) || byAgent.find(s => !slotId || s.step_id === slotId) || bySlot[0] || byAgent[0];
-  return candidate?.status || 'idle';
-}
-
-function deriveAssignedAgents(slots, draft, run){
-  const assigned = draft.assignments || [];
-  return slots.map((slot, i) => {
-    const agentId = assigned[i] || slot.defaultAgent || '';
-    return {
-      slotId: slot.id,
-      agentId,
-      status: getSlotStatus(run, slot.id, agentId)
-    };
-  }).filter(a => a.agentId);
-}
-
 function deriveRunAgents(run){
   const map = new Map();
   (run?.steps || []).forEach(step => {
@@ -2171,31 +2096,109 @@ function deriveRunAgents(run){
   });
 }
 
-function formatEventLine(evt){
-  const t = new Date(evt.ts || Date.now());
-  const hhmmss = t.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-  const detail = evt.detail ? ` ${evt.detail}` : '';
-  return `[${hhmmss}] ${evt.event}${detail}`;
+function prettyStepName(stepId){
+  const raw = String(stepId || '').trim().toLowerCase();
+  if (!raw) return 'Step';
+  if (raw === 'pr') return 'PR creation';
+  return raw
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
-function formatActivityDesc(evt) {
+function resolveStepLabel(run, stepRef){
+  if (!stepRef) return '';
+  const row = (run?.steps || []).find((step) => step.id === stepRef || step.step_id === stepRef);
+  return String(row?.step_id || stepRef || '');
+}
+
+function summarizeSingleLine(text, max = 180){
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function detectPrBlocker(text){
+  const raw = String(text || '').toLowerCase();
+  if (!raw) return '';
+  if (/gh auth|not logged in|authentication failed/.test(raw)) {
+    return 'GitHub auth looks missing. Run `gh auth status` in the worktree and sign in if needed.';
+  }
+  if (/no commits between|nothing to compare/.test(raw)) {
+    return 'GitHub reports no commits between base and head. Commit and push changes before creating a PR.';
+  }
+  if (/has no upstream branch|set-upstream|must push/.test(raw)) {
+    return 'Branch is not pushed with upstream. Push the branch, then retry PR creation.';
+  }
+  if (/already exists|pull request already/.test(raw)) {
+    return 'A PR may already exist for this branch. Check existing PRs before retrying.';
+  }
+  if (/resource not accessible|forbidden|permission denied/.test(raw)) {
+    return 'GitHub token/permissions look insufficient for PR creation.';
+  }
+  if (/could not resolve host|timed out|network/.test(raw)) {
+    return 'Network/GitHub API connectivity issue while creating PR.';
+  }
+  return '';
+}
+
+function buildPrStatusLines(run, events){
+  if (String(run?.workflow_id || '') !== 'feature-dev') return [];
+  const prStep = (run?.steps || []).find((step) => String(step.step_id || '').toLowerCase() === 'pr');
+  if (!prStep) return [];
+  const prUrl = extractPrUrl(run);
+  if (prUrl) return [`[pr] Pull request detected: ${prUrl}`];
+
+  const status = String(prStep.status || 'waiting');
+  const runStatus = String(run?.status || 'running');
+  if ((status === 'waiting' || status === 'pending') && runStatus === 'running') return [];
+
+  const lines = [];
+  if (status === 'failed') lines.push('[pr] PR step failed, so no pull request was created.');
+  else if (status === 'done') lines.push('[pr] PR step completed but no pull request URL was found.');
+  else if (status === 'running') lines.push('[pr] PR step is running. Waiting for `gh pr create` output.');
+  else lines.push(`[pr] PR step status: ${status}.`);
+
+  const lastPrEvent = [...(events || [])].reverse().find((evt) => {
+    const stepLabel = resolveStepLabel(run, evt.stepId).toLowerCase();
+    return stepLabel === 'pr' || (evt.event === 'run.failed' && runStatus === 'failed');
+  });
+  const detail = String(lastPrEvent?.detail || prStep.output || '').trim();
+  const blocker = detectPrBlocker(detail);
+  if (blocker) lines.push(`[pr] ${blocker}`);
+  else if (detail) lines.push(`[pr] Last detail: ${summarizeSingleLine(detail, 240)}`);
+  return lines;
+}
+
+function formatEventLine(evt, stepLabel = ''){
+  const t = new Date(evt.ts || Date.now());
+  const hhmmss = t.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  return `[${hhmmss}] ${formatActivityDesc(evt, stepLabel)}`;
+}
+
+function formatActivityDesc(evt, stepLabel = '') {
   const e = evt.event;
   const story = evt.storyTitle ? `${evt.storyId}: "${evt.storyTitle}"` : (evt.storyId || '');
+  const stepName = prettyStepName(stepLabel);
+  const hasStep = !!stepLabel;
   switch (e) {
     case 'run.started': return 'Run started';
     case 'run.completed': return 'Run completed';
     case 'run.failed': return `Run failed${evt.detail ? `: ${evt.detail}` : ''}`;
-    case 'step.pending': return 'Step pending';
-    case 'step.running': return 'Claimed step';
-    case 'step.done': return 'Step completed';
-    case 'step.failed': return `Step failed${evt.detail ? `: ${evt.detail}` : ''}`;
-    case 'step.timeout': return `Step timed out${evt.detail ? `: ${evt.detail}` : ''}`;
+    case 'step.pending': return hasStep ? `${stepName} pending` : 'Step pending';
+    case 'step.running': return hasStep ? `${stepName} started` : 'Claimed step';
+    case 'step.done': return hasStep ? `${stepName} completed` : 'Step completed';
+    case 'step.failed': return hasStep
+      ? `${stepName} failed${evt.detail ? `: ${evt.detail}` : ''}`
+      : `Step failed${evt.detail ? `: ${evt.detail}` : ''}`;
+    case 'step.timeout': return hasStep
+      ? `${stepName} timed out${evt.detail ? `: ${evt.detail}` : ''}`
+      : `Step timed out${evt.detail ? `: ${evt.detail}` : ''}`;
     case 'story.started': return `Claimed story ${story}`;
     case 'story.done': return `Completed ${story}`;
     case 'story.verified': return `Verified ${story}`;
     case 'story.retry': return `Retry ${story}${evt.detail ? `: ${evt.detail}` : ''}`;
     case 'story.failed': return `Story failed ${story}${evt.detail ? `: ${evt.detail}` : ''}`;
-    case 'pipeline.advanced': return 'Pipeline advanced';
+    case 'pipeline.advanced': return hasStep ? `Pipeline advanced to ${stepName}` : 'Pipeline advanced';
     default: return `${e}${evt.detail ? `: ${evt.detail}` : ''}`;
   }
 }
@@ -2216,8 +2219,9 @@ async function startAgentStream(runId, agentId){
       const runActivityLines = (events || []).map((evt) => {
         const t = new Date(evt.ts || Date.now());
         const time = t.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        const stepLabel = resolveStepLabel(run, evt.stepId);
         const agentShort = evt.agentId ? String(evt.agentId).split('/').pop() : '--';
-        return `[${time}] ${agentShort} ${formatActivityDesc(evt)}`;
+        return `[${time}] ${agentShort} ${formatActivityDesc(evt, stepLabel)}`;
       });
       const agentSteps = (run.steps || []).filter(step => step.agent_id === state.stream.agentId);
       const agentStepIdSet = new Set(agentSteps.map((s) => s.id));
@@ -2227,7 +2231,7 @@ async function startAgentStream(runId, agentId){
           if (evt.stepId && agentStepIdSet.has(evt.stepId)) return true;
           return false;
         })
-        .map(formatEventLine);
+        .map((evt) => formatEventLine(evt, resolveStepLabel(run, evt.stepId)));
       const stepOutputs = (run.steps || [])
         .filter(step => step.agent_id === state.stream.agentId && step.output)
         .flatMap(step => String(step.output).split('\n').filter(Boolean).map(line => `[${step.step_id}] ${line}`));
@@ -2250,7 +2254,8 @@ async function startAgentStream(runId, agentId){
         fallback.push('[activity] No agent-scoped lines yet; showing latest run activity:');
         fallback.push(...runActivityLines.slice(-12));
       }
-      const unique = [...new Set([...agentEvents, ...stepOutputs, ...fallback])];
+      const prStatusLines = buildPrStatusLines(run, events);
+      const unique = [...new Set([...agentEvents, ...stepOutputs, ...fallback, ...prStatusLines])];
       state.stream.targetLines = unique;
       state.stream.stepStatus = deriveRunAgents(run).find(a => a.agentId === state.stream.agentId)?.status || 'idle';
       state.stream.loading = false;
@@ -2363,7 +2368,6 @@ function renderRunSetupPanel(targetDraftId){
         worktreePath: inferred.worktreePath || '',
         port: Number(inferred.port) || getPortForPath(inferred.worktreePath || inferred.repo || '') || 3334,
         prompt: inferred.run?.task || '',
-        assignments: []
       };
       state.featureBuildings.push(draft);
       queuePersist();
@@ -2376,14 +2380,8 @@ function renderRunSetupPanel(targetDraftId){
     return;
   }
   setFeatureMode(true);
-  if (!Array.isArray(draft.assignments)) draft.assignments = [];
   if (!draft.worktreePath) draft.worktreePath = getWorktreeDefault(draft.repo || 'antfarm');
   if (typeof draft.prompt !== 'string') draft.prompt = String(draft.prompt || '');
-  const slots = workflowSlots('feature-dev');
-  const agentOptions = inferAgentPool();
-  if (!draft.assignments.length) draft.assignments = autoAssignSlots(slots, agentOptions);
-  draft.assignments = slots.map((slot, i) =>
-    String(draft.assignments[i] || slot.defaultAgent || agentOptions[i % agentOptions.length] || `feature-dev/${slot.id}`));
   const run = draft.runId ? (state.runs || []).find(r => r.id === draft.runId) : null;
   const hasRun = !!run;
   const isDraft = !draft.committed;
@@ -2401,7 +2399,7 @@ function renderRunSetupPanel(targetDraftId){
     <label class="kv">Feature prompt
       <textarea id="featurePrompt" rows="8" placeholder="Describe detailed scope, constraints, and acceptance criteria...">${esc(draft.prompt)}</textarea>
     </label>
-    ${hasRun ? renderAgentStatusList(deriveAssignedAgents(slots, draft, run), run) : ''}
+    ${hasRun ? renderAgentStatusList(deriveRunAgents(run), run) : ''}
     <button id="launchFeatureRunBtn" style="margin-top:8px">${isDraft ? 'Create Worktree + Start Run' : 'Relaunch Run'}</button>
     <button id="preparePrBtn" style="margin-top:6px">Check / Prepare PR Link</button>
     <div class="notice" style="margin-top:8px" id="featureMutationNotice">Ready to execute backend actions.</div>
@@ -2420,8 +2418,10 @@ function renderRunSetupPanel(targetDraftId){
     try {
       mutationNotice.textContent = 'Creating worktree + starting workflow run...';
       const branchName = `feature/${(draft.prompt || 'task').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,32) || 'task'}-${Date.now().toString().slice(-5)}`;
-      const assignments = deriveLaunchAssignments(slots, draft, agentOptions);
       const previousRunId = draft.runId || null;
+      const draftId = String(draft.id || '');
+      const draftX = Number(draft.x || 0);
+      const draftY = Number(draft.y || 0);
       const runResult = await postJson('/api/rts/feature/run', {
         workflowId: 'feature-dev',
         taskTitle: draft.prompt || `Feature request for ${draft.repo}`,
@@ -2429,21 +2429,49 @@ function renderRunSetupPanel(targetDraftId){
         baseRepoPath: draft.repo,
         worktreePath: draft.worktreePath,
         branchName,
-        assignments
+        draftId,
+        draftX,
+        draftY,
+        draftPort: Number(draft.port || 0) || null
       });
 
+      const latestRuns = await json('/api/runs');
+      let launchedRunId = String(runResult?.run?.id || '');
+      const launchedWorktree = absolutizePath(String(runResult?.worktreePath || draft.worktreePath || ''), String(draft.repo || ''));
+      const layoutEntityId = String(runResult?.layout?.id || draftId || draft.id || '');
+      if (layoutEntityId) draft.id = layoutEntityId;
+      if (!launchedRunId) {
+        const matchedRun = (latestRuns || []).find((r) => {
+          const ctx = parseContext(r);
+          const runWt = absolutizePath(String(ctx.worktreePath || ''), String(ctx.baseRepoPath || ctx.repoPath || ''));
+          return !!runWt && !!launchedWorktree && runWt === launchedWorktree;
+        });
+        if (matchedRun?.id) launchedRunId = String(matchedRun.id);
+      }
       draft.worktreePath = runResult.worktreePath || draft.worktreePath;
       draft.port = Number(draft.port) || getPortForPath(draft.worktreePath || '') || 3334;
       setPortForPath(draft.worktreePath, draft.port);
-      draft.runId = runResult.run.id;
+      draft.runId = launchedRunId || draft.runId;
       draft.phase = 'running';
       draft.committed = true;
+      draft.x = draftX;
+      draft.y = draftY;
+      state.featureBuildings = (state.featureBuildings || []).filter((fb) => {
+        if (fb === draft) return true;
+        if (!fb) return false;
+        const sameRun = launchedRunId && String(fb.runId || '') === launchedRunId;
+        if (sameRun) return false;
+        const fbWt = absolutizePath(String(fb.worktreePath || ''), String(fb.repo || ''));
+        const sameWorktreeDraft = !String(fb.runId || '') && !!launchedWorktree && fbWt === launchedWorktree;
+        return !sameWorktreeDraft;
+      });
       if (previousRunId && previousRunId !== draft.runId && state.runLayoutOverrides && typeof state.runLayoutOverrides === 'object') {
         delete state.runLayoutOverrides[previousRunId];
       }
-      mutationNotice.textContent = `Run started: ${runResult.run.id.slice(0,12)} (${runResult.branchName})`;
-      state.runs = await json('/api/runs');
-      queuePersist();
+      const runLabel = launchedRunId ? launchedRunId.slice(0, 12) : 'pending';
+      mutationNotice.textContent = `Run started: ${runLabel} (${runResult.branchName})`;
+      await persistNow();
+      state.runs = latestRuns;
       rebuildScene();
     } catch (err) {
       mutationNotice.textContent = `Error: ${err.message || err}`;
