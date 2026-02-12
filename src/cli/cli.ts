@@ -440,19 +440,46 @@ async function main() {
       process.exit(1);
     }
 
-    // If it's a loop step with a failed story, reset that story to pending
+    // If it's a loop step: reset failed stories; if verifyEach, also reset verify step and exit early
     if (failedStep.type === "loop") {
-      const failedStory = db.prepare(
-        "SELECT id FROM stories WHERE run_id = ? AND status = 'failed' ORDER BY story_index ASC LIMIT 1"
-      ).get(run.id) as { id: string } | undefined;
-      if (failedStory) {
+      // Reset all failed stories to pending
+      db.prepare(
+        "UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE run_id = ? AND status = 'failed'"
+      ).run(run.id);
+
+      // Check if this loop uses verifyEach — if so, handle fully and exit
+      const lcRow = db.prepare("SELECT loop_config FROM steps WHERE id = ?").get(failedStep.id) as { loop_config: string | null } | undefined;
+      const lc = lcRow?.loop_config ? JSON.parse(lcRow.loop_config) : null;
+      if (lc?.verifyEach && lc.verifyStep) {
+        // Reset loop step with cleared retries
         db.prepare(
-          "UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
-        ).run(failedStory.id);
+          "UPDATE steps SET status = 'pending', retry_count = 0, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+        ).run(failedStep.id);
+        // Reset verify step to waiting with cleared retries
+        db.prepare(
+          "UPDATE steps SET status = 'waiting', retry_count = 0, current_story_id = NULL, updated_at = datetime('now') WHERE run_id = ? AND step_id = ?"
+        ).run(run.id, lc.verifyStep);
+        // Reset run to running
+        db.prepare(
+          "UPDATE runs SET status = 'running', updated_at = datetime('now') WHERE id = ?"
+        ).run(run.id);
+        // Ensure crons are running for this workflow
+        const { loadWorkflowSpec: lws1 } = await import("../installer/workflow-spec.js");
+        const { resolveWorkflowDir: rwd1 } = await import("../installer/paths.js");
+        const { ensureWorkflowCrons: ewc1 } = await import("../installer/agent-cron.js");
+        try {
+          const workflowDir = rwd1(run.workflow_id);
+          const workflow = await lws1(workflowDir);
+          await ewc1(workflow);
+        } catch (err) {
+          process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
+        }
+        console.log(`Resumed run ${run.id.slice(0, 8)} — reset loop step "${failedStep.step_id}" to pending (retries cleared), "${lc.verifyStep}" to waiting`);
+        process.exit(0);
       }
     }
 
-    // Check if the failed step is a verify step linked to a loop step's verify_each
+    // Check if the failed step is a verify step linked to a loop step's verifyEach
     const loopStep = db.prepare(
       "SELECT id, loop_config FROM steps WHERE run_id = ? AND type = 'loop' AND status IN ('running', 'failed') LIMIT 1"
     ).get(run.id) as { id: string; loop_config: string | null } | undefined;
@@ -460,13 +487,13 @@ async function main() {
     if (loopStep?.loop_config) {
       const lc = JSON.parse(loopStep.loop_config);
       if (lc.verifyEach && lc.verifyStep === failedStep.step_id) {
-        // Reset the loop step (developer) to pending so it re-claims the story and populates context
+        // Reset the loop step to pending with cleared retries
         db.prepare(
-          "UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+          "UPDATE steps SET status = 'pending', retry_count = 0, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
         ).run(loopStep.id);
-        // Reset verify step to waiting (fires after developer completes)
+        // Reset verify step to waiting with cleared retries
         db.prepare(
-          "UPDATE steps SET status = 'waiting', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+          "UPDATE steps SET status = 'waiting', retry_count = 0, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
         ).run(failedStep.id);
         // Reset any failed stories to pending
         db.prepare(
@@ -490,14 +517,14 @@ async function main() {
           process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
         }
 
-        console.log(`Resumed run ${run.id.slice(0, 8)} — reset loop step "${loopStep.id.slice(0, 8)}" to pending, verify step "${failedStep.step_id}" to waiting`);
+        console.log(`Resumed run ${run.id.slice(0, 8)} — reset loop step "${loopStep.id.slice(0, 8)}" to pending (retries cleared), verify step "${failedStep.step_id}" to waiting`);
         process.exit(0);
       }
     }
 
-    // Reset step to pending
+    // Reset step to pending with cleared retries
     db.prepare(
-      "UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', retry_count = 0, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
     ).run(failedStep.id);
 
     // Reset run to running
