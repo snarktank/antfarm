@@ -4,10 +4,12 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
+import { execSync } from "node:child_process";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
 import { getMaxRoleTimeoutSeconds } from "./install.js";
+import { isFrontendChange } from "../lib/frontend-detect.js";
 
 /**
  * Fire-and-forget cron teardown when a run ends.
@@ -315,6 +317,26 @@ function cleanupAbandonedSteps(): void {
   }
 }
 
+// ── Frontend change detection ───────────────────────────────────────
+
+/**
+ * Compute whether a branch has frontend changes relative to main.
+ * Returns 'true' or 'false' as a string for template context.
+ */
+export function computeHasFrontendChanges(repo: string, branch: string): string {
+  try {
+    const output = execSync(`git diff --name-only main..${branch}`, {
+      cwd: repo,
+      encoding: "utf-8",
+      timeout: 10_000,
+    });
+    const files = output.trim().split("\n").filter(f => f.length > 0);
+    return isFrontendChange(files) ? "true" : "false";
+  } catch {
+    return "false";
+  }
+}
+
 // ── Claim ───────────────────────────────────────────────────────────
 
 interface ClaimResult {
@@ -350,6 +372,13 @@ export function claimStep(agentId: string): ClaimResult {
   // Get run context
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string } | undefined;
   const context: Record<string, string> = run ? JSON.parse(run.context) : {};
+
+  // Compute has_frontend_changes from git diff when repo and branch are available
+  if (context["repo"] && context["branch"]) {
+    context["has_frontend_changes"] = computeHasFrontendChanges(context["repo"], context["branch"]);
+  } else {
+    context["has_frontend_changes"] = "false";
+  }
 
   // T6: Loop step claim logic
   if (step.type === "loop") {
