@@ -48,11 +48,11 @@ export function resolveTemplate(template: string, context: Record<string, string
 }
 
 /**
- * Get the workspace path for an OpenClaw agent by its id.
+ * Get the workspace path for an Clawdbot agent by its id.
  */
 function getAgentWorkspacePath(agentId: string): string | null {
   try {
-    const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
+    const configPath = path.join(os.homedir(), ".clawdbot", "clawdbot.json");
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     const agent = config.agents?.list?.find((a: any) => a.id === agentId);
     return agent?.workspace ?? null;
@@ -435,7 +435,7 @@ export function claimStep(agentId: string): ClaimResult {
       db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), step.run_id);
 
       const resolvedInput = resolveTemplate(step.input_template, context);
-      return { found: true, stepId: step.step_id, runId: step.run_id, resolvedInput };
+      return { found: true, stepId: step.id, runId: step.run_id, resolvedInput };
     }
   }
 
@@ -458,7 +458,7 @@ export function claimStep(agentId: string): ClaimResult {
 
   return {
     found: true,
-    stepId: step.step_id,
+    stepId: step.id,
     runId: step.run_id,
     resolvedInput,
   };
