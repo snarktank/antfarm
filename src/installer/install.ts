@@ -47,7 +47,7 @@ function ensureMainAgentInList(
 }
 
 // ── Shared deny list: things no workflow agent should ever touch ──
-const ALWAYS_DENY = ["gateway", "cron", "message", "nodes", "canvas", "sessions_spawn", "sessions_send"];
+const ALWAYS_DENY = ["cron", "message", "nodes", "canvas", "sessions_spawn", "sessions_send"];
 
 /**
  * Per-role tool policies using OpenClaw's profile + allow/deny system.
@@ -64,7 +64,6 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // no file modification
       "image", "tts",                  // unnecessary
       "group:ui",                      // no browser/canvas
     ],
@@ -85,7 +84,6 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // cannot modify code it's verifying
       "image", "tts",                  // unnecessary
       "group:ui",                      // no browser/canvas
     ],
@@ -97,7 +95,6 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
     alsoAllow: ["browser", "web_search", "web_fetch"],
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // testers don't write production code
       "image", "tts",                  // unnecessary
     ],
   },
@@ -107,7 +104,6 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // no file modification
       "image", "tts",                  // unnecessary
       "group:ui",                      // no browser/canvas
     ],
@@ -119,7 +115,6 @@ const ROLE_TOOL_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: stri
     alsoAllow: ["web_search", "web_fetch"],
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // scanners don't modify code
       "image", "tts",                  // unnecessary
       "group:ui",                      // no browser/canvas
     ],

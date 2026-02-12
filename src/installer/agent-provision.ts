@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import type { WorkflowAgent, WorkflowSpec } from "./types.js";
 import { resolveOpenClawStateDir, resolveWorkflowWorkspaceRoot } from "./paths.js";
@@ -99,21 +100,36 @@ export async function provisionAgents(params: {
 }
 
 async function installWorkflowSkill(workflow: WorkflowSpec, workflowDir: string) {
-  const skillSource = path.join(workflowDir, "skills", "antfarm-workflows");
-  try {
-    await fs.access(skillSource);
-  } catch {
-    return;
-  }
+  const globalSkillsDir = path.join(os.homedir(), ".openclaw", "skills");
+
   for (const agent of workflow.agents) {
-    if (!agent.workspace.skills?.includes("antfarm-workflows")) {
+    const skillNames = agent.workspace.skills ?? [];
+    if (!skillNames.length) {
       continue;
     }
+
     const workspaceDir = resolveWorkspaceDir({ workflowId: workflow.id, agent });
     const targetDir = path.join(workspaceDir, "skills");
     await ensureDir(targetDir);
-    const destination = path.join(targetDir, "antfarm-workflows");
-    await fs.rm(destination, { recursive: true, force: true });
-    await fs.cp(skillSource, destination, { recursive: true });
+
+    for (const skillName of skillNames) {
+      const localSource = path.join(workflowDir, "skills", skillName);
+      const globalSource = path.join(globalSkillsDir, skillName);
+      let source = localSource;
+      try {
+        await fs.access(source);
+      } catch {
+        source = globalSource;
+        try {
+          await fs.access(source);
+        } catch {
+          continue;
+        }
+      }
+
+      const destination = path.join(targetDir, skillName);
+      await fs.rm(destination, { recursive: true, force: true });
+      await fs.cp(source, destination, { recursive: true });
+    }
   }
 }

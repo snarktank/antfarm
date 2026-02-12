@@ -20,6 +20,8 @@ agents:
         AGENTS.md: agents/planner/AGENTS.md
         SOUL.md: agents/planner/SOUL.md
         IDENTITY.md: agents/planner/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: setup
     name: Setup
@@ -31,6 +33,8 @@ agents:
         AGENTS.md: ../../agents/shared/setup/AGENTS.md
         SOUL.md: ../../agents/shared/setup/SOUL.md
         IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: developer
     name: Developer
@@ -42,6 +46,8 @@ agents:
         AGENTS.md: agents/developer/AGENTS.md
         SOUL.md: agents/developer/SOUL.md
         IDENTITY.md: agents/developer/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: verifier
     name: Verifier
@@ -53,6 +59,8 @@ agents:
         AGENTS.md: ../../agents/shared/verifier/AGENTS.md
         SOUL.md: ../../agents/shared/verifier/SOUL.md
         IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: tester
     name: Tester
@@ -64,6 +72,8 @@ agents:
         AGENTS.md: agents/tester/AGENTS.md
         SOUL.md: agents/tester/SOUL.md
         IDENTITY.md: agents/tester/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: reviewer
     name: Reviewer
@@ -75,6 +85,8 @@ agents:
         AGENTS.md: agents/reviewer/AGENTS.md
         SOUL.md: agents/reviewer/SOUL.md
         IDENTITY.md: agents/reviewer/IDENTITY.md
+      skills:
+        - self-improving-agent
 
 steps:
   - id: plan

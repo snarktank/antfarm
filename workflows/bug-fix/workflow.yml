@@ -19,6 +19,8 @@ agents:
         AGENTS.md: agents/triager/AGENTS.md
         SOUL.md: agents/triager/SOUL.md
         IDENTITY.md: agents/triager/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: investigator
     name: Investigator
@@ -30,6 +32,8 @@ agents:
         AGENTS.md: agents/investigator/AGENTS.md
         SOUL.md: agents/investigator/SOUL.md
         IDENTITY.md: agents/investigator/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: setup
     name: Setup
@@ -41,6 +45,8 @@ agents:
         AGENTS.md: ../../agents/shared/setup/AGENTS.md
         SOUL.md: ../../agents/shared/setup/SOUL.md
         IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: fixer
     name: Fixer
@@ -52,6 +58,8 @@ agents:
         AGENTS.md: agents/fixer/AGENTS.md
         SOUL.md: agents/fixer/SOUL.md
         IDENTITY.md: agents/fixer/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: verifier
     name: Verifier
@@ -63,6 +71,8 @@ agents:
         AGENTS.md: ../../agents/shared/verifier/AGENTS.md
         SOUL.md: ../../agents/shared/verifier/SOUL.md
         IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
+      skills:
+        - self-improving-agent
 
   - id: pr
     name: PR Creator
@@ -74,6 +84,8 @@ agents:
         AGENTS.md: ../../agents/shared/pr/AGENTS.md
         SOUL.md: ../../agents/shared/pr/SOUL.md
         IDENTITY.md: ../../agents/shared/pr/IDENTITY.md
+      skills:
+        - self-improving-agent
 
 steps:
   - id: triage

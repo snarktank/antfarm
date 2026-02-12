@@ -37,3 +37,17 @@ BASELINE: build passes / tests pass (or describe what failed)
 - Don't write code or fix anything
 - Don't modify the codebase — only read and run commands
 - Don't skip the baseline — downstream agents need to know the starting state
+
+## Non-Interactive Install/Build Policy (Low Friction)
+
+When you need dependencies or tooling, prefer commands that run without prompts:
+
+- Never use `sudo` in workflow execution.
+- Use non-interactive flags where available (`-y`, `--yes`, `--no-input`, `--non-interactive`).
+- For apt-like flows, set `DEBIAN_FRONTEND=noninteractive`.
+- Prefer user/local installs over system-wide installs (examples: `npm ci`/`pnpm install --frozen-lockfile`, `pip install --user` or venv-based install).
+- If a command would block on authentication/password input, stop and choose a non-interactive alternative.
+- If root access is truly required and no safe alternative exists, report it explicitly in output with the exact command needed; do not prompt interactively.
+
+This workflow is optimized for unattended execution end-to-end.
+
