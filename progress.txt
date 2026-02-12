@@ -61,3 +61,21 @@ Started: 2026-02-11 05:47 ET
 - Created tests/frontend-detect.test.ts with 10 tests covering all acceptance criteria
 - All tests pass, build passes, typecheck passes
 - **Learnings:** Node 22 runs .ts imports directly in tests; utility pattern: Set for extensions, array.some for dir matching
+
+## 2026-02-12 17:57 - S3: Add diff-based context variable to step resolution
+- Added computeHasFrontendChanges() to step-ops.ts using execSync git diff + isFrontendChange
+- claimStep now populates context['has_frontend_changes'] with 'true'/'false' when repo+branch in context
+- Defaults to 'false' when repo/branch missing or git command fails
+- Created tests/frontend-context.test.ts with 7 tests (frontend files, backend-only, invalid repo, missing branch, CSS in dirs, test file exclusion, default)
+- All tests pass, build passes, typecheck passes
+- Files changed: src/installer/step-ops.ts (modified), tests/frontend-context.test.ts (new)
+- **Learnings:** step-ops.ts imports chain through DB so tests must import from dist/; computeHasFrontendChanges exported for testability
+
+## 2026-02-12 18:05 - S4: Update verify step prompt with conditional browser verification
+- Added conditional "Visual Verification" section to verify step input in workflow.yml
+- Section references {{has_frontend_changes}} and instructs agent to use agent-browser skill
+- Defines visual PASS criteria (correct layout, styling, visibility) and FAIL criteria (broken layout, missing/overlapping elements)
+- When has_frontend_changes is 'false', instructs to skip visual verification entirely
+- Created tests/verify-prompt-frontend.test.ts with 7 tests covering all acceptance criteria
+- All tests pass, build passes, typecheck passes
+- Files changed: workflows/feature-dev/workflow.yml (modified), tests/verify-prompt-frontend.test.ts (new)
