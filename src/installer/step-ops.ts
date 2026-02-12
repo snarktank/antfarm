@@ -174,7 +174,7 @@ function parseAndInsertStories(output: string, runId: string): void {
   const db = getDb();
   const now = new Date().toISOString();
   const insert = db.prepare(
-    "INSERT INTO stories (id, run_id, story_index, story_id, title, description, acceptance_criteria, status, retry_count, max_retries, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, 2, ?, ?)"
+    "INSERT INTO stories (id, run_id, story_index, story_id, title, description, acceptance_criteria, status, retry_count, max_retries, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, 3, ?, ?)"
   );
 
   const seenIds = new Set<string>();
@@ -195,7 +195,7 @@ function parseAndInsertStories(output: string, runId: string): void {
 
 // ── Abandoned Step Cleanup ──────────────────────────────────────────
 
-const ABANDONED_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+const ABANDONED_THRESHOLD_MS = 35 * 60 * 1000; // 35 minutes (must exceed agent session timeout of 30 min)
 
 /**
  * Find steps that have been "running" for too long and reset them to pending.
