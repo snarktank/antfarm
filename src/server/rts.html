@@ -1475,17 +1475,26 @@ function renderRunAgentsConsole(run, selectedAgentId){
       const restartNotice = panel.querySelector('#restartNotice');
       try {
         btn.disabled = true;
-        if (restartNotice) restartNotice.textContent = `Restarting ${agentId}...`;
+        if (restartNotice) restartNotice.textContent = `Restart requested for ${agentId}...`;
         const rr = await postJson('/api/rts/agent/restart', { runId, agentId });
         state.runs = await json('/api/runs');
         rebuildScene();
         const refreshed = (state.runs || []).find(r => r.id === runId);
-        if (refreshed) renderRunAgentsConsole(refreshed, agentId);
-        if (restartNotice) restartNotice.textContent = rr?.kicked
-          ? `Restarted ${agentId}: pending emitted, kick sent.`
-          : `Restarted ${agentId}: pending emitted, waiting for cron fallback.`;
+        if (refreshed) {
+          renderRunAgentsConsole(refreshed, agentId);
+          const refreshedNotice = document.querySelector('#actionPanel #restartNotice');
+          if (refreshedNotice) refreshedNotice.textContent = rr?.kicked
+            ? `Restart accepted for ${agentId}. Step reset and kick sent.`
+            : `Restart accepted for ${agentId}. Step reset; waiting for cron fallback.`;
+        }
       } catch (err) {
-        if (restartNotice) restartNotice.textContent = `Restart failed: ${err.message || err}`;
+        const message = String(err?.message || err || 'unknown_error');
+        const human = message.includes('agent_waiting_not_restartable')
+          ? 'Restart rejected: this agent is waiting. Restart a running/failed/done agent instead.'
+          : `Restart failed: ${message}`;
+        const freshNotice = document.querySelector('#actionPanel #restartNotice');
+        if (freshNotice) freshNotice.textContent = human;
+        else if (restartNotice) restartNotice.textContent = human;
       } finally {
         btn.disabled = false;
       }
@@ -2071,17 +2080,25 @@ function renderRunSetupPanel(targetDraftId){
         const agentId = btn.getAttribute('data-restart-agent');
         if (!runId || !agentId) return;
         try {
+          btn.disabled = true;
+          if (mutationNotice) mutationNotice.textContent = `Restart requested for ${agentId}...`;
           const rr = await postJson('/api/rts/agent/restart', { runId, agentId });
           state.runs = await json('/api/runs');
           rebuildScene();
           renderRunSetupPanel(draft.id);
           const mutationNotice = document.getElementById('featureMutationNotice');
           if (mutationNotice) mutationNotice.textContent = rr?.kicked
-            ? 'Agent restarted and kicked immediately.'
-            : 'Agent restarted (kick unavailable); cron fallback will pick it up.';
+            ? `Restart accepted for ${agentId}. Step reset and kick sent.`
+            : `Restart accepted for ${agentId}. Step reset; waiting for cron fallback.`;
         } catch (err) {
+          const message = String(err?.message || err || 'unknown_error');
+          const human = message.includes('agent_waiting_not_restartable')
+            ? 'Restart rejected: this agent is waiting. Restart a running/failed/done agent instead.'
+            : `Restart failed: ${message}`;
           const mutationNotice = document.getElementById('featureMutationNotice');
-          if (mutationNotice) mutationNotice.textContent = `Restart failed: ${err.message || err}`;
+          if (mutationNotice) mutationNotice.textContent = human;
+        } finally {
+          btn.disabled = false;
         }
       });
     });
