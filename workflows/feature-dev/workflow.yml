@@ -220,6 +220,25 @@ steps:
       5. No obvious incomplete work
       6. Typecheck passes
 
+      ## Visual Verification (Frontend Changes)
+      Has frontend changes: {{has_frontend_changes}}
+
+      If {{has_frontend_changes}} is 'true', you MUST also perform visual verification:
+      1. Use the agent-browser skill to visually inspect the changed UI
+      2. Open the changed HTML file directly (file:// URL) or spin up a local dev server if the project requires one
+      3. Take a screenshot of the rendered page
+      4. Visually confirm:
+         - Layout renders correctly (no broken/overlapping elements)
+         - Styling is applied as expected (colors, fonts, spacing)
+         - All visible elements from the story are present and properly positioned
+         - No missing images, icons, or visual assets
+         - Text is readable and not clipped or hidden
+      5. A visual PASS means: the page renders without broken layout, missing elements, or overlapping content
+      6. A visual FAIL means: broken layout, missing/invisible elements, overlapping or misaligned content, unstyled raw HTML, or obvious rendering errors
+      7. Include your visual findings in VERIFIED output
+
+      If {{has_frontend_changes}} is 'false', skip visual verification entirely.
+
       Reply with:
       STATUS: done
       VERIFIED: What you confirmed
