@@ -11,6 +11,7 @@ Started: 2026-02-11 05:47 ET
 - ESM with NodeNext module resolution, `.js` extensions in imports
 - RTS dashboard source assets live in `src/server/rts.html` + `src/server/rts-sprites/`; `npm run build` must copy both into `dist/server/`
 - Feature structure world styling should be derived from a centralized helper (status -> visual state -> CSS class), then consumed in `renderWorld()` class selection
+- Server-side pure logic is best kept in standalone modules (e.g., `src/server/*.ts`) so tests can import them directly without pulling in dashboard runtime dependencies
 
 ---
 
@@ -61,4 +62,11 @@ Started: 2026-02-11 05:47 ET
 - Added regression test `tests/rts-assignment-ui-removal.test.ts` covering UI removal, automatic launch assignment derivation, and post-launch read-only assignment visibility in both `src/server/rts.html` and built `dist/server/rts.html`
 - Files changed: `src/server/rts.html`, `tests/rts-assignment-ui-removal.test.ts`, `dist/server/rts.html`, `progress.txt`
 - **Learnings:** For RTS dashboard changes, validate both source and built HTML because tests assert parity across `src/server/rts.html` and `dist/server/rts.html`.
+---
+## 2026-02-12 15:39 - US-001: Replace placeholder research-plan type with production classification
+- Added production research planning utilities in `src/server/research-plan.ts` with only `feature|bug` plan types and no placeholder-only acceptance branch
+- Re-exported research-plan APIs from `src/server/dashboard.ts` to keep dashboard-facing imports stable
+- Added `tests/research-plan-classification.test.ts` covering prompt structure, placeholder evidence classification into production plan types, and success/failure classification behavior
+- Files changed: `src/server/research-plan.ts` (new), `src/server/dashboard.ts` (modified), `tests/research-plan-classification.test.ts` (new), `progress.txt`
+- **Learnings:** Keep prompt-generation acceptance criteria defaults production-oriented so evidence classification can evolve without introducing type-level placeholders.
 ---

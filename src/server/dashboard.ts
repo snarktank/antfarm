@@ -24,6 +24,14 @@ interface WorkflowDef {
   steps: Array<{ id: string; agent: string }>;
 }
 
+export {
+  buildResearchPrompt,
+  generateResearchPlans,
+  type ResearchPlan,
+  type ResearchPlanType,
+  type ResearchEvidenceInput,
+} from "./research-plan.js";
+
 function loadWorkflows(): WorkflowDef[] {
   const dir = resolveBundledWorkflowsDir();
   const results: WorkflowDef[] = [];
