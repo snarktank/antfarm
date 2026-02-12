@@ -1,0 +1,62 @@
+# Antfarm Productivity Monitor
+# Assigns tasks to idle workers based on priority, not role
+
+id: antfarm-productivity
+name: Productivity Monitor
+version: 1
+description: |
+  Monitors workload and assigns tasks to idle workers.
+  Bug-fix tasks are prioritized for ANY idle agent, regardless of their designated role.
+
+agents:
+  - id: assigner
+    name: Task Assigner
+    role: coordination
+    description: Assigns pending tasks to idle workforce members based on priority.
+    workspace:
+      baseDir: agents/assigner
+      files:
+        AGENTS.md: agents/shared/assigner/AGENTS.md
+        SOUL.md: agents/shared/assigner/SOUL.md
+        IDENTITY.md: agents/shared/assigner/IDENTITY.md
+
+steps:
+  - id: assign-repo-work
+    agent: assigner
+    input: |
+      Assign pending tasks to idle workers.
+
+      PENDING_TASKS:
+      {{pending_tasks}}
+
+      IDLE_WORKERS:
+      {{idle_workers}}
+
+      WORK_CATALOG:
+      {{work_catalog}}
+
+      Instructions:
+      1. Review the work catalog to understand available task types and priorities
+      2. Group tasks by PRIORITY (not by agent role)
+      3. Assign Priority 1 tasks first: Bug fixes should be offered to ANY idle worker
+      4. Assign Priority 2 tasks next: Feature development
+      5. Assign Priority 3 tasks last: Security and maintenance
+      6. CRITICAL: A bug-fix task can be assigned to ANY idle agent, regardless of their designated role
+      7. Document each assignment with: worker_id, task_id, priority, reason
+
+      Reply with:
+      STATUS: done
+      ASSIGNMENTS:
+      - worker_id: <worker_id>
+        task_id: <task_id>
+        priority: <1|2|3>
+        reason: <why this assignment makes sense>
+
+      PRIORITY_DEFINITIONS:
+      - "Priority 1: Bug Fixes" - Critical issues requiring immediate attention, available to ANY idle worker
+      - "Priority 2: Feature Development" - New features and enhancements
+      - "Priority 3: Security & Maintenance" - Security patches and upkeep tasks
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
