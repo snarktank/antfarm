@@ -666,7 +666,9 @@ async function hydratePersistedState(){
   if (Array.isArray(persisted.baseDrafts)) state.baseDrafts = persisted.baseDrafts;
   if (Array.isArray(persisted.featureBuildings)) {
     const seen = new Set();
-    state.featureBuildings = persisted.featureBuildings.filter((fb) => {
+    state.featureBuildings = persisted.featureBuildings
+      .map(normalizeFeatureDraft)
+      .filter((fb) => {
       const runKey = fb?.runId ? `run:${fb.runId}` : "";
       const key = runKey || `draft:${fb?.id || ""}:${fb?.repo || ""}:${fb?.x || 0}:${fb?.y || 0}`;
       if (seen.has(key)) return false;
@@ -685,7 +687,8 @@ async function hydratePersistedState(){
     };
   }
   if (!state.featureBuildings.length && Array.isArray(persisted.setupDrafts)) {
-    state.featureBuildings = persisted.setupDrafts.map(d => ({ ...d, kind:'feature', phase:'draft' }));
+    state.featureBuildings = persisted.setupDrafts
+      .map((d) => normalizeFeatureDraft({ ...d, phase: 'draft' }));
   }
   // unified view: no persisted workflow filter
   if (persisted.selected && typeof persisted.selected === 'object') {
@@ -761,7 +764,7 @@ function pathLabel(pathValue){
 function runtimeLink(portValue){
   const port = Number(portValue);
   if (!Number.isFinite(port) || port < 1 || port > 65535) return '<span class="badge">unassigned</span>';
-  const host = `127.0.0.1:${Math.floor(port)}`;
+  const host = `100.115.134.49:${Math.floor(port)}`;
   const href = `http://${host}`;
   return `<a class="pr-link" href="${href}" target="_blank" rel="noopener noreferrer">${host}</a>`;
 }
@@ -1358,6 +1361,29 @@ function normalizeRunStatus(status){
   return String(status || '').trim().toLowerCase();
 }
 
+function normalizeFeatureDraft(raw){
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const runId = src.runId ? String(src.runId) : '';
+  const committed = typeof src.committed === 'boolean'
+    ? src.committed
+    : !!runId;
+  return {
+    ...src,
+    id: String(src.id || `feature-draft-${Date.now()}`),
+    kind: 'feature',
+    repo: String(src.repo || ''),
+    worktreePath: String(src.worktreePath || ''),
+    prompt: String(src.prompt || ''),
+    assignments: Array.isArray(src.assignments) ? src.assignments.map((v) => String(v || '')) : [],
+    runId,
+    committed,
+    phase: String(src.phase || (committed ? 'running' : 'draft')),
+    x: Number(src.x || 0),
+    y: Number(src.y || 0),
+    port: Number(src.port || 0) || undefined
+  };
+}
+
 function featureStructureVisualState(building){
   if (!building) return 'draft';
   if (!building.committed || !building.runId) return 'draft';
@@ -1370,7 +1396,7 @@ function featureStructureVisualState(building){
 
 function featureStructureClassName(building){
   const visualState = featureStructureVisualState(building);
-  if (visualState === 'draft' || visualState === 'in-progress') return 'is-half-transparent';
+  if (visualState === 'draft') return 'is-half-transparent';
   if (visualState === 'failed') return 'is-failed';
   return '';
 }
@@ -2110,6 +2136,9 @@ function renderRunSetupPanel(targetDraftId){
     return;
   }
   setFeatureMode(true);
+  if (!Array.isArray(draft.assignments)) draft.assignments = [];
+  if (!draft.worktreePath) draft.worktreePath = getWorktreeDefault(draft.repo || 'antfarm');
+  if (typeof draft.prompt !== 'string') draft.prompt = String(draft.prompt || '');
   const slots = workflowSlots('feature-dev');
   const agentOptions = inferAgentPool();
   if (!draft.assignments.length) draft.assignments = autoAssignSlots(slots, agentOptions);
