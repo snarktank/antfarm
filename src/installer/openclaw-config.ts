@@ -3,6 +3,9 @@ import JSON5 from "json5";
 import { resolveOpenClawConfigPath } from "./paths.js";
 
 export type OpenClawConfig = {
+  cron?: {
+    sessionRetention?: string | false;
+  };
   agents?: {
     defaults?: {
       subagents?: {

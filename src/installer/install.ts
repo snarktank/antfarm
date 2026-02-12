@@ -3,7 +3,7 @@ import path from "node:path";
 import { fetchWorkflow } from "./workflow-fetch.js";
 import { loadWorkflowSpec } from "./workflow-spec.js";
 import { provisionAgents } from "./agent-provision.js";
-import { readOpenClawConfig, writeOpenClawConfig } from "./openclaw-config.js";
+import { readOpenClawConfig, writeOpenClawConfig, type OpenClawConfig } from "./openclaw-config.js";
 import { updateMainAgentGuidance } from "./main-agent-guidance.js";
 import { addSubagentAllowlist } from "./subagent-allowlist.js";
 import { installAntfarmSkill } from "./skill-install.js";
@@ -48,6 +48,8 @@ function ensureMainAgentInList(
 
 // ── Shared deny list: things no workflow agent should ever touch ──
 const ALWAYS_DENY = ["gateway", "cron", "message", "nodes", "canvas", "sessions_spawn", "sessions_send"];
+
+const DEFAULT_CRON_SESSION_RETENTION = "24h";
 
 /**
  * Per-role tool policies using OpenClaw's profile + allow/deny system.
@@ -153,6 +155,13 @@ function buildToolsConfig(role: AgentRole): Record<string, unknown> {
   return tools;
 }
 
+function ensureCronSessionRetention(config: OpenClawConfig): void {
+  if (!config.cron) config.cron = {};
+  if (config.cron.sessionRetention === undefined) {
+    config.cron.sessionRetention = DEFAULT_CRON_SESSION_RETENTION;
+  }
+}
+
 function upsertAgent(
   list: Array<Record<string, unknown>>,
   agent: { id: string; name?: string; model?: string; workspaceDir: string; agentDir: string; role: AgentRole },
@@ -190,6 +199,7 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
   }
 
   const { path: configPath, config } = await readOpenClawConfig();
+  ensureCronSessionRetention(config);
   const list = ensureAgentList(config);
   ensureMainAgentInList(list, config);
   addSubagentAllowlist(config, provisioned.map((a) => a.id));

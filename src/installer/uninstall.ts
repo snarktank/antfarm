@@ -38,6 +38,8 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
+const DEFAULT_CRON_SESSION_RETENTION = "24h";
+
 function getActiveRuns(workflowId?: string): Array<{ id: string; workflow_id: string; task: string }> {
   try {
     const db = getDb();
@@ -141,6 +143,12 @@ export async function uninstallAllWorkflows(): Promise<void> {
       .map((entry) => (typeof entry.id === "string" ? entry.id : ""))
       .filter(Boolean),
   );
+  if (config.cron?.sessionRetention === DEFAULT_CRON_SESSION_RETENTION) {
+    delete config.cron.sessionRetention;
+    if (Object.keys(config.cron).length === 0) {
+      delete config.cron;
+    }
+  }
   await writeOpenClawConfig(configPath, config);
 
   await removeMainAgentGuidance();
