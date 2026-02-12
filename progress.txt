@@ -54,3 +54,11 @@ Started: 2026-02-11 05:47 ET
 - Files changed: `src/server/rts.html`, `dist/server/rts.html`, `tests/rts-feature-transparency-status.test.ts`, `progress.txt`
 - **Learnings:** Feature visual-state policy is now centralized and should be extended via status-set constants (non-terminal/success/failed) instead of adding ad-hoc class logic in rendering loops
 ---
+## 2026-02-12 11:47 - US-004: Remove subagent assignment editing/auto-assign UI while keeping automatic assignments on launch
+- Removed editable assignment rows and auto-assign button from Feature Draft Setup panel in `src/server/rts.html`
+- Preserved automatic launch assignment derivation via new `deriveLaunchAssignments(slots, draft, agentPool)` helper with slot default and workflow pool fallbacks
+- Kept post-launch read-only assigned-agent visibility through existing `renderAgentStatusList(deriveAssignedAgents(...))` console/status list
+- Added regression test `tests/rts-assignment-ui-removal.test.ts` covering UI removal, automatic launch assignment derivation, and post-launch read-only assignment visibility in both `src/server/rts.html` and built `dist/server/rts.html`
+- Files changed: `src/server/rts.html`, `tests/rts-assignment-ui-removal.test.ts`, `dist/server/rts.html`, `progress.txt`
+- **Learnings:** For RTS dashboard changes, validate both source and built HTML because tests assert parity across `src/server/rts.html` and `dist/server/rts.html`.
+---

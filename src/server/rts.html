@@ -575,6 +575,7 @@ const state = {
   featureBuildings: [],
   runLayoutOverrides: {},
   portByPath: {},
+  runtime: null,
   live: { ts:'', activeRunCount:0, pendingRunCount:0, runningAgentCount:0, activeAgents:[] },
   diag: null,
   liveStream: null,
@@ -829,6 +830,7 @@ function renderLiveConsole(){
   const stamp = live.ts ? new Date(live.ts).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '--:--:--';
   const cronCount = Number(diag?.cron?.matchingCount || 0);
   const blocked = diag?.likelyBlockedReason ? `WARN ${diag.likelyBlockedReason}` : '';
+  const runtimeLine = state.runtime?.cwd ? `${state.runtime.cwd} @ :${state.runtime.port || 3333}` : '';
   const lines = agents.length
     ? agents.slice(0, 120).map((a) => {
       const age = typeof a.ageSec === 'number' ? String(a.ageSec).padStart(3, ' ') : ' --';
@@ -849,6 +851,7 @@ function renderLiveConsole(){
       <div class="cli-body">${esc(lines)}</div>
     </div>
     <div class="notice" style="margin-top:6px">Source: Antfarm DB step state on this machine. ${esc(blocked)}</div>
+    ${runtimeLine ? `<div class="notice" style="margin-top:4px">Serving: ${esc(runtimeLine)}</div>` : ''}
   `;
 }
 
@@ -863,6 +866,7 @@ async function boot(){
   await hydratePersistedState();
   state.workflows = await json('/api/workflows');
   try { state.localRepos = await json('/api/local-repos'); } catch { state.localRepos = []; }
+  try { state.runtime = (await json('/api/rts/runtime')).runtime || null; } catch { state.runtime = null; }
   await refreshRuntimeState(true);
   rebuildScene();
   renderLiveConsole();
@@ -1721,7 +1725,11 @@ function renderSelection(){
 function renderBaseCloneForm(draft){
   setFeatureMode(false);
   const panel = document.getElementById('actionPanel');
-  const repoOptions = (state.localRepos || []).map(r => `<option value="${esc(r.path)}">${esc(r.name)} • ${esc(r.path)}</option>`).join('');
+  const repoOptions = (state.localRepos || []).map(r => {
+    const suggested = Number(r.suggestedPort) || getPortForPath(r.path) || '';
+    const suffix = suggested ? ` • :${suggested}` : '';
+    return `<option value="${esc(r.path)}">${esc(r.name)} • ${esc(r.path)}${suffix}</option>`;
+  }).join('');
   panel.innerHTML = `
     <h3>Base Setup</h3>
     <div class="kv"><strong>Placement:</strong> x ${Math.round(draft.x)}, y ${Math.round(draft.y)}</div>
@@ -1749,7 +1757,8 @@ function renderBaseCloneForm(draft){
     draft.existingRepoPath = e.target.value || '';
     if (draft.existingRepoPath) {
       draft.targetPath = draft.existingRepoPath;
-      draft.port = getPortForPath(draft.existingRepoPath) || draft.port || 3333;
+      const repoMeta = (state.localRepos || []).find((r) => r.path === draft.existingRepoPath);
+      draft.port = Number(repoMeta?.suggestedPort) || getPortForPath(draft.existingRepoPath) || draft.port || 3333;
       const pathInput = document.getElementById('cloneTargetPath');
       if (pathInput) pathInput.value = draft.targetPath;
       const portInput = document.getElementById('basePortInput');
@@ -1833,6 +1842,15 @@ function workflowSlots(workflowId = 'feature-dev'){
 
 function autoAssignSlots(slots, agentPool){
   return slots.map((slot, i) => slot.defaultAgent || agentPool[i % agentPool.length] || `agent-${i+1}`);
+}
+
+function deriveLaunchAssignments(slots, draft, agentPool){
+  return slots
+    .map((slot, i) => ({
+      stepId: slot.id,
+      agentId: String(draft.assignments?.[i] || slot.defaultAgent || agentPool[i % agentPool.length] || `feature-dev/${slot.id}`)
+    }))
+    .filter((a) => a.agentId);
 }
 
 function statusTone(status){
@@ -2109,45 +2127,11 @@ function renderRunSetupPanel(targetDraftId){
     <label class="kv">Feature prompt
       <textarea id="featurePrompt" rows="8" placeholder="Describe detailed scope, constraints, and acceptance criteria...">${esc(draft.prompt)}</textarea>
     </label>
-    ${!hasRun ? `
-      <div class="build-card" style="margin-top:8px">
-        <div class="kv"><strong>Auto Assign (Build Time)</strong></div>
-        <button id="autoAssignBtn">Auto-assign ${slots.length} agents in order</button>
-        <div id="assignmentRows" style="margin-top:7px"></div>
-      </div>
-    ` : ''}
     ${hasRun ? renderAgentStatusList(deriveAssignedAgents(slots, draft, run), run) : ''}
     <button id="launchFeatureRunBtn" style="margin-top:8px">${isDraft ? 'Create Worktree + Start Run' : 'Relaunch Run'}</button>
     <button id="preparePrBtn" style="margin-top:6px">Check / Prepare PR Link</button>
     <div class="notice" style="margin-top:8px" id="featureMutationNotice">Ready to execute backend actions.</div>
   `;
-
-  const rows = document.getElementById('assignmentRows');
-  if (rows) {
-    rows.innerHTML = slots.map((slot, i) => {
-      const agent = draft.assignments[i] || '';
-      const st = getSlotStatus(run, slot.id, agent);
-      return `<div class="kv">${esc(slot.id)}: <input data-slot="${i}" value="${esc(agent)}" /><span class="badge" style="margin-left:6px"><span class="status-dot" style="background:${statusTone(st)}"></span>${esc(prettyStatus(st))}</span></div>`;
-    }).join('');
-  }
-
-  const autoAssignBtn = document.getElementById('autoAssignBtn');
-  if (autoAssignBtn) {
-    autoAssignBtn.onclick = () => {
-      draft.assignments = autoAssignSlots(slots, agentOptions);
-      queuePersist();
-      renderRunSetupPanel(draft.id);
-    };
-  }
-  if (rows) {
-    [...rows.querySelectorAll('input')].forEach((inp, i) => {
-      inp.addEventListener('input', () => {
-        draft.assignments[i] = inp.value;
-        queuePersist();
-        renderRunSetupPanel(draft.id);
-      });
-    });
-  }
 
   document.getElementById('worktreePath').addEventListener('input', e => { draft.worktreePath = e.target.value; queuePersist(); });
   document.getElementById('worktreePort').addEventListener('input', e => {
@@ -2167,7 +2151,7 @@ function renderRunSetupPanel(targetDraftId){
     try {
       mutationNotice.textContent = 'Creating worktree + starting workflow run...';
       const branchName = `feature/${(draft.prompt || 'task').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'').slice(0,32) || 'task'}-${Date.now().toString().slice(-5)}`;
-      const assignments = slots.map((slot, i) => ({ stepId: slot.id, agentId: draft.assignments[i] || '' })).filter(a => a.agentId);
+      const assignments = deriveLaunchAssignments(slots, draft, agentOptions);
       const previousRunId = draft.runId || null;
       const runResult = await postJson('/api/rts/feature/run', {
         workflowId: 'feature-dev',
