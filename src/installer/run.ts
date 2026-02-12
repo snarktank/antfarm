@@ -3,7 +3,7 @@ import { loadWorkflowSpec } from "./workflow-spec.js";
 import { resolveWorkflowDir } from "./paths.js";
 import { getDb } from "../db.js";
 import { logger } from "../lib/logger.js";
-import { ensureWorkflowCrons } from "./agent-cron.js";
+import { ensureWorkflowCrons, dispatchAgent } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 
 export async function runWorkflow(params: {
@@ -34,6 +34,9 @@ export async function runWorkflow(params: {
       "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
+    let firstStepUuid: string | undefined;
+    let firstAgentId: string | undefined;
+
     for (let i = 0; i < workflow.steps.length; i++) {
       const step = workflow.steps[i];
       const stepUuid = crypto.randomUUID();
@@ -43,9 +46,19 @@ export async function runWorkflow(params: {
       const stepType = step.type ?? "single";
       const loopConfig = step.loop ? JSON.stringify(step.loop) : null;
       insertStep.run(stepUuid, runId, step.id, agentId, i, step.input, step.expects, status, maxRetries, stepType, loopConfig, now, now);
+
+      if (i === 0) {
+        firstStepUuid = stepUuid;
+        firstAgentId = agentId;
+      }
     }
 
     db.exec("COMMIT");
+
+    // Dispatch the first step's agent immediately (fire-and-forget)
+    if (firstStepUuid && firstAgentId) {
+      dispatchAgent(firstAgentId, firstStepUuid);
+    }
   } catch (err) {
     db.exec("ROLLBACK");
     throw err;

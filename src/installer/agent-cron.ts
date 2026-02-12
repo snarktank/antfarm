@@ -129,3 +129,40 @@ export async function teardownWorkflowCronsIfIdle(workflowId: string): Promise<v
   if (active > 0) return;
   await removeAgentCrons(workflowId);
 }
+
+// ── Event-driven dispatch ───────────────────────────────────────────
+
+/**
+ * Immediately dispatch an agent to work on a pending step via a one-shot cron job.
+ * 
+ * This is fire-and-forget: never throws, never blocks. If dispatch fails,
+ * the heartbeat crons will pick up the work on the next poll cycle.
+ * 
+ * Uses kind: "at" with atMs: Date.now() to create an immediate one-shot job
+ * that auto-cleans after execution.
+ */
+export function dispatchAgent(agentId: string, stepId: string): void {
+  // Fire-and-forget: wrap in async IIFE with catch
+  (async () => {
+    try {
+      // Parse workflow ID and agent short ID from full agent ID (format: workflowId/agentId)
+      const parts = agentId.split("/");
+      const agentShortId = parts[parts.length - 1];
+      const workflowId = parts.slice(0, -1).join("/");
+
+      const prompt = buildAgentPrompt(workflowId, agentShortId);
+      const cronName = `antfarm/dispatch/${stepId.slice(0, 8)}/${Date.now()}`;
+
+      await createAgentCronJob({
+        name: cronName,
+        schedule: { kind: "at", atMs: Date.now() },
+        sessionTarget: "isolated",
+        agentId,
+        payload: { kind: "agentTurn", message: prompt, timeoutSeconds: DEFAULT_AGENT_TIMEOUT_SECONDS },
+        enabled: true,
+      });
+    } catch {
+      // Silent failure — heartbeat crons will pick up the work
+    }
+  })().catch(() => {});
+}

@@ -90,7 +90,7 @@ const UPDATE_HINT =
 
 export async function createAgentCronJob(job: {
   name: string;
-  schedule: { kind: string; everyMs?: number; anchorMs?: number };
+  schedule: { kind: string; everyMs?: number; anchorMs?: number; atMs?: number };
   sessionTarget: string;
   agentId: string;
   payload: { kind: string; message: string; timeoutSeconds?: number };
@@ -106,6 +106,8 @@ export async function createAgentCronJob(job: {
 
     if (job.schedule.kind === "every" && job.schedule.everyMs) {
       args.push("--every", `${job.schedule.everyMs}ms`);
+    } else if (job.schedule.kind === "at" && job.schedule.atMs) {
+      args.push("--at", new Date(job.schedule.atMs).toISOString());
     }
 
     args.push("--session", job.sessionTarget === "isolated" ? "isolated" : "main");
@@ -139,7 +141,7 @@ export async function createAgentCronJob(job: {
 /** HTTP-only attempt. Returns null on 404 (signals: use CLI fallback). */
 async function createAgentCronJobHTTP(job: {
   name: string;
-  schedule: { kind: string; everyMs?: number; anchorMs?: number };
+  schedule: { kind: string; everyMs?: number; anchorMs?: number; atMs?: number };
   sessionTarget: string;
   agentId: string;
   payload: { kind: string; message: string; timeoutSeconds?: number };

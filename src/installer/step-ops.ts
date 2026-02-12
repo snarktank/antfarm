@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
-import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
+import { teardownWorkflowCronsIfIdle, dispatchAgent } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
 import { getMaxRoleTimeoutSeconds } from "./install.js";
@@ -210,8 +210,8 @@ function cleanupAbandonedSteps(): void {
 
   // Find running steps that haven't been updated recently
   const abandonedSteps = db.prepare(
-    "SELECT id, step_id, run_id, retry_count, max_retries, type, current_story_id, loop_config, abandoned_count FROM steps WHERE status = 'running' AND (julianday('now') - julianday(updated_at)) * 86400000 > ?"
-  ).all(thresholdMs) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null; loop_config: string | null; abandoned_count: number }[];
+    "SELECT id, step_id, run_id, retry_count, max_retries, type, current_story_id, loop_config, abandoned_count, agent_id FROM steps WHERE status = 'running' AND (julianday('now') - julianday(updated_at)) * 86400000 > ?"
+  ).all(thresholdMs) as { id: string; step_id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null; loop_config: string | null; abandoned_count: number; agent_id: string }[];
 
   for (const step of abandonedSteps) {
     if (step.type === "loop" && !step.current_story_id && step.loop_config) {
@@ -252,6 +252,7 @@ function cleanupAbandonedSteps(): void {
           db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(step.id);
           emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: `Story ${story.story_id} abandoned — reset to pending (story retry ${newRetry})` });
           logger.info(`Abandoned step reset to pending (story retry ${newRetry})`, { runId: step.run_id, stepId: step.step_id });
+          dispatchAgent(step.agent_id, step.id);
         }
         continue;
       }
@@ -278,6 +279,7 @@ function cleanupAbandonedSteps(): void {
         "UPDATE steps SET status = 'pending', abandoned_count = ?, updated_at = datetime('now') WHERE id = ?"
       ).run(newAbandonCount, step.id);
       emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.step_id, detail: `Reset to pending (abandon ${newAbandonCount}/${MAX_ABANDON_RESETS})` });
+      dispatchAgent(step.agent_id, step.id);
     }
   }
 
@@ -668,6 +670,11 @@ function handleVerifyEachCompletion(
 
     // Set loop step back to pending for retry
     db.prepare("UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
+    // Dispatch the loop step agent to retry
+    const loopAgent = db.prepare("SELECT agent_id FROM steps WHERE id = ?").get(loopStepId) as { agent_id: string } | undefined;
+    if (loopAgent) {
+      dispatchAgent(loopAgent.agent_id, loopStepId);
+    }
     return { advanced: false, runCompleted: false };
   }
 
@@ -681,6 +688,11 @@ function handleVerifyEachCompletion(
     logger.error(`checkLoopContinuation failed, recovering: ${String(err)}`, { runId: verifyStep.run_id });
     // Ensure loop step is at least pending so cron can retry
     db.prepare("UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
+    // Dispatch the loop step agent
+    const loopAgent = db.prepare("SELECT agent_id FROM steps WHERE id = ?").get(loopStepId) as { agent_id: string } | undefined;
+    if (loopAgent) {
+      dispatchAgent(loopAgent.agent_id, loopStepId);
+    }
     return { advanced: false, runCompleted: false };
   }
 }
@@ -695,8 +707,8 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
   ).get(runId) as { id: string } | undefined;
 
   const loopStatus = db.prepare(
-    "SELECT status FROM steps WHERE id = ?"
-  ).get(loopStepId) as { status: string } | undefined;
+    "SELECT status, agent_id FROM steps WHERE id = ?"
+  ).get(loopStepId) as { status: string; agent_id: string } | undefined;
 
   if (pendingStory) {
     if (loopStatus?.status === "failed") {
@@ -706,6 +718,9 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
     db.prepare(
       "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
     ).run(loopStepId);
+    if (loopStatus?.agent_id) {
+      dispatchAgent(loopStatus.agent_id, loopStepId);
+    }
     return { advanced: false, runCompleted: false };
   }
 
@@ -761,8 +776,8 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
   }
 
   const next = db.prepare(
-    "SELECT id, step_id FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
-  ).get(runId) as { id: string; step_id: string } | undefined;
+    "SELECT id, step_id, agent_id FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
+  ).get(runId) as { id: string; step_id: string; agent_id: string } | undefined;
 
   const incomplete = db.prepare(
     "SELECT id FROM steps WHERE run_id = ? AND status IN ('failed', 'pending', 'running') LIMIT 1"
@@ -779,6 +794,7 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
     ).run(next.id);
     emitEvent({ ts: new Date().toISOString(), event: "pipeline.advanced", runId, workflowId: wfId, stepId: next.step_id });
     emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId, workflowId: wfId, stepId: next.step_id });
+    dispatchAgent(next.agent_id, next.id);
     return { advanced: true, runCompleted: false };
   } else {
     db.prepare(
@@ -822,8 +838,8 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null } | undefined;
+    "SELECT run_id, retry_count, max_retries, type, current_story_id, agent_id FROM steps WHERE id = ?"
+  ).get(stepId) as { run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null; agent_id: string } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
 
@@ -852,6 +868,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
       // Retry the story
       db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
       db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(stepId);
+      dispatchAgent(step.agent_id, stepId);
       return { retrying: true, runFailed: false };
     }
   }
@@ -875,6 +892,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     db.prepare(
       "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(newRetryCount, stepId);
+    dispatchAgent(step.agent_id, stepId);
     return { retrying: true, runFailed: false };
   }
 }
