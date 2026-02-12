@@ -60,6 +60,58 @@ function json(res: http.ServerResponse, data: unknown, status = 200) {
   res.end(JSON.stringify(data));
 }
 
+async function readBody(req: http.IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf-8");
+}
+
+function getRtsState(): Record<string, unknown> {
+  const db = getDb();
+  const row = db.prepare("SELECT state_json FROM rts_state WHERE id = 1").get() as { state_json: string } | undefined;
+  if (!row?.state_json) return {};
+  try {
+    const parsed = JSON.parse(row.state_json);
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveRtsState(nextState: unknown): Record<string, unknown> {
+  const db = getDb();
+  const safe = (nextState && typeof nextState === "object") ? nextState as Record<string, unknown> : {};
+  const now = new Date().toISOString();
+  db.prepare(
+    "INSERT INTO rts_state (id, state_json, updated_at) VALUES (1, ?, ?) " +
+    "ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at"
+  ).run(JSON.stringify(safe), now);
+  return safe;
+}
+
+function getRtsLiveStatus(): Record<string, unknown> {
+  const db = getDb();
+  const runningAgentCount = Number((db.prepare("SELECT COUNT(*) AS c FROM steps WHERE status = 'running'").get() as { c: number }).c || 0);
+  const activeRunCount = Number((db.prepare("SELECT COUNT(*) AS c FROM runs WHERE status = 'running'").get() as { c: number }).c || 0);
+  const pendingRunCount = Number((db.prepare("SELECT COUNT(*) AS c FROM runs WHERE status IN ('pending','running')").get() as { c: number }).c || 0);
+  const rows = db.prepare(
+    "SELECT run_id, agent_id, step_id, updated_at FROM steps WHERE status = 'running' ORDER BY updated_at DESC LIMIT 200"
+  ).all() as Array<{ run_id: string; agent_id: string; step_id: string; updated_at: string }>;
+  return {
+    ts: new Date().toISOString(),
+    runningAgentCount,
+    activeRunCount,
+    pendingRunCount,
+    activeAgents: rows.map((r) => ({
+      runId: r.run_id,
+      agentId: r.agent_id,
+      stepId: r.step_id,
+      stale: false,
+      ageSec: 0,
+    })),
+  };
+}
+
 function serveHTML(res: http.ServerResponse, fileName = "index.html") {
   const htmlPath = path.join(__dirname, fileName);
   // In dist, html may not exist—serve from src
@@ -79,12 +131,79 @@ function guessMime(filePath: string): string {
 }
 
 export function startDashboard(port = 3333): http.Server {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
+    const method = req.method ?? "GET";
+
+    if (method === "OPTIONS") {
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      });
+      return res.end();
+    }
 
     if (p === "/api/workflows") {
       return json(res, loadWorkflows());
+    }
+
+    if (p === "/api/local-repos") {
+      return json(res, []);
+    }
+
+    if (p === "/api/rts/state" && method === "GET") {
+      return json(res, { ok: true, state: getRtsState() });
+    }
+
+    if (p === "/api/rts/state" && method === "POST") {
+      try {
+        const body = JSON.parse(await readBody(req));
+        const saved = saveRtsState(body?.state ?? body);
+        return json(res, { ok: true, state: saved });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return json(res, { ok: false, error: message }, 400);
+      }
+    }
+
+    if (p === "/api/rts/live" && method === "GET") {
+      return json(res, { ok: true, live: getRtsLiveStatus() });
+    }
+
+    if (p === "/api/rts/live/stream" && method === "GET") {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+      });
+      const send = () => {
+        try {
+          const live = getRtsLiveStatus();
+          res.write("event: live\n");
+          res.write(`data: ${JSON.stringify(live)}\n\n`);
+        } catch {}
+      };
+      send();
+      const timer = setInterval(send, 1000);
+      req.on("close", () => {
+        clearInterval(timer);
+        try { res.end(); } catch {}
+      });
+      return;
+    }
+
+    if (p === "/api/rts/diag" && method === "GET") {
+      return json(res, {
+        ok: true,
+        diag: {
+          workflowId: url.searchParams.get("workflow") ?? null,
+          cron: { matchingCount: 0 },
+          likelyBlockedReason: "",
+        },
+      });
     }
 
     const eventsMatch = p.match(/^\/api\/runs\/([^/]+)\/events$/);
