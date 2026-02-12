@@ -38,6 +38,14 @@ describe('Landing page', () => {
     assert.ok(css.includes('@media'), 'missing responsive styles');
   });
 
+  it('version badge element exists and contains a valid semver', () => {
+    const html = readFileSync(resolve(landingDir, 'index.html'), 'utf-8');
+    assert.ok(html.includes('class="version-badge"'), 'missing version-badge element');
+    const match = html.match(/class="version-badge"[^>]*>v?(\d+\.\d+\.\d+[^<]*)/);
+    assert.ok(match, 'version-badge does not contain a semver string');
+    assert.match(match[1], /^\d+\.\d+\.\d+/, 'version is not valid semver');
+  });
+
   it('all internal links have valid targets', () => {
     const html = readFileSync(resolve(landingDir, 'index.html'), 'utf-8');
     const anchors = [...html.matchAll(/href="#([^"]+)"/g)].map(m => m[1]);

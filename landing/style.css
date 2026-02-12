@@ -149,6 +149,19 @@ code {
   line-height: 1.7;
 }
 
+.version-badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  margin-top: 8px;
+}
+
 .hero-actions { margin-top: 32px; }
 
 .install-cmd {
