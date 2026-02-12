@@ -2,8 +2,10 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 import { getDb } from "../db.js";
 import { resolveBundledWorkflowsDir } from "../installer/paths.js";
+import { runWorkflow } from "../installer/run.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
@@ -68,6 +70,13 @@ async function readBody(req: http.IncomingMessage): Promise<string> {
 
 function getRtsState(): Record<string, unknown> {
   const db = getDb();
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS rts_state (" +
+    "id INTEGER PRIMARY KEY CHECK (id = 1), " +
+    "state_json TEXT NOT NULL DEFAULT '{}', " +
+    "updated_at TEXT NOT NULL DEFAULT (datetime('now'))" +
+    ")"
+  );
   const row = db.prepare("SELECT state_json FROM rts_state WHERE id = 1").get() as { state_json: string } | undefined;
   if (!row?.state_json) return {};
   try {
@@ -80,6 +89,13 @@ function getRtsState(): Record<string, unknown> {
 
 function saveRtsState(nextState: unknown): Record<string, unknown> {
   const db = getDb();
+  db.exec(
+    "CREATE TABLE IF NOT EXISTS rts_state (" +
+    "id INTEGER PRIMARY KEY CHECK (id = 1), " +
+    "state_json TEXT NOT NULL DEFAULT '{}', " +
+    "updated_at TEXT NOT NULL DEFAULT (datetime('now'))" +
+    ")"
+  );
   const safe = (nextState && typeof nextState === "object") ? nextState as Record<string, unknown> : {};
   const now = new Date().toISOString();
   db.prepare(
@@ -128,6 +144,26 @@ function guessMime(filePath: string): string {
   if (ext === ".webp") return "image/webp";
   if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
   return "application/octet-stream";
+}
+
+function parseRunContext(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeRepoPath(rawPath: string): string {
+  const trimmed = rawPath.trim();
+  return path.isAbsolute(trimmed) ? path.normalize(trimmed) : path.resolve(process.cwd(), trimmed);
+}
+
+function resolveWorktreePath(baseRepoPath: string, worktreePath: string): string {
+  const trimmed = worktreePath.trim();
+  if (!trimmed) return path.resolve(path.dirname(baseRepoPath), `${path.basename(baseRepoPath)}-feature-${Date.now().toString().slice(-4)}`);
+  return path.isAbsolute(trimmed) ? path.normalize(trimmed) : path.resolve(baseRepoPath, trimmed);
 }
 
 export function startDashboard(port = 3333): http.Server {
@@ -217,6 +253,64 @@ export function startDashboard(port = 3333): http.Server {
       });
     }
 
+    if (p === "/api/rts/feature/run" && method === "POST") {
+      try {
+        const body = JSON.parse(await readBody(req)) as {
+          workflowId?: string;
+          taskTitle?: string;
+          prompt?: string;
+          baseRepoPath?: string;
+          worktreePath?: string;
+          branchName?: string;
+          assignments?: string[];
+        };
+        const workflowId = (body.workflowId || "feature-dev").trim();
+        const taskTitle = (body.taskTitle || body.prompt || "Feature request").trim();
+        const baseRepoPath = normalizeRepoPath(String(body.baseRepoPath || ""));
+        const worktreePath = resolveWorktreePath(baseRepoPath, String(body.worktreePath || ""));
+        const branchName = String(body.branchName || `feature/task-${Date.now().toString().slice(-5)}`).trim();
+
+        if (!baseRepoPath || !fs.existsSync(baseRepoPath)) {
+          return json(res, { ok: false, error: `Base repo path not found: ${baseRepoPath || "(empty)"}` }, 400);
+        }
+        if (!fs.existsSync(path.join(baseRepoPath, ".git"))) {
+          return json(res, { ok: false, error: `Not a git repo: ${baseRepoPath}` }, 400);
+        }
+
+        if (!fs.existsSync(worktreePath)) {
+          const args = ["-C", baseRepoPath, "worktree", "add"];
+          if (branchName) args.push("-b", branchName);
+          args.push(worktreePath);
+          execFileSync("git", args, { stdio: "pipe" });
+        }
+
+        const run = await runWorkflow({ workflowId, taskTitle });
+        const db = getDb();
+        const row = db.prepare("SELECT context FROM runs WHERE id = ?").get(run.id) as { context: string } | undefined;
+        const context = parseRunContext(row?.context ?? "{}");
+        const nextContext = {
+          ...context,
+          prompt: body.prompt || taskTitle,
+          task: taskTitle,
+          baseRepoPath,
+          repoPath: baseRepoPath,
+          worktreePath,
+          branchName,
+          assignments: Array.isArray(body.assignments) ? body.assignments : [],
+        };
+        db.prepare("UPDATE runs SET context = ?, updated_at = ? WHERE id = ?").run(
+          JSON.stringify(nextContext),
+          new Date().toISOString(),
+          run.id
+        );
+
+        return json(res, { ok: true, run: getRunById(run.id), worktreePath, branchName });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return json(res, { ok: false, error: message }, 500);
+      }
+    }
+
     const eventsMatch = p.match(/^\/api\/runs\/([^/]+)\/events$/);
     if (eventsMatch) {
       return json(res, getRunEvents(eventsMatch[1]));
@@ -240,6 +334,10 @@ export function startDashboard(port = 3333): http.Server {
     if (p === "/api/runs") {
       const wf = url.searchParams.get("workflow") ?? undefined;
       return json(res, getRuns(wf));
+    }
+
+    if (p.startsWith("/api/")) {
+      return json(res, { ok: false, error: `not_found:${p}` }, 404);
     }
 
     // Serve fonts
