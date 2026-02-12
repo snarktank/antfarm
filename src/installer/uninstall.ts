@@ -39,6 +39,12 @@ async function pathExists(filePath: string): Promise<boolean> {
 }
 
 const DEFAULT_CRON_SESSION_RETENTION = "24h";
+const DEFAULT_SESSION_MAINTENANCE = {
+  mode: "enforce",
+  pruneAfter: "7d",
+  maxEntries: 500,
+  rotateBytes: "10mb",
+} as const;
 
 function getActiveRuns(workflowId?: string): Array<{ id: string; workflow_id: string; task: string }> {
   try {
@@ -147,6 +153,21 @@ export async function uninstallAllWorkflows(): Promise<void> {
     delete config.cron.sessionRetention;
     if (Object.keys(config.cron).length === 0) {
       delete config.cron;
+    }
+  }
+  if (config.session?.maintenance) {
+    const maintenance = config.session.maintenance;
+    const matchesDefaults =
+      maintenance.mode === DEFAULT_SESSION_MAINTENANCE.mode &&
+      (maintenance.pruneAfter === DEFAULT_SESSION_MAINTENANCE.pruneAfter ||
+        maintenance.pruneDays === undefined) &&
+      maintenance.maxEntries === DEFAULT_SESSION_MAINTENANCE.maxEntries &&
+      maintenance.rotateBytes === DEFAULT_SESSION_MAINTENANCE.rotateBytes;
+    if (matchesDefaults) {
+      delete config.session.maintenance;
+      if (Object.keys(config.session).length === 0) {
+        delete config.session;
+      }
     }
   }
   await writeOpenClawConfig(configPath, config);

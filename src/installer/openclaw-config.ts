@@ -6,6 +6,15 @@ export type OpenClawConfig = {
   cron?: {
     sessionRetention?: string | false;
   };
+  session?: {
+    maintenance?: {
+      mode?: "enforce" | "warn";
+      pruneAfter?: string | number;
+      pruneDays?: number;
+      maxEntries?: number;
+      rotateBytes?: number | string;
+    };
+  };
   agents?: {
     defaults?: {
       subagents?: {

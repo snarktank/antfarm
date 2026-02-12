@@ -50,6 +50,12 @@ function ensureMainAgentInList(
 const ALWAYS_DENY = ["gateway", "cron", "message", "nodes", "canvas", "sessions_spawn", "sessions_send"];
 
 const DEFAULT_CRON_SESSION_RETENTION = "24h";
+const DEFAULT_SESSION_MAINTENANCE = {
+  mode: "enforce",
+  pruneAfter: "7d",
+  maxEntries: 500,
+  rotateBytes: "10mb",
+} as const;
 
 /**
  * Per-role tool policies using OpenClaw's profile + allow/deny system.
@@ -162,6 +168,25 @@ function ensureCronSessionRetention(config: OpenClawConfig): void {
   }
 }
 
+function ensureSessionMaintenance(config: OpenClawConfig): void {
+  if (!config.session) config.session = {};
+  if (!config.session.maintenance) {
+    config.session.maintenance = { ...DEFAULT_SESSION_MAINTENANCE };
+    return;
+  }
+  const maintenance = config.session.maintenance;
+  if (maintenance.mode === undefined) maintenance.mode = DEFAULT_SESSION_MAINTENANCE.mode;
+  if (maintenance.pruneAfter === undefined && maintenance.pruneDays === undefined) {
+    maintenance.pruneAfter = DEFAULT_SESSION_MAINTENANCE.pruneAfter;
+  }
+  if (maintenance.maxEntries === undefined) {
+    maintenance.maxEntries = DEFAULT_SESSION_MAINTENANCE.maxEntries;
+  }
+  if (maintenance.rotateBytes === undefined) {
+    maintenance.rotateBytes = DEFAULT_SESSION_MAINTENANCE.rotateBytes;
+  }
+}
+
 function upsertAgent(
   list: Array<Record<string, unknown>>,
   agent: { id: string; name?: string; model?: string; workspaceDir: string; agentDir: string; role: AgentRole },
@@ -200,6 +225,7 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
 
   const { path: configPath, config } = await readOpenClawConfig();
   ensureCronSessionRetention(config);
+  ensureSessionMaintenance(config);
   const list = ensureAgentList(config);
   ensureMainAgentInList(list, config);
   addSubagentAllowlist(config, provisioned.map((a) => a.id));
