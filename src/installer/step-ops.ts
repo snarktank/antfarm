@@ -10,6 +10,7 @@ import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
 import { getMaxRoleTimeoutSeconds } from "./install.js";
 import { isFrontendChange } from "../lib/frontend-detect.js";
+import { ConcurrencyController } from "../worker/concurrency.js";
 
 /**
  * Parse KEY: value lines from step output with support for multi-line values.
@@ -509,7 +510,7 @@ export function claimStep(agentId: string): ClaimResult {
       db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), step.run_id);
 
       const resolvedInput = resolveTemplate(step.input_template, context);
-      return { found: true, stepId: step.step_id, runId: step.run_id, resolvedInput };
+      return { found: true, stepId: step.id, runId: step.run_id, resolvedInput };
     }
   }
 
@@ -532,7 +533,7 @@ export function claimStep(agentId: string): ClaimResult {
 
   return {
     found: true,
-    stepId: step.step_id,
+    stepId: step.id,
     runId: step.run_id,
     resolvedInput,
   };
@@ -546,11 +547,26 @@ export function claimStep(agentId: string): ClaimResult {
 export function completeStep(stepId: string, output: string): { advanced: boolean; runCompleted: boolean } {
   const db = getDb();
 
-  const step = db.prepare(
+  // Try by UUID first, then fall back to step_id name (for backwards compat with old claim format)
+  let step = db.prepare(
     "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id FROM steps WHERE id = ?"
   ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
 
+  if (!step) {
+    step = db.prepare(
+      "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id FROM steps WHERE step_id = ? AND status = 'running' LIMIT 1"
+    ).get(stepId) as typeof step;
+  }
+
   if (!step) throw new Error(`Step not found: ${stepId}`);
+
+  // Release concurrency slot for this step (best-effort, won't throw)
+  try {
+    const cc = new ConcurrencyController();
+    cc.releaseSlotByStepId(step.id);
+  } catch {
+    // Non-critical — slot may have been released already or never acquired
+  }
 
   // Guard: don't process completions for failed runs
   const runCheck = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
@@ -633,7 +649,7 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   // Single step: mark done and advance
   db.prepare(
     "UPDATE steps SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?"
-  ).run(output, stepId);
+  ).run(output, step.id);
   emitEvent({ ts: new Date().toISOString(), event: "step.done", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.step_id });
   logger.info(`Step completed: ${step.step_id}`, { runId: step.run_id, stepId: step.step_id });
 
@@ -850,11 +866,29 @@ export function archiveRunProgress(runId: string): void {
 export function failStep(stepId: string, error: string): { retrying: boolean; runFailed: boolean } {
   const db = getDb();
 
-  const step = db.prepare(
-    "SELECT run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null } | undefined;
+  // Try by UUID first, then fall back to step_id name (for backwards compat with old claim format)
+  let step = db.prepare(
+    "SELECT id, run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE id = ?"
+  ).get(stepId) as { id: string; run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null } | undefined;
+
+  if (!step) {
+    step = db.prepare(
+      "SELECT id, run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE step_id = ? AND status = 'running' LIMIT 1"
+    ).get(stepId) as typeof step;
+  }
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
+
+  // Release concurrency slot for this step (best-effort, won't throw)
+  try {
+    const cc = new ConcurrencyController();
+    cc.releaseSlotByStepId(step.id);
+  } catch {
+    // Non-critical — slot may have been released already or never acquired
+  }
+
+  // Use resolved UUID for all DB operations
+  const resolvedId = step.id;
 
   // T9: Loop step failure — per-story retry
   if (step.type === "loop" && step.current_story_id) {
@@ -868,11 +902,11 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
       if (newRetry > story.max_retries) {
         // Story retries exhausted
         db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
-        db.prepare("UPDATE steps SET status = 'failed', output = ?, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(error, stepId);
+        db.prepare("UPDATE steps SET status = 'failed', output = ?, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(error, resolvedId);
         db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(step.run_id);
         const wfId = getWorkflowId(step.run_id);
-        emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, storyId: storyRow?.story_id, storyTitle: storyRow?.title, detail: error });
-        emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: error });
+        emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: step.run_id, workflowId: wfId, stepId: resolvedId, storyId: storyRow?.story_id, storyTitle: storyRow?.title, detail: error });
+        emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: resolvedId, detail: error });
         emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Story retries exhausted" });
         scheduleRunCronTeardown(step.run_id);
         return { retrying: false, runFailed: true };
@@ -880,7 +914,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
 
       // Retry the story
       db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
-      db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(stepId);
+      db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(resolvedId);
       return { retrying: true, runFailed: false };
     }
   }
@@ -891,19 +925,19 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
   if (newRetryCount > step.max_retries) {
     db.prepare(
       "UPDATE steps SET status = 'failed', output = ?, retry_count = ?, updated_at = datetime('now') WHERE id = ?"
-    ).run(error, newRetryCount, stepId);
+    ).run(error, newRetryCount, resolvedId);
     db.prepare(
       "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
     ).run(step.run_id);
     const wfId2 = getWorkflowId(step.run_id);
-    emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId2, stepId: stepId, detail: error });
+    emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId2, stepId: resolvedId, detail: error });
     emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId2, detail: "Step retries exhausted" });
     scheduleRunCronTeardown(step.run_id);
     return { retrying: false, runFailed: true };
   } else {
     db.prepare(
       "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
-    ).run(newRetryCount, stepId);
+    ).run(newRetryCount, resolvedId);
     return { retrying: true, runFailed: false };
   }
 }

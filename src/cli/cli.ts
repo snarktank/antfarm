@@ -105,6 +105,10 @@ function printUsage() {
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "antfarm step stories <run-id>       List stories for a run",
       "",
+      "antfarm concurrency acquire <model> <agent-id> <step-id>  Acquire worker slot",
+      "antfarm concurrency release <step-id>                     Release worker slot",
+      "antfarm concurrency status [model]                        Show concurrency status",
+      "",
       "antfarm logs [<lines>]               Show recent activity (from events)",
       "antfarm logs <run-id>                Show activity for a specific run",
       "",
@@ -305,6 +309,53 @@ async function main() {
       return;
     }
     process.stderr.write(`Unknown step action: ${action}\n`);
+    printUsage();
+    process.exit(1);
+  }
+
+  if (group === "concurrency") {
+    const { ConcurrencyController } = await import("../worker/concurrency.js");
+    const cc = new ConcurrencyController();
+
+    if (action === "acquire") {
+      const model = target;
+      const agentIdArg = args[3];
+      const stepIdArg = args[4];
+      if (!model || !agentIdArg || !stepIdArg) {
+        process.stderr.write("Usage: antfarm concurrency acquire <model> <agent-id> <step-id>\n");
+        process.exit(1);
+      }
+      const slotId = await cc.acquireSlot(model, agentIdArg, stepIdArg);
+      if (slotId === null) {
+        process.stdout.write("QUEUE_FULL\n");
+        process.exit(2);
+      }
+      process.stdout.write(`SLOT_ACQUIRED:${slotId}\n`);
+      return;
+    }
+
+    if (action === "release") {
+      if (!target) {
+        process.stderr.write("Usage: antfarm concurrency release <step-id>\n");
+        process.exit(1);
+      }
+      cc.releaseSlotByStepId(target);
+      process.stdout.write("RELEASED\n");
+      return;
+    }
+
+    if (action === "status") {
+      const models = target ? [target] : ["opus", "sonnet", "haiku"];
+      for (const m of models) {
+        const active = cc.getActiveWorkerCount(m);
+        const limit = cc.getLimit(m);
+        const queued = cc.getQueueDepth(m);
+        process.stdout.write(`${m}: ${active}/${limit} active, ${queued} queued\n`);
+      }
+      return;
+    }
+
+    process.stderr.write(`Unknown concurrency action: ${action}\n`);
     printUsage();
     process.exit(1);
   }
