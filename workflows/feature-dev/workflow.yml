@@ -49,6 +49,8 @@ agents:
     description: Quick sanity check - did developer actually do the work?
     workspace:
       baseDir: agents/verifier
+      skills:
+        - agent-browser
       files:
         AGENTS.md: ../../agents/shared/verifier/AGENTS.md
         SOUL.md: ../../agents/shared/verifier/SOUL.md
@@ -71,6 +73,8 @@ agents:
     description: Reviews PRs, requests changes or approves.
     workspace:
       baseDir: agents/reviewer
+      skills:
+        - agent-browser
       files:
         AGENTS.md: agents/reviewer/AGENTS.md
         SOUL.md: agents/reviewer/SOUL.md
@@ -170,14 +174,14 @@ steps:
       {{progress}}
 
       Instructions:
-      1. Read progress.txt — especially the Codebase Patterns section
+      1. Read progress-{{run_id}}.txt — especially the Codebase Patterns section
       2. Pull latest on the branch
       3. Implement this story only
       4. Write tests for this story's functionality
       5. Run typecheck / build
       6. Run tests to confirm they pass
       7. Commit: feat: {{current_story_id}} - {{current_story_title}}
-      8. Append to progress.txt
+      8. Append to progress-{{run_id}}.txt
       9. Update Codebase Patterns if you found reusable patterns
 
       Reply with:
@@ -215,6 +219,25 @@ steps:
       4. Tests pass (run {{test_cmd}})
       5. No obvious incomplete work
       6. Typecheck passes
+
+      ## Visual Verification (Frontend Changes)
+      Has frontend changes: {{has_frontend_changes}}
+
+      If {{has_frontend_changes}} is 'true', you MUST also perform visual verification:
+      1. Use the agent-browser skill to visually inspect the changed UI
+      2. Open the changed HTML file directly (file:// URL) or spin up a local dev server if the project requires one
+      3. Take a screenshot of the rendered page
+      4. Visually confirm:
+         - Layout renders correctly (no broken/overlapping elements)
+         - Styling is applied as expected (colors, fonts, spacing)
+         - All visible elements from the story are present and properly positioned
+         - No missing images, icons, or visual assets
+         - Text is readable and not clipped or hidden
+      5. A visual PASS means: the page renders without broken layout, missing elements, or overlapping content
+      6. A visual FAIL means: broken layout, missing/invisible elements, overlapping or misaligned content, unstyled raw HTML, or obvious rendering errors
+      7. Include your visual findings in VERIFIED output
+
+      If {{has_frontend_changes}} is 'false', skip visual verification entirely.
 
       Reply with:
       STATUS: done
@@ -319,6 +342,24 @@ steps:
       - Follows project conventions
 
       Use: gh pr view, gh pr diff
+
+      ## Visual Review (Frontend Changes)
+      Has frontend changes: {{has_frontend_changes}}
+
+      If {{has_frontend_changes}} is 'true', you MUST also perform a visual design review:
+      1. Check out the branch: git checkout {{branch}}
+      2. Use the agent-browser skill to open the changed page (file:// URL or local dev server)
+      3. Take a screenshot of the rendered page
+      4. Evaluate visual polish and design quality:
+         - Does the UI look polished and intentional, not rough or placeholder-quality?
+         - Are colors, typography, and spacing consistent with the rest of the project?
+         - Is the layout visually balanced and well-aligned?
+         - Do interactive elements look clickable/tappable?
+         - Is the overall design cohesive — does it feel like part of the same product?
+      5. This is a DESIGN review, not a structural check — the verify step already confirmed elements render. You are checking whether the result looks GOOD.
+      6. Include your visual design assessment in the review output
+
+      If {{has_frontend_changes}} is 'false', skip visual review entirely.
 
       If changes needed, add comments to the PR explaining what needs to change.
 

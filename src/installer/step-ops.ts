@@ -4,10 +4,12 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
+import { execSync, execFileSync } from "node:child_process";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
 import { getMaxRoleTimeoutSeconds } from "./install.js";
+import { isFrontendChange } from "../lib/frontend-detect.js";
 
 /**
  * Fire-and-forget cron teardown when a run ends.
@@ -73,7 +75,11 @@ function readProgressFile(runId: string): string {
   const workspace = getAgentWorkspacePath(loopStep.agent_id);
   if (!workspace) return "(no progress file)";
   try {
-    return fs.readFileSync(path.join(workspace, "progress.txt"), "utf-8");
+    // Try run-scoped file first, fall back to legacy progress.txt
+    const scopedPath = path.join(workspace, `progress-${runId}.txt`);
+    const legacyPath = path.join(workspace, "progress.txt");
+    const filePath = fs.existsSync(scopedPath) ? scopedPath : legacyPath;
+    return fs.readFileSync(filePath, "utf-8");
   } catch {
     return "(no progress yet)";
   }
@@ -315,6 +321,26 @@ function cleanupAbandonedSteps(): void {
   }
 }
 
+// ── Frontend change detection ───────────────────────────────────────
+
+/**
+ * Compute whether a branch has frontend changes relative to main.
+ * Returns 'true' or 'false' as a string for template context.
+ */
+export function computeHasFrontendChanges(repo: string, branch: string): string {
+  try {
+    const output = execFileSync("git", ["diff", "--name-only", `main..${branch}`], {
+      cwd: repo,
+      encoding: "utf-8",
+      timeout: 10_000,
+    });
+    const files = output.trim().split("\n").filter(f => f.length > 0);
+    return isFrontendChange(files) ? "true" : "false";
+  } catch {
+    return "false";
+  }
+}
+
 // ── Claim ───────────────────────────────────────────────────────────
 
 interface ClaimResult {
@@ -350,6 +376,16 @@ export function claimStep(agentId: string): ClaimResult {
   // Get run context
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string } | undefined;
   const context: Record<string, string> = run ? JSON.parse(run.context) : {};
+
+  // Always inject run_id so templates can use {{run_id}} (e.g. for scoped progress files)
+  context["run_id"] = step.run_id;
+
+  // Compute has_frontend_changes from git diff when repo and branch are available
+  if (context["repo"] && context["branch"]) {
+    context["has_frontend_changes"] = computeHasFrontendChanges(context["repo"], context["branch"]);
+  } else {
+    context["has_frontend_changes"] = "false";
+  }
 
   // T6: Loop step claim logic
   if (step.type === "loop") {
@@ -806,13 +842,16 @@ export function archiveRunProgress(runId: string): void {
   const workspace = getAgentWorkspacePath(loopStep.agent_id);
   if (!workspace) return;
 
-  const progressPath = path.join(workspace, "progress.txt");
+  const scopedPath = path.join(workspace, `progress-${runId}.txt`);
+  const legacyPath = path.join(workspace, "progress.txt");
+  // Prefer run-scoped file, fall back to legacy
+  const progressPath = fs.existsSync(scopedPath) ? scopedPath : legacyPath;
   if (!fs.existsSync(progressPath)) return;
 
   const archiveDir = path.join(workspace, "archive", runId);
   fs.mkdirSync(archiveDir, { recursive: true });
   fs.copyFileSync(progressPath, path.join(archiveDir, "progress.txt"));
-  fs.writeFileSync(progressPath, ""); // truncate
+  fs.unlinkSync(progressPath); // clean up
 }
 
 /**

@@ -54,3 +54,35 @@ ISSUES:
 - Be fast — you're a checkpoint, not a deep review. Check the criteria, verify the code exists, confirm tests pass.
 
 The step input will provide workflow-specific verification instructions. Follow those in addition to the general checks above.
+
+## Visual/Browser-Based Verification (Conditional)
+
+> **Only perform visual verification when the step prompt explicitly requests it** (e.g., when frontend changes are detected). If the step prompt does not mention visual verification, skip this section entirely.
+
+When visual verification is requested, use the **agent-browser** skill to inspect rendered output:
+
+### How to Verify Visually
+
+1. **Open the page** — Use the browser tool to open the relevant HTML file or local dev server URL (e.g., `http://localhost:3000` or `file:///path/to/file.html`)
+2. **Take a snapshot** — Use `snapshot` to capture the page's accessibility tree, or `screenshot` for a visual capture
+3. **Inspect the result** — Check the rendered page against the acceptance criteria
+
+### What to Look For
+
+- **Layout** — Elements are positioned correctly, no overlapping or misaligned content
+- **Styling** — Colors, fonts, spacing, and sizing match expectations
+- **Element visibility** — Required elements are present and visible (not hidden, zero-sized, or off-screen)
+- **Spacing** — Margins and padding look reasonable, no cramped or overly sparse areas
+- **Responsiveness** — If applicable, check that the layout adapts at different widths
+- **No visual regressions** — Compare against the expected appearance; flag anything that looks broken
+
+### Commands Reference
+
+- **Navigate:** `browser navigate` to a URL or local file
+- **Snapshot:** `browser snapshot` to get the accessibility tree (good for verifying element presence)
+- **Screenshot:** `browser screenshot` to capture a visual image (good for layout/styling checks)
+
+### Decision Criteria for Visual Checks
+
+- **Pass** if the page renders correctly with proper layout, styling, and element visibility
+- **Fail** if there are broken layouts, missing elements, overlapping content, or styling errors that affect usability

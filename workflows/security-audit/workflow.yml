@@ -232,7 +232,7 @@ steps:
       5. Run {{build_cmd}} to verify the build passes
       6. Run {{test_cmd}} to verify all tests pass
       7. Commit: fix(security): brief description
-      8. Append to progress.txt
+      8. Append to progress-{{run_id}}.txt
 
       Reply with:
       STATUS: done
