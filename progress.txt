@@ -116,3 +116,15 @@ Started: 2026-02-11 05:47 ET
 - All tests pass, build passes, typecheck passes
 - Files changed: src/installer/agent-provision.ts (modified), tests/external-skills.test.ts (new)
 - **Learnings:** provisionAgents is the entry point for all agent setup; skill installation runs after file provisioning
+
+## 2026-02-12 20:37 - S9: End-to-end integration test for frontend change detection in verify flow
+- Created tests/frontend-e2e.test.ts with 4 integration tests
+- Test 1: Frontend changes (HTML) → claimStep resolvedInput includes "Has frontend changes: true" + browser instructions
+- Test 2: Backend-only changes → resolvedInput includes "Has frontend changes: false" + skip instruction
+- Test 3: Validates mock git repos (temp dirs) work without external repos
+- Test 4: Missing repo/branch in context → defaults to false
+- Tests use real git repos in tmpdir + real SQLite DB with inserted test runs/steps
+- Cleanup removes all test data from DB in afterEach
+- All 4 tests pass, build passes, typecheck passes
+- Files changed: tests/frontend-e2e.test.ts (new)
+- **Learnings:** Can test claimStep e2e by inserting runs/steps into the live DB with a unique agent_id; afterEach cleanup prevents pollution

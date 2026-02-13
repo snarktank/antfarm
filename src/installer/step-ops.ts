@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
@@ -325,7 +325,7 @@ function cleanupAbandonedSteps(): void {
  */
 export function computeHasFrontendChanges(repo: string, branch: string): string {
   try {
-    const output = execSync(`git diff --name-only main..${branch}`, {
+    const output = execFileSync("git", ["diff", "--name-only", `main..${branch}`], {
       cwd: repo,
       encoding: "utf-8",
       timeout: 10_000,
