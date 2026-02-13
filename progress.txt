@@ -44,3 +44,39 @@ Started: 2026-02-11 05:47 ET
 - Build successfully injects version 0.2.3 into landing page
 - Version badge test passes; 2 pre-existing test failures unchanged (missing id="features", .feature-grid)
 - Files changed: landing/style.css, package.json, landing/__tests__/landing.test.js
+
+## 2026-02-13 03:42 - 1-workflow-polling-config: Add pollingModel and pollingTimeoutSeconds to workflow YAML schema
+- Added `PollingConfig` type with `model` and `timeoutSeconds` fields to types.ts
+- Added optional `polling` field to `WorkflowSpec` type
+- Added optional `pollingModel` field to `WorkflowAgent` type
+- Added `validatePollingConfig` in workflow-spec.ts (rejects non-positive timeoutSeconds)
+- Created tests/polling-config.test.ts with 4 tests: top-level parsing, per-agent pollingModel, backward compat, invalid timeout rejection
+- All tests pass, build passes, typecheck passes
+- Files changed: src/installer/types.ts, src/installer/workflow-spec.ts, tests/polling-config.test.ts
+- **Learnings:** YAML fields pass through to typed objects automatically via YAML.parse; just need type definitions and optional validation
+
+## 2026-02-13 03:52 - 2-build-polling-prompt: Create minimal polling prompt builder in agent-cron.ts
+- Added exported `buildPollingPrompt(workflowId, agentId)` function to agent-cron.ts
+- Generates minimal prompt (~250 chars) with just: step claim command, NO_WORK->HEARTBEAT_OK logic
+- No AGENTS.md, SOUL.md, step complete/fail, or workflow context in polling prompt
+- Created tests/polling-prompt.test.ts with 5 tests: correct claim command, HEARTBEAT_OK instruction, no heavy content, under 2000 chars, different agent ids
+- All tests pass, build passes, typecheck passes
+- Files changed: src/installer/agent-cron.ts (modified), tests/polling-prompt.test.ts (new)
+
+## 2026-02-13 03:57 - 3-build-work-prompt: Create full work execution prompt builder in agent-cron.ts
+- Added exported `buildWorkPrompt(workflowId, agentId)` function to agent-cron.ts
+- Contains full step execution instructions (steps 2-4 from original buildAgentPrompt)
+- Includes step complete/fail reporting, critical warnings, rules
+- Does NOT include step claim command (Phase 1 handles that)
+- Created tests/work-prompt.test.ts with 6 tests: complete instructions, fail instructions, no claim, critical warning, no HEARTBEAT_OK/NO_WORK, different ids
+- All tests pass, build passes, typecheck passes
+- Files changed: src/installer/agent-cron.ts (modified), tests/work-prompt.test.ts (new)
+
+## 2026-02-13 04:52 - 9-gateway-api-model-support: Add model parameter support to createAgentCronJob
+- createAgentCronJob already had model? in payload type + delivery? field (added in stories 4+)
+- Fixed merge conflict artifacts (leftover commit message text on delivery lines)
+- Created tests/gateway-api-model.test.ts with 5 tests: model in payload, backward compat, HTTP body, CLI fallback, delivery+model together
+- Tests mock globalThis.fetch to verify model passes through HTTP path
+- All 105 tests pass, build passes, typecheck passes
+- Files changed: src/installer/gateway-api.ts (cleanup), tests/gateway-api-model.test.ts (new, committed in prior fix)
+- **Learnings:** Merge conflict resolution can leave artifacts beyond standard markers; always grep for commit message text in source

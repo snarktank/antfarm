@@ -8,6 +8,10 @@ description: |
   Setup creates the security branch. Fixer implements each fix with regression tests.
   Verifier confirms each fix. Tester runs final integration validation. PR agent creates the pull request.
 
+polling:
+  model: claude-sonnet-4-20250514
+  timeoutSeconds: 30
+
 agents:
   - id: scanner
     name: Scanner

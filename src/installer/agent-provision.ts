@@ -84,7 +84,7 @@ export async function provisionAgents(params: {
     await ensureDir(agentDir);
 
     results.push({
-      id: `${params.workflow.id}/${agent.id}`,
+      id: `${params.workflow.id}-${agent.id}`,
       name: agent.name,
       model: agent.model,
       timeoutSeconds: agent.timeoutSeconds,

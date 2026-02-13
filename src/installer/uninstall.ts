@@ -22,7 +22,7 @@ function filterAgentList(
   list: Array<Record<string, unknown>>,
   workflowId: string,
 ): Array<Record<string, unknown>> {
-  const prefix = `${workflowId}/`;
+  const prefix = `${workflowId}-`;
   return list.filter((entry) => {
     const id = typeof entry.id === "string" ? entry.id : "";
     return !id.startsWith(prefix);
@@ -133,7 +133,10 @@ export async function uninstallAllWorkflows(): Promise<void> {
   const list = Array.isArray(config.agents?.list) ? config.agents?.list : [];
   const removedAgents = list.filter((entry) => {
     const id = typeof entry.id === "string" ? entry.id : "";
-    return id.includes("/");
+    // Identify antfarm-managed agents: they have agentDir under ~/.openclaw/agents/
+    // and id is not "main" (the user's default agent)
+    const agentDir = typeof entry.agentDir === "string" ? entry.agentDir : "";
+    return id !== "main" && agentDir.includes("/.openclaw/agents/");
   });
   if (config.agents) {
     config.agents.list = list.filter((entry) => !removedAgents.includes(entry));

@@ -250,8 +250,9 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
   ensureMainAgentInList(list, config);
   addSubagentAllowlist(config, provisioned.map((a) => a.id));
   for (const agent of provisioned) {
-    // Extract the local agent id (after the workflow prefix slash)
-    const localId = agent.id.includes("/") ? agent.id.split("/").pop()! : agent.id;
+    // Extract the local agent id (strip the workflow prefix + separator)
+    const prefix = workflow.id + "-";
+    const localId = agent.id.startsWith(prefix) ? agent.id.slice(prefix.length) : agent.id;
     const role = roleMap.get(localId) ?? inferRole(localId);
     upsertAgent(list, { ...agent, role });
   }

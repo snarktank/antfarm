@@ -9,6 +9,10 @@ description: |
   Developer implements each story (with tests) in a fresh session. Verifier checks each story.
   Then integration/E2E testing, PR creation, and code review.
 
+polling:
+  model: claude-sonnet-4-20250514
+  timeoutSeconds: 30
+
 agents:
   - id: planner
     name: Planner

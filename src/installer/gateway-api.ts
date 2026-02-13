@@ -93,7 +93,7 @@ export async function createAgentCronJob(job: {
   schedule: { kind: string; everyMs?: number; anchorMs?: number };
   sessionTarget: string;
   agentId: string;
-  payload: { kind: string; message: string; timeoutSeconds?: number };
+  payload: { kind: string; message: string; model?: string; timeoutSeconds?: number };
   delivery?: { mode: "none" | "announce"; channel?: string; to?: string };
   enabled: boolean;
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
@@ -117,6 +117,10 @@ export async function createAgentCronJob(job: {
 
     if (job.payload?.timeoutSeconds) {
       args.push("--timeout", `${job.payload.timeoutSeconds}`);
+    }
+
+    if (job.payload?.model) {
+      args.push("--model", job.payload.model);
     }
 
     if (!job.enabled) {
@@ -143,7 +147,7 @@ async function createAgentCronJobHTTP(job: {
   schedule: { kind: string; everyMs?: number; anchorMs?: number };
   sessionTarget: string;
   agentId: string;
-  payload: { kind: string; message: string; timeoutSeconds?: number };
+  payload: { kind: string; message: string; model?: string; timeoutSeconds?: number };
   delivery?: { mode: "none" | "announce"; channel?: string; to?: string };
   enabled: boolean;
 }): Promise<{ ok: boolean; error?: string; id?: string } | null> {

@@ -8,6 +8,10 @@ description: |
   Fixer implements the fix with a regression test. Verifier confirms correctness.
   PR agent creates the pull request.
 
+polling:
+  model: claude-sonnet-4-20250514
+  timeoutSeconds: 30
+
 agents:
   - id: triager
     name: Triager

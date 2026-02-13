@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import type { LoopConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
+import type { LoopConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
 
 export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
   const filePath = path.join(workflowDir, "workflow.yml");
@@ -16,6 +16,9 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
   if (!Array.isArray(parsed.steps) || parsed.steps.length === 0) {
     throw new Error(`workflow.yml missing steps list in ${workflowDir}`);
   }
+  if (parsed.polling) {
+    validatePollingConfig(parsed.polling, workflowDir);
+  }
   validateAgents(parsed.agents, workflowDir);
   // Parse type/loop from raw YAML before validation
   for (const step of parsed.steps) {
@@ -29,6 +32,12 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
   }
   validateSteps(parsed.steps, workflowDir);
   return parsed;
+}
+
+function validatePollingConfig(polling: PollingConfig, workflowDir: string) {
+  if (polling.timeoutSeconds !== undefined && polling.timeoutSeconds <= 0) {
+    throw new Error(`workflow.yml polling.timeoutSeconds must be positive in ${workflowDir}`);
+  }
 }
 
 function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
