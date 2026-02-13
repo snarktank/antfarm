@@ -54,6 +54,11 @@
           <button class="copy-btn" onclick="navigator.clipboard.writeText('install github.com/snarktank/antfarm').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" title="Copy to clipboard">Copy</button>
         </div>
         <p class="install-hint">Tell your OpenClaw agent. That's it.</p>
+        <div class="install-cmd install-cmd-alt">
+          <code><span class="cmd-prompt">$</span> curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/main/scripts/install.sh | bash</code>
+          <button class="copy-btn" onclick="navigator.clipboard.writeText('curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/main/scripts/install.sh | bash').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" title="Copy to clipboard">Copy</button>
+        </div>
+        <p class="install-hint">Or run it yourself.</p>
       </div>
     </section>
 

@@ -203,6 +203,15 @@ code {
   color: var(--text-muted);
 }
 
+.install-cmd-alt {
+  margin-top: 8px;
+  opacity: 0.7;
+  box-shadow: none;
+}
+.install-cmd-alt code {
+  font-size: 0.8rem;
+}
+
 /* === Sections === */
 .section {
   padding: 56px 0;
