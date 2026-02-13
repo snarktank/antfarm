@@ -321,6 +321,20 @@ async function main() {
       }
       return;
     }
+    // Also support "antfarm logs #3" to show events for run number 3
+    if (arg && /^#\d+$/.test(arg)) {
+      const runNum = parseInt(arg.slice(1), 10);
+      const db2 = (await import("../db.js")).getDb();
+      const r = db2.prepare("SELECT id FROM runs WHERE run_number = ?").get(runNum) as { id: string } | undefined;
+      if (r) {
+        const events = getRunEvents(r.id);
+        if (events.length === 0) { console.log(`No events for run #${runNum}.`); }
+        else { printEvents(events); }
+      } else {
+        console.log(`No run found with number #${runNum}.`);
+      }
+      return;
+    }
     const limit = parseInt(arg, 10) || 50;
     const events = getRecentEvents(limit);
     printEvents(events);
@@ -335,7 +349,8 @@ async function main() {
     if (runs.length === 0) { console.log("No workflow runs found."); return; }
     console.log("Workflow runs:");
     for (const r of runs) {
-      console.log(`  [${r.status.padEnd(9)}] ${r.id.slice(0, 8)}  ${r.workflow_id.padEnd(14)}  ${r.task.slice(0, 50)}${r.task.length > 50 ? "..." : ""}`);
+      const num = r.run_number != null ? `#${r.run_number}` : r.id.slice(0, 8);
+      console.log(`  [${r.status.padEnd(9)}] ${num.padEnd(6)} ${r.id.slice(0, 8)}  ${r.workflow_id.padEnd(14)}  ${r.task.slice(0, 50)}${r.task.length > 50 ? "..." : ""}`);
     }
     return;
   }
@@ -380,8 +395,9 @@ async function main() {
     const result = getWorkflowStatus(query);
     if (result.status === "not_found") { process.stdout.write(`${result.message}\n`); return; }
     const { run, steps } = result;
+    const runLabel = run.run_number != null ? `#${run.run_number} (${run.id})` : run.id;
     const lines = [
-      `Run: ${run.id}`,
+      `Run: ${runLabel}`,
       `Workflow: ${run.workflow_id}`,
       `Task: ${run.task.slice(0, 120)}${run.task.length > 120 ? "..." : ""}`,
       `Status: ${run.status}`,
@@ -410,9 +426,18 @@ async function main() {
     const db = (await import("../db.js")).getDb();
 
     // Find the run (support prefix match)
-    const run = db.prepare(
-      "SELECT id, workflow_id, status FROM runs WHERE id = ? OR id LIKE ?"
-    ).get(target, `${target}%`) as { id: string; workflow_id: string; status: string } | undefined;
+    // Support run number lookup in addition to UUID prefix
+    let run: { id: string; run_number: number | null; workflow_id: string; status: string } | undefined;
+    if (/^\d+$/.test(target)) {
+      run = db.prepare(
+        "SELECT id, run_number, workflow_id, status FROM runs WHERE run_number = ?"
+      ).get(parseInt(target, 10)) as typeof run;
+    }
+    if (!run) {
+      run = db.prepare(
+        "SELECT id, run_number, workflow_id, status FROM runs WHERE id = ? OR id LIKE ?"
+      ).get(target, `${target}%`) as typeof run;
+    }
 
     if (!run) { process.stderr.write(`Run not found: ${target}\n`); process.exit(1); }
     if (run.status !== "failed") {
@@ -526,7 +551,7 @@ async function main() {
     if (!taskTitle) { process.stderr.write("Missing task title.\n"); printUsage(); process.exit(1); }
     const run = await runWorkflow({ workflowId: target, taskTitle, notifyUrl });
     process.stdout.write(
-      [`Run: ${run.id}`, `Workflow: ${run.workflowId}`, `Task: ${run.task}`, `Status: ${run.status}`].join("\n") + "\n",
+      [`Run: #${run.runNumber} (${run.id})`, `Workflow: ${run.workflowId}`, `Task: ${run.task}`, `Status: ${run.status}`].join("\n") + "\n",
     );
     return;
   }

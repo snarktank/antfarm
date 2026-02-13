@@ -92,6 +92,21 @@ function migrate(db: DatabaseSync): void {
   if (!runColNames.has("notify_url")) {
     db.exec("ALTER TABLE runs ADD COLUMN notify_url TEXT");
   }
+  if (!runColNames.has("run_number")) {
+    db.exec("ALTER TABLE runs ADD COLUMN run_number INTEGER");
+    // Backfill existing runs with sequential numbers based on creation order
+    db.exec(`
+      UPDATE runs SET run_number = (
+        SELECT COUNT(*) FROM runs r2 WHERE r2.created_at <= runs.created_at
+      ) WHERE run_number IS NULL
+    `);
+  }
+}
+
+export function nextRunNumber(): number {
+  const db = getDb();
+  const row = db.prepare("SELECT COALESCE(MAX(run_number), 0) + 1 AS next FROM runs").get() as { next: number };
+  return row.next;
 }
 
 export function getDbPath(): string {

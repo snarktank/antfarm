@@ -2,6 +2,7 @@ import { getDb } from "../db.js";
 
 export type RunInfo = {
   id: string;
+  run_number: number | null;
   workflow_id: string;
   task: string;
   status: string;
@@ -33,8 +34,16 @@ export type WorkflowStatusResult =
 export function getWorkflowStatus(query: string): WorkflowStatusResult {
   const db = getDb();
 
-  // Try exact match first, then substring match, then prefix match
-  let run = db.prepare("SELECT * FROM runs WHERE LOWER(task) = LOWER(?) ORDER BY created_at DESC LIMIT 1").get(query) as RunInfo | undefined;
+  // Try run number first (pure digits)
+  let run: RunInfo | undefined;
+  if (/^\d+$/.test(query)) {
+    run = db.prepare("SELECT * FROM runs WHERE run_number = ? LIMIT 1").get(parseInt(query, 10)) as RunInfo | undefined;
+  }
+
+  // Try exact task match, then substring match
+  if (!run) {
+    run = db.prepare("SELECT * FROM runs WHERE LOWER(task) = LOWER(?) ORDER BY created_at DESC LIMIT 1").get(query) as RunInfo | undefined;
+  }
 
   if (!run) {
     run = db.prepare("SELECT * FROM runs WHERE LOWER(task) LIKE '%' || LOWER(?) || '%' ORDER BY created_at DESC LIMIT 1").get(query) as RunInfo | undefined;
@@ -46,8 +55,11 @@ export function getWorkflowStatus(query: string): WorkflowStatusResult {
   }
 
   if (!run) {
-    const allRuns = db.prepare("SELECT id, task, status, created_at FROM runs ORDER BY created_at DESC LIMIT 20").all() as Array<{ id: string; task: string; status: string; created_at: string }>;
-    const available = allRuns.map((r) => `  [${r.status}] ${r.id.slice(0, 8)} ${r.task.slice(0, 60)}`);
+    const allRuns = db.prepare("SELECT id, run_number, task, status, created_at FROM runs ORDER BY created_at DESC LIMIT 20").all() as Array<{ id: string; run_number: number | null; task: string; status: string; created_at: string }>;
+    const available = allRuns.map((r) => {
+      const num = r.run_number != null ? `#${r.run_number}` : r.id.slice(0, 8);
+      return `  [${r.status}] ${num.padEnd(6)} ${r.task.slice(0, 60)}`;
+    });
     return {
       status: "not_found",
       message: available.length
