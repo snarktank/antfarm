@@ -16,12 +16,22 @@ export type WorkflowAgentFiles = {
  */
 export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning";
 
+/**
+ * Model config: either a plain string (`"anthropic/claude-sonnet-4-5"`)
+ * or an object with primary + optional fallbacks.
+ * When written to openclaw.json, always normalized to object form.
+ */
+export type ModelConfig = string | {
+  primary: string;
+  fallbacks?: string[];
+};
+
 export type WorkflowAgent = {
   id: string;
   name?: string;
   description?: string;
   role?: AgentRole;
-  model?: string;
+  model?: ModelConfig;
   timeoutSeconds?: number;
   workspace: WorkflowAgentFiles;
 };
@@ -70,6 +80,18 @@ export type WorkflowSpec = {
   id: string;
   name?: string;
   version?: number;
+  /**
+   * Role-based model defaults.  Keys are AgentRole values (e.g. "coding",
+   * "analysis").  Per-agent `model` overrides these.
+   *
+   * Example in workflow.yml:
+   *   models:
+   *     coding: anthropic/claude-sonnet-4-5
+   *     analysis:
+   *       primary: openai/gpt-4o
+   *       fallbacks: [anthropic/claude-haiku-4-5]
+   */
+  models?: Partial<Record<AgentRole, ModelConfig>>;
   agents: WorkflowAgent[];
   steps: WorkflowStep[];
   context?: Record<string, string>;

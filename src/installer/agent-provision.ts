@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { WorkflowAgent, WorkflowSpec } from "./types.js";
+import type { AgentRole, ModelConfig, WorkflowAgent, WorkflowSpec } from "./types.js";
 import { resolveOpenClawStateDir, resolveWorkflowWorkspaceRoot } from "./paths.js";
 import { writeWorkflowFile } from "./workspace-files.js";
 
 export type ProvisionedAgent = {
   id: string;
   name?: string;
-  model?: string;
+  model?: ModelConfig;
   timeoutSeconds?: number;
   workspaceDir: string;
   agentDir: string;
@@ -15,6 +15,21 @@ export type ProvisionedAgent = {
 
 function resolveAgentWorkspaceRoot(): string {
   return resolveWorkflowWorkspaceRoot();
+}
+
+/**
+ * Resolve the effective model for an agent.
+ * Priority: per-agent model > workflow-level role default > undefined.
+ */
+function resolveAgentModel(
+  agent: WorkflowAgent,
+  roleModels: Partial<Record<AgentRole, ModelConfig>> | undefined,
+): ModelConfig | undefined {
+  if (agent.model) return agent.model;
+  if (!roleModels) return undefined;
+  const role = agent.role;
+  if (role && roleModels[role]) return roleModels[role];
+  return undefined;
 }
 
 function resolveAgentDir(agentId: string): string {
@@ -86,7 +101,7 @@ export async function provisionAgents(params: {
     results.push({
       id: `${params.workflow.id}/${agent.id}`,
       name: agent.name,
-      model: agent.model,
+      model: resolveAgentModel(agent, params.workflow.models),
       timeoutSeconds: agent.timeoutSeconds,
       workspaceDir,
       agentDir,

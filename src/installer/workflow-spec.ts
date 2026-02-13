@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import type { LoopConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
+import type { AgentRole, LoopConfig, ModelConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
 
 export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
   const filePath = path.join(workflowDir, "workflow.yml");
@@ -16,6 +16,9 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
   if (!Array.isArray(parsed.steps) || parsed.steps.length === 0) {
     throw new Error(`workflow.yml missing steps list in ${workflowDir}`);
   }
+  if (parsed.models) {
+    validateModels(parsed.models, workflowDir);
+  }
   validateAgents(parsed.agents, workflowDir);
   // Parse type/loop from raw YAML before validation
   for (const step of parsed.steps) {
@@ -29,6 +32,43 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
   }
   validateSteps(parsed.steps, workflowDir);
   return parsed;
+}
+
+const VALID_ROLES: AgentRole[] = ["analysis", "coding", "verification", "testing", "pr", "scanning"];
+
+function validateModelConfig(model: ModelConfig, label: string): void {
+  if (typeof model === "string") {
+    if (!model.trim()) throw new Error(`${label} model string must not be empty`);
+    return;
+  }
+  if (typeof model !== "object" || model === null) {
+    throw new Error(`${label} model must be a string or object with "primary" key`);
+  }
+  if (!model.primary?.trim()) {
+    throw new Error(`${label} model.primary must not be empty`);
+  }
+  if (model.fallbacks !== undefined) {
+    if (!Array.isArray(model.fallbacks)) {
+      throw new Error(`${label} model.fallbacks must be a list`);
+    }
+    for (const fb of model.fallbacks) {
+      if (typeof fb !== "string" || !fb.trim()) {
+        throw new Error(`${label} model.fallbacks entries must be non-empty strings`);
+      }
+    }
+  }
+}
+
+function validateModels(models: unknown, workflowDir: string): void {
+  if (typeof models !== "object" || models === null) {
+    throw new Error(`workflow.yml models must be an object in ${workflowDir}`);
+  }
+  for (const [role, config] of Object.entries(models as Record<string, unknown>)) {
+    if (!VALID_ROLES.includes(role as AgentRole)) {
+      throw new Error(`workflow.yml models has unknown role "${role}" in ${workflowDir}. Valid roles: ${VALID_ROLES.join(", ")}`);
+    }
+    validateModelConfig(config as ModelConfig, `workflow.yml models.${role}`);
+  }
 }
 
 function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
@@ -52,6 +92,9 @@ function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
     }
     if (agent.timeoutSeconds !== undefined && agent.timeoutSeconds <= 0) {
       throw new Error(`workflow.yml agent "${agent.id}" timeoutSeconds must be positive`);
+    }
+    if (agent.model !== undefined) {
+      validateModelConfig(agent.model, `workflow.yml agent "${agent.id}"`);
     }
   }
 }
