@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Antfarm installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/v0.3.4/scripts/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/v0.3.5/scripts/install.sh | bash
 
 REPO="https://github.com/snarktank/antfarm.git"
 DEST="${HOME}/.openclaw/workspace/antfarm"

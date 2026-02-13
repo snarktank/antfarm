@@ -5,3 +5,4 @@ dist/
 *.sqlite
 *.sqlite3
 progress.txt
+progress*.txt
