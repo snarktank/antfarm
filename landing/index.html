@@ -51,12 +51,15 @@
 
     <section class="section">
       <h2>Antfarm gives you a team of agents that specialize, verify each other, and run the same playbook every time.</h2>
-      <div class="hero-actions">
-        <div class="install-cmd">
-          <code><span class="cmd-prompt">$</span> curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/v0.3.1/scripts/install.sh | bash</code>
+      <div class="install-block">
+        <div class="install-row">
+          <div class="install-cmd">
+            <code><span class="cmd-prompt">$</span> curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/v0.3.2/scripts/install.sh | bash</code>
+          </div>
+          <button class="copy-btn" onclick="navigator.clipboard.writeText('curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/v0.3.2/scripts/install.sh | bash').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" title="Copy to clipboard">Copy</button>
+          <span class="version-badge">v0.3.2</span>
         </div>
-        <button class="copy-btn" onclick="navigator.clipboard.writeText('curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/v0.3.1/scripts/install.sh | bash').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})" title="Copy to clipboard">Copy</button>
-        <span class="version-badge">v0.3.1</span>
+        <p class="install-hint">Paste in your terminal, or just ask your OpenClaw to run it.</p>
       </div>
     </section>
 

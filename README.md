@@ -9,7 +9,7 @@ You don't need to hire a dev team. You need to define one. Antfarm gives you a t
 ### Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/v0.3.1/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/snarktank/antfarm/v0.3.2/scripts/install.sh | bash
 ```
 
 Or just tell your OpenClaw agent: **"install github.com/snarktank/antfarm"**

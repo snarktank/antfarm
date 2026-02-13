@@ -162,7 +162,8 @@ code {
   flex-shrink: 0;
 }
 
-.hero-actions { margin-top: 32px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.install-block { margin-top: 32px; }
+.install-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 .install-cmd {
   display: inline-flex;
@@ -201,9 +202,9 @@ code {
 .cmd-prompt { color: var(--coral); margin-right: 8px; }
 
 .install-hint {
-  margin-top: 10px;
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  margin-top: 12px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 

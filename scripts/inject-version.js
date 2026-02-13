@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Reads the version from package.json and replaces {{VERSION}} tokens
- * in landing/index.html. Idempotent — re-running produces identical output
- * because it replaces both the placeholder and any previously injected semver.
+ * Reads the version from package.json and updates version references
+ * across landing/index.html, README.md, and scripts/install.sh.
+ * Idempotent — re-running produces identical output.
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,22 +15,46 @@ const root = join(__dirname, "..");
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const version = pkg.version;
 
+// --- landing/index.html ---
 const htmlPath = join(root, "landing", "index.html");
 let html = readFileSync(htmlPath, "utf8");
 
-// Replace the placeholder token OR a previously injected semver string
-// Matches {{VERSION}} or a semver like 1.2.3 / 0.2.3-beta.1 in the version-badge context
-html = html.replace(
-  /v\{\{VERSION\}\}/g,
-  `v${version}`
-);
-
-// Also handle re-runs: replace previously injected version back to current version
-// Match v followed by a semver in the version-badge line
+// Version badge
+html = html.replace(/v\{\{VERSION\}\}/g, `v${version}`);
 html = html.replace(
   /(class="version-badge">v)\d+\.\d+\.\d+[^<]*/g,
   `$1${version}`
 );
 
+// Curl URLs: replace tagged version in raw.githubusercontent URLs
+html = html.replace(
+  /raw\.githubusercontent\.com\/snarktank\/antfarm\/v[\d.]+\//g,
+  `raw.githubusercontent.com/snarktank/antfarm/v${version}/`
+);
+
 writeFileSync(htmlPath, html, "utf8");
 console.log(`Injected version ${version} into landing/index.html`);
+
+// --- README.md ---
+const readmePath = join(root, "README.md");
+if (existsSync(readmePath)) {
+  let readme = readFileSync(readmePath, "utf8");
+  readme = readme.replace(
+    /raw\.githubusercontent\.com\/snarktank\/antfarm\/v[\d.]+\//g,
+    `raw.githubusercontent.com/snarktank/antfarm/v${version}/`
+  );
+  writeFileSync(readmePath, readme, "utf8");
+  console.log(`Injected version ${version} into README.md`);
+}
+
+// --- scripts/install.sh ---
+const installPath = join(root, "scripts", "install.sh");
+if (existsSync(installPath)) {
+  let install = readFileSync(installPath, "utf8");
+  install = install.replace(
+    /raw\.githubusercontent\.com\/snarktank\/antfarm\/v[\d.]+\//g,
+    `raw.githubusercontent.com/snarktank/antfarm/v${version}/`
+  );
+  writeFileSync(installPath, install, "utf8");
+  console.log(`Injected version ${version} into scripts/install.sh`);
+}
