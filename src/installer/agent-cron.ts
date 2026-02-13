@@ -90,30 +90,38 @@ The workflow cannot advance until you report. Your session ending without report
 const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
 const DEFAULT_POLLING_MODEL = "claude-sonnet-4-20250514";
 
-export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
+export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string, _pollingModel?: string): string {
   const fullAgentId = `${workflowId}-${agentId}`;
   const cli = resolveAntfarmCli();
   const model = workModel ?? "claude-opus-4-6";
   const workPrompt = buildWorkPrompt(workflowId, agentId);
 
+  // Always use CLI-based spawning to ensure workers run in separate processes.
+  // This prevents event loop blocking in the gateway (sessions_spawn removed).
+  // Escape backticks in work prompt for safe embedding in heredoc
+  const escapedWorkPrompt = workPrompt.replace(/`/g, "'");
   return `Check for pending work. Run:
 \`\`\`
 node ${cli} step claim "${fullAgentId}"
 \`\`\`
 If output is "NO_WORK", reply HEARTBEAT_OK and stop.
 
-If JSON is returned, parse it to extract stepId, runId, and input fields.
-Then call sessions_spawn with these parameters:
-- agentId: "${fullAgentId}"
-- model: "${model}"
-- task: The full work prompt below, followed by "\\n\\nCLAIMED STEP JSON:\\n" and the exact JSON output from step claim.
+If JSON is returned, do the following:
+1. Save the FULL JSON output to /tmp/antfarm-claimed-step.json
+2. Create a worker prompt file that combines the work instructions with the claimed step JSON:
+\`\`\`
+cat <<'ANTFARM_WORK_EOF' > /tmp/antfarm-work-prompt.txt
+${escapedWorkPrompt}
 
-Full work prompt to include in the spawned task:
----START WORK PROMPT---
-${workPrompt}
----END WORK PROMPT---
-
-Reply with a short summary of what you spawned.`;
+CLAIMED STEP JSON:
+ANTFARM_WORK_EOF
+cat /tmp/antfarm-claimed-step.json >> /tmp/antfarm-work-prompt.txt
+\`\`\`
+3. Spawn the worker in the background:
+\`\`\`
+nohup claude -p --model ${model} --output-format json --dangerously-skip-permissions "$(cat /tmp/antfarm-work-prompt.txt)" > /tmp/antfarm-worker-${fullAgentId}.log 2>&1 &
+\`\`\`
+4. Reply with "SPAWNED: worker PID" and stop immediately. Do NOT wait for the worker.`;
 }
 
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
@@ -134,7 +142,7 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     // Two-phase: Phase 1 uses cheap polling model + minimal prompt
     const pollingModel = agent.pollingModel ?? workflowPollingModel;
     const workModel = agent.model; // Phase 2 model (passed to sessions_spawn via prompt)
-    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
+    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel, pollingModel);
     const timeoutSeconds = workflowPollingTimeout;
 
     const result = await createAgentCronJob({
