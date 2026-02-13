@@ -17,7 +17,7 @@ try {
 
 import { installWorkflow } from "../installer/install.js";
 import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../installer/uninstall.js";
-import { getWorkflowStatus, listRuns } from "../installer/status.js";
+import { getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
@@ -95,6 +95,7 @@ function printUsage() {
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
       "antfarm workflow runs                List all workflow runs",
       "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
+      "antfarm workflow stop <run-id>        Stop/cancel a running workflow",
       "",
       "antfarm dashboard [start] [--port N]   Start dashboard daemon (default: 3333)",
       "antfarm dashboard stop                  Stop dashboard daemon",
@@ -346,6 +347,15 @@ async function main() {
       process.stdout.write("Available workflows:\n");
       for (const w of workflows) process.stdout.write(`  ${w}\n`);
     }
+    return;
+  }
+
+  if (action === "stop") {
+    if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+    const result = await stopWorkflow(target);
+    if (result.status === "not_found") { process.stderr.write(result.message + "\n"); process.exit(1); }
+    if (result.status === "already_done") { process.stderr.write(result.message + "\n"); process.exit(1); }
+    console.log(`Cancelled run ${result.runId.slice(0, 8)} (${result.workflowId}). ${result.cancelledSteps} step(s) cancelled.`);
     return;
   }
 
