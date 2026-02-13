@@ -154,15 +154,15 @@ code {
   background: var(--accent);
   color: #fff;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  padding: 4px 12px;
+  padding: 3px 10px;
   border-radius: 999px;
   letter-spacing: 0.02em;
-  margin-top: 8px;
+  flex-shrink: 0;
 }
 
-.hero-actions { margin-top: 32px; }
+.hero-actions { margin-top: 32px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
 .install-cmd {
   display: inline-flex;
@@ -172,12 +172,14 @@ code {
   border-radius: var(--radius);
   padding: 12px 20px;
   box-shadow: var(--shadow-md);
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .copy-btn {
   background: transparent;
-  border: 1px solid rgba(232, 223, 208, 0.3);
-  color: #E8DFD0;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  color: var(--text-secondary);
   font-size: 0.75rem;
   padding: 4px 10px;
   border-radius: 4px;
@@ -186,13 +188,14 @@ code {
   white-space: nowrap;
 }
 .copy-btn:hover {
-  background: rgba(232, 223, 208, 0.1);
-  border-color: rgba(232, 223, 208, 0.5);
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.4);
 }
 
 .install-cmd code {
   color: #E8DFD0;
   font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 .cmd-prompt { color: var(--coral); margin-right: 8px; }
@@ -573,8 +576,9 @@ h2.problem-text {
   .hero-row { gap: 16px; }
   .hero-logo { width: 80px; height: 80px; }
   .hero h1 { font-size: 1.3rem; }
-  .install-cmd { padding: 10px 14px; }
-  .install-cmd code { font-size: 0.8rem; }
+  .install-cmd { padding: 10px 14px; max-width: calc(100vw - 32px); }
+  .install-cmd code { font-size: 0.7rem; }
+  .hero-actions { flex-direction: column; align-items: flex-start; }
   .code-block pre { padding: 14px 16px; }
   .arch-block pre { padding: 16px 18px; }
 }
