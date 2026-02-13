@@ -12,6 +12,44 @@ import { getMaxRoleTimeoutSeconds } from "./install.js";
 import { isFrontendChange } from "../lib/frontend-detect.js";
 
 /**
+ * Parse KEY: value lines from step output with support for multi-line values.
+ * Accumulates continuation lines until the next KEY: boundary or end of output.
+ * Returns a map of lowercase keys to their (trimmed) values.
+ * Skips STORIES_JSON keys (handled separately).
+ */
+export function parseOutputKeyValues(output: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const lines = output.split("\n");
+  let pendingKey: string | null = null;
+  let pendingValue = "";
+
+  function commitPending() {
+    if (pendingKey && !pendingKey.startsWith("STORIES_JSON")) {
+      result[pendingKey.toLowerCase()] = pendingValue.trim();
+    }
+    pendingKey = null;
+    pendingValue = "";
+  }
+
+  for (const line of lines) {
+    const match = line.match(/^([A-Z_]+):\s*(.*)$/);
+    if (match) {
+      // New KEY: line found — flush previous key
+      commitPending();
+      pendingKey = match[1];
+      pendingValue = match[2];
+    } else if (pendingKey) {
+      // Continuation line — append to current key's value
+      pendingValue += "\n" + line;
+    }
+  }
+  // Flush any remaining pending value
+  commitPending();
+
+  return result;
+}
+
+/**
  * Fire-and-forget cron teardown when a run ends.
  * Looks up the workflow_id for the run and tears down crons if no other active runs.
  */
@@ -524,59 +562,11 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string };
   const context: Record<string, string> = JSON.parse(run.context);
 
-  // Parse KEY: value lines, with support for multi-line JSON values.
-  // When a value starts with [ or {, accumulate lines until the JSON is complete.
-  const lines = output.split("\n");
-  let pendingKey: string | null = null;
-  let pendingValue = "";
-  let bracketDepth = 0;
-
-  function commitPending() {
-    if (pendingKey && !pendingKey.startsWith("STORIES_JSON")) {
-      context[pendingKey.toLowerCase()] = pendingValue.trim();
-    }
-    pendingKey = null;
-    pendingValue = "";
-    bracketDepth = 0;
+  // Parse KEY: value lines and merge into context
+  const parsed = parseOutputKeyValues(output);
+  for (const [key, value] of Object.entries(parsed)) {
+    context[key] = value;
   }
-
-  for (const line of lines) {
-    if (pendingKey) {
-      // Accumulating multi-line JSON value
-      pendingValue += "\n" + line;
-      for (const ch of line) {
-        if (ch === "[" || ch === "{") bracketDepth++;
-        else if (ch === "]" || ch === "}") bracketDepth--;
-      }
-      if (bracketDepth <= 0) {
-        commitPending();
-      }
-      continue;
-    }
-
-    const match = line.match(/^([A-Z_]+):\s*(.+)$/);
-    if (match) {
-      const key = match[1];
-      const value = match[2].trim();
-      // Check if value starts a multi-line JSON block
-      if ((value.startsWith("[") || value.startsWith("{")) && !value.endsWith("]") && !value.endsWith("}")) {
-        pendingKey = key;
-        pendingValue = value;
-        bracketDepth = 0;
-        for (const ch of value) {
-          if (ch === "[" || ch === "{") bracketDepth++;
-          else if (ch === "]" || ch === "}") bracketDepth--;
-        }
-        if (bracketDepth <= 0) {
-          commitPending();
-        }
-      } else if (!key.startsWith("STORIES_JSON")) {
-        context[key.toLowerCase()] = value;
-      }
-    }
-  }
-  // Flush any remaining pending value
-  commitPending();
 
   db.prepare(
     "UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?"
