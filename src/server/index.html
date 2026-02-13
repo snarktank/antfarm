@@ -356,9 +356,12 @@ async function loadActivity(runId) {
     const time = t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     const agent = evt.agentId ? evt.agentId.split('/').pop() : '';
     const desc = formatEventDesc(evt);
+    const agentSpan = agent
+      ? `<span style="color:var(--accent-teal);font-family:'Geist Mono',monospace;flex-shrink:0">${esc(agent)}</span>`
+      : '';
     return `<div style="display:flex;gap:12px;padding:4px 0;font-size:12px;line-height:1.5;border-bottom:1px solid var(--border-light)">
       <span style="color:var(--text-secondary);font-family:'Geist Mono',monospace;flex-shrink:0;min-width:44px">${time}</span>
-      <span style="color:var(--accent-teal);font-family:'Geist Mono',monospace;min-width:70px;flex-shrink:0">${esc(agent)}</span>
+      ${agentSpan}
       <span style="color:var(--text-primary)">${esc(desc)}</span>
     </div>`;
   }).join('');
