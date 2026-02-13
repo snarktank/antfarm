@@ -49,13 +49,17 @@ function ensureMainAgentInList(
 // ── Shared deny list: things no workflow agent should ever touch ──
 const ALWAYS_DENY = ["gateway", "cron", "message", "nodes", "canvas", "sessions_spawn", "sessions_send"];
 
-const DEFAULT_CRON_SESSION_RETENTION = "24h";
-const DEFAULT_SESSION_MAINTENANCE = {
-  mode: "enforce",
-  pruneAfter: "7d",
-  maxEntries: 500,
-  rotateBytes: "10mb",
-} as const;
+/**
+ * Convert an antfarm agent ID (e.g. "security-audit/scanner") to the format
+ * OpenClaw uses internally for agent routing (e.g. "security-audit-scanner").
+ *
+ * OpenClaw sanitizes slashes to dashes when storing cron job agentIds.
+ * The agent list in openclaw.json must use the same format so that cron-triggered
+ * sessions are routed to the correct agent instead of falling back to "main".
+ */
+export function toOpenClawAgentId(id: string): string {
+  return id.replace(/\//g, "-");
+}
 
 /**
  * Per-role defaults: tool policies + timeout overrides.
@@ -179,41 +183,22 @@ function buildToolsConfig(role: AgentRole): Record<string, unknown> {
   return tools;
 }
 
-function ensureCronSessionRetention(config: OpenClawConfig): void {
-  if (!config.cron) config.cron = {};
-  if (config.cron.sessionRetention === undefined) {
-    config.cron.sessionRetention = DEFAULT_CRON_SESSION_RETENTION;
-  }
-}
-
-function ensureSessionMaintenance(config: OpenClawConfig): void {
-  if (!config.session) config.session = {};
-  if (!config.session.maintenance) {
-    config.session.maintenance = { ...DEFAULT_SESSION_MAINTENANCE };
-    return;
-  }
-  const maintenance = config.session.maintenance;
-  if (maintenance.mode === undefined) maintenance.mode = DEFAULT_SESSION_MAINTENANCE.mode;
-  if (maintenance.pruneAfter === undefined && maintenance.pruneDays === undefined) {
-    maintenance.pruneAfter = DEFAULT_SESSION_MAINTENANCE.pruneAfter;
-  }
-  if (maintenance.maxEntries === undefined) {
-    maintenance.maxEntries = DEFAULT_SESSION_MAINTENANCE.maxEntries;
-  }
-  if (maintenance.rotateBytes === undefined) {
-    maintenance.rotateBytes = DEFAULT_SESSION_MAINTENANCE.rotateBytes;
-  }
-}
+// NOTE: ensureCronSessionRetention and ensureSessionMaintenance were removed.
+// OpenClaw (as of 2026.2.9) does not recognize these config keys and rejects
+// them during config validation, breaking all CLI commands.  See issue #106.
 
 function upsertAgent(
   list: Array<Record<string, unknown>>,
   agent: { id: string; name?: string; model?: string; timeoutSeconds?: number; workspaceDir: string; agentDir: string; role: AgentRole },
 ) {
-  const existing = list.find((entry) => entry.id === agent.id);
+  // Use dash-format ID so it matches what OpenClaw stores in cron agentIds.
+  // Without this, cron sessions fall back to "main" because the IDs don't match.
+  const openclawId = toOpenClawAgentId(agent.id);
+  const existing = list.find((entry) => entry.id === openclawId || entry.id === agent.id);
   // Never overwrite the user's default (main) agent — it was configured outside antfarm.
   if (existing?.default === true) return;
   const payload: Record<string, unknown> = {
-    id: agent.id,
+    id: openclawId,
     name: agent.name ?? agent.id,
     workspace: agent.workspaceDir,
     agentDir: agent.agentDir,
@@ -221,8 +206,9 @@ function upsertAgent(
     subagents: SUBAGENT_POLICY,
   };
   if (agent.model) payload.model = agent.model;
-  const timeout = agent.timeoutSeconds ?? ROLE_POLICIES[agent.role]?.timeoutSeconds;
-  if (timeout !== undefined) payload.timeoutSeconds = timeout;
+  // NOTE: timeoutSeconds is intentionally omitted from the agent entry.
+  // OpenClaw (as of 2026.2.9) does not recognize this key and rejects the
+  // entire config.  Timeouts are already set via the cron job payload.
   if (existing) Object.assign(existing, payload);
   else list.push(payload);
 }
@@ -244,11 +230,9 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
   }
 
   const { path: configPath, config } = await readOpenClawConfig();
-  ensureCronSessionRetention(config);
-  ensureSessionMaintenance(config);
   const list = ensureAgentList(config);
   ensureMainAgentInList(list, config);
-  addSubagentAllowlist(config, provisioned.map((a) => a.id));
+  addSubagentAllowlist(config, provisioned.map((a) => toOpenClawAgentId(a.id)));
   for (const agent of provisioned) {
     // Extract the local agent id (after the workflow prefix slash)
     const localId = agent.id.includes("/") ? agent.id.split("/").pop()! : agent.id;

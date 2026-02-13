@@ -2,6 +2,7 @@ import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAva
 import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
+import { toOpenClawAgentId } from "./install.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
@@ -58,7 +59,11 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const agent = agents[i];
     const anchorMs = i * 60_000; // stagger by 1 minute each
     const cronName = `antfarm/${workflow.id}/${agent.id}`;
-    const agentId = `${workflow.id}/${agent.id}`;
+    // Use dash-format agentId to match what OpenClaw stores internally.
+    // OpenClaw sanitizes slashes to dashes in cron agentIds, so we must
+    // pre-convert to ensure the cron session routes to the correct agent
+    // entry in openclaw.json (which also uses dash format).
+    const agentId = toOpenClawAgentId(`${workflow.id}/${agent.id}`);
     const prompt = buildAgentPrompt(workflow.id, agent.id);
     const timeoutSeconds = agent.timeoutSeconds ?? DEFAULT_AGENT_TIMEOUT_SECONDS;
 
