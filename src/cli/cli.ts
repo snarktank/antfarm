@@ -25,6 +25,8 @@ import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/e
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
+import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
+import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -104,6 +106,12 @@ function printUsage() {
       "antfarm step complete <step-id>      Complete step (reads output from stdin)",
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "antfarm step stories <run-id>       List stories for a run",
+      "",
+      "antfarm medic install                Install medic watchdog cron",
+      "antfarm medic uninstall              Remove medic cron",
+      "antfarm medic run                    Run medic check now (manual trigger)",
+      "antfarm medic status                 Show medic health summary",
+      "antfarm medic log [<count>]          Show recent medic check history",
       "",
       "antfarm logs [<lines>]               Show recent activity (from events)",
       "antfarm logs <run-id>                Show activity for a specific run",
@@ -258,6 +266,84 @@ async function main() {
     console.log(`Dashboard started (PID ${result.pid})`);
     console.log(`  http://localhost:${result.port}`);
     return;
+  }
+
+  if (group === "medic") {
+    if (action === "install") {
+      const result = await installMedicCron();
+      if (result.ok) {
+        console.log("Medic watchdog installed (checks every 5 minutes).");
+      } else {
+        console.error(`Failed to install medic: ${result.error}`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (action === "uninstall") {
+      const result = await uninstallMedicCron();
+      if (result.ok) {
+        console.log("Medic watchdog removed.");
+      } else {
+        console.error(`Failed to uninstall medic: ${result.error}`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (action === "run") {
+      const result = await runMedicCheck();
+      if (result.issuesFound === 0) {
+        console.log(`All clear — no issues found (${result.checkedAt})`);
+      } else {
+        console.log(`Medic check complete: ${result.summary}`);
+        console.log("");
+        for (const f of result.findings) {
+          const icon = f.severity === "critical" ? "!!!" : f.severity === "warning" ? " ! " : "   ";
+          const fix = f.remediated ? " [FIXED]" : "";
+          console.log(`  ${icon} ${f.message}${fix}`);
+        }
+      }
+      return;
+    }
+
+    if (action === "status") {
+      const status = getMedicStatus();
+      const cronInstalled = await isMedicCronInstalled();
+
+      console.log("Antfarm Medic");
+      console.log(`  Cron: ${cronInstalled ? "installed (every 5 min)" : "not installed"}`);
+
+      if (status.lastCheck) {
+        const ago = Math.round((Date.now() - new Date(status.lastCheck.checkedAt).getTime()) / 60000);
+        console.log(`  Last check: ${ago}min ago — ${status.lastCheck.summary}`);
+      } else {
+        console.log("  Last check: never");
+      }
+
+      console.log(`  Last 24h: ${status.recentChecks} checks, ${status.recentIssues} issues found, ${status.recentActions} auto-fixed`);
+      return;
+    }
+
+    if (action === "log") {
+      const limit = target ? parseInt(target, 10) || 20 : 20;
+      const checks = getRecentMedicChecks(limit);
+      if (checks.length === 0) {
+        console.log("No medic checks recorded yet.");
+        return;
+      }
+      for (const check of checks) {
+        const ts = new Date(check.checkedAt).toLocaleString("en-US", {
+          month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true,
+        });
+        const icon = check.issuesFound > 0 ? (check.actionsTaken > 0 ? "~" : "X") : ".";
+        console.log(`  ${icon} ${ts} — ${check.summary}`);
+      }
+      return;
+    }
+
+    printUsage();
+    process.exit(1);
   }
 
   if (group === "step") {

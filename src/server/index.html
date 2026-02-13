@@ -182,6 +182,28 @@ select:focus{outline:none;border-color:#8ECFC0}
 .story-chevron-open{transform:rotate(90deg)}
 .step-open{display:block!important}
 .step-chevron-open{transform:rotate(90deg)}
+
+/* ── Medic indicator ───────────────────────────────────────────── */
+.medic-badge{display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,.85);cursor:pointer;padding:4px 10px;border:1px solid rgba(255,255,255,.15);border-radius:6px;background:transparent;transition:border-color .15s,background .15s}
+.medic-badge:hover{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.05)}
+.medic-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.medic-dot.healthy{background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.5);animation:pulse 2s infinite}
+.medic-dot.warning{background:#fbbf24;box-shadow:0 0 6px rgba(251,191,36,.5)}
+.medic-dot.critical{background:#f87171;box-shadow:0 0 6px rgba(248,113,113,.5);animation:pulse 1s infinite}
+.medic-dot.unknown{background:#9ca3af}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+.medic-panel{position:fixed;top:60px;right:16px;width:340px;max-height:500px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px var(--shadow-heavy);z-index:50;overflow:hidden;display:none;flex-direction:column}
+.medic-panel.open{display:flex}
+.medic-panel-header{padding:14px 16px;border-bottom:1px solid var(--border-light);font-size:14px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:8px}
+.medic-panel-body{padding:12px 16px;overflow-y:auto;flex:1}
+.medic-stat{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;color:var(--text-secondary);border-bottom:1px solid var(--border-light)}
+.medic-stat:last-child{border-bottom:none}
+.medic-stat-value{font-weight:600;color:var(--text-primary)}
+.medic-check-row{padding:8px 0;border-bottom:1px solid var(--border-light);font-size:11px;line-height:1.5}
+.medic-check-row:last-child{border-bottom:none}
+.medic-check-time{color:var(--text-secondary);font-family:'Geist Mono',monospace}
+.medic-check-summary{color:var(--text-primary);margin-left:8px}
 </style>
 </head>
 <body>
@@ -189,9 +211,17 @@ select:focus{outline:none;border-color:#8ECFC0}
   <h1><span>antfarm</span> dashboard</h1>
   <select id="wf-select"><option value="">Loading...</option></select>
   <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
+  <div class="medic-badge" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
+    <span class="medic-dot unknown" id="medic-dot"></span>
+    <span id="medic-label">Medic</span>
+  </div>
   <span class="refresh-note" id="refresh-note">Auto-refresh: 30s</span>
 </header>
 <div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
+<div class="medic-panel" id="medic-panel">
+  <div class="medic-panel-header">🚑 Medic Watchdog</div>
+  <div class="medic-panel-body" id="medic-panel-body">Loading...</div>
+</div>
 <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
   <div class="panel" id="panel"></div>
 </div>
@@ -424,6 +454,104 @@ async function loadStories(runId) {
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();
 setInterval(() => { if (currentWf) loadRuns(); }, 30000);
+
+// ── Medic ───────────────────────────────────────────────────────
+let medicPanelOpen = false;
+
+function toggleMedicPanel() {
+  medicPanelOpen = !medicPanelOpen;
+  document.getElementById('medic-panel').classList.toggle('open', medicPanelOpen);
+  if (medicPanelOpen) loadMedicData();
+}
+
+document.addEventListener('click', e => {
+  if (!medicPanelOpen) return;
+  const panel = document.getElementById('medic-panel');
+  const badge = document.getElementById('medic-badge');
+  if (!panel.contains(e.target) && !badge.contains(e.target)) {
+    medicPanelOpen = false;
+    panel.classList.remove('open');
+  }
+});
+
+async function loadMedicStatus() {
+  try {
+    const status = await fetchJSON('/api/medic/status');
+    const dot = document.getElementById('medic-dot');
+    const label = document.getElementById('medic-label');
+
+    if (!status.installed || !status.lastCheck) {
+      dot.className = 'medic-dot unknown';
+      label.textContent = 'Medic';
+      return;
+    }
+
+    const ageMin = Math.round((Date.now() - new Date(status.lastCheck.checkedAt).getTime()) / 60000);
+    const hasIssues = status.lastCheck.issuesFound > 0;
+    const isStale = ageMin > 10;
+
+    if (hasIssues && status.lastCheck.actionsTaken < status.lastCheck.issuesFound) {
+      dot.className = 'medic-dot critical';
+      label.textContent = `${status.lastCheck.issuesFound} issue(s)`;
+    } else if (isStale) {
+      dot.className = 'medic-dot warning';
+      label.textContent = `${ageMin}m ago`;
+    } else if (hasIssues) {
+      dot.className = 'medic-dot warning';
+      label.textContent = `${status.lastCheck.issuesFound} fixed`;
+    } else {
+      dot.className = 'medic-dot healthy';
+      label.textContent = `${ageMin}m ago`;
+    }
+  } catch {
+    document.getElementById('medic-dot').className = 'medic-dot unknown';
+    document.getElementById('medic-label').textContent = 'Medic';
+  }
+}
+
+async function loadMedicData() {
+  const body = document.getElementById('medic-panel-body');
+  try {
+    const [status, checks] = await Promise.all([
+      fetchJSON('/api/medic/status'),
+      fetchJSON('/api/medic/checks?limit=10'),
+    ]);
+
+    let html = '';
+    html += '<div style="margin-bottom:12px">';
+    if (status.lastCheck) {
+      const ageMin = Math.round((Date.now() - new Date(status.lastCheck.checkedAt).getTime()) / 60000);
+      html += `<div class="medic-stat"><span>Last check</span><span class="medic-stat-value">${ageMin}m ago</span></div>`;
+      html += `<div class="medic-stat"><span>Result</span><span class="medic-stat-value">${esc(status.lastCheck.summary)}</span></div>`;
+    } else {
+      html += '<div class="medic-stat"><span>Last check</span><span class="medic-stat-value">Never</span></div>';
+    }
+    html += `<div class="medic-stat"><span>Checks (24h)</span><span class="medic-stat-value">${status.recentChecks}</span></div>`;
+    html += `<div class="medic-stat"><span>Issues found (24h)</span><span class="medic-stat-value">${status.recentIssues}</span></div>`;
+    html += `<div class="medic-stat"><span>Auto-fixed (24h)</span><span class="medic-stat-value">${status.recentActions}</span></div>`;
+    html += '</div>';
+
+    if (checks.length > 0) {
+      html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:8px">Recent Checks</div>';
+      for (const c of checks) {
+        const t = new Date(c.checkedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        const icon = c.issuesFound === 0 ? '·' : c.actionsTaken > 0 ? '~' : '!';
+        const color = c.issuesFound === 0 ? 'var(--text-secondary)' : c.actionsTaken >= c.issuesFound ? 'var(--accent-teal)' : 'var(--accent-orange)';
+        html += `<div class="medic-check-row">
+          <span class="medic-check-time">${t}</span>
+          <span class="medic-check-summary" style="color:${color}">${icon} ${esc(c.summary)}</span>
+        </div>`;
+      }
+    }
+
+    body.innerHTML = html || '<div style="color:var(--text-secondary);font-size:12px;padding:8px 0">No medic data yet. Run <code>antfarm medic install</code> to enable.</div>';
+  } catch {
+    body.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;padding:8px 0">Could not load medic data.</div>';
+  }
+}
+
+loadMedicStatus();
+setInterval(loadMedicStatus, 30000);
 
 // ── Theme toggle ──────────────────────────────────────────────────
 (function initTheme() {

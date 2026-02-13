@@ -8,6 +8,7 @@ import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
 import { getRunEvents } from "../installer/events.js";
+import { getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -101,6 +102,16 @@ export function startDashboard(port = 3333): http.Server {
     if (p === "/api/runs") {
       const wf = url.searchParams.get("workflow") ?? undefined;
       return json(res, getRuns(wf));
+    }
+
+    // Medic API
+    if (p === "/api/medic/status") {
+      return json(res, getMedicStatus());
+    }
+
+    if (p === "/api/medic/checks") {
+      const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
+      return json(res, getRecentMedicChecks(limit));
     }
 
     // Serve fonts
