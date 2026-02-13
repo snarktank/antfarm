@@ -87,36 +87,52 @@ RULES:
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
 
-export function buildPollingPrompt(workflowId: string, agentId: string): string {
+const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
+const DEFAULT_POLLING_MODEL = "claude-sonnet-4-20250514";
+
+export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
   const fullAgentId = `${workflowId}-${agentId}`;
   const cli = resolveAntfarmCli();
+  const model = workModel ?? "claude-opus-4-6";
 
   return `Check for pending work. Run this command:
 \`\`\`
 node ${cli} step claim "${fullAgentId}"
 \`\`\`
 If the output is "NO_WORK", reply HEARTBEAT_OK and stop.
-If JSON is returned, reply with the full JSON output exactly as received.`;
+If JSON is returned, use sessions_spawn to execute the work with the full model:
+- task: Include the full work prompt followed by the claimed step JSON
+- model: "${model}"
+Then reply with a short summary of what you spawned.`;
 }
 
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
   const agents = workflow.agents;
   // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
   const everyMs = (workflow as any).cron?.interval_ms ?? DEFAULT_EVERY_MS;
+
+  // Resolve polling model: per-agent > workflow-level > default
+  const workflowPollingModel = workflow.polling?.model ?? DEFAULT_POLLING_MODEL;
+  const workflowPollingTimeout = workflow.polling?.timeoutSeconds ?? DEFAULT_POLLING_TIMEOUT_SECONDS;
+
   for (let i = 0; i < agents.length; i++) {
     const agent = agents[i];
     const anchorMs = i * 60_000; // stagger by 1 minute each
     const cronName = `antfarm/${workflow.id}/${agent.id}`;
     const agentId = `${workflow.id}-${agent.id}`;
-    const prompt = buildAgentPrompt(workflow.id, agent.id);
-    const timeoutSeconds = agent.timeoutSeconds ?? DEFAULT_AGENT_TIMEOUT_SECONDS;
+
+    // Two-phase: Phase 1 uses cheap polling model + minimal prompt
+    const pollingModel = agent.pollingModel ?? workflowPollingModel;
+    const workModel = agent.model; // Phase 2 model (passed to sessions_spawn via prompt)
+    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
+    const timeoutSeconds = workflowPollingTimeout;
 
     const result = await createAgentCronJob({
       name: cronName,
       schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
       agentId,
-      payload: { kind: "agentTurn", message: prompt, timeoutSeconds },
+      payload: { kind: "agentTurn", message: prompt, model: pollingModel, timeoutSeconds },
       delivery: { mode: "none" },
       enabled: true,
     });
