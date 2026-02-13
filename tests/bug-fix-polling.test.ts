@@ -22,7 +22,7 @@ describe("bug-fix workflow polling config", () => {
     const spec = await loadWorkflowSpec(WORKFLOW_DIR);
     assert.ok(spec.polling, "polling config should exist");
     assert.equal(spec.polling.model, "claude-sonnet-4-20250514");
-    assert.equal(spec.polling.timeoutSeconds, 30);
+    assert.equal(spec.polling.timeoutSeconds, 120);
   });
 
   it("still has all expected agents", async () => {
