@@ -345,7 +345,11 @@ steps:
       - Test coverage
       - Follows project conventions
 
-      Use: gh pr view, gh pr diff
+      Use: gh pr view, gh pr diff to read the PR.
+
+      IMPORTANT: Post your review to the PR on GitHub using:
+      - If approving: gh pr review <number> --approve --body "your review summary"
+      - If requesting changes: gh pr review <number> --request-changes --body "your feedback"
 
       ## Visual Review (Frontend Changes)
       Has frontend changes: {{has_frontend_changes}}
