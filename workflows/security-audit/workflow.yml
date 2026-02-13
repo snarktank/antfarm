@@ -10,7 +10,7 @@ description: |
 
 polling:
   model: claude-sonnet-4-20250514
-  timeoutSeconds: 30
+  timeoutSeconds: 120
 
 agents:
   - id: scanner
