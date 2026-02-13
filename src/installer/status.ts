@@ -60,6 +60,39 @@ export function getWorkflowStatus(query: string): WorkflowStatusResult {
   return { status: "ok", run, steps };
 }
 
+export function getWorkflowStatusJson(
+  query: string,
+  storiesFn?: (runId: string) => Array<{ storyId: string; status: string; title: string }>,
+): Record<string, unknown> {
+  const result = getWorkflowStatus(query);
+  if (result.status === "not_found") {
+    return { status: "not_found", message: result.message };
+  }
+  const { run, steps } = result;
+
+  const json: Record<string, unknown> = {
+    runId: run.id,
+    workflow: run.workflow_id,
+    task: run.task,
+    status: run.status,
+    steps: steps.map((s) => ({ name: s.step_id, status: s.status, agent: s.agent_id })),
+    createdAt: run.created_at,
+  };
+
+  if (storiesFn) {
+    const stories = storiesFn(run.id);
+    if (stories.length > 0) {
+      const done = stories.filter((s) => s.status === "done").length;
+      const running = stories.filter((s) => s.status === "running").length;
+      const failed = stories.filter((s) => s.status === "failed").length;
+      json.storySummary = { total: stories.length, done, running, failed };
+      json.stories = stories.map((s) => ({ id: s.storyId, status: s.status, title: s.title }));
+    }
+  }
+
+  return json;
+}
+
 export function listRuns(): RunInfo[] {
   const db = getDb();
   return db.prepare("SELECT * FROM runs ORDER BY created_at DESC").all() as RunInfo[];
