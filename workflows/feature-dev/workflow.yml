@@ -174,14 +174,14 @@ steps:
       {{progress}}
 
       Instructions:
-      1. Read progress.txt — especially the Codebase Patterns section
+      1. Read progress-{{run_id}}.txt — especially the Codebase Patterns section
       2. Pull latest on the branch
       3. Implement this story only
       4. Write tests for this story's functionality
       5. Run typecheck / build
       6. Run tests to confirm they pass
       7. Commit: feat: {{current_story_id}} - {{current_story_title}}
-      8. Append to progress.txt
+      8. Append to progress-{{run_id}}.txt
       9. Update Codebase Patterns if you found reusable patterns
 
       Reply with:

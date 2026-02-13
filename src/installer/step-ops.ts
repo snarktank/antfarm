@@ -75,7 +75,11 @@ function readProgressFile(runId: string): string {
   const workspace = getAgentWorkspacePath(loopStep.agent_id);
   if (!workspace) return "(no progress file)";
   try {
-    return fs.readFileSync(path.join(workspace, "progress.txt"), "utf-8");
+    // Try run-scoped file first, fall back to legacy progress.txt
+    const scopedPath = path.join(workspace, `progress-${runId}.txt`);
+    const legacyPath = path.join(workspace, "progress.txt");
+    const filePath = fs.existsSync(scopedPath) ? scopedPath : legacyPath;
+    return fs.readFileSync(filePath, "utf-8");
   } catch {
     return "(no progress yet)";
   }
@@ -372,6 +376,9 @@ export function claimStep(agentId: string): ClaimResult {
   // Get run context
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string } | undefined;
   const context: Record<string, string> = run ? JSON.parse(run.context) : {};
+
+  // Always inject run_id so templates can use {{run_id}} (e.g. for scoped progress files)
+  context["run_id"] = step.run_id;
 
   // Compute has_frontend_changes from git diff when repo and branch are available
   if (context["repo"] && context["branch"]) {
@@ -835,13 +842,16 @@ export function archiveRunProgress(runId: string): void {
   const workspace = getAgentWorkspacePath(loopStep.agent_id);
   if (!workspace) return;
 
-  const progressPath = path.join(workspace, "progress.txt");
+  const scopedPath = path.join(workspace, `progress-${runId}.txt`);
+  const legacyPath = path.join(workspace, "progress.txt");
+  // Prefer run-scoped file, fall back to legacy
+  const progressPath = fs.existsSync(scopedPath) ? scopedPath : legacyPath;
   if (!fs.existsSync(progressPath)) return;
 
   const archiveDir = path.join(workspace, "archive", runId);
   fs.mkdirSync(archiveDir, { recursive: true });
   fs.copyFileSync(progressPath, path.join(archiveDir, "progress.txt"));
-  fs.writeFileSync(progressPath, ""); // truncate
+  fs.unlinkSync(progressPath); // clean up
 }
 
 /**
