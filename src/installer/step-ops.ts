@@ -246,8 +246,9 @@ const MAX_ABANDON_RESETS = 5; // abandoned steps get more chances than explicit 
 /**
  * Find steps that have been "running" for too long and reset them to pending.
  * This catches cases where an agent claimed a step but never completed/failed it.
+ * Exported so it can be called from medic/health-check crons independently of claimStep.
  */
-function cleanupAbandonedSteps(): void {
+export function cleanupAbandonedSteps(): void {
   const db = getDb();
   // Use numeric comparison so mixed timestamp formats don't break ordering.
   const thresholdMs = ABANDONED_THRESHOLD_MS;
@@ -379,6 +380,26 @@ export function computeHasFrontendChanges(repo: string, branch: string): string 
   }
 }
 
+// ── Peek (lightweight work check) ───────────────────────────────────
+
+export type PeekResult = "HAS_WORK" | "NO_WORK";
+
+/**
+ * Lightweight check: does this agent have any pending/waiting steps in active runs?
+ * Unlike claimStep(), this runs a single cheap COUNT query — no cleanup, no context resolution.
+ * Returns "HAS_WORK" if any pending/waiting steps exist, "NO_WORK" otherwise.
+ */
+export function peekStep(agentId: string): PeekResult {
+  const db = getDb();
+  const row = db.prepare(
+    `SELECT COUNT(*) as cnt FROM steps s
+     JOIN runs r ON r.id = s.run_id
+     WHERE s.agent_id = ? AND s.status IN ('pending', 'waiting')
+       AND r.status = 'running'`
+  ).get(agentId) as { cnt: number };
+  return row.cnt > 0 ? "HAS_WORK" : "NO_WORK";
+}
+
 // ── Claim ───────────────────────────────────────────────────────────
 
 interface ClaimResult {
@@ -389,11 +410,21 @@ interface ClaimResult {
 }
 
 /**
+ * Throttle cleanupAbandonedSteps: run at most once every 5 minutes.
+ */
+let lastCleanupTime = 0;
+const CLEANUP_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
  * Find and claim a pending step for an agent, returning the resolved input.
  */
 export function claimStep(agentId: string): ClaimResult {
-  // First, cleanup any abandoned steps
-  cleanupAbandonedSteps();
+  // Throttle cleanup: run at most once every 5 minutes across all agents
+  const now = Date.now();
+  if (now - lastCleanupTime >= CLEANUP_THROTTLE_MS) {
+    cleanupAbandonedSteps();
+    lastCleanupTime = now;
+  }
   const db = getDb();
 
   const step = db.prepare(

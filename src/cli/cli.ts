@@ -23,7 +23,7 @@ import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
-import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
+import { claimStep, completeStep, failStep, getStories, peekStep } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -100,6 +100,7 @@ function printUsage() {
       "antfarm dashboard stop                  Stop dashboard daemon",
       "antfarm dashboard status                Check dashboard status",
       "",
+      "antfarm step peek <agent-id>        Lightweight check for pending work (HAS_WORK or NO_WORK)",
       "antfarm step claim <agent-id>       Claim pending step, output resolved input as JSON",
       "antfarm step complete <step-id>      Complete step (reads output from stdin)",
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
@@ -261,6 +262,12 @@ async function main() {
   }
 
   if (group === "step") {
+    if (action === "peek") {
+      if (!target) { process.stderr.write("Missing agent-id.\n"); process.exit(1); }
+      const result = peekStep(target);
+      process.stdout.write(result + "\n");
+      return;
+    }
     if (action === "claim") {
       if (!target) { process.stderr.write("Missing agent-id.\n"); process.exit(1); }
       const result = claimStep(target);

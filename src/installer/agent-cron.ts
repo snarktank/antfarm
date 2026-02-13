@@ -96,7 +96,13 @@ export function buildPollingPrompt(workflowId: string, agentId: string, workMode
   const model = workModel ?? "claude-opus-4-6";
   const workPrompt = buildWorkPrompt(workflowId, agentId);
 
-  return `Check for pending work. Run:
+  return `Step 1 — Quick check for pending work (lightweight, no side effects):
+\`\`\`
+node ${cli} step peek "${fullAgentId}"
+\`\`\`
+If output is "NO_WORK", reply HEARTBEAT_OK and stop immediately. Do NOT run step claim.
+
+Step 2 — If "HAS_WORK", claim the step:
 \`\`\`
 node ${cli} step claim "${fullAgentId}"
 \`\`\`
