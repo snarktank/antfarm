@@ -435,7 +435,7 @@ export function claimStep(agentId: string): ClaimResult {
       db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), step.run_id);
 
       const resolvedInput = resolveTemplate(step.input_template, context);
-      return { found: true, stepId: step.step_id, runId: step.run_id, resolvedInput };
+      return { found: true, stepId: step.id, runId: step.run_id, resolvedInput };
     }
   }
 
@@ -458,7 +458,7 @@ export function claimStep(agentId: string): ClaimResult {
 
   return {
     found: true,
-    stepId: step.step_id,
+    stepId: step.id,
     runId: step.run_id,
     resolvedInput,
   };
@@ -506,24 +506,36 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
 
   for (const line of lines) {
     if (pendingKey) {
-      // Accumulating multi-line JSON value
-      pendingValue += "\n" + line;
-      for (const ch of line) {
-        if (ch === "[" || ch === "{") bracketDepth++;
-        else if (ch === "]" || ch === "}") bracketDepth--;
+      if (bracketDepth > 0) {
+        // Accumulating multi-line JSON value
+        pendingValue += "\n" + line;
+        for (const ch of line) {
+          if (ch === "[" || ch === "{") bracketDepth++;
+          else if (ch === "]" || ch === "}") bracketDepth--;
+        }
+        if (bracketDepth <= 0) {
+          commitPending();
+        }
+        continue;
       }
-      if (bracketDepth <= 0) {
+      // Accumulating multi-line plain text value.
+      // A new KEY: line terminates the current block.
+      const nextKey = line.match(/^([A-Z_]+):\s*(.*)?$/);
+      if (nextKey) {
         commitPending();
+        // fall through to process this line as a new key below
+      } else {
+        pendingValue += "\n" + line;
+        continue;
       }
-      continue;
     }
 
-    const match = line.match(/^([A-Z_]+):\s*(.+)$/);
+    const match = line.match(/^([A-Z_]+):\s*(.*)?$/);
     if (match) {
       const key = match[1];
-      const value = match[2].trim();
+      const value = (match[2] ?? "").trim();
       // Check if value starts a multi-line JSON block
-      if ((value.startsWith("[") || value.startsWith("{")) && !value.endsWith("]") && !value.endsWith("}")) {
+      if (value && (value.startsWith("[") || value.startsWith("{")) && !value.endsWith("]") && !value.endsWith("}")) {
         pendingKey = key;
         pendingValue = value;
         bracketDepth = 0;
@@ -534,6 +546,11 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
         if (bracketDepth <= 0) {
           commitPending();
         }
+      } else if (!value || value.length === 0) {
+        // KEY: with no value on same line — start multi-line plain text accumulation
+        pendingKey = key;
+        pendingValue = "";
+        bracketDepth = 0;
       } else if (!key.startsWith("STORIES_JSON")) {
         context[key.toLowerCase()] = value;
       }
