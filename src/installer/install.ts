@@ -7,6 +7,7 @@ import { readOpenClawConfig, writeOpenClawConfig, type OpenClawConfig } from "./
 import { updateMainAgentGuidance } from "./main-agent-guidance.js";
 import { addSubagentAllowlist } from "./subagent-allowlist.js";
 import { installAntfarmSkill } from "./skill-install.js";
+import { applyResourceLimits } from "./resource-limits.js";
 import type { AgentRole, WorkflowInstallResult } from "./types.js";
 
 function ensureAgentList(config: { agents?: { list?: Array<Record<string, unknown>>; defaults?: Record<string, unknown> } }) {
@@ -261,6 +262,7 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
   await writeOpenClawConfig(configPath, config);
   await updateMainAgentGuidance();
   await installAntfarmSkill();
+  await applyResourceLimits();
   await writeWorkflowMetadata({ workflowDir, workflowId: workflow.id, source: `bundled:${params.workflowId}` });
 
   return { workflowId: workflow.id, workflowDir };

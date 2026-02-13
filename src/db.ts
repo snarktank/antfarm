@@ -92,6 +92,56 @@ function migrate(db: DatabaseSync): void {
   if (!runColNames.has("notify_url")) {
     db.exec("ALTER TABLE runs ADD COLUMN notify_url TEXT");
   }
+
+  // Worker process tracking table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS workers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pid INTEGER NOT NULL,
+      agent_id TEXT NOT NULL,
+      step_id TEXT NOT NULL,
+      model TEXT,
+      unit_name TEXT,
+      status TEXT NOT NULL DEFAULT 'running',
+      spawned_at TEXT NOT NULL,
+      completed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_workers_pid ON workers(pid);
+    CREATE INDEX IF NOT EXISTS idx_workers_agent_id ON workers(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_workers_step_id ON workers(step_id);
+    CREATE INDEX IF NOT EXISTS idx_workers_status ON workers(status);
+  `);
+
+  // Concurrency queue for worker slot management
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS concurrency_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      model TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      step_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'waiting',
+      queued_at TEXT NOT NULL,
+      acquired_at TEXT,
+      released_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_concurrency_queue_model ON concurrency_queue(model);
+    CREATE INDEX IF NOT EXISTS idx_concurrency_queue_status ON concurrency_queue(status);
+    CREATE INDEX IF NOT EXISTS idx_concurrency_queue_queued_at ON concurrency_queue(queued_at);
+  `);
+
+  // Event loop lag metrics for gateway monitoring
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS event_loop_metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp TEXT NOT NULL,
+      lag_ms REAL NOT NULL,
+      p50 REAL NOT NULL,
+      p95 REAL NOT NULL,
+      p99 REAL NOT NULL,
+      max_lag REAL NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_event_loop_metrics_timestamp ON event_loop_metrics(timestamp);
+  `);
 }
 
 export function getDbPath(): string {
