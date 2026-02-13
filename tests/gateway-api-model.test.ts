@@ -125,10 +125,12 @@ describe("gateway-api model parameter support", () => {
       status: 404,
     })) as any;
 
+    let result: { ok: boolean; id?: string };
     try {
-      // This will attempt CLI fallback which will likely fail in test env,
-      // but we verify the function handles the model parameter path
-      const result = await createAgentCronJob({
+      // This will attempt CLI fallback which may actually call the real
+      // openclaw binary if it's installed. The test verifies the function
+      // handles the model parameter path without throwing.
+      result = await createAgentCronJob({
         name: "test/agent",
         schedule: { kind: "every", everyMs: 300_000 },
         sessionTarget: "isolated",
@@ -146,6 +148,13 @@ describe("gateway-api model parameter support", () => {
       assert.ok(typeof result.ok === "boolean");
     } finally {
       globalThis.fetch = originalFetch;
+    }
+
+    // Clean up: if the CLI fallback succeeded and created a real cron job,
+    // delete it so we don't leave rogue jobs running (fetch is restored now)
+    if (result!.ok && result!.id) {
+      const { deleteCronJob } = await import("../dist/installer/gateway-api.js");
+      await deleteCronJob(result!.id).catch(() => {});
     }
   });
 
