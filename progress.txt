@@ -89,3 +89,20 @@ Started: 2026-02-11 05:47 ET
 - Created tests/review-prompt-frontend.test.ts with 7 tests covering all acceptance criteria
 - All tests pass, build passes, typecheck passes
 - Files changed: workflows/feature-dev/workflow.yml (modified), tests/review-prompt-frontend.test.ts (new)
+
+## 2026-02-12 18:27 - S6: Update shared verifier AGENTS.md with browser verification guidance
+- Added "Visual/Browser-Based Verification (Conditional)" section to agents/shared/verifier/AGENTS.md
+- Section covers: when to verify (conditional on step prompt), how to use agent-browser (navigate, snapshot, screenshot), what to look for (layout, styling, visibility, spacing, responsiveness), and pass/fail criteria
+- Created tests/verifier-agents-md.test.ts with 5 tests covering all acceptance criteria
+- All tests pass, build passes, typecheck passes
+- Files changed: agents/shared/verifier/AGENTS.md (modified), tests/verifier-agents-md.test.ts (new)
+
+## 2026-02-12 19:29 - S7: Update reviewer AGENTS.md with browser verification guidance
+- Added "Visual/Browser-Based Verification (Conditional)" section to reviewer AGENTS.md
+- Section explains agent-browser usage: navigate, screenshot, snapshot commands
+- Focus on design quality checks: visual hierarchy, consistency, alignment, whitespace, typography, color/contrast, responsiveness, interaction states
+- Section is conditional — only activates when step prompt requests it
+- Created tests/reviewer-agents-md.test.ts with 5 tests covering all acceptance criteria
+- All tests pass, build passes, typecheck passes
+- Files changed: workflows/feature-dev/agents/reviewer/AGENTS.md, tests/reviewer-agents-md.test.ts (new)
+- **Learnings:** Reviewer visual checks emphasize design polish vs verifier's functional correctness focus
