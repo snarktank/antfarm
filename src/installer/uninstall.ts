@@ -16,6 +16,7 @@ import { uninstallAntfarmSkill } from "./skill-install.js";
 import { removeAgentCrons } from "./agent-cron.js";
 import { deleteAgentCronJobs } from "./gateway-api.js";
 import { getDb } from "../db.js";
+import { stopDaemon } from "../server/daemonctl.js";
 import type { WorkflowInstallResult } from "./types.js";
 
 function filterAgentList(
@@ -129,6 +130,9 @@ export async function uninstallWorkflow(params: {
 }
 
 export async function uninstallAllWorkflows(): Promise<void> {
+  // Stop the dashboard daemon before cleaning up files
+  stopDaemon();
+
   const { path: configPath, config } = await readOpenClawConfig();
   const list = Array.isArray(config.agents?.list) ? config.agents?.list : [];
   const removedAgents = list.filter((entry) => {
@@ -215,7 +219,15 @@ export async function uninstallAllWorkflows(): Promise<void> {
 
   const antfarmRoot = resolveAntfarmRoot();
   if (await pathExists(antfarmRoot)) {
-    const entries = await fs.readdir(antfarmRoot).catch(() => [] as string[]);
+    // Clean up remaining runtime files (dashboard.pid, dashboard.log, events.jsonl, logs/)
+    for (const name of ["dashboard.pid", "dashboard.log", "events.jsonl", "logs"]) {
+      const p = path.join(antfarmRoot, name);
+      if (await pathExists(p)) {
+        await fs.rm(p, { recursive: true, force: true });
+      }
+    }
+    // Remove the directory if now empty
+    const entries = await fs.readdir(antfarmRoot).catch(() => ["placeholder"] as string[]);
     if (entries.length === 0) {
       await fs.rm(antfarmRoot, { recursive: true, force: true });
     }
