@@ -7,7 +7,7 @@ import { readOpenClawConfig, writeOpenClawConfig, type OpenClawConfig } from "./
 import { updateMainAgentGuidance } from "./main-agent-guidance.js";
 import { addSubagentAllowlist } from "./subagent-allowlist.js";
 import { installAntfarmSkill } from "./skill-install.js";
-import type { AgentRole, WorkflowInstallResult } from "./types.js";
+import type { AgentRole, ModelConfig, WorkflowInstallResult } from "./types.js";
 
 function ensureAgentList(config: { agents?: { list?: Array<Record<string, unknown>>; defaults?: Record<string, unknown> } }) {
   if (!config.agents) config.agents = {};
@@ -205,9 +205,20 @@ function ensureSessionMaintenance(config: OpenClawConfig): void {
   }
 }
 
+/**
+ * Normalize a ModelConfig to OpenClaw's object format.
+ * String `"provider/model"` becomes `{ primary: "provider/model" }`.
+ */
+function normalizeModel(model: ModelConfig): { primary: string; fallbacks?: string[] } {
+  if (typeof model === "string") return { primary: model };
+  const result: { primary: string; fallbacks?: string[] } = { primary: model.primary };
+  if (model.fallbacks?.length) result.fallbacks = model.fallbacks;
+  return result;
+}
+
 function upsertAgent(
   list: Array<Record<string, unknown>>,
-  agent: { id: string; name?: string; model?: string; timeoutSeconds?: number; workspaceDir: string; agentDir: string; role: AgentRole },
+  agent: { id: string; name?: string; model?: ModelConfig; timeoutSeconds?: number; workspaceDir: string; agentDir: string; role: AgentRole },
 ) {
   const existing = list.find((entry) => entry.id === agent.id);
   // Never overwrite the user's default (main) agent — it was configured outside antfarm.
@@ -220,7 +231,7 @@ function upsertAgent(
     tools: buildToolsConfig(agent.role),
     subagents: SUBAGENT_POLICY,
   };
-  if (agent.model) payload.model = agent.model;
+  if (agent.model) payload.model = normalizeModel(agent.model);
   const timeout = agent.timeoutSeconds ?? ROLE_POLICIES[agent.role]?.timeoutSeconds;
   if (timeout !== undefined) payload.timeoutSeconds = timeout;
   if (existing) Object.assign(existing, payload);
