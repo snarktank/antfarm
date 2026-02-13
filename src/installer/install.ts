@@ -221,8 +221,9 @@ function upsertAgent(
     subagents: SUBAGENT_POLICY,
   };
   if (agent.model) payload.model = agent.model;
-  const timeout = agent.timeoutSeconds ?? ROLE_POLICIES[agent.role]?.timeoutSeconds;
-  if (timeout !== undefined) payload.timeoutSeconds = timeout;
+  // Note: timeoutSeconds is NOT written to the agent config entry because
+  // OpenClaw's agent schema uses .strict() and rejects unknown keys.
+  // Timeouts are applied via cron job payload.timeoutSeconds instead.
   if (existing) Object.assign(existing, payload);
   else list.push(payload);
 }
