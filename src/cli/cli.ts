@@ -24,6 +24,7 @@ import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories, peekStep } from "../installer/step-ops.js";
+import { getDb } from "../db.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
@@ -35,6 +36,27 @@ import { dirname, join } from "node:path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const pkgPath = join(__dirname, "..", "..", "package.json");
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resolve a step target that may be a UUID or a step name (e.g. "triage", "setup").
+ * AI agents frequently pass the human-readable step name instead of the UUID
+ * returned by `step claim`. This helper looks up the currently-running step
+ * with that name and returns its UUID.
+ */
+function resolveStepTarget(target: string): string {
+  if (UUID_RE.test(target)) return target;
+  const db = getDb();
+  const row = db.prepare(
+    "SELECT id FROM steps WHERE step_id = ? AND status = 'running' ORDER BY updated_at DESC LIMIT 1"
+  ).get(target) as { id: string } | undefined;
+  if (row) {
+    process.stderr.write(`Resolved step name "${target}" to UUID ${row.id}\n`);
+    return row.id;
+  }
+  return target; // Fall through — completeStep/failStep will throw "Step not found"
+}
 
 function getVersion(): string {
   try {
@@ -377,14 +399,16 @@ async function main() {
         }
         output = Buffer.concat(chunks).toString("utf-8").trim();
       }
-      const result = completeStep(target, output);
+      const resolvedTarget = resolveStepTarget(target);
+      const result = completeStep(resolvedTarget, output);
       process.stdout.write(JSON.stringify(result) + "\n");
       return;
     }
     if (action === "fail") {
       if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
+      const resolvedTarget = resolveStepTarget(target);
       const error = args.slice(3).join(" ").trim() || "Unknown error";
-      const result = failStep(target, error);
+      const result = failStep(resolvedTarget, error);
       process.stdout.write(JSON.stringify(result) + "\n");
       return;
     }
