@@ -132,7 +132,7 @@ export function deleteAllRuns(force: boolean = false): { deleted: number; skippe
   const allRuns = db.prepare("SELECT id, status, workflow_id FROM runs").all() as Array<{ id: string; status: string; workflow_id: string }>;
 
   const activeRuns = allRuns.filter((r) => r.status === "running");
-  const deletableRuns = force ? allRuns.filter((r) => r.status !== "running") : allRuns.filter((r) => r.status !== "running");
+  const deletableRuns = force ? allRuns : allRuns.filter((r) => r.status !== "running");
 
   for (const run of deletableRuns) {
     db.prepare("DELETE FROM stories WHERE run_id = ?").run(run.id);
@@ -142,8 +142,8 @@ export function deleteAllRuns(force: boolean = false): { deleted: number; skippe
 
   return {
     deleted: deletableRuns.length,
-    skipped: activeRuns.length,
-    activeIds: activeRuns.map((r) => r.id),
+    skipped: force ? 0 : activeRuns.length,
+    activeIds: force ? [] : activeRuns.map((r) => r.id),
   };
 }
 
