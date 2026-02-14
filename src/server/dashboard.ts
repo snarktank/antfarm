@@ -75,6 +75,10 @@ export function startDashboard(port = 3333): http.Server {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
 
+    if (p === "/api/ping") {
+      return json(res, { pong: true });
+    }
+
     if (p === "/api/workflows") {
       return json(res, loadWorkflows());
     }
