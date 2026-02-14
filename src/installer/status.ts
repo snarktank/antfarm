@@ -67,6 +67,86 @@ export function listRuns(): RunInfo[] {
   return db.prepare("SELECT * FROM runs ORDER BY created_at DESC").all() as RunInfo[];
 }
 
+export type HistoryEntry = {
+  id: string;
+  task: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  steps_completed: number;
+  steps_total: number;
+};
+
+export function getWorkflowHistory(workflowId: string, limit: number = 10): HistoryEntry[] {
+  const db = getDb();
+  const runs = db.prepare(
+    "SELECT * FROM runs WHERE workflow_id = ? ORDER BY created_at DESC LIMIT ?"
+  ).all(workflowId, limit) as RunInfo[];
+
+  return runs.map((run) => {
+    const steps = db.prepare("SELECT status FROM steps WHERE run_id = ?").all(run.id) as Array<{ status: string }>;
+    const stepsCompleted = steps.filter((s) => s.status === "done").length;
+    return {
+      id: run.id,
+      task: run.task,
+      status: run.status,
+      created_at: run.created_at,
+      updated_at: run.updated_at,
+      steps_completed: stepsCompleted,
+      steps_total: steps.length,
+    };
+  });
+}
+
+export type DeleteRunResult =
+  | { status: "ok"; runId: string; workflowId: string }
+  | { status: "not_found"; message: string }
+  | { status: "active"; message: string };
+
+export function deleteWorkflowRun(query: string): DeleteRunResult {
+  const db = getDb();
+
+  let run = db.prepare("SELECT * FROM runs WHERE id = ?").get(query) as RunInfo | undefined;
+  if (!run) {
+    run = db.prepare("SELECT * FROM runs WHERE id LIKE ? || '%' ORDER BY created_at DESC LIMIT 1").get(query) as RunInfo | undefined;
+  }
+
+  if (!run) {
+    return { status: "not_found", message: `No run matching "${query}".` };
+  }
+
+  if (run.status === "running") {
+    return { status: "active", message: `Run ${run.id.slice(0, 8)} is still running. Stop it first with: antfarm workflow stop ${run.id.slice(0, 8)}` };
+  }
+
+  // Delete related records then the run
+  db.prepare("DELETE FROM stories WHERE run_id = ?").run(run.id);
+  db.prepare("DELETE FROM steps WHERE run_id = ?").run(run.id);
+  db.prepare("DELETE FROM runs WHERE id = ?").run(run.id);
+
+  return { status: "ok", runId: run.id, workflowId: run.workflow_id };
+}
+
+export function deleteAllRuns(force: boolean = false): { deleted: number; skipped: number; activeIds: string[] } {
+  const db = getDb();
+  const allRuns = db.prepare("SELECT id, status, workflow_id FROM runs").all() as Array<{ id: string; status: string; workflow_id: string }>;
+
+  const activeRuns = allRuns.filter((r) => r.status === "running");
+  const deletableRuns = force ? allRuns.filter((r) => r.status !== "running") : allRuns.filter((r) => r.status !== "running");
+
+  for (const run of deletableRuns) {
+    db.prepare("DELETE FROM stories WHERE run_id = ?").run(run.id);
+    db.prepare("DELETE FROM steps WHERE run_id = ?").run(run.id);
+    db.prepare("DELETE FROM runs WHERE id = ?").run(run.id);
+  }
+
+  return {
+    deleted: deletableRuns.length,
+    skipped: activeRuns.length,
+    activeIds: activeRuns.map((r) => r.id),
+  };
+}
+
 export type StopWorkflowResult =
   | { status: "ok"; runId: string; workflowId: string; cancelledSteps: number }
   | { status: "not_found"; message: string }

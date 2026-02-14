@@ -17,7 +17,7 @@ try {
 
 import { installWorkflow } from "../installer/install.js";
 import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../installer/uninstall.js";
-import { getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.js";
+import { getWorkflowStatus, listRuns, stopWorkflow, deleteWorkflowRun, deleteAllRuns, getWorkflowHistory } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
@@ -98,6 +98,9 @@ function printUsage() {
       "antfarm workflow runs                List all workflow runs",
       "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
       "antfarm workflow stop <run-id>        Stop/cancel a running workflow",
+      "antfarm workflow delete <run-id>      Delete a completed/failed/cancelled run",
+      "antfarm workflow delete --all [--force] Delete all non-running runs",
+      "antfarm workflow history <name> [--limit N] Show past runs for a workflow",
       "",
       "antfarm dashboard [start] [--port N]   Start dashboard daemon (default: 3333)",
       "antfarm dashboard stop                  Stop dashboard daemon",
@@ -449,6 +452,60 @@ async function main() {
     if (result.status === "not_found") { process.stderr.write(result.message + "\n"); process.exit(1); }
     if (result.status === "already_done") { process.stderr.write(result.message + "\n"); process.exit(1); }
     console.log(`Cancelled run ${result.runId.slice(0, 8)} (${result.workflowId}). ${result.cancelledSteps} step(s) cancelled.`);
+    console.log(`  Workflow: ${result.workflowId}`);
+    console.log(`  Run ID:   ${result.runId}`);
+    return;
+  }
+
+  if (action === "delete") {
+    const isAll = target === "--all" || target === "all";
+    const force = args.includes("--force");
+
+    if (isAll) {
+      const result = deleteAllRuns(force);
+      if (result.deleted === 0 && result.skipped === 0) {
+        console.log("No workflow runs to delete.");
+      } else {
+        console.log(`Deleted ${result.deleted} run(s).`);
+        if (result.skipped > 0) {
+          console.log(`Skipped ${result.skipped} active run(s) (stop them first).`);
+        }
+      }
+      return;
+    }
+
+    if (!target) { process.stderr.write("Missing run-id. Use --all to delete all runs.\n"); process.exit(1); }
+
+    const result = deleteWorkflowRun(target);
+    if (result.status === "not_found") { process.stderr.write(result.message + "\n"); process.exit(1); }
+    if (result.status === "active") { process.stderr.write(result.message + "\n"); process.exit(1); }
+    console.log(`Deleted run ${result.runId.slice(0, 8)} (${result.workflowId}).`);
+    return;
+  }
+
+  if (action === "history") {
+    if (!target) { process.stderr.write("Missing workflow name.\n"); printUsage(); process.exit(1); }
+    let limit = 10;
+    const limitIdx = args.indexOf("--limit");
+    if (limitIdx !== -1 && args[limitIdx + 1]) {
+      limit = parseInt(args[limitIdx + 1], 10) || 10;
+    }
+    const entries = getWorkflowHistory(target, limit);
+    if (entries.length === 0) {
+      console.log(`No runs found for workflow "${target}".`);
+      return;
+    }
+    console.log(`History for "${target}" (${entries.length} run${entries.length > 1 ? "s" : ""}):\n`);
+    for (const e of entries) {
+      const created = new Date(e.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+      const updated = new Date(e.updated_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+      const durationMs = new Date(e.updated_at).getTime() - new Date(e.created_at).getTime();
+      const durationMin = Math.round(durationMs / 60000);
+      const duration = durationMin < 60 ? `${durationMin}m` : `${Math.floor(durationMin / 60)}h${durationMin % 60}m`;
+      const task = e.task.length > 50 ? e.task.slice(0, 50) + "..." : e.task;
+      console.log(`  ${e.id.slice(0, 8)}  [${e.status.padEnd(9)}]  ${task}`);
+      console.log(`           Started: ${created}  Ended: ${updated}  Duration: ${duration}  Steps: ${e.steps_completed}/${e.steps_total}`);
+    }
     return;
   }
 
