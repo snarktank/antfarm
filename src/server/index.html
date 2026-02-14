@@ -290,7 +290,7 @@ function renderBoard(wf, runs) {
     const cardHTML = cards.length === 0
       ? '<div class="empty">No runs</div>'
       : cards.map(run => {
-          const isDone = run.status === 'done';
+          const isDone = run.status === 'done' || run.status === 'completed';
           const isFailed = run.status === 'failed' || run.status === 'error';
           const cls = isDone ? 'done' : isFailed ? 'failed' : '';
           const badge = `badge-${run.status}`;
