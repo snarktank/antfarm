@@ -36,9 +36,9 @@ describe("two-phase-integration", () => {
       assert.ok(prompt.includes('"claude-opus-4-6"'), "default work model");
     });
 
-    it("agent id uses hyphenated format (workflowId-agentId)", () => {
+    it("agent id uses double-hyphen format (workflowId--agentId)", () => {
       const prompt = buildPollingPrompt("feature-dev", "developer");
-      assert.ok(prompt.includes("feature-dev-developer"), "hyphenated agent id");
+      assert.ok(prompt.includes("feature-dev--developer"), "double-hyphen agent id");
       assert.ok(!prompt.includes("feature-dev/developer"), "no slash-separated id");
     });
   });
@@ -129,7 +129,7 @@ describe("two-phase-integration", () => {
         for (const agent of wf.agents) {
           const polling = buildPollingPrompt(wf.id, agent);
           const work = buildWorkPrompt(wf.id, agent);
-          assert.ok(polling.includes(`${wf.id}-${agent}`), `${wf.id}/${agent} polling agent id`);
+          assert.ok(polling.includes(`${wf.id}--${agent}`), `${wf.id}/${agent} polling agent id`);
           assert.ok(work.includes("step complete"), `${wf.id}/${agent} work has step complete`);
           assert.ok(polling.includes("sessions_spawn"), `${wf.id}/${agent} polling has spawn`);
         }

@@ -27,7 +27,7 @@ describe("two-phase-cron-setup", () => {
 
     it("still includes step claim command", () => {
       const prompt = buildPollingPrompt("feature-dev", "developer");
-      assert.ok(prompt.includes('step claim "feature-dev-developer"'));
+      assert.ok(prompt.includes('step claim "feature-dev--developer"'));
     });
 
     it("still includes HEARTBEAT_OK for NO_WORK", () => {
@@ -57,7 +57,7 @@ describe("two-phase-cron-setup", () => {
 
     it("polling prompt uses correct agent id format", () => {
       const prompt = buildPollingPrompt("security-audit", "scanner");
-      assert.ok(prompt.includes("security-audit-scanner"));
+      assert.ok(prompt.includes("security-audit--scanner"));
     });
   });
 });

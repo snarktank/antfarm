@@ -1,5 +1,5 @@
 import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAvailable } from "./gateway-api.js";
-import type { WorkflowSpec } from "./types.js";
+import { AGENT_ID_SEPARATOR, type WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
 
@@ -7,7 +7,7 @@ const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
 
 function buildAgentPrompt(workflowId: string, agentId: string): string {
-  const fullAgentId = `${workflowId}-${agentId}`;
+  const fullAgentId = `${workflowId}${AGENT_ID_SEPARATOR}${agentId}`;
   const cli = resolveAntfarmCli();
 
   return `You are an Antfarm workflow agent. Check for pending work and execute it.
@@ -51,7 +51,7 @@ The workflow cannot advance until you report. Your session ending without report
 }
 
 export function buildWorkPrompt(workflowId: string, agentId: string): string {
-  const fullAgentId = `${workflowId}-${agentId}`;
+  const fullAgentId = `${workflowId}${AGENT_ID_SEPARATOR}${agentId}`;
   const cli = resolveAntfarmCli();
 
   return `You are an Antfarm workflow agent. Execute the pending work below.
@@ -91,7 +91,7 @@ const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
 const DEFAULT_POLLING_MODEL = "claude-sonnet-4-20250514";
 
 export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
-  const fullAgentId = `${workflowId}-${agentId}`;
+  const fullAgentId = `${workflowId}${AGENT_ID_SEPARATOR}${agentId}`;
   const cli = resolveAntfarmCli();
   const model = workModel ?? "claude-opus-4-6";
   const workPrompt = buildWorkPrompt(workflowId, agentId);
@@ -135,7 +135,7 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const agent = agents[i];
     const anchorMs = i * 60_000; // stagger by 1 minute each
     const cronName = `antfarm/${workflow.id}/${agent.id}`;
-    const agentId = `${workflow.id}-${agent.id}`;
+    const agentId = `${workflow.id}${AGENT_ID_SEPARATOR}${agent.id}`;
 
     // Two-phase: Phase 1 uses cheap polling model + minimal prompt
     const pollingModel = agent.pollingModel ?? workflowPollingModel;

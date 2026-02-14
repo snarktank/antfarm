@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { WorkflowAgent, WorkflowSpec } from "./types.js";
+import { AGENT_ID_SEPARATOR, type WorkflowAgent, type WorkflowSpec } from "./types.js";
 import { resolveOpenClawStateDir, resolveWorkflowWorkspaceRoot } from "./paths.js";
 import { writeWorkflowFile } from "./workspace-files.js";
 
@@ -80,11 +80,11 @@ export async function provisionAgents(params: {
       await ensureDir(skillsDir);
     }
 
-    const agentDir = resolveAgentDir(`${params.workflow.id}-${agent.id}`);
+    const agentDir = resolveAgentDir(`${params.workflow.id}${AGENT_ID_SEPARATOR}${agent.id}`);
     await ensureDir(agentDir);
 
     results.push({
-      id: `${params.workflow.id}-${agent.id}`,
+      id: `${params.workflow.id}${AGENT_ID_SEPARATOR}${agent.id}`,
       name: agent.name,
       model: agent.model,
       timeoutSeconds: agent.timeoutSeconds,

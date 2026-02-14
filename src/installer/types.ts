@@ -1,3 +1,10 @@
+/**
+ * Separator between workflow ID and agent ID in composite agent IDs.
+ * Uses double-hyphen to avoid ambiguity when workflow/agent IDs contain single hyphens.
+ * Example: workflow "bug-fix" + agent "setup" → "bug-fix--setup"
+ */
+export const AGENT_ID_SEPARATOR = "--";
+
 export type WorkflowAgentFiles = {
   baseDir: string;
   files: Record<string, string>;

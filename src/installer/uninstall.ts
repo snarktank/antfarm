@@ -17,13 +17,13 @@ import { removeAgentCrons } from "./agent-cron.js";
 import { deleteAgentCronJobs } from "./gateway-api.js";
 import { getDb } from "../db.js";
 import { stopDaemon } from "../server/daemonctl.js";
-import type { WorkflowInstallResult } from "./types.js";
+import { AGENT_ID_SEPARATOR, type WorkflowInstallResult } from "./types.js";
 
 function filterAgentList(
   list: Array<Record<string, unknown>>,
   workflowId: string,
 ): Array<Record<string, unknown>> {
-  const prefix = `${workflowId}-`;
+  const prefix = `${workflowId}${AGENT_ID_SEPARATOR}`;
   return list.filter((entry) => {
     const id = typeof entry.id === "string" ? entry.id : "";
     return !id.startsWith(prefix);

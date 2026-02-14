@@ -7,7 +7,7 @@ import { readOpenClawConfig, writeOpenClawConfig, type OpenClawConfig } from "./
 import { updateMainAgentGuidance } from "./main-agent-guidance.js";
 import { addSubagentAllowlist } from "./subagent-allowlist.js";
 import { installAntfarmSkill } from "./skill-install.js";
-import type { AgentRole, WorkflowInstallResult } from "./types.js";
+import { AGENT_ID_SEPARATOR, type AgentRole, type WorkflowInstallResult } from "./types.js";
 
 function ensureAgentList(config: { agents?: { list?: Array<Record<string, unknown>>; defaults?: Record<string, unknown> } }) {
   if (!config.agents) config.agents = {};
@@ -250,10 +250,26 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
   ensureSessionMaintenance(config);
   const list = ensureAgentList(config);
   ensureMainAgentInList(list, config);
+
+  // Collision detection: ensure new agent IDs don't clash with existing agents
+  // from other workflows (same-workflow agents are expected to be overwritten via upsert)
+  const newIds = new Set(provisioned.map((a) => a.id));
+  const prefix = workflow.id + AGENT_ID_SEPARATOR;
+  for (const entry of list) {
+    const existingId = typeof entry.id === "string" ? entry.id : "";
+    if (!existingId || existingId.startsWith(prefix) || entry.default === true) continue;
+    if (newIds.has(existingId)) {
+      throw new Error(
+        `Agent ID collision: workflow "${workflow.id}" would create agent "${existingId}" ` +
+        `which already exists from another source. Rename the agent in workflow.yml to avoid this conflict.`
+      );
+    }
+  }
+
   addSubagentAllowlist(config, provisioned.map((a) => a.id));
   for (const agent of provisioned) {
     // Extract the local agent id (strip the workflow prefix + separator)
-    const prefix = workflow.id + "-";
+    const prefix = workflow.id + AGENT_ID_SEPARATOR;
     const localId = agent.id.startsWith(prefix) ? agent.id.slice(prefix.length) : agent.id;
     const role = roleMap.get(localId) ?? inferRole(localId);
     upsertAgent(list, { ...agent, role });

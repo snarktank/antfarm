@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import type { LoopConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
+import { AGENT_ID_SEPARATOR, type LoopConfig, type PollingConfig, type WorkflowAgent, type WorkflowSpec, type WorkflowStep } from "./types.js";
 
 export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
   const filePath = path.join(workflowDir, "workflow.yml");
@@ -9,6 +9,9 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
   const parsed = YAML.parse(raw) as WorkflowSpec;
   if (!parsed?.id) {
     throw new Error(`workflow.yml missing id in ${workflowDir}`);
+  }
+  if (parsed.id.includes(AGENT_ID_SEPARATOR)) {
+    throw new Error(`workflow.yml id "${parsed.id}" must not contain "${AGENT_ID_SEPARATOR}" in ${workflowDir}`);
   }
   if (!Array.isArray(parsed.agents) || parsed.agents.length === 0) {
     throw new Error(`workflow.yml missing agents list in ${workflowDir}`);
@@ -45,6 +48,9 @@ function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
   for (const agent of agents) {
     if (!agent.id?.trim()) {
       throw new Error(`workflow.yml missing agent id in ${workflowDir}`);
+    }
+    if (agent.id.includes(AGENT_ID_SEPARATOR)) {
+      throw new Error(`workflow.yml agent id "${agent.id}" must not contain "${AGENT_ID_SEPARATOR}"`);
     }
     if (ids.has(agent.id)) {
       throw new Error(`workflow.yml has duplicate agent id "${agent.id}" in ${workflowDir}`);

@@ -74,7 +74,7 @@ function printEvents(events: AntfarmEvent[]): void {
   if (events.length === 0) { console.log("No events yet."); return; }
   for (const evt of events) {
     const time = formatEventTime(evt.ts);
-    const agent = evt.agentId ? `  ${evt.agentId.split("-").slice(-1)[0]}` : "";
+    const agent = evt.agentId ? `  ${evt.agentId.split("--").slice(-1)[0]}` : "";
     const label = formatEventLabel(evt);
     const story = evt.storyTitle ? ` — ${evt.storyTitle}` : "";
     const detail = evt.detail ? ` (${evt.detail})` : "";

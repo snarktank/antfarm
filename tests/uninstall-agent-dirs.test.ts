@@ -25,10 +25,10 @@ describe("uninstall agent directory cleanup", () => {
 
   it("should remove parent directory even when sessions/ sibling exists", async () => {
     // Simulate the directory structure OpenClaw creates:
-    // ~/.openclaw/agents/bug-fix-triager/
+    // ~/.openclaw/agents/bug-fix--triager/
     //   agent/     <- this is what agentDir points to
     //   sessions/  <- sibling created by OpenClaw
-    const agentParent = path.join(tmpDir, "bug-fix-triager");
+    const agentParent = path.join(tmpDir, "bug-fix--triager");
     const agentDir = path.join(agentParent, "agent");
     const sessionsDir = path.join(agentParent, "sessions");
 
@@ -50,7 +50,7 @@ describe("uninstall agent directory cleanup", () => {
 
   it("old approach would leave parent directory behind", async () => {
     // Demonstrate the bug: removing only agentDir leaves parent because sessions/ exists
-    const agentParent = path.join(tmpDir, "bug-fix-triager");
+    const agentParent = path.join(tmpDir, "bug-fix--triager");
     const agentDir = path.join(agentParent, "agent");
     const sessionsDir = path.join(agentParent, "sessions");
 
