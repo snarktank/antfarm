@@ -104,7 +104,7 @@ function getAgentWorkspacePath(agentId: string): string | null {
 /**
  * Read progress.txt from the loop step's agent workspace.
  */
-function readProgressFile(runId: string): string {
+export function readProgressFile(runId: string): string {
   const db = getDb();
   const loopStep = db.prepare(
     "SELECT agent_id FROM steps WHERE run_id = ? AND type = 'loop' LIMIT 1"
@@ -117,6 +117,21 @@ function readProgressFile(runId: string): string {
     const scopedPath = path.join(workspace, `progress-${runId}.txt`);
     const legacyPath = path.join(workspace, "progress.txt");
     const filePath = fs.existsSync(scopedPath) ? scopedPath : legacyPath;
+
+    // Security check: Ensure filePath is a regular file and resides within workspace
+    const stats = fs.lstatSync(filePath);
+    if (stats.isSymbolicLink()) {
+      logger.warn(`Security: Rejected symlink in progress file path: ${filePath}`, { runId });
+      return "(no progress yet)";
+    }
+
+    const realPath = fs.realpathSync(filePath);
+    const realWorkspace = fs.realpathSync(workspace);
+    if (!realPath.startsWith(realWorkspace)) {
+      logger.warn(`Security: progress file path traversal detected: ${filePath} -> ${realPath}`, { runId });
+      return "(no progress yet)";
+    }
+
     return fs.readFileSync(filePath, "utf-8");
   } catch {
     return "(no progress yet)";

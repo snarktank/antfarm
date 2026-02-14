@@ -296,8 +296,8 @@ function renderBoard(wf, runs) {
           const badge = `badge-${run.status}`;
           const time = run.updated_at ? new Date(run.updated_at).toLocaleString() : '';
           const title = run.task.length > 60 ? run.task.slice(0, 57) + '…' : run.task;
-          return `<div class="card ${cls}" onclick="openRun('${run.id}')">
-            <div class="card-title" title="${run.task.replace(/"/g, '&quot;')}">${title}</div>
+          return `<div class="card ${cls}" onclick="openRun('${esc(run.id)}')">
+            <div class="card-title" title="${esc(run.task)}">${esc(title)}</div>
             <div class="card-meta">
               <span class="badge ${badge}">${run.status}</span>
               <span>${time}</span>
@@ -305,14 +305,14 @@ function renderBoard(wf, runs) {
           </div>`;
         }).join('');
     return `<div class="column">
-      <div class="column-header">${step.id}<span class="count">${cards.length}</span></div>
+      <div class="column-header">${esc(step.id)}<span class="count">${cards.length}</span></div>
       <div class="cards">${cardHTML}</div>
     </div>`;
   }).join('');
 }
 
 const stepIcons = {done:'✓',running:'●',pending:'○',waiting:'◌',failed:'✗',error:'✗'};
-function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 async function openRun(id) {
   const run = await fetchJSON(`/api/runs/${id}`);
@@ -327,8 +327,8 @@ async function openRun(id) {
     return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
       <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
         <div class="step-icon ${st}">${icon}</div>
-        <div class="step-name" style="flex:1">${s.step_id}</div>
-        <div class="step-agent">${s.agent_id || ''}</div>
+        <div class="step-name" style="flex:1">${esc(s.step_id)}</div>
+        <div class="step-agent">${esc(s.agent_id || '')}</div>
         <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
         ${hasOutput ? '<span class="step-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
       </div>
@@ -339,7 +339,7 @@ async function openRun(id) {
   }).join('');
   panel.innerHTML = `
     <button class="panel-close" onclick="closePanel()">✕</button>
-    <h2>${run.workflow_id}</h2>
+    <h2>${esc(run.workflow_id)}</h2>
     <div class="panel-task">${esc(run.task)}</div>
     <div class="panel-meta">
       <span><span class="badge badge-${run.status}">${run.status}</span></span>
@@ -435,7 +435,7 @@ async function loadStories(runId) {
           return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
             <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
               <div class="step-icon ${st}">${icon}</div>
-              <div class="step-name" style="flex:1">${s.story_id}: ${s.title}${retryInfo}</div>
+              <div class="step-name" style="flex:1">${esc(s.story_id)}: ${esc(s.title)}${retryInfo}</div>
               <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
               ${hasDetails ? '<span class="story-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
             </div>

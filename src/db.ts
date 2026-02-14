@@ -15,8 +15,10 @@ export function getDb(): DatabaseSync {
   if (_db && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
   if (_db) { try { _db.close(); } catch {} }
 
-  fs.mkdirSync(DB_DIR, { recursive: true });
+  fs.mkdirSync(DB_DIR, { recursive: true, mode: 0o700 });
+  fs.chmodSync(DB_DIR, 0o700);
   _db = new DatabaseSync(DB_PATH);
+  fs.chmodSync(DB_PATH, 0o600);
   _dbOpenedAt = now;
   _db.exec("PRAGMA journal_mode=WAL");
   _db.exec("PRAGMA foreign_keys=ON");

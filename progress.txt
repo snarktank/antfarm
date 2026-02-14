@@ -80,3 +80,21 @@ Started: 2026-02-11 05:47 ET
 - All 105 tests pass, build passes, typecheck passes
 - Files changed: src/installer/gateway-api.ts (cleanup), tests/gateway-api-model.test.ts (new, committed in prior fix)
 - **Learnings:** Merge conflict resolution can leave artifacts beyond standard markers; always grep for commit message text in source
+
+---
+
+## 2026-02-14 05:45 - fix-002: Harden Antfarm Database Permissions
+- Restricted database directory permissions to 0700 (owner only)
+- Restricted database file permissions to 0600 (owner only)
+- Added `fs.chmodSync` in `src/db.ts` to enforce permissions on creation and if they were loose
+- Created `tests/security-db-permissions.test.ts` as a regression test
+- All 164 tests pass
+- Files changed: src/db.ts, tests/security-db-permissions.test.ts
+
+## 2026-02-14 09:53 - fix-004: Implement Webhook SSRF Protections
+- Implemented `isSafeUrl` validator in `src/installer/events.ts` to block internal/private IP ranges
+- Webhook URLs are now validated before `fetch` is called in `fireWebhook`
+- Blocked ranges: localhost, 127.0.0.1, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, and private IPv6
+- Created `tests/security-ssrf-webhooks.test.ts` with 3 regression tests (localhost, private IPs, public URLs)
+- All 169 tests pass, build passes
+- Files changed: src/installer/events.ts, tests/security-ssrf-webhooks.test.ts

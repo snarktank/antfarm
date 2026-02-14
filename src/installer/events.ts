@@ -61,6 +61,43 @@ function getNotifyUrl(runId: string): string | null {
   }
 }
 
+/** Check if a URL is safe for webhooks (blocks internal/private ranges). */
+function isSafeUrl(urlStr: string): boolean {
+  try {
+    const url = new URL(urlStr);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+
+    const host = url.hostname.toLowerCase();
+
+    // 1. Literal localhost / loopback
+    if (host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "0.0.0.0") return false;
+
+    // 2. IPv4 Private Ranges
+    // 10.0.0.0/8
+    if (host.startsWith("10.")) return false;
+    // 172.16.0.0/12
+    if (host.startsWith("172.")) {
+      const parts = host.split(".");
+      if (parts.length >= 2) {
+        const second = parseInt(parts[1], 10);
+        if (second >= 16 && second <= 31) return false;
+      }
+    }
+    // 192.168.0.0/16
+    if (host.startsWith("192.168.")) return false;
+    // 169.254.0.0/16 (Link-local)
+    if (host.startsWith("169.254.")) return false;
+
+    // 3. IPv6 Private/Local Ranges
+    if (host.startsWith("[fc") || host.startsWith("[fd")) return false;
+    if (host.startsWith("[fe80")) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function fireWebhook(evt: AntfarmEvent): void {
   const raw = getNotifyUrl(evt.runId);
   if (!raw) return;
@@ -72,6 +109,11 @@ function fireWebhook(evt: AntfarmEvent): void {
       headers["Authorization"] = decodeURIComponent(url.slice(hashIdx + 6));
       url = url.slice(0, hashIdx);
     }
+
+    if (!isSafeUrl(url)) {
+      return;
+    }
+
     fetch(url, {
       method: "POST",
       headers,
