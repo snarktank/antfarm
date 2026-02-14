@@ -223,6 +223,7 @@ export async function startHeartbeatLoop(opts: HeartbeatOptions): Promise<void> 
   const typingIntervalMs = config.worker.typingRefreshIntervalMs;
   let progressIntervalMs = config.worker.progressUpdateIntervalMs;
   const hardTimeoutMs = config.worker.timeoutSeconds * 1000;
+  const typingTtlMs = config.worker.typingTtlMs;
 
   // Write lock file
   const lockFile = getHeartbeatLockFile(stepId);
@@ -240,8 +241,9 @@ export async function startHeartbeatLoop(opts: HeartbeatOptions): Promise<void> 
   let lastTypingTime = 0;
   let lastProgressTime = 0;
   let progressCount = 0;
+  let ttlMessageSent = false;
 
-  logger.info(`Heartbeat started for step=${stepId} run=${runId} (typing=${typingIntervalMs}ms, progress=${progressIntervalMs}ms)`);
+  logger.info(`Heartbeat started for step=${stepId} run=${runId} (typing=${typingIntervalMs}ms, progress=${progressIntervalMs}ms, ttl=${typingTtlMs}ms)`);
 
   // Main heartbeat loop
   while (true) {
@@ -258,6 +260,19 @@ export async function startHeartbeatLoop(opts: HeartbeatOptions): Promise<void> 
     if (!isStepRunning(stepId)) {
       logger.info(`Heartbeat stopping: step=${stepId} no longer running after ${formatElapsed(elapsed)}`);
       break;
+    }
+
+    // Typing TTL expiration handling: send status message when TTL expires
+    if (!ttlMessageSent && elapsed >= typingTtlMs) {
+      ttlMessageSent = true;
+      const ttlMessage = `\u23f0 This is taking longer than expected. Still working on your request... (elapsed: ${formatElapsed(elapsed)})`;
+      const sent = await sendProgressMessage(gateway, ttlMessage, chatInfo.notifyUrl);
+      if (sent) {
+        logger.info(`Typing TTL status message sent for step=${stepId} after ${formatElapsed(elapsed)}`);
+      } else {
+        logger.warn(`Typing TTL status message FAILED for step=${stepId} after ${formatElapsed(elapsed)}`);
+      }
+      logTtlTimeout(stepId, runId, elapsed);
     }
 
     // Send typing indicator
@@ -291,6 +306,30 @@ export async function startHeartbeatLoop(opts: HeartbeatOptions): Promise<void> 
 
   cleanup();
   logger.info(`Heartbeat exited for step=${stepId} after ${formatElapsed(Date.now() - startTime)}`);
+}
+
+/**
+ * Log a typing TTL timeout event to the database for monitoring and debugging.
+ */
+function logTtlTimeout(stepId: string, runId: string, elapsedMs: number): void {
+  try {
+    const db = getDb();
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ttl_timeout_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        step_id TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        elapsed_ms INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    `);
+    db.prepare(
+      "INSERT INTO ttl_timeout_events (step_id, run_id, elapsed_ms, created_at) VALUES (?, ?, ?, ?)"
+    ).run(stepId, runId, elapsedMs, new Date().toISOString());
+    logger.info(`TTL timeout event logged for step=${stepId} elapsed=${formatElapsed(elapsedMs)}`);
+  } catch (err) {
+    logger.warn(`Failed to log TTL timeout event: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 function sleep(ms: number): Promise<void> {

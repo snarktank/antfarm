@@ -16,6 +16,7 @@ export interface WorkerSettings {
   heartbeatEnabled: boolean;
   typingRefreshIntervalMs: number;
   progressUpdateIntervalMs: number;
+  typingTtlMs: number;
 }
 
 export interface ConcurrencySettings {
@@ -55,6 +56,7 @@ export function getDefaultConfig(): AntfarmConfig {
       heartbeatEnabled: true,
       typingRefreshIntervalMs: 30_000,
       progressUpdateIntervalMs: 90_000,
+      typingTtlMs: 120_000,
     },
     concurrency: {
       opus: 2,
