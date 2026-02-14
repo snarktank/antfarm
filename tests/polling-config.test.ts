@@ -90,6 +90,46 @@ steps:
     expects: "CHANGES"
 `;
 
+const WORKFLOW_WITH_KIMI_POLLING = `
+id: test-kimi-polling
+name: Test Kimi Polling Config
+version: 1
+
+polling:
+  model: kimi-k2
+  timeoutSeconds: 45
+
+agents:
+  - id: planner
+    name: Planner Agent
+    pollingModel: kimi-code
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+
+  - id: developer
+    name: Developer Agent
+    pollingModel: kimi-for-coding
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+
+  - id: reviewer
+    name: Reviewer Agent
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: agents/reviewer/AGENTS.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: "Plan the work"
+    expects: "STORIES"
+`;
+
 describe("polling config", () => {
   let tmpDir: string;
 
@@ -146,5 +186,70 @@ describe("polling config", () => {
       () => loadWorkflowSpec(dir),
       /polling\.timeoutSeconds must be positive/
     );
+  });
+
+  it("accepts kimi-k2 at workflow-level polling.model", async () => {
+    const dir = path.join(tmpDir, "kimi-polling-workflow");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.mkdir(path.join(dir, "agents", "planner"), { recursive: true });
+    await fs.mkdir(path.join(dir, "agents", "developer"), { recursive: true });
+    await fs.mkdir(path.join(dir, "agents", "reviewer"), { recursive: true });
+    await fs.writeFile(path.join(dir, "agents", "planner", "AGENTS.md"), "# Planner");
+    await fs.writeFile(path.join(dir, "agents", "developer", "AGENTS.md"), "# Developer");
+    await fs.writeFile(path.join(dir, "agents", "reviewer", "AGENTS.md"), "# Reviewer");
+    await fs.writeFile(path.join(dir, "workflow.yml"), WORKFLOW_WITH_KIMI_POLLING);
+
+    const spec = await loadWorkflowSpec(dir);
+    assert.ok(spec.polling, "polling config should exist");
+    assert.equal(spec.polling.model, "kimi-k2", "workflow-level polling.model should accept kimi-k2");
+    assert.equal(spec.polling.timeoutSeconds, 45);
+  });
+
+  it("accepts kimi-code and kimi-for-coding at per-agent pollingModel", async () => {
+    const dir = path.join(tmpDir, "kimi-polling-agent");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.mkdir(path.join(dir, "agents", "planner"), { recursive: true });
+    await fs.mkdir(path.join(dir, "agents", "developer"), { recursive: true });
+    await fs.mkdir(path.join(dir, "agents", "reviewer"), { recursive: true });
+    await fs.writeFile(path.join(dir, "agents", "planner", "AGENTS.md"), "# Planner");
+    await fs.writeFile(path.join(dir, "agents", "developer", "AGENTS.md"), "# Developer");
+    await fs.writeFile(path.join(dir, "agents", "reviewer", "AGENTS.md"), "# Reviewer");
+    await fs.writeFile(path.join(dir, "workflow.yml"), WORKFLOW_WITH_KIMI_POLLING);
+
+    const spec = await loadWorkflowSpec(dir);
+    const planner = spec.agents.find(a => a.id === "planner");
+    const developer = spec.agents.find(a => a.id === "developer");
+    const reviewer = spec.agents.find(a => a.id === "reviewer");
+
+    assert.ok(planner, "planner agent should exist");
+    assert.ok(developer, "developer agent should exist");
+    assert.ok(reviewer, "reviewer agent should exist");
+
+    assert.equal(planner.pollingModel, "kimi-code", "planner should have kimi-code pollingModel");
+    assert.equal(developer.pollingModel, "kimi-for-coding", "developer should have kimi-for-coding pollingModel");
+    assert.equal(reviewer.pollingModel, undefined, "reviewer should not have pollingModel (falls back)");
+  });
+
+  it("falls back to workflow-level polling.model when agent pollingModel not specified", async () => {
+    const dir = path.join(tmpDir, "kimi-polling-fallback");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.mkdir(path.join(dir, "agents", "planner"), { recursive: true });
+    await fs.mkdir(path.join(dir, "agents", "developer"), { recursive: true });
+    await fs.mkdir(path.join(dir, "agents", "reviewer"), { recursive: true });
+    await fs.writeFile(path.join(dir, "agents", "planner", "AGENTS.md"), "# Planner");
+    await fs.writeFile(path.join(dir, "agents", "developer", "AGENTS.md"), "# Developer");
+    await fs.writeFile(path.join(dir, "agents", "reviewer", "AGENTS.md"), "# Reviewer");
+    await fs.writeFile(path.join(dir, "workflow.yml"), WORKFLOW_WITH_KIMI_POLLING);
+
+    const spec = await loadWorkflowSpec(dir);
+
+    // Verify workflow-level config exists
+    assert.ok(spec.polling, "workflow-level polling config should exist");
+    assert.equal(spec.polling.model, "kimi-k2", "workflow-level model should be kimi-k2");
+
+    // Verify reviewer has no override (would fall back to workflow-level)
+    const reviewer = spec.agents.find(a => a.id === "reviewer");
+    assert.ok(reviewer, "reviewer agent should exist");
+    assert.equal(reviewer.pollingModel, undefined, "reviewer has no pollingModel override");
   });
 });
