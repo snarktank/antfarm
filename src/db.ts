@@ -8,7 +8,7 @@ const DB_PATH = path.join(DB_DIR, "antfarm.db");
 
 let _db: DatabaseSync | null = null;
 let _dbOpenedAt = 0;
-const DB_MAX_AGE_MS = 5000;
+const DB_MAX_AGE_MS = 60_000;
 
 export function getDb(): DatabaseSync {
   const now = Date.now();
@@ -92,6 +92,15 @@ function migrate(db: DatabaseSync): void {
   if (!runColNames.has("notify_url")) {
     db.exec("ALTER TABLE runs ADD COLUMN notify_url TEXT");
   }
+
+  // Indexes for hot query paths (claim, peek, cleanup, advance)
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_steps_agent_status ON steps(agent_id, status);
+    CREATE INDEX IF NOT EXISTS idx_steps_run_status ON steps(run_id, status);
+    CREATE INDEX IF NOT EXISTS idx_steps_run_stepindex ON steps(run_id, step_index);
+    CREATE INDEX IF NOT EXISTS idx_stories_run_status ON stories(run_id, status);
+    CREATE INDEX IF NOT EXISTS idx_runs_workflow_status ON runs(workflow_id, status);
+  `);
 }
 
 export function getDbPath(): string {
