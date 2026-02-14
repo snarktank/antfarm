@@ -1,0 +1,79 @@
+# Kimi Polling Workflow — End-to-End Test Fixture
+#
+# Demonstrates full Kimi model configuration for two-phase polling:
+#   Phase 1 (Polling): A lightweight model checks for new work
+#   Phase 2 (Work):    A capable model executes the task
+#
+# This fixture exercises:
+#   - Workflow-level polling.model with a Kimi identifier
+#   - Per-agent pollingModel override (kimi-code)
+#   - Per-agent model for work phase (kimi-k2)
+#   - Mixed Kimi + traditional provider/model formats
+
+id: kimi-polling-e2e
+name: Kimi Polling End-to-End Test
+version: 1
+
+# Global polling config — all agents use kimi-k2 for polling by default
+polling:
+  model: kimi-k2
+  timeoutSeconds: 60
+
+agents:
+  # Planner: uses workflow-level polling model (kimi-k2) + kimi-k2 for work
+  - id: planner
+    name: Kimi Planner
+    description: Plans work using Kimi models for both polling and execution
+    role: analysis
+    model: kimi-k2
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+
+  # Developer: overrides pollingModel to kimi-code, uses kimi-k2 for work
+  - id: developer
+    name: Kimi Developer
+    description: Implements code using Kimi models with a coding-optimized polling model
+    role: coding
+    model: kimi-k2
+    pollingModel: kimi-code
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+
+  # Reviewer: uses traditional provider/model for work, kimi-for-coding for polling
+  - id: reviewer
+    name: Kimi Reviewer
+    description: Reviews code using mixed model configuration
+    role: analysis
+    model: anthropic/claude-sonnet-4-20250514
+    pollingModel: kimi-for-coding
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: agents/reviewer/AGENTS.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: "Analyze the repository and plan implementation"
+    expects: "STORIES"
+
+  - id: implement
+    agent: developer
+    type: loop
+    loop:
+      over: stories
+      completion: all_done
+      freshSession: true
+      verifyEach: true
+      verifyStep: review
+    input: "Implement the assigned story"
+    expects: "STATUS, CHANGES, TESTS"
+
+  - id: review
+    agent: reviewer
+    input: "Review the implementation for correctness"
+    expects: "VERDICT"
