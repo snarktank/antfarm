@@ -61,4 +61,28 @@ describe("buildPollingPrompt", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer");
     assert.ok(prompt.includes("CLAIMED STEP JSON"), "should instruct to append claimed JSON");
   });
+
+  it("accepts kimi-* models as workModel parameter", () => {
+    const prompt = buildPollingPrompt("feature-dev", "developer", "kimi-k2");
+    assert.ok(prompt.includes('"kimi-k2"'), "should specify kimi-k2 model for spawn");
+  });
+
+  it("accepts kimi-code model identifier", () => {
+    const prompt = buildPollingPrompt("feature-dev", "developer", "kimi-code");
+    assert.ok(prompt.includes('"kimi-code"'), "should specify kimi-code model for spawn");
+  });
+
+  it("properly escapes model identifiers with slashes like kimi-code/kimi-for-coding", () => {
+    const prompt = buildPollingPrompt("feature-dev", "developer", "kimi-code/kimi-for-coding");
+    assert.ok(prompt.includes('"kimi-code/kimi-for-coding"'), "should properly escape model with slash");
+    // Verify the model is properly quoted so the slash doesn't break anything
+    const modelLine = prompt.split('\n').find(line => line.includes('model:'));
+    assert.ok(modelLine, "should have a model line");
+    assert.ok(modelLine!.includes('"kimi-code/kimi-for-coding"'), "model value should be quoted");
+  });
+
+  it("accepts kimi-for-coding model identifier", () => {
+    const prompt = buildPollingPrompt("feature-dev", "developer", "kimi-for-coding");
+    assert.ok(prompt.includes('"kimi-for-coding"'), "should specify kimi-for-coding model for spawn");
+  });
 });
