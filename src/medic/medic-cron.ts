@@ -7,8 +7,17 @@ import { readOpenClawConfig, writeOpenClawConfig } from "../installer/openclaw-c
 
 const MEDIC_CRON_NAME = "antfarm/medic";
 const MEDIC_EVERY_MS = 5 * 60 * 1000; // 5 minutes
-const MEDIC_MODEL = "claude-sonnet-4-20250514";
+const MEDIC_MODEL_DEFAULT = "claude-sonnet-4-20250514";
 const MEDIC_TIMEOUT_SECONDS = 120;
+
+/**
+ * Resolve the medic model identifier.
+ * Reads from ANTFARM_MEDIC_MODEL env var, falling back to the default Claude model.
+ * Supports kimi-* model identifiers when the env var is set.
+ */
+export function getMedicModel(): string {
+  return process.env.ANTFARM_MEDIC_MODEL || MEDIC_MODEL_DEFAULT;
+}
 
 function buildMedicPrompt(): string {
   const cli = resolveAntfarmCli();
@@ -41,7 +50,7 @@ async function ensureMedicAgent(): Promise<void> {
     config.agents.list.push({
       id: "antfarm-medic",
       name: "Antfarm Medic",
-      model: MEDIC_MODEL,
+      model: getMedicModel(),
     });
     await writeOpenClawConfig(path, config);
   } catch {
@@ -80,7 +89,7 @@ export async function installMedicCron(): Promise<{ ok: boolean; error?: string 
     payload: {
       kind: "agentTurn",
       message: buildMedicPrompt(),
-      model: MEDIC_MODEL,
+      model: getMedicModel(),
       timeoutSeconds: MEDIC_TIMEOUT_SECONDS,
     },
     delivery: { mode: "none" },
