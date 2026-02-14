@@ -48,6 +48,7 @@ function validatePollingConfig(polling: PollingConfig, workflowDir: string) {
  * Accepts:
  * - Provider format: provider/model-name (e.g., anthropic/claude-opus-4-6, openai/gpt-5)
  * - Kimi format: kimi-* (e.g., kimi-k2, kimi-code)
+ * - Bare model name: alphanumeric with hyphens/dots (e.g., claude-sonnet-4-20250514, gpt-4o)
  */
 function validateModelIdentifier(model: string, fieldName: string, workflowDir: string) {
   if (typeof model !== 'string' || model.trim() === '') {
@@ -68,7 +69,12 @@ function validateModelIdentifier(model: string, fieldName: string, workflowDir: 
     }
   }
   
-  throw new Error(`workflow.yml ${fieldName} has invalid format "${model}". Expected provider/model or kimi-* pattern in ${workflowDir}`);
+  // Check for bare model name (alphanumeric, hyphens, dots, underscores — no whitespace or special chars)
+  if (slashCount === 0 && /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(model)) {
+    return; // Valid bare model name (e.g., claude-sonnet-4-20250514)
+  }
+  
+  throw new Error(`workflow.yml ${fieldName} has invalid format "${model}". Expected provider/model, kimi-*, or bare model name in ${workflowDir}`);
 }
 
 function validateAgents(agents: WorkflowAgent[], workflowDir: string) {

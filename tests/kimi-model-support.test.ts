@@ -88,7 +88,7 @@ version: 1
 agents:
   - id: planner
     name: Planner Agent
-    model: kimik2
+    model: "kimi@k2!bad"
     workspace:
       baseDir: agents/planner
       files:
@@ -109,7 +109,7 @@ version: 1
 agents:
   - id: planner
     name: Planner Agent
-    model: invalid-model-format
+    model: "bad model with spaces!"
     workspace:
       baseDir: agents/planner
       files:
@@ -199,7 +199,7 @@ describe("kimi model support", () => {
     assert.equal(spec.polling?.model, "anthropic/claude-haiku-3");
   });
 
-  it("rejects invalid kimi format (missing hyphen)", async () => {
+  it("rejects invalid model format with special characters", async () => {
     const dir = path.join(tmpDir, "invalid-kimi");
     await fs.mkdir(dir, { recursive: true });
     await fs.mkdir(path.join(dir, "agents", "planner"), { recursive: true });
@@ -212,7 +212,7 @@ describe("kimi model support", () => {
     );
   });
 
-  it("rejects invalid model format (no provider prefix or kimi prefix)", async () => {
+  it("rejects invalid model format with spaces and special chars", async () => {
     const dir = path.join(tmpDir, "invalid-model");
     await fs.mkdir(dir, { recursive: true });
     await fs.mkdir(path.join(dir, "agents", "planner"), { recursive: true });
