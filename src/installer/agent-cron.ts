@@ -108,7 +108,8 @@ If output is "NO_WORK", reply HEARTBEAT_OK and stop.
 
 If JSON is returned, do the following:
 1. Save the FULL JSON output to /tmp/antfarm-claimed-step.json
-2. Create a worker prompt file that combines the work instructions with the claimed step JSON:
+2. Extract the stepId and runId from the JSON (you'll need both).
+3. Create a worker prompt file that combines the work instructions with the claimed step JSON:
 \`\`\`
 cat <<'ANTFARM_WORK_EOF' > /tmp/antfarm-work-prompt.txt
 ${escapedWorkPrompt}
@@ -117,11 +118,15 @@ CLAIMED STEP JSON:
 ANTFARM_WORK_EOF
 cat /tmp/antfarm-claimed-step.json >> /tmp/antfarm-work-prompt.txt
 \`\`\`
-3. Spawn the worker in the background:
+4. Spawn the worker in the background:
 \`\`\`
 nohup claude -p --model ${model} --output-format json --dangerously-skip-permissions "$(cat /tmp/antfarm-work-prompt.txt)" > /tmp/antfarm-worker-${fullAgentId}.log 2>&1 &
 \`\`\`
-4. Reply with "SPAWNED: worker PID" and stop immediately. Do NOT wait for the worker.`;
+5. Start a heartbeat process (sends periodic progress updates until the worker completes):
+\`\`\`
+nohup node ${cli} heartbeat start "<stepId>" "<runId>" > /tmp/antfarm-heartbeat-${fullAgentId}.log 2>&1 &
+\`\`\`
+6. Reply with "SPAWNED: worker PID" and stop immediately. Do NOT wait for the worker.`;
 }
 
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {

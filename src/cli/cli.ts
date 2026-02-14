@@ -109,6 +109,10 @@ function printUsage() {
       "antfarm concurrency release <step-id>                     Release worker slot",
       "antfarm concurrency status [model]                        Show concurrency status",
       "",
+      "antfarm heartbeat start <step-id> <run-id>  Start heartbeat for a step (foreground)",
+      "antfarm heartbeat stop <step-id>             Stop heartbeat for a step",
+      "antfarm heartbeat status <step-id>           Check if heartbeat is running",
+      "",
       "antfarm logs [<lines>]               Show recent activity (from events)",
       "antfarm logs <run-id>                Show activity for a specific run",
       "",
@@ -356,6 +360,46 @@ async function main() {
     }
 
     process.stderr.write(`Unknown concurrency action: ${action}\n`);
+    printUsage();
+    process.exit(1);
+  }
+
+  if (group === "heartbeat") {
+    const { startHeartbeatLoop, stopHeartbeat, isHeartbeatRunning } = await import("../worker/heartbeat.js");
+
+    if (action === "start") {
+      const stepIdArg = target;
+      const runIdArg = args[3];
+      if (!stepIdArg || !runIdArg) {
+        process.stderr.write("Usage: antfarm heartbeat start <step-id> <run-id>\n");
+        process.exit(1);
+      }
+      // This runs the heartbeat loop in the foreground (blocks until step completes)
+      await startHeartbeatLoop({ stepId: stepIdArg, runId: runIdArg });
+      return;
+    }
+
+    if (action === "stop") {
+      if (!target) {
+        process.stderr.write("Usage: antfarm heartbeat stop <step-id>\n");
+        process.exit(1);
+      }
+      const stopped = stopHeartbeat(target);
+      process.stdout.write(stopped ? "STOPPED\n" : "NOT_RUNNING\n");
+      return;
+    }
+
+    if (action === "status") {
+      if (!target) {
+        process.stderr.write("Usage: antfarm heartbeat status <step-id>\n");
+        process.exit(1);
+      }
+      const running = isHeartbeatRunning(target);
+      process.stdout.write(running ? "RUNNING\n" : "NOT_RUNNING\n");
+      return;
+    }
+
+    process.stderr.write(`Unknown heartbeat action: ${action}\n`);
     printUsage();
     process.exit(1);
   }

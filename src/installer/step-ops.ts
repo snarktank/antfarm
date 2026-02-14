@@ -11,6 +11,7 @@ import { logger } from "../lib/logger.js";
 import { getMaxRoleTimeoutSeconds } from "./install.js";
 import { isFrontendChange } from "../lib/frontend-detect.js";
 import { ConcurrencyController } from "../worker/concurrency.js";
+import { stopHeartbeat } from "../worker/heartbeat.js";
 
 /**
  * Parse KEY: value lines from step output with support for multi-line values.
@@ -568,6 +569,9 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
     // Non-critical — slot may have been released already or never acquired
   }
 
+  // Stop heartbeat for this step (best-effort)
+  try { stopHeartbeat(step.id); } catch {}
+
   // Guard: don't process completions for failed runs
   const runCheck = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
   if (runCheck?.status === "failed") {
@@ -886,6 +890,9 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
   } catch {
     // Non-critical — slot may have been released already or never acquired
   }
+
+  // Stop heartbeat for this step (best-effort)
+  try { stopHeartbeat(step.id); } catch {}
 
   // Use resolved UUID for all DB operations
   const resolvedId = step.id;

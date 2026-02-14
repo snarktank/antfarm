@@ -43,6 +43,7 @@ fi
 
 # Step 2: Parse the claimed step JSON
 STEP_ID=$(echo "$CLAIM_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['stepId'])" 2>/dev/null)
+RUN_ID=$(echo "$CLAIM_OUTPUT" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['runId'])" 2>/dev/null)
 if [ -z "$STEP_ID" ]; then
   echo "[$(date -Iseconds)] ${FULL_AGENT_ID}: ERROR - failed to parse step claim JSON" >> "$LOG_DIR/poll.log"
   echo "$CLAIM_OUTPUT" >> "$LOG_DIR/poll.log"
@@ -127,15 +128,31 @@ WORKER_PID=$!
 echo "$WORKER_PID" > "$WORK_DIR/worker.pid"
 echo "[$(date -Iseconds)] ${FULL_AGENT_ID}: worker spawned PID=$WORKER_PID for step $STEP_ID (slot=$SLOT_ID)" >> "$LOG_DIR/poll.log"
 
-# Step 6: Set up cleanup to release concurrency slot when worker exits
-if [ -n "$SLOT_ID" ]; then
-  # Monitor worker in background and release slot on exit
+# Step 6: Start heartbeat process to send typing/progress updates
+if [ -n "$RUN_ID" ]; then
+  nohup $ANTFARM_CLI heartbeat start "$STEP_ID" "$RUN_ID" > "$WORK_DIR/heartbeat.log" 2>&1 &
+  HEARTBEAT_PID=$!
+  echo "$HEARTBEAT_PID" > "$WORK_DIR/heartbeat.pid"
+  echo "[$(date -Iseconds)] ${FULL_AGENT_ID}: heartbeat started PID=$HEARTBEAT_PID for step $STEP_ID" >> "$LOG_DIR/poll.log"
+fi
+
+# Step 7: Set up cleanup to release concurrency slot and stop heartbeat when worker exits
+if [ -n "$SLOT_ID" ] || [ -n "$HEARTBEAT_PID" ]; then
+  # Monitor worker in background and clean up on exit
   (
     while kill -0 "$WORKER_PID" 2>/dev/null; do
       sleep 5
     done
-    $ANTFARM_CLI concurrency release "$STEP_ID" 2>/dev/null || true
-    echo "[$(date -Iseconds)] ${FULL_AGENT_ID}: concurrency slot released for step $STEP_ID (worker PID=$WORKER_PID exited)" >> "$LOG_DIR/poll.log"
+    # Release concurrency slot
+    if [ -n "$SLOT_ID" ]; then
+      $ANTFARM_CLI concurrency release "$STEP_ID" 2>/dev/null || true
+      echo "[$(date -Iseconds)] ${FULL_AGENT_ID}: concurrency slot released for step $STEP_ID (worker PID=$WORKER_PID exited)" >> "$LOG_DIR/poll.log"
+    fi
+    # Stop heartbeat process
+    if [ -n "$HEARTBEAT_PID" ] && kill -0 "$HEARTBEAT_PID" 2>/dev/null; then
+      kill "$HEARTBEAT_PID" 2>/dev/null || true
+      echo "[$(date -Iseconds)] ${FULL_AGENT_ID}: heartbeat stopped for step $STEP_ID (worker PID=$WORKER_PID exited)" >> "$LOG_DIR/poll.log"
+    fi
   ) &
   disown
 fi
