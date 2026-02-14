@@ -5,6 +5,7 @@ import { getDb } from "../db.js";
 import { logger } from "../lib/logger.js";
 import { ensureWorkflowCrons } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
+import { reportRunStart, reportEvent } from "../mission-control.js";
 
 export async function runWorkflow(params: {
   workflowId: string;
@@ -63,6 +64,10 @@ export async function runWorkflow(params: {
   }
 
   emitEvent({ ts: new Date().toISOString(), event: "run.started", runId, workflowId: workflow.id });
+
+  // Mission Control: fire-and-forget run start reporting
+  reportRunStart({ runId, workflowId: workflow.id, task: params.taskTitle }).catch(() => {});
+  reportEvent({ actorId: "antfarm", actorName: "Antfarm", workflowId: workflow.id, runId, eventType: "run_started", message: `Run started: ${params.taskTitle}` }).catch(() => {});
 
   logger.info(`Run started: "${params.taskTitle}"`, {
     workflowId: workflow.id,

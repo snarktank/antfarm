@@ -292,6 +292,8 @@ export function cleanupAbandonedSteps(): void {
           emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: step.run_id, workflowId: wfId, stepId: step.step_id, storyId: story.story_id, storyTitle: story.title, detail: "Abandoned — retries exhausted" });
           emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: "Story abandoned and retries exhausted" });
           emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Story abandoned and retries exhausted" });
+          reportRunFail({ runId: step.run_id }).catch(() => {});
+          reportEvent({ actorId: "antfarm", actorName: "Antfarm", workflowId: wfId, runId: step.run_id, eventType: "run_completed", message: "Run failed: Story abandoned and retries exhausted" }).catch(() => {});
           scheduleRunCronTeardown(step.run_id);
         } else {
           db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
@@ -317,6 +319,8 @@ export function cleanupAbandonedSteps(): void {
       emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: `Retries exhausted — step failed` });
       emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: "Agent abandoned step without completing" });
       emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Step abandoned and retries exhausted" });
+      reportRunFail({ runId: step.run_id }).catch(() => {});
+      reportEvent({ actorId: "antfarm", actorName: "Antfarm", workflowId: wfId, runId: step.run_id, eventType: "run_completed", message: "Run failed: Step abandoned and retries exhausted" }).catch(() => {});
       scheduleRunCronTeardown(step.run_id);
     } else {
       // Reset to pending for retry — do NOT increment retry_count (abandonment != explicit failure)
@@ -487,6 +491,8 @@ export function claimStep(agentId: string): ClaimResult {
             const wfId = getWorkflowId(step.run_id);
             emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: step.id, agentId: agentId, detail: "Loop has failed stories and no pending stories" });
             emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Loop has failed stories and no pending stories" });
+            reportRunFail({ runId: step.run_id }).catch(() => {});
+            reportEvent({ actorId: "antfarm", actorName: "Antfarm", workflowId: wfId, runId: step.run_id, eventType: "run_completed", message: "Run failed: Loop has failed stories" }).catch(() => {});
             scheduleRunCronTeardown(step.run_id);
             return { found: false };
           }
@@ -760,6 +766,8 @@ function handleVerifyEachCompletion(
         const wfId = getWorkflowId(verifyStep.run_id);
         emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: verifyStep.run_id, workflowId: wfId, stepId: verifyStep.step_id });
         emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: verifyStep.run_id, workflowId: wfId, detail: "Verification retries exhausted" });
+        reportRunFail({ runId: verifyStep.run_id }).catch(() => {});
+        reportEvent({ actorId: "antfarm", actorName: "Antfarm", workflowId: wfId, runId: verifyStep.run_id, eventType: "run_completed", message: "Run failed: Verification retries exhausted" }).catch(() => {});
         scheduleRunCronTeardown(verifyStep.run_id);
         return { advanced: false, runCompleted: false };
       }
@@ -832,6 +840,8 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
     const wfId = getWorkflowId(runId);
     emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId, workflowId: wfId, stepId: loopStepId, detail: "Loop has failed stories and no pending stories" });
     emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId, workflowId: wfId, detail: "Loop has failed stories and no pending stories" });
+    reportRunFail({ runId }).catch(() => {});
+    reportEvent({ actorId: "antfarm", actorName: "Antfarm", workflowId: wfId, runId, eventType: "run_completed", message: "Run failed: Loop has failed stories" }).catch(() => {});
     scheduleRunCronTeardown(runId);
     return { advanced: false, runCompleted: false };
   }
@@ -962,6 +972,8 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
         emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, storyId: storyRow?.story_id, storyTitle: storyRow?.title, detail: error });
         emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: error });
         emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Story retries exhausted" });
+        reportRunFail({ runId: step.run_id }).catch(() => {});
+        reportEvent({ actorId: "antfarm", actorName: "Antfarm", workflowId: wfId, runId: step.run_id, eventType: "run_completed", message: "Run failed: Story retries exhausted" }).catch(() => {});
         scheduleRunCronTeardown(step.run_id);
         return { retrying: false, runFailed: true };
       }
@@ -986,6 +998,8 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     const wfId2 = getWorkflowId(step.run_id);
     emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId2, stepId: stepId, detail: error });
     emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId2, detail: "Step retries exhausted" });
+    reportRunFail({ runId: step.run_id }).catch(() => {});
+    reportEvent({ actorId: "antfarm", actorName: "Antfarm", workflowId: wfId2, runId: step.run_id, eventType: "run_completed", message: "Run failed: Step retries exhausted" }).catch(() => {});
     scheduleRunCronTeardown(step.run_id);
     return { retrying: false, runFailed: true };
   } else {
