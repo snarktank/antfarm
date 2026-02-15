@@ -230,6 +230,8 @@ select:focus{outline:none;border-color:#8ECFC0}
 const API = '';
 let workflows = [];
 let currentWf = null;
+let currentRunId = null;
+let panelRefreshInterval = null;
 
 async function fetchJSON(url) {
   const r = await fetch(API + url);
@@ -317,7 +319,23 @@ function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g
 function parseTS(ts) { if (!ts) return null; if (!ts.endsWith('Z') && !ts.includes('+')) ts = ts.replace(' ', 'T') + 'Z'; return new Date(ts); }
 
 async function openRun(id) {
-  const run = await fetchJSON(`/api/runs/${id}`);
+  // Clear any existing panel refresh interval
+  if (panelRefreshInterval) {
+    clearInterval(panelRefreshInterval);
+    panelRefreshInterval = null;
+  }
+
+  currentRunId = id;
+  await refreshPanel();
+
+  // Start auto-refresh every 5 seconds
+  panelRefreshInterval = setInterval(refreshPanel, 5000);
+}
+
+async function refreshPanel() {
+  if (!currentRunId) return;
+
+  const run = await fetchJSON(`/api/runs/${currentRunId}`);
   const panel = document.getElementById('panel');
   const created = run.created_at ? parseTS(run.created_at)?.toLocaleString() || "" : '';
   const updated = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || "" : '';
@@ -353,8 +371,8 @@ async function openRun(id) {
     <div id="activity-panel"></div>
   `;
   document.getElementById('overlay').classList.add('open');
-  loadStories(id);
-  loadActivity(id);
+  loadStories(currentRunId);
+  loadActivity(currentRunId);
 }
 
 function formatEventDesc(evt) {
@@ -407,6 +425,12 @@ async function loadActivity(runId) {
 
 function closePanel() {
   document.getElementById('overlay').classList.remove('open');
+  // Clear the panel refresh interval when closing
+  if (panelRefreshInterval) {
+    clearInterval(panelRefreshInterval);
+    panelRefreshInterval = null;
+  }
+  currentRunId = null;
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
 
