@@ -12,6 +12,28 @@ import { reportEvent, reportRunComplete, reportRunFail } from "../mission-contro
 import { getMaxRoleTimeoutSeconds } from "./install.js";
 import { isFrontendChange } from "../lib/frontend-detect.js";
 
+// ── Agent Aliases ───────────────────────────────────────────────────
+// Maps a primary agent ID to alternative agent IDs that can claim its steps.
+export const AGENT_ALIASES: Record<string, string[]> = {
+  "feature-dev-developer": ["feature-dev-developer-2", "feature-dev-developer-3"],
+};
+
+/**
+ * Given an agentId, return all agent_id values it should match when claiming steps.
+ * Always includes the agentId itself. If agentId is an alias for a primary,
+ * also includes that primary agent ID.
+ */
+export function resolveAgentIds(agentId: string): string[] {
+  const ids = [agentId];
+  for (const [primary, aliases] of Object.entries(AGENT_ALIASES)) {
+    if (aliases.includes(agentId)) {
+      ids.push(primary);
+    }
+  }
+  return ids;
+}
+
+
 /**
  * Parse KEY: value lines from step output with support for multi-line values.
  * Accumulates continuation lines until the next KEY: boundary or end of output.
@@ -396,12 +418,14 @@ export type PeekResult = "HAS_WORK" | "NO_WORK";
  */
 export function peekStep(agentId: string): PeekResult {
   const db = getDb();
+  const ids = resolveAgentIds(agentId);
+  const placeholders = ids.map(() => "?").join(", ");
   const row = db.prepare(
     `SELECT COUNT(*) as cnt FROM steps s
      JOIN runs r ON r.id = s.run_id
-     WHERE s.agent_id = ? AND s.status IN ('pending', 'waiting')
+     WHERE s.agent_id IN (${placeholders}) AND s.status IN ('pending', 'waiting')
        AND r.status = 'running'`
-  ).get(agentId) as { cnt: number };
+  ).get(...ids) as { cnt: number };
   return row.cnt > 0 ? "HAS_WORK" : "NO_WORK";
 }
 
@@ -437,14 +461,16 @@ export function claimStep(agentId: string): ClaimResult {
   // --- Atomic claim: BEGIN IMMEDIATE ensures exclusive write lock before SELECT ---
   db.exec("BEGIN IMMEDIATE");
   try {
+    const ids = resolveAgentIds(agentId);
+    const placeholders = ids.map(() => "?").join(", ");
     const step = db.prepare(
       `SELECT s.id, s.step_id, s.run_id, s.input_template, s.type, s.loop_config
        FROM steps s
        JOIN runs r ON r.id = s.run_id
-       WHERE s.agent_id = ? AND s.status = 'pending'
+       WHERE s.agent_id IN (${placeholders}) AND s.status = 'pending'
          AND r.status NOT IN ('failed', 'cancelled')
        LIMIT 1`
-    ).get(agentId) as { id: string; step_id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
+    ).get(...ids) as { id: string; step_id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
 
     if (!step) {
       db.exec("COMMIT");
