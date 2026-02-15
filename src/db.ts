@@ -3,8 +3,21 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const DB_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
-const DB_PATH = path.join(DB_DIR, "antfarm.db");
+const DEFAULT_DB_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
+const DEFAULT_DB_PATH = path.join(DEFAULT_DB_DIR, "antfarm.db");
+
+/**
+ * Resolve the database path. Supports overriding via environment variable
+ * `ANTFARM_DB_PATH` so that test suites can point to an isolated database
+ * instead of hitting the production one.
+ */
+function resolveDbPath(): { dir: string; file: string } {
+  const override = process.env.ANTFARM_DB_PATH;
+  if (override) {
+    return { dir: path.dirname(override), file: override };
+  }
+  return { dir: DEFAULT_DB_DIR, file: DEFAULT_DB_PATH };
+}
 
 let _db: DatabaseSync | null = null;
 let _dbOpenedAt = 0;
@@ -15,8 +28,9 @@ export function getDb(): DatabaseSync {
   if (_db && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
   if (_db) { try { _db.close(); } catch {} }
 
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  _db = new DatabaseSync(DB_PATH);
+  const { dir, file } = resolveDbPath();
+  fs.mkdirSync(dir, { recursive: true });
+  _db = new DatabaseSync(file);
   _dbOpenedAt = now;
   _db.exec("PRAGMA journal_mode=WAL");
   _db.exec("PRAGMA foreign_keys=ON");
@@ -110,5 +124,17 @@ export function nextRunNumber(): number {
 }
 
 export function getDbPath(): string {
-  return DB_PATH;
+  return resolveDbPath().file;
+}
+
+/**
+ * Close the cached database connection so the next `getDb()` call opens a
+ * fresh one. Useful in test teardown to release file handles.
+ */
+export function closeDb(): void {
+  if (_db) {
+    try { _db.close(); } catch {}
+    _db = null;
+    _dbOpenedAt = 0;
+  }
 }

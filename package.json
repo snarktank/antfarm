@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && cp src/server/index.html dist/server/index.html && chmod +x dist/cli/cli.js && node scripts/inject-version.js",
+    "test": "npm run build && node --test tests/*.test.ts dist/installer/status.test.js",
     "start": "node dist/cli/cli.js"
   },
   "dependencies": {

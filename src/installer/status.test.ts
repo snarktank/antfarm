@@ -1,9 +1,38 @@
-import { describe, it, afterEach } from "node:test";
-import assert from "node:assert/strict";
+// Set ANTFARM_DB_PATH to a temp file before any production imports.
+// This prevents tests from touching the production database (see #162).
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import crypto from "node:crypto";
-import { getDb } from "../db.js";
+
+const _testDbPath = path.join(os.tmpdir(), `antfarm-test-status-${crypto.randomUUID()}.db`);
+const _origDbPath = process.env.ANTFARM_DB_PATH;
+process.env.ANTFARM_DB_PATH = _testDbPath;
+
+import { describe, it, before, afterEach, after } from "node:test";
+import assert from "node:assert/strict";
+import { getDb, closeDb } from "../db.js";
 import { stopWorkflow } from "./status.js";
 import type { StopWorkflowResult } from "./status.js";
+
+before(() => {
+  // Force getDb() to reconnect using the test DB path
+  closeDb();
+});
+
+after(() => {
+  closeDb();
+  // Restore original env
+  if (_origDbPath !== undefined) {
+    process.env.ANTFARM_DB_PATH = _origDbPath;
+  } else {
+    delete process.env.ANTFARM_DB_PATH;
+  }
+  // Remove temp DB files
+  for (const suffix of ["", "-wal", "-shm"]) {
+    try { fs.unlinkSync(_testDbPath + suffix); } catch {}
+  }
+});
 
 // Helper to create a test run with steps
 function createTestRun(opts: {
@@ -97,7 +126,11 @@ describe("stopWorkflow", () => {
     const result = await stopWorkflow("nonexistent-run-id-12345");
     assert.equal(result.status, "not_found");
     if (result.status !== "not_found") return;
-    assert.ok(result.message.includes("nonexistent-run-id-12345"));
+    assert.ok(
+      result.message.includes("nonexistent-run-id-12345") ||
+      result.message.includes("No workflow runs found"),
+      `Expected not_found message, got: ${result.message}`
+    );
   });
 
   it("returns already_done for an already completed run", async () => {

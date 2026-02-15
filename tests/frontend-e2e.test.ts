@@ -1,10 +1,17 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
+// Isolate DB *before* importing any production code (fixes #162)
+import fs from "node:fs";
+import osModule from "node:os";
+import pathModule from "node:path";
+import cryptoModule from "node:crypto";
+
+const TEST_DB_PATH = pathModule.join(osModule.tmpdir(), `antfarm-test-e2e-${cryptoModule.randomUUID()}.db`);
+const ORIG_DB_PATH = process.env.ANTFARM_DB_PATH;
+process.env.ANTFARM_DB_PATH = TEST_DB_PATH;
+
+import { describe, it, before, beforeEach, afterEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import { getDb } from "../dist/db.js";
+import { getDb, closeDb } from "../dist/db.js";
 import { claimStep } from "../dist/installer/step-ops.js";
 import { randomUUID } from "node:crypto";
 
@@ -12,8 +19,10 @@ import { randomUUID } from "node:crypto";
  * E2E integration test for frontend change detection in the verify flow.
  *
  * Creates a real git repo with controlled diffs, inserts a run+step into
- * the live DB with a verify-style template referencing {{has_frontend_changes}},
+ * an isolated test DB with a verify-style template referencing {{has_frontend_changes}},
  * then calls claimStep and checks the resolved input.
+ *
+ * Uses ANTFARM_DB_PATH to isolate from the production database (see #162).
  */
 
 const VERIFY_TEMPLATE = `Verify the implementation.
@@ -31,25 +40,38 @@ describe("E2E: frontend change detection in verify flow", () => {
   const testRunIds: string[] = [];
   const testAgentId = `test-verifier-${randomUUID().slice(0, 8)}`;
 
+  before(() => {
+    closeDb();
+  });
+
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "antfarm-e2e-"));
-    // Create a real git repo with a main branch
+    tmpDir = fs.mkdtempSync(pathModule.join(osModule.tmpdir(), "antfarm-e2e-"));
     execSync("git init && git checkout -b main", { cwd: tmpDir });
-    fs.writeFileSync(path.join(tmpDir, "README.md"), "# test");
+    fs.writeFileSync(pathModule.join(tmpDir, "README.md"), "# test");
     execSync("git add . && git commit -m 'init'", { cwd: tmpDir });
   });
 
   afterEach(() => {
-    // Clean up git repo
     fs.rmSync(tmpDir, { recursive: true, force: true });
 
-    // Clean up DB entries
     const db = getDb();
     for (const runId of testRunIds) {
       db.prepare("DELETE FROM steps WHERE run_id = ?").run(runId);
       db.prepare("DELETE FROM runs WHERE id = ?").run(runId);
     }
     testRunIds.length = 0;
+  });
+
+  after(() => {
+    closeDb();
+    if (ORIG_DB_PATH !== undefined) {
+      process.env.ANTFARM_DB_PATH = ORIG_DB_PATH;
+    } else {
+      delete process.env.ANTFARM_DB_PATH;
+    }
+    for (const suffix of ["", "-wal", "-shm"]) {
+      try { fs.unlinkSync(TEST_DB_PATH + suffix); } catch {}
+    }
   });
 
   function insertTestRun(repo: string, branch: string): string {
@@ -74,9 +96,8 @@ describe("E2E: frontend change detection in verify flow", () => {
   }
 
   it("includes browser verification instructions when branch has frontend changes", () => {
-    // Create branch with frontend file
     execSync("git checkout -b feat-frontend-ui", { cwd: tmpDir });
-    fs.writeFileSync(path.join(tmpDir, "index.html"), "<html><body>Hello</body></html>");
+    fs.writeFileSync(pathModule.join(tmpDir, "index.html"), "<html><body>Hello</body></html>");
     execSync("git add . && git commit -m 'add html'", { cwd: tmpDir });
 
     insertTestRun(tmpDir, "feat-frontend-ui");
@@ -99,10 +120,9 @@ describe("E2E: frontend change detection in verify flow", () => {
   });
 
   it("excludes browser verification when branch has only backend changes", () => {
-    // Create branch with only backend files
     execSync("git checkout -b feat-backend-only", { cwd: tmpDir });
-    fs.writeFileSync(path.join(tmpDir, "server.ts"), "export const x = 1;");
-    fs.writeFileSync(path.join(tmpDir, "utils.py"), "def hello(): pass");
+    fs.writeFileSync(pathModule.join(tmpDir, "server.ts"), "export const x = 1;");
+    fs.writeFileSync(pathModule.join(tmpDir, "utils.py"), "def hello(): pass");
     execSync("git add . && git commit -m 'add backend'", { cwd: tmpDir });
 
     insertTestRun(tmpDir, "feat-backend-only");
@@ -121,13 +141,11 @@ describe("E2E: frontend change detection in verify flow", () => {
   });
 
   it("uses mock git diff (real repo, controlled files) — no external repo needed", () => {
-    // This test verifies we're using a temp git repo, not a real project repo
-    // The beforeEach creates a fresh git repo in tmpDir
-    assert.ok(fs.existsSync(path.join(tmpDir, ".git")), "Should have a .git directory");
+    assert.ok(fs.existsSync(pathModule.join(tmpDir, ".git")), "Should have a .git directory");
 
     execSync("git checkout -b feat-css-change", { cwd: tmpDir });
-    fs.mkdirSync(path.join(tmpDir, "styles"), { recursive: true });
-    fs.writeFileSync(path.join(tmpDir, "styles", "app.css"), "body { margin: 0; }");
+    fs.mkdirSync(pathModule.join(tmpDir, "styles"), { recursive: true });
+    fs.writeFileSync(pathModule.join(tmpDir, "styles", "app.css"), "body { margin: 0; }");
     execSync("git add . && git commit -m 'add css'", { cwd: tmpDir });
 
     insertTestRun(tmpDir, "feat-css-change");
@@ -141,7 +159,6 @@ describe("E2E: frontend change detection in verify flow", () => {
     const db = getDb();
     const runId = randomUUID();
     const now = new Date().toISOString();
-    // Context without repo or branch
     const context = JSON.stringify({ task: "something" });
 
     db.prepare(
