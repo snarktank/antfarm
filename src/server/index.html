@@ -137,9 +137,27 @@ select:focus{outline:none;border-color:#8ECFC0}
 .card{background:var(--bg-surface-alt);border:1px solid var(--border);border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
 .card:hover{border-color:var(--accent-orange);box-shadow:0 2px 8px var(--accent-orange-subtle)}
 .card-title{font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-meta{font-size:11px;color:var(--text-secondary);display:flex;justify-content:space-between;align-items:center}
+.card-meta{font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:8px}
+.card-meta .time{margin-left:auto}
+.card-id{font-family:'Geist Mono',monospace;font-size:11px;color:var(--text-secondary);margin-right:6px}
+.card-steps{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.mini-dot{width:9px;height:9px;border-radius:999px;border:1px solid var(--border);background:var(--accent-muted)}
+.mini-dot.done{background:var(--accent-green);border-color:var(--accent-green)}
+.mini-dot.running{background:var(--accent-teal);border-color:var(--accent-teal)}
+.mini-dot.pending,.mini-dot.waiting{background:var(--border);border-color:var(--border)}
+.mini-dot.failed,.mini-dot.error{background:var(--accent-orange);border-color:var(--accent-orange)}
+.mini-dot.skipped{background:transparent;border-color:var(--border);opacity:.6}
 .card.done{border-left:3px solid var(--accent-green)}
 .card.failed,.card.error{border-left:3px solid var(--accent-orange)}
+.card.cancelled{border-left:3px solid var(--text-secondary)}
+
+/* ── Terminal columns ─────────────────────────────────────────── */
+.column.terminal-done .column-header{color:var(--accent-green)}
+.column.terminal-done .column-header .count{background:var(--accent-green)}
+.column.terminal-failed .column-header{color:var(--accent-orange)}
+.column.terminal-failed .column-header .count{background:var(--accent-orange)}
+.column.terminal-cancelled .column-header{color:var(--text-secondary)}
+.column.terminal-cancelled .column-header .count{background:var(--text-secondary)}
 
 /* ── Overlay / Panel ───────────────────────────────────────────── */
 .overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s}
@@ -268,6 +286,12 @@ async function loadRuns() {
   renderBoard(currentWf, runs);
 }
 
+const TERMINAL_COLS = [
+  { id: '__done', label: 'done', cls: 'terminal-done' },
+  { id: '__failed', label: 'failed', cls: 'terminal-failed' },
+  { id: '__cancelled', label: 'cancelled', cls: 'terminal-cancelled' },
+];
+
 function getActiveStepId(run) {
   if (!run.steps || !run.steps.length) return null;
   const active = run.steps.find(s => s.status !== 'done' && s.status !== 'skipped');
@@ -276,36 +300,69 @@ function getActiveStepId(run) {
 
 function renderBoard(wf, runs) {
   const board = document.getElementById('board');
+  const colDefs = [
+    ...wf.steps.map(s => ({ id: s.id, label: s.id, cls: '' })),
+    ...TERMINAL_COLS,
+  ];
   const columns = {};
-  wf.steps.forEach(s => { columns[s.id] = []; });
+  colDefs.forEach(c => { columns[c.id] = []; });
 
   runs.forEach(run => {
-    const stepId = getActiveStepId(run);
-    const col = stepId && columns[stepId] !== undefined ? stepId : wf.steps[wf.steps.length - 1]?.id;
+    const status = run.status || '';
+    const isDone = status === 'done' || status === 'completed';
+    const isCancelled = status === 'cancelled';
+    const isFailed = status === 'failed' || status === 'error';
+
+    let col = null;
+    if (isCancelled) col = '__cancelled';
+    else if (isFailed) col = '__failed';
+    else if (isDone) col = '__done';
+    else {
+      const stepId = getActiveStepId(run);
+      col = stepId && columns[stepId] !== undefined ? stepId : wf.steps[wf.steps.length - 1]?.id;
+    }
     if (col && columns[col]) columns[col].push(run);
   });
 
-  board.innerHTML = wf.steps.map(step => {
-    const cards = columns[step.id];
+  board.innerHTML = colDefs.map(step => {
+    const cards = columns[step.id] || [];
     const cardHTML = cards.length === 0
       ? '<div class="empty">No runs</div>'
       : cards.map(run => {
-          const isDone = run.status === 'done';
-          const isFailed = run.status === 'failed' || run.status === 'error';
-          const cls = isDone ? 'done' : isFailed ? 'failed' : '';
+          const status = run.status || '';
+          const isDone = status === 'done' || status === 'completed';
+          const isCancelled = status === 'cancelled';
+          const isFailed = status === 'failed' || status === 'error';
+          const cls = isDone ? 'done' : isFailed ? 'failed' : isCancelled ? 'cancelled' : '';
           const badge = `badge-${run.status}`;
           const time = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || "" : '';
+          const ref = run.run_number != null ? `#${run.run_number}` : run.id.slice(0, 8);
           const title = run.task.length > 60 ? run.task.slice(0, 57) + '…' : run.task;
+
+          const stByStep = {};
+          (run.steps || []).forEach(s => { if (s && s.step_id) stByStep[s.step_id] = s.status || 'waiting'; });
+          const stepper = `<div class="card-steps">${wf.steps.map(st => {
+            const ss = stByStep[st.id] || 'waiting';
+            return `<span class="mini-dot ${ss}" title="${st.id}: ${ss}"></span>`;
+          }).join('')}</div>`;
+
+          const stopAt = (isFailed || isCancelled) ? getActiveStepId(run) : null;
+          const stopMeta = stopAt ? `<span title="stopped at ${stopAt}" style="color:var(--text-secondary);font-family:'Geist Mono',monospace">${stopAt}</span>` : '';
+
           return `<div class="card ${cls}" onclick="openRun('${run.id}')">
-            <div class="card-title" title="${run.task.replace(/"/g, '&quot;')}">${title}</div>
+            <div class="card-title" title="${run.task.replace(/"/g, '&quot;')}"><span class="card-id">${ref}</span>${title}</div>
             <div class="card-meta">
               <span class="badge ${badge}">${run.status}</span>
-              <span>${time}</span>
+              ${stopMeta}
+              <span class="time">${time}</span>
             </div>
+            ${stepper}
           </div>`;
         }).join('');
-    return `<div class="column">
-      <div class="column-header">${step.id}<span class="count">${cards.length}</span></div>
+    const label = step.label || step.id;
+    const colCls = step.cls ? ` ${step.cls}` : '';
+    return `<div class="column${colCls}">
+      <div class="column-header">${label}<span class="count">${cards.length}</span></div>
       <div class="cards">${cardHTML}</div>
     </div>`;
   }).join('');
