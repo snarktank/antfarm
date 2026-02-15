@@ -88,6 +88,16 @@ export function resolveTemplate(template: string, context: Record<string, string
 }
 
 /**
+ * Validate that a resolved workspace path stays within the user's home directory.
+ * Prevents path traversal via crafted openclaw.json workspace values.
+ */
+function isWorkspaceSafe(workspace: string): boolean {
+  const resolved = path.resolve(workspace);
+  const homeDir = os.homedir();
+  return resolved.startsWith(homeDir + path.sep) || resolved === homeDir;
+}
+
+/**
  * Get the workspace path for an OpenClaw agent by its id.
  */
 function getAgentWorkspacePath(agentId: string): string | null {
@@ -95,7 +105,9 @@ function getAgentWorkspacePath(agentId: string): string | null {
     const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     const agent = config.agents?.list?.find((a: any) => a.id === agentId);
-    return agent?.workspace ?? null;
+    const workspace = agent?.workspace ?? null;
+    if (workspace && !isWorkspaceSafe(workspace)) return null;
+    return workspace;
   } catch {
     return null;
   }
