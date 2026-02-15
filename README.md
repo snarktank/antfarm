@@ -65,6 +65,24 @@ triage → investigate → setup → fix → verify → PR
 2. **Install** — One command provisions everything: agent workspaces, cron polling, subagent permissions. No Docker, no queues, no external services.
 3. **Run** — Agents poll for work independently. Claim a step, do the work, pass context to the next agent. SQLite tracks state. Cron keeps it moving.
 
+### Two-Phase Polling Architecture
+
+Antfarm uses a two-phase polling design to minimize cost:
+
+**Phase 1 — Cheap polling.** A lightweight model (Sonnet by default) runs on a cron schedule (every 5 minutes). It calls `step peek` to check for pending work. If there's nothing to do, it exits immediately. This keeps idle costs near zero.
+
+**Phase 2 — Expensive workers.** When work exists, the polling model claims the step (`step claim`) and spawns a dedicated worker session using the configured work model (Opus by default) via `sessions_spawn`. The expensive model only runs when there's actual work to process.
+
+**Configuration:**
+
+| Setting | Scope | Purpose |
+|---------|-------|---------|
+| `agent.pollingModel` | Per-agent | Override the polling model for a specific agent |
+| `workflow.polling.model` | Per-workflow | Set the polling model for all agents in a workflow |
+| `agent.model` | Per-agent | Set the work model (used in Phase 2) |
+
+The default polling model is `default` (resolves to Sonnet). The default work model is `default` (resolves to Opus). See `src/installer/agent-cron.ts` for implementation details.
+
 ### Minimal by design
 
 YAML + SQLite + cron. That's it. No Redis, no Kafka, no container orchestrator. Antfarm is a TypeScript CLI with zero external dependencies. It runs wherever OpenClaw runs.
