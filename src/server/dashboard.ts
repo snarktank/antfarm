@@ -18,7 +18,12 @@ interface WorkflowDef {
   steps: Array<{ id: string; agent: string }>;
 }
 
-function loadWorkflows(): WorkflowDef[] {
+interface LoadWorkflowsResult {
+  workflows: WorkflowDef[];
+  error?: string;
+}
+
+function loadWorkflows(): LoadWorkflowsResult {
   const dir = resolveBundledWorkflowsDir();
   const results: WorkflowDef[] = [];
   try {
@@ -33,8 +38,11 @@ function loadWorkflows(): WorkflowDef[] {
         steps: (parsed.steps ?? []).map((s: any) => ({ id: s.id, agent: s.agent })),
       });
     }
-  } catch { /* empty */ }
-  return results;
+    return { workflows: results };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { workflows: [], error: message };
+  }
 }
 
 function getRuns(workflowId?: string): Array<RunInfo & { steps: StepInfo[] }> {
@@ -76,42 +84,81 @@ export function startDashboard(port = 3333): http.Server {
     const p = url.pathname;
 
     if (p === "/api/workflows") {
-      return json(res, loadWorkflows());
+      try {
+        const result = loadWorkflows();
+        if (result.error) {
+          return json(res, { error: result.error }, 500);
+        }
+        return json(res, result.workflows);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json(res, { error: message }, 500);
+      }
     }
 
     const eventsMatch = p.match(/^\/api\/runs\/([^/]+)\/events$/);
     if (eventsMatch) {
-      return json(res, getRunEvents(eventsMatch[1]));
+      try {
+        return json(res, getRunEvents(eventsMatch[1]));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json(res, { error: message }, 500);
+      }
     }
 
     const storiesMatch = p.match(/^\/api\/runs\/([^/]+)\/stories$/);
     if (storiesMatch) {
-      const db = getDb();
-      const stories = db.prepare(
-        "SELECT * FROM stories WHERE run_id = ? ORDER BY story_index ASC"
-      ).all(storiesMatch[1]);
-      return json(res, stories);
+      try {
+        const db = getDb();
+        const stories = db.prepare(
+          "SELECT * FROM stories WHERE run_id = ? ORDER BY story_index ASC"
+        ).all(storiesMatch[1]);
+        return json(res, stories);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json(res, { error: message }, 500);
+      }
     }
 
     const runMatch = p.match(/^\/api\/runs\/(.+)$/);
     if (runMatch) {
-      const run = getRunById(runMatch[1]);
-      return run ? json(res, run) : json(res, { error: "not found" }, 404);
+      try {
+        const run = getRunById(runMatch[1]);
+        return run ? json(res, run) : json(res, { error: "not found" }, 404);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json(res, { error: message }, 500);
+      }
     }
 
     if (p === "/api/runs") {
-      const wf = url.searchParams.get("workflow") ?? undefined;
-      return json(res, getRuns(wf));
+      try {
+        const wf = url.searchParams.get("workflow") ?? undefined;
+        return json(res, getRuns(wf));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json(res, { error: message }, 500);
+      }
     }
 
     // Medic API
     if (p === "/api/medic/status") {
-      return json(res, getMedicStatus());
+      try {
+        return json(res, getMedicStatus());
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json(res, { error: message }, 500);
+      }
     }
 
     if (p === "/api/medic/checks") {
-      const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
-      return json(res, getRecentMedicChecks(limit));
+      try {
+        const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
+        return json(res, getRecentMedicChecks(limit));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json(res, { error: message }, 500);
+      }
     }
 
     // Serve fonts
