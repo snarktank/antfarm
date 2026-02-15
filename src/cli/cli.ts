@@ -7,6 +7,8 @@ import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
+import { findStuckSteps, recoverStuckSteps } from "../installer/stuck-recovery.js";
+import { deleteAgentCronJobs, listCronJobs } from "../installer/gateway-api.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -49,6 +51,9 @@ function printUsage() {
       "antfarm step complete <step-id>      Complete step (reads output from stdin)",
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "antfarm step stories <run-id>       List stories for a run",
+      "",
+      "antfarm recover stuck [minutes]      Reset steps stuck in 'running' (default: 30 min)",
+      "antfarm cleanup crons                Delete all antfarm-managed cron jobs",
       "",
       "antfarm logs [<lines>]               Show recent log entries",
       "",
@@ -245,6 +250,40 @@ async function main() {
     process.stderr.write(`Unknown step action: ${action}\n`);
     printUsage();
     process.exit(1);
+  }
+
+  if (group === "recover" && action === "stuck") {
+    const minutes = parseInt(args[2], 10) || 30;
+    const stuck = findStuckSteps(minutes);
+    if (stuck.length === 0) {
+      console.log(`No steps stuck for more than ${minutes} minutes.`);
+      return;
+    }
+    console.log(`Found ${stuck.length} stuck step(s):`);
+    for (const s of stuck) {
+      console.log(`  ${s.id.slice(0, 8)}  ${s.step_id.padEnd(14)}  agent=${s.agent_id}  updated=${s.updated_at}`);
+    }
+    const recovered = recoverStuckSteps(minutes);
+    console.log(`Recovered ${recovered} step(s) back to pending.`);
+    return;
+  }
+
+  if (group === "cleanup" && action === "crons") {
+    const result = await listCronJobs();
+    if (!result.ok) {
+      process.stderr.write(`Failed to list crons: ${result.error}\n`);
+      process.exit(1);
+    }
+    const jobs = result.jobs ?? [];
+    const antfarmJobs = jobs.filter(j => j.name.startsWith("antfarm:"));
+    if (antfarmJobs.length === 0) {
+      console.log("No antfarm cron jobs found.");
+      return;
+    }
+    console.log(`Deleting ${antfarmJobs.length} antfarm cron job(s)...`);
+    await deleteAgentCronJobs("antfarm:");
+    console.log("Done.");
+    return;
   }
 
   if (group === "logs") {

@@ -30,6 +30,26 @@ async function getGatewayConfig(): Promise<GatewayConfig> {
   };
 }
 
+const FETCH_TIMEOUT_MS = 10_000;
+const MAX_RETRIES = 3;
+
+async function fetchWithRetry(url: string, options: RequestInit): Promise<Response> {
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      return res;
+    } catch (err: any) {
+      clearTimeout(timer);
+      if (attempt === MAX_RETRIES - 1) throw err;
+      await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt)));
+    }
+  }
+  throw new Error("fetchWithRetry: all retries exhausted");
+}
+
 export async function createAgentCronJob(job: {
   name: string;
   schedule: { kind: string; everyMs?: number; anchorMs?: number };
@@ -45,7 +65,7 @@ export async function createAgentCronJob(job: {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (gateway.token) headers["Authorization"] = `Bearer ${gateway.token}`;
 
-    const response = await fetch(`${gateway.url}/tools/invoke`, {
+    const response = await fetchWithRetry(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
       body: JSON.stringify({ tool: "cron", args: { action: "add", job } }),
@@ -73,7 +93,7 @@ export async function listCronJobs(): Promise<{ ok: boolean; jobs?: Array<{ id: 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (gateway.token) headers["Authorization"] = `Bearer ${gateway.token}`;
 
-    const response = await fetch(`${gateway.url}/tools/invoke`, {
+    const response = await fetchWithRetry(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
       body: JSON.stringify({ tool: "cron", args: { action: "list" } }),
@@ -114,7 +134,7 @@ export async function deleteCronJob(jobId: string): Promise<{ ok: boolean; error
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (gateway.token) headers["Authorization"] = `Bearer ${gateway.token}`;
 
-    const response = await fetch(`${gateway.url}/tools/invoke`, {
+    const response = await fetchWithRetry(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
       body: JSON.stringify({ tool: "cron", args: { action: "remove", id: jobId } }),

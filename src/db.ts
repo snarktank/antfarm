@@ -7,18 +7,14 @@ const DB_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
 const DB_PATH = path.join(DB_DIR, "antfarm.db");
 
 let _db: DatabaseSync | null = null;
-let _dbOpenedAt = 0;
-const DB_MAX_AGE_MS = 5000;
 
 export function getDb(): DatabaseSync {
-  const now = Date.now();
-  if (_db && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
-  if (_db) { try { _db.close(); } catch {} }
+  if (_db) return _db;
 
   fs.mkdirSync(DB_DIR, { recursive: true });
   _db = new DatabaseSync(DB_PATH);
-  _dbOpenedAt = now;
   _db.exec("PRAGMA journal_mode=WAL");
+  _db.exec("PRAGMA busy_timeout=5000");
   _db.exec("PRAGMA foreign_keys=ON");
   migrate(_db);
   return _db;
