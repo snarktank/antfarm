@@ -79,6 +79,17 @@ agents:
         SOUL.md: ../../agents/shared/pr/SOUL.md
         IDENTITY.md: ../../agents/shared/pr/IDENTITY.md
 
+  - id: bug-fix_deployer
+    name: Deploy Agent
+    role: deployment
+    description: Executes safe deployment after PR approval.
+    workspace:
+      baseDir: agents/deployer
+      files:
+        AGENTS.md: agents/deployer/AGENTS.md
+        SOUL.md: agents/deployer/SOUL.md
+        IDENTITY.md: agents/deployer/IDENTITY.md
+
 steps:
   - id: triage
     agent: triager
@@ -292,5 +303,62 @@ steps:
       STATUS: done
       PR: URL to the pull request
     expects: "STATUS: done"
+    on_fail:
+      escalate_to: human
+
+  - id: deploy
+    agent: bug-fix_deployer
+    condition: "no_deploy != true"
+    input: |
+      Execute safe deployment of the merged bug fix pull request.
+
+      BUG REPORT:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      BUILD_CMD: {{build_cmd}}
+      TEST_CMD: {{test_cmd}}
+
+      PR: {{pr}}
+      PROBLEM_STATEMENT: {{problem_statement}}
+      CHANGES: {{changes}}
+      REGRESSION_TEST: {{regression_test}}
+      VERIFIED: {{verified}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions (SAFETY CRITICAL):
+      1. Validate PR is merged and code is live
+      2. Perform a dry-run deployment first:
+         - Pull latest code: git pull
+         - Install dependencies: npm install
+         - Build: {{build_cmd}}
+         - Run tests: {{test_cmd}} (if configured)
+      3. Create a detailed deployment report including:
+         - Bug fix deployed (from {{problem_statement}})
+         - Changes deployed (from {{changes}})
+         - Regression test status
+         - Build and test status
+         - Confirmation that the bug is fixed in production
+      4. Document rollback plan for all changes:
+         - How to revert the deployment
+         - Previous version reference
+         - Any database migrations to reverse
+      5. DO NOT execute destructive changes without explicit confirmation
+      6. Exclude all secrets, API keys, passwords from deploy logs
+      7. Send deployment summary to Telegram (if configured)
+
+      Reply with:
+      STATUS: done
+      DEPLOYMENT_REPORT: detailed report of deployment status and rollback plan
+      TELEGRAM_SENT: true|false (whether notification was sent)
+
+      Or if deployment should not proceed:
+      STATUS: abort
+      REASON: why deployment should not proceed
+    expects: "STATUS: done|abort"
+    max_retries: 1
     on_fail:
       escalate_to: human

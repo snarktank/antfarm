@@ -84,6 +84,17 @@ agents:
         SOUL.md: agents/reviewer/SOUL.md
         IDENTITY.md: agents/reviewer/IDENTITY.md
 
+  - id: feature-dev_deployer
+    name: Deploy Agent
+    role: deployment
+    description: Executes safe deployment after PR approval.
+    workspace:
+      baseDir: agents/deployer
+      files:
+        AGENTS.md: agents/deployer/AGENTS.md
+        SOUL.md: agents/deployer/SOUL.md
+        IDENTITY.md: agents/deployer/IDENTITY.md
+
 steps:
   - id: plan
     agent: planner
@@ -387,3 +398,58 @@ steps:
       max_retries: 3
       on_exhausted:
         escalate_to: human
+
+  - id: deploy
+    agent: feature-dev_deployer
+    condition: "decision == 'approved' && no_deploy != true"
+    input: |
+      Execute safe deployment of the merged pull request.
+
+      TASK (overall):
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      BUILD_CMD: {{build_cmd}}
+      TEST_CMD: {{test_cmd}}
+
+      PR: {{pr}}
+      DECISION: {{decision}}
+      CHANGES: {{changes}}
+      RESULTS: {{results}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions (SAFETY CRITICAL):
+      1. Validate PR is approved and merge is confirmed
+      2. Perform a dry-run deployment first:
+         - Pull latest code: git pull
+         - Install dependencies: npm install
+         - Build: {{build_cmd}}
+         - Run tests: {{test_cmd}} (if configured)
+      3. Create a detailed deployment report including:
+         - Changes deployed (from {{changes}})
+         - Build status
+         - Test results
+         - Any warnings or potential issues
+      4. Document rollback plan for all changes:
+         - How to revert the deployment
+         - Previous version reference
+         - Any database migrations to reverse
+      5. DO NOT execute destructive changes without explicit confirmation
+      6. Exclude all secrets, API keys, passwords from deploy logs
+      7. Send deployment summary to Telegram (if configured)
+
+      Reply with:
+      STATUS: done
+      DEPLOYMENT_REPORT: detailed report of deployment status and rollback plan
+      TELEGRAM_SENT: true|false (whether notification was sent)
+
+      Or if deployment should not proceed:
+      STATUS: abort
+      REASON: why deployment should not proceed
+    expects: "STATUS: done|abort"
+    max_retries: 1
+    on_fail:
+      escalate_to: human

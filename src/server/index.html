@@ -341,7 +341,7 @@ async function openRun(id) {
   }).join('');
   panel.innerHTML = `
     <button class="panel-close" onclick="closePanel()">✕</button>
-    <h2>${run.workflow_id}</h2>
+    <h2>${esc(run.workflow_id)}</h2>
     <div class="panel-task">${esc(run.task)}</div>
     <div class="panel-meta">
       <span><span class="badge badge-${run.status}">${run.status}</span></span>
