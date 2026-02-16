@@ -76,6 +76,17 @@ agents:
         SOUL.md: agents/reviewer/SOUL.md
         IDENTITY.md: agents/reviewer/IDENTITY.md
 
+  - id: prod-tester
+    name: Production Tester
+    role: testing
+    description: Tests deployed features in production environments.
+    workspace:
+      baseDir: agents/prod-tester
+      files:
+        AGENTS.md: ../../agents/shared/prod-tester/AGENTS.md
+        SOUL.md: ../../agents/shared/prod-tester/SOUL.md
+        IDENTITY.md: ../../agents/shared/prod-tester/IDENTITY.md
+
 steps:
   - id: plan
     agent: planner
@@ -340,3 +351,40 @@ steps:
       max_retries: 3
       on_exhausted:
         escalate_to: human
+
+  - id: prod-test
+    agent: prod-tester
+    input: |
+      Test the deployed feature in production.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+      PR: {{pr}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions:
+      0. Read PROJECT.md for deployment URLs, API endpoints, and authentication
+      1. Determine environment type (VPS backend, local tool, browser extension)
+      2. If browser extension or local-only tool: skip testing (reply with STATUS: done, RESULT: skip)
+      3. If VPS or testable service: determine appropriate production test
+      4. Execute the production test (trigger scraper, call API, verify new feature behavior)
+      5. Compare results to expected baseline
+      6. Report findings with evidence
+
+      Reply with:
+      STATUS: done
+      ENVIRONMENT: <VPS/local/browser-extension>
+      TEST_TYPE: <what you tested>
+      RESULT: <pass/fail/partial/skip>
+      EVIDENCE: <actual data/responses>
+      ISSUES: <any problems found, or "none">
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
