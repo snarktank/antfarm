@@ -31,6 +31,49 @@ const extractions = extractMarkdownComments(content);
 // - contextAfter: Array of 2 lines after the comment
 ```
 
+## Word Document Extraction
+
+For Word .docx files, use the `extractWordComments()` function from `src/lib/doc-revision/word-extractor.ts`:
+
+```typescript
+import { extractWordComments, checkPythonDocxInstalled } from '@/lib/doc-revision/word-extractor.js';
+
+// Check if python-docx is installed (required dependency)
+const isInstalled = await checkPythonDocxInstalled();
+if (!isInstalled) {
+  console.error('python-docx not installed. Run: pip3 install python-docx');
+}
+
+// Extract comments and track changes
+const result = await extractWordComments('/path/to/document.docx');
+
+if (result.error) {
+  console.error('Extraction failed:', result.error);
+} else {
+  // result.comments: Array of comment objects
+  // - id: Comment ID
+  // - author: Comment author name
+  // - date: ISO date string
+  // - text: Comment text content
+  // - paragraphIndex: Index in paragraphs array
+  // - contextBefore: Array of 2 paragraphs before
+  // - contextAfter: Array of 2 paragraphs after
+  
+  // result.trackChanges: Array of tracked change objects
+  // - type: 'insertion' | 'deletion'
+  // - author: Change author name
+  // - date: ISO date string
+  // - text: Changed text
+  // - paragraphIndex: Index in paragraphs array
+  
+  // result.paragraphs: Array of all paragraph texts (for context lookup)
+}
+```
+
+**Requirements:**
+- Python 3 must be available as `python3`
+- `python-docx` library must be installed: `pip3 install python-docx`
+
 ## Communication Style
 
 Clear and systematic. You report what you found, where you found it, and provide enough context to understand the feedback.
