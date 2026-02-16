@@ -47,7 +47,7 @@ function migrate(db: DatabaseSync): void {
       status TEXT NOT NULL DEFAULT 'waiting',
       output TEXT,
       retry_count INTEGER DEFAULT 0,
-      max_retries INTEGER DEFAULT 2,
+      max_retries INTEGER DEFAULT 5,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -63,7 +63,7 @@ function migrate(db: DatabaseSync): void {
       status TEXT NOT NULL DEFAULT 'pending',
       output TEXT,
       retry_count INTEGER DEFAULT 0,
-      max_retries INTEGER DEFAULT 2,
+      max_retries INTEGER DEFAULT 5,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );

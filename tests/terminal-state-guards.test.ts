@@ -38,7 +38,7 @@ function createTestDb(): DatabaseSync {
       status TEXT NOT NULL DEFAULT 'waiting',
       output TEXT,
       retry_count INTEGER DEFAULT 0,
-      max_retries INTEGER DEFAULT 2,
+      max_retries INTEGER DEFAULT 5,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       type TEXT NOT NULL DEFAULT 'single',
@@ -57,7 +57,7 @@ function createTestDb(): DatabaseSync {
       status TEXT NOT NULL DEFAULT 'pending',
       output TEXT,
       retry_count INTEGER DEFAULT 0,
-      max_retries INTEGER DEFAULT 2,
+      max_retries INTEGER DEFAULT 5,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );

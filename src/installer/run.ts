@@ -40,7 +40,7 @@ export async function runWorkflow(params: {
       const stepUuid = crypto.randomUUID();
       const agentId = `${workflow.id}_${step.agent}`;
       const status = i === 0 ? "pending" : "waiting";
-      const maxRetries = step.max_retries ?? step.on_fail?.max_retries ?? 2;
+      const maxRetries = step.max_retries ?? step.on_fail?.max_retries ?? 5;
       const stepType = step.type ?? "single";
       const loopConfig = step.loop ? JSON.stringify(step.loop) : null;
       insertStep.run(stepUuid, runId, step.id, agentId, i, step.input, step.expects, status, maxRetries, stepType, loopConfig, now, now);

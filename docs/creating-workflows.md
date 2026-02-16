@@ -147,7 +147,7 @@ steps:
       STATUS: done
       MY_KEY: value          # KEY: value pairs become variables for later steps
     expects: "STATUS: done"  # String the output must contain to count as success
-    max_retries: 2           # How many times to retry on failure (optional)
+    max_retries: 5           # How many times to retry on failure (optional)
     on_fail:                 # What to do when retries exhausted (optional)
       escalate_to: human     # Escalate to human
 ```
