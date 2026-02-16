@@ -17,6 +17,8 @@ export type {
 } from "./types.js";
 
 export type { MergeCommitMetadata, MergeDetectionResult } from "./deploy-detector.js";
+export type { GitOperationResult, GitLogger } from "./git-executor.js";
 
 export { DeployExecutor } from "./deploy-executor.js";
 export { DeployDetector } from "./deploy-detector.js";
+export { GitExecutor } from "./git-executor.js";
