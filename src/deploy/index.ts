@@ -18,7 +18,13 @@ export type {
 
 export type { MergeCommitMetadata, MergeDetectionResult } from "./deploy-detector.js";
 export type { GitOperationResult, GitLogger } from "./git-executor.js";
+export type { MergeConflictCheckResult } from "./deploy-safety.js";
 
 export { DeployExecutor } from "./deploy-executor.js";
 export { DeployDetector } from "./deploy-detector.js";
 export { GitExecutor } from "./git-executor.js";
+export {
+  checkMergeConflicts,
+  generateConflictReport,
+  generateRollbackInstructions,
+} from "./deploy-safety.js";
