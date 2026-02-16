@@ -210,5 +210,56 @@ Agent definitions require:
 - Log which extraction method was used (aids debugging)
 - Example: document-router.ts detects markdown vs Word and unifies output
 
+## Story 005 ✅ (Completed: 2026-02-16 17:57 EST)
+**Title:** Implement analyzer agent feedback categorization
+
+**What was done:**
+- Created analyzer.ts module in src/lib/doc-revision/
+- Implemented categorizeFeedback() function that:
+  - Takes UnifiedComment[] as input (output from reader agent)
+  - Categorizes each comment into one of 4 categories: factual_error, missing_info, tone, structure
+  - Uses keyword-based pattern matching for categorization
+  - Assigns priority (high/medium/low) based on category and severity indicators
+  - Returns CategorizedFeedback[] with original comment + category + priority + reasoning
+  - Defaults to factual_error (most conservative) for truly ambiguous feedback
+- Updated analyzer agent SOUL.md with:
+  - Usage instructions and code examples
+  - Category definitions and keyword lists
+  - Priority rules and defaults
+  - Ambiguity handling approach
+- Wrote comprehensive test suite with 18 test cases covering:
+  - Category detection for all 4 types (factual_error, missing_info, tone, structure)
+  - Priority assignment (defaults + explicit overrides)
+  - Output structure validation
+  - Ambiguity handling (defaults to factual_error)
+  - Multiple comments and empty arrays
+  - Real-world scenarios (track changes, markdown comments with context)
+- All 18 analyzer tests pass ✅
+- All 73 total tests pass ✅
+- Typecheck/build passes ✅
+
+**Files created/modified:**
+- src/lib/doc-revision/analyzer.ts (new)
+- tests/doc-revision-analyzer.test.ts (new)
+- workflows/doc-revision/agents/analyzer/SOUL.md (updated)
+
+**Technical notes:**
+- Keyword-based categorization is simple but effective for common feedback patterns
+- Priority can be overridden by explicit indicators (critical, urgent, minor, nit, etc.)
+- Category defaults: factual_error=high, missing_info=medium, tone=low, structure=medium
+- Reasoning field provides transparency about why each categorization was made
+- Works with both markdown comments and Word track changes (unified input format)
+
+**Acceptance Criteria Met:**
+1. ✅ Analyzer agent SOUL.md defines categorization approach
+2. ✅ Takes reader output (UnifiedComment[]) as input
+3. ✅ Categorizes each comment/change into one of 4 categories
+4. ✅ Assigns priority (high/medium/low) based on category and severity
+5. ✅ Returns structured output: original comment + category + priority + reasoning
+6. ✅ Handles ambiguous feedback by defaulting to factual_error (most conservative)
+7. ✅ Typecheck passes
+
+**Commit:** 721a7fd - feat: story-005 - Implement analyzer agent feedback categorization
+
 ## Next Stories
 (To be populated by planner agent)
