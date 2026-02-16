@@ -4,7 +4,8 @@ import path from "node:path";
 import os from "node:os";
 
 const DB_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
-const DB_PATH = path.join(DB_DIR, "antfarm.db");
+const DEFAULT_DB_PATH = path.join(DB_DIR, "antfarm.db");
+const DB_PATH = process.env.ANTFARM_DB_PATH ?? DEFAULT_DB_PATH;
 
 let _db: DatabaseSync | null = null;
 let _dbOpenedAt = 0;
@@ -15,13 +16,24 @@ export function getDb(): DatabaseSync {
   if (_db && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
   if (_db) { try { _db.close(); } catch {} }
 
-  fs.mkdirSync(DB_DIR, { recursive: true });
+  const dbDir = path.dirname(DB_PATH);
+  fs.mkdirSync(dbDir, { recursive: true });
   _db = new DatabaseSync(DB_PATH);
   _dbOpenedAt = now;
   _db.exec("PRAGMA journal_mode=WAL");
   _db.exec("PRAGMA foreign_keys=ON");
   migrate(_db);
   return _db;
+}
+
+export function closeDb(): void {
+  if (_db) {
+    try {
+      _db.close();
+    } catch {}
+    _db = null;
+    _dbOpenedAt = 0;
+  }
 }
 
 function migrate(db: DatabaseSync): void {
@@ -47,7 +59,7 @@ function migrate(db: DatabaseSync): void {
       status TEXT NOT NULL DEFAULT 'waiting',
       output TEXT,
       retry_count INTEGER DEFAULT 0,
-      max_retries INTEGER DEFAULT 2,
+      max_retries INTEGER DEFAULT 5,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -63,7 +75,17 @@ function migrate(db: DatabaseSync): void {
       status TEXT NOT NULL DEFAULT 'pending',
       output TEXT,
       retry_count INTEGER DEFAULT 0,
-      max_retries INTEGER DEFAULT 2,
+      max_retries INTEGER DEFAULT 5,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS event_queue (
+      id TEXT PRIMARY KEY,
+      event_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      retry_count INTEGER DEFAULT 0,
+      failed_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -84,6 +106,16 @@ function migrate(db: DatabaseSync): void {
   }
   if (!colNames.has("abandoned_count")) {
     db.exec("ALTER TABLE steps ADD COLUMN abandoned_count INTEGER DEFAULT 0");
+  }
+
+  // Backfill max_retries from 2 to 5 for existing records
+  const stepCount = db.prepare("SELECT COUNT(*) AS cnt FROM steps WHERE max_retries = 2").get() as { cnt: number };
+  if (stepCount.cnt > 0) {
+    db.exec("UPDATE steps SET max_retries = 5 WHERE max_retries = 2");
+  }
+  const storyCount = db.prepare("SELECT COUNT(*) AS cnt FROM stories WHERE max_retries = 2").get() as { cnt: number };
+  if (storyCount.cnt > 0) {
+    db.exec("UPDATE stories SET max_retries = 5 WHERE max_retries = 2");
   }
 
   // Add columns to runs table for backwards compat
