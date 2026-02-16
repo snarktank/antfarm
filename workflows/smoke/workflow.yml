@@ -1,0 +1,40 @@
+id: smoke
+name: Smoke Test
+description: Deterministic antfarm execution without OpenClaw
+
+agents:
+  - id: alpha
+    name: Alpha
+    type: shell
+    workspace:
+      baseDir: /tmp
+      files:
+        dummy.txt: dummy.txt
+
+  - id: beta
+    name: Beta
+    type: shell
+    workspace:
+      baseDir: /tmp
+      files:
+        dummy.txt: dummy.txt
+
+steps:
+  - id: alpha
+    name: Alpha
+    agent: alpha
+    input: "noop"
+    run: |
+      echo "SMOKE ALPHA"
+      echo "STATUS: done"
+    expects: "STATUS: done"
+
+  - id: beta
+    name: Beta
+    agent: beta
+    depends_on: [alpha]
+    input: "noop"
+    run: |
+      echo "SMOKE BETA"
+      echo "STATUS: done"
+    expects: "STATUS: done"

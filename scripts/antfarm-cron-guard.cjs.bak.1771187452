@@ -1,0 +1,79 @@
+#!/usr/bin/env node
+const fs = require("fs");
+const path = require("path");
+const { execFileSync } = require("child_process");
+
+function die(msg) {
+  console.error(`[cron-guard] ERROR: ${msg}`);
+  process.exit(1);
+}
+
+function fileExists(p) {
+  try { fs.accessSync(p); return true; } catch { return false; }
+}
+
+function repoRoot() {
+  // Walk up until we find package.json + bin/antfarm
+  let dir = process.cwd();
+  for (let i = 0; i < 10; i++) {
+    const pkg = path.join(dir, "package.json");
+    const bin = path.join(dir, "bin", "antfarm");
+    if (fileExists(pkg) && fileExists(bin)) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return process.cwd();
+}
+
+function runAntfarm(binPath, args, inherit = false) {
+  try {
+    return execFileSync(binPath, args, {
+      stdio: inherit ? "inherit" : "pipe",
+      encoding: inherit ? undefined : "utf8",
+    });
+  } catch (e) {
+    const cmd = `${binPath} ${args.join(" ")}`;
+    die(`failed to run ${cmd} (exit=${e.status ?? "?"})`);
+  }
+}
+
+function header(mode) {
+  const ts = new Date().toISOString();
+  console.log("------------------------------------------------");
+  console.log(`[cron-guard] mode=${mode} ts=${ts}`);
+  console.log(`[cron-guard] cwd=${process.cwd()}`);
+  console.log("------------------------------------------------");
+}
+
+function doctor(root, binPath) {
+  console.log(`[doctor] root=${root}`);
+  console.log(`[doctor] node=${process.version}`);
+  console.log(`[doctor] bin=${binPath}`);
+  if (!fileExists(binPath)) die(`bin/antfarm not found at ${binPath}`);
+
+  // These should be safe and fast:
+  runAntfarm(binPath, ["version"], true);
+  runAntfarm(binPath, ["workflow", "list"], true);
+  runAntfarm(binPath, ["workflow", "runs"], true);
+
+  console.log("[doctor] OK");
+}
+
+const mode = process.argv[2] || "help";
+const root = repoRoot();
+const binPath = path.join(root, "bin", "antfarm");
+
+header(mode);
+
+if (mode === "help" || mode === "--help" || mode === "-h") {
+  console.log("Usage: node scripts/antfarm-cron-guard.cjs {doctor}");
+  process.exit(0);
+}
+
+if (mode === "doctor") {
+  doctor(root, binPath);
+  process.exit(0);
+}
+
+die(`unknown mode: ${mode}`);
