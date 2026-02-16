@@ -13,7 +13,7 @@ const DB_MAX_AGE_MS = 5000;
 export function getDb(): DatabaseSync {
   const now = Date.now();
   if (_db && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
-  if (_db) { try { _db.close(); } catch {} }
+  if (_db) { try { _db.close(); } catch { /* best-effort */ } }
 
   fs.mkdirSync(DB_DIR, { recursive: true });
   _db = new DatabaseSync(DB_PATH);

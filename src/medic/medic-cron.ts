@@ -10,6 +10,11 @@ const MEDIC_EVERY_MS = 5 * 60 * 1000; // 5 minutes
 const MEDIC_MODEL = "default";
 const MEDIC_TIMEOUT_SECONDS = 120;
 
+type AgentEntry = {
+  id?: string;
+  [key: string]: unknown;
+};
+
 function buildMedicPrompt(): string {
   const cli = resolveAntfarmCli();
   return `You are the Antfarm Medic — a health watchdog for workflow runs.
@@ -33,8 +38,8 @@ Do NOT attempt to fix issues yourself beyond what the medic check already handle
 async function ensureMedicAgent(): Promise<void> {
   try {
     const { path, config } = await readOpenClawConfig();
-    const agents = config.agents?.list ?? [];
-    if (agents.some((a: any) => a.id === "antfarm-medic")) return;
+    const agents = (config.agents?.list ?? []) as AgentEntry[];
+    if (agents.some((agent) => agent.id === "antfarm-medic")) return;
 
     if (!config.agents) config.agents = {};
     if (!config.agents.list) config.agents.list = [];
@@ -52,8 +57,8 @@ async function ensureMedicAgent(): Promise<void> {
 async function removeMedicAgent(): Promise<void> {
   try {
     const { path, config } = await readOpenClawConfig();
-    const agents = config.agents?.list ?? [];
-    const idx = agents.findIndex((a: any) => a.id === "antfarm-medic");
+    const agents = (config.agents?.list ?? []) as AgentEntry[];
+    const idx = agents.findIndex((agent) => agent.id === "antfarm-medic");
     if (idx === -1) return;
     agents.splice(idx, 1);
     await writeOpenClawConfig(path, config);

@@ -24,7 +24,7 @@ export function isRunning(): { running: true; pid: number } | { running: false }
     return { running: true, pid };
   } catch {
     // Stale PID file
-    try { fs.unlinkSync(pidFile); } catch {}
+    try { fs.unlinkSync(pidFile); } catch { /* best-effort */ }
     return { running: false };
   }
 }
@@ -64,8 +64,8 @@ export function stopDaemon(): boolean {
   if (!status.running) return false;
   try {
     process.kill(status.pid, "SIGTERM");
-  } catch {}
-  try { fs.unlinkSync(getPidFile()); } catch {}
+  } catch { /* best-effort */ }
+  try { fs.unlinkSync(getPidFile()); } catch { /* best-effort */ }
   return true;
 }
 

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import type { LoopConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
+import type { LoopConfig, PollingConfig, RawLoopConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
 
 export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
   const filePath = path.join(workflowDir, "workflow.yml");
@@ -25,7 +25,7 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
   validateAgents(parsed.agents, workflowDir);
   // Parse type/loop from raw YAML before validation
   for (const step of parsed.steps) {
-    const rawStep = step as any;
+    const rawStep = step as { type?: "single" | "loop"; loop?: RawLoopConfig };
     if (rawStep.type) {
       step.type = rawStep.type;
     }
@@ -71,10 +71,10 @@ function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
   }
 }
 
-function parseLoopConfig(raw: any): LoopConfig {
+function parseLoopConfig(raw: RawLoopConfig): LoopConfig {
   return {
-    over: raw.over,
-    completion: raw.completion,
+    over: raw.over as LoopConfig["over"],
+    completion: raw.completion as LoopConfig["completion"],
     freshSession: raw.fresh_session ?? raw.freshSession,
     verifyEach: raw.verify_each ?? raw.verifyEach,
     verifyStep: raw.verify_step ?? raw.verifyStep,

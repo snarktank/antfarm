@@ -71,12 +71,48 @@ export type Story = {
   retryCount: number;
   maxRetries: number;
 };
+export type StoryRow = {
+  id: string;
+  run_id: string;
+  story_index: number;
+  story_id: string;
+  title: string;
+  description: string;
+  acceptance_criteria: string;
+  status: "pending" | "running" | "done" | "failed";
+  output: string | null;
+  retry_count: number;
+  max_retries: number;
+};
+
+export type AgentConfigEntry = {
+  id?: string;
+  workspace?: string;
+  [key: string]: unknown;
+};
+
+export type WorkflowCronConfig = {
+  interval_ms?: number;
+};
+
+export type RawLoopConfig = {
+  over?: string;
+  completion?: string;
+  fresh_session?: boolean;
+  freshSession?: boolean;
+  verify_each?: boolean;
+  verifyEach?: boolean;
+  verify_step?: string;
+  verifyStep?: string;
+};
+
 
 export type WorkflowSpec = {
   id: string;
   name?: string;
   version?: number;
   polling?: PollingConfig;
+  cron?: WorkflowCronConfig;
   agents: WorkflowAgent[];
   steps: WorkflowStep[];
   context?: Record<string, string>;

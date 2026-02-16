@@ -18,6 +18,12 @@ interface WorkflowDef {
   steps: Array<{ id: string; agent: string }>;
 }
 
+interface ParsedWorkflow {
+  id?: string;
+  name?: string;
+  steps?: Array<{ id?: string; agent?: string }>;
+}
+
 function loadWorkflows(): WorkflowDef[] {
   const dir = resolveBundledWorkflowsDir();
   const results: WorkflowDef[] = [];
@@ -26,11 +32,11 @@ function loadWorkflows(): WorkflowDef[] {
       if (!entry.isDirectory()) continue;
       const ymlPath = path.join(dir, entry.name, "workflow.yml");
       if (!fs.existsSync(ymlPath)) continue;
-      const parsed = YAML.parse(fs.readFileSync(ymlPath, "utf-8"));
+      const parsed = YAML.parse(fs.readFileSync(ymlPath, "utf-8")) as ParsedWorkflow;
       results.push({
         id: parsed.id ?? entry.name,
         name: parsed.name ?? entry.name,
-        steps: (parsed.steps ?? []).map((s: any) => ({ id: s.id, agent: s.agent })),
+        steps: (parsed.steps ?? []).map((s) => ({ id: s.id ?? "", agent: s.agent ?? "" })),
       });
     }
   } catch { /* empty */ }

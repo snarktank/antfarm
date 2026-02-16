@@ -3,17 +3,18 @@ import assert from "node:assert/strict";
 import { log, logger, formatEntry, readRecentLogs } from "./logger.js";
 import type { LogLevel } from "./logger.js";
 
+
+function isPromise(value: unknown): value is Promise<unknown> {
+  return typeof (value as { then?: unknown })?.then === "function";
+}
+
 describe("logger", () => {
   describe("log()", () => {
     it("is synchronous and returns void (not a Promise)", () => {
       const result = log("info", "test message");
       // Must return undefined (void), not a Promise
       assert.equal(result, undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      assert.ok(
-        !((result as any) instanceof Promise),
-        "log() should not return a Promise"
-      );
+      assert.ok(!isPromise(result), "log() should not return a Promise");
     });
 
     it("does not throw even with an invalid log path scenario", () => {
@@ -103,25 +104,25 @@ describe("logger", () => {
     it("logger.info returns void (not a Promise)", () => {
       const result = logger.info("info test");
       assert.equal(result, undefined);
-      assert.ok(!((result as any) instanceof Promise));
+      assert.ok(!isPromise(result));
     });
 
     it("logger.warn returns void (not a Promise)", () => {
       const result = logger.warn("warn test");
       assert.equal(result, undefined);
-      assert.ok(!((result as any) instanceof Promise));
+      assert.ok(!isPromise(result));
     });
 
     it("logger.error returns void (not a Promise)", () => {
       const result = logger.error("error test");
       assert.equal(result, undefined);
-      assert.ok(!((result as any) instanceof Promise));
+      assert.ok(!isPromise(result));
     });
 
     it("logger.debug returns void (not a Promise)", () => {
       const result = logger.debug("debug test");
       assert.equal(result, undefined);
-      assert.ok(!((result as any) instanceof Promise));
+      assert.ok(!isPromise(result));
     });
   });
 

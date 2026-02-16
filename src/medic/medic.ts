@@ -103,7 +103,7 @@ async function remediate(finding: MedicFinding): Promise<boolean> {
         detail: "Medic: zombie run — all steps terminal but run still marked running",
       });
       // Try to clean up crons
-      try { await teardownWorkflowCronsIfIdle(run.workflow_id); } catch {}
+      try { await teardownWorkflowCronsIfIdle(run.workflow_id); } catch { /* best-effort */ }
       return true;
     }
 

@@ -13,7 +13,7 @@ fs.mkdirSync(pidDir, { recursive: true });
 fs.writeFileSync(pidFile, String(process.pid));
 
 process.on("SIGTERM", () => {
-  try { fs.unlinkSync(pidFile); } catch {}
+  try { fs.unlinkSync(pidFile); } catch { /* best-effort */ }
   process.exit(0);
 });
 

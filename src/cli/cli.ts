@@ -20,7 +20,6 @@ import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../in
 import { getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
-import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories, peekStep } from "../installer/step-ops.js";

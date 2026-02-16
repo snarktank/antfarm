@@ -11,6 +11,17 @@ interface GatewayConfig {
   secret?: string;
 }
 
+type OpenClawGatewayConfig = {
+  gateway?: {
+    port?: number;
+    auth?: {
+      token?: string;
+      mode?: "token" | "password";
+      password?: string;
+    };
+  };
+};
+
 async function readOpenClawConfig(): Promise<{
   port?: number;
   token?: string;
@@ -20,7 +31,7 @@ async function readOpenClawConfig(): Promise<{
   const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
   try {
     const content = await fs.readFile(configPath, "utf-8");
-    const config = JSON.parse(content);
+    const config = JSON.parse(content) as OpenClawGatewayConfig;
     return {
       port: config.gateway?.port,
       token: config.gateway?.auth?.token,
@@ -94,10 +105,10 @@ async function findOpenclawBinary(): Promise<string> {
 }
 
 /** Run an openclaw CLI command and return stdout. */
-function runCli(args: string[]): Promise<string> {
-  return new Promise(async (resolve, reject) => {
-    const bin = await findOpenclawBinary();
-    const finalArgs = bin === "npx" ? ["openclaw", ...args] : args;
+async function runCli(args: string[]): Promise<string> {
+  const bin = await findOpenclawBinary();
+  const finalArgs = bin === "npx" ? ["openclaw", ...args] : args;
+  return new Promise((resolve, reject) => {
     execFile(bin, finalArgs, { timeout: 30_000 }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr || err.message));
       else resolve(stdout);

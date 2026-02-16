@@ -123,7 +123,7 @@ describe("peekStep - lightweight work check", () => {
     }
     // Clean up temp file
     const fs = await import("node:fs");
-    try { fs.unlinkSync(tmpDbPath); } catch {}
+    try { fs.unlinkSync(tmpDbPath); } catch { /* best-effort */ }
   });
 
   it("returns NO_WORK when agent has no steps at all", async () => {

@@ -1,10 +1,10 @@
 import { getDb } from "../db.js";
-import type { LoopConfig, Story } from "./types.js";
+import type { AgentConfigEntry, LoopConfig, Story, StoryRow } from "./types.js";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
-import { execSync, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
@@ -93,8 +93,8 @@ export function resolveTemplate(template: string, context: Record<string, string
 function getAgentWorkspacePath(agentId: string): string | null {
   try {
     const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
-    const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    const agent = config.agents?.list?.find((a: any) => a.id === agentId);
+    const config = JSON.parse(fs.readFileSync(configPath, "utf-8")) as { agents?: { list?: AgentConfigEntry[] } };
+    const agent = config.agents?.list?.find((a) => a.id === agentId);
     return agent?.workspace ?? null;
   } catch {
     return null;
@@ -130,7 +130,7 @@ export function getStories(runId: string): Story[] {
   const db = getDb();
   const rows = db.prepare(
     "SELECT * FROM stories WHERE run_id = ? ORDER BY story_index ASC"
-  ).all(runId) as any[];
+  ).all(runId) as StoryRow[];
   return rows.map(r => ({
     id: r.id,
     runId: r.run_id,
@@ -155,7 +155,7 @@ export function getCurrentStory(stepId: string): Story | null {
     "SELECT current_story_id FROM steps WHERE id = ?"
   ).get(stepId) as { current_story_id: string | null } | undefined;
   if (!step?.current_story_id) return null;
-  const row = db.prepare("SELECT * FROM stories WHERE id = ?").get(step.current_story_id) as any;
+  const row = db.prepare("SELECT * FROM stories WHERE id = ?").get(step.current_story_id) as StoryRow | undefined;
   if (!row) return null;
   return {
     id: row.id,
@@ -202,16 +202,18 @@ function parseAndInsertStories(output: string, runId: string): void {
   }
 
   const jsonText = jsonLines.join("\n").trim();
-  let stories: any[];
+  let storiesRaw: unknown;
   try {
-    stories = JSON.parse(jsonText);
+    storiesRaw = JSON.parse(jsonText);
   } catch (e) {
     throw new Error(`Failed to parse STORIES_JSON: ${(e as Error).message}`);
   }
 
-  if (!Array.isArray(stories)) {
+  if (!Array.isArray(storiesRaw)) {
     throw new Error("STORIES_JSON must be an array");
   }
+
+  const stories = storiesRaw as Array<Record<string, unknown>>;
   if (stories.length > 20) {
     throw new Error(`STORIES_JSON has ${stories.length} stories, max is 20`);
   }
@@ -225,16 +227,21 @@ function parseAndInsertStories(output: string, runId: string): void {
   const seenIds = new Set<string>();
   for (let i = 0; i < stories.length; i++) {
     const s = stories[i];
+    const id = typeof s.id === "string" ? s.id : "";
+    const title = typeof s.title === "string" ? s.title : "";
+    const description = typeof s.description === "string" ? s.description : "";
     // Accept both camelCase and snake_case
-    const ac = s.acceptanceCriteria ?? s.acceptance_criteria;
-    if (!s.id || !s.title || !s.description || !Array.isArray(ac) || ac.length === 0) {
+    const acRaw = s.acceptanceCriteria ?? s.acceptance_criteria;
+    const acList = Array.isArray(acRaw) ? acRaw : [];
+    const ac = acList.filter((item): item is string => typeof item === "string");
+    if (!id || !title || !description || ac.length === 0) {
       throw new Error(`STORIES_JSON story at index ${i} missing required fields (id, title, description, acceptanceCriteria)`);
     }
-    if (seenIds.has(s.id)) {
-      throw new Error(`STORIES_JSON has duplicate story id "${s.id}"`);
+    if (seenIds.has(id)) {
+      throw new Error(`STORIES_JSON has duplicate story id "${id}"`);
     }
-    seenIds.add(s.id);
-    insert.run(crypto.randomUUID(), runId, i, s.id, s.title, s.description, JSON.stringify(ac), now, now);
+    seenIds.add(id);
+    insert.run(crypto.randomUUID(), runId, i, id, title, description, JSON.stringify(ac), now, now);
   }
 }
 
@@ -463,7 +470,7 @@ export function claimStep(agentId: string): ClaimResult {
       // Find next pending story
       const nextStory = db.prepare(
         "SELECT * FROM stories WHERE run_id = ? AND status = 'pending' ORDER BY story_index ASC LIMIT 1"
-      ).get(step.run_id) as any | undefined;
+      ).get(step.run_id) as StoryRow | undefined;
 
       if (!nextStory) {
         const failedStory = db.prepare(

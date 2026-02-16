@@ -125,7 +125,7 @@ Reply with a short summary of what you spawned.`;
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
   const agents = workflow.agents;
   // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
-  const everyMs = (workflow as any).cron?.interval_ms ?? DEFAULT_EVERY_MS;
+  const everyMs = workflow.cron?.interval_ms ?? DEFAULT_EVERY_MS;
 
   // Resolve polling model: per-agent > workflow-level > default
   const workflowPollingModel = workflow.polling?.model ?? DEFAULT_POLLING_MODEL;

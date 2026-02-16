@@ -34,10 +34,10 @@ export function emitEvent(evt: AntfarmEvent): void {
       const stats = fs.statSync(EVENTS_FILE);
       if (stats.size > MAX_EVENTS_SIZE) {
         const rotated = EVENTS_FILE + ".1";
-        try { fs.unlinkSync(rotated); } catch {}
+        try { fs.unlinkSync(rotated); } catch { /* best-effort */ }
         fs.renameSync(EVENTS_FILE, rotated);
       }
-    } catch {}
+    } catch { /* best-effort */ }
     fs.appendFileSync(EVENTS_FILE, JSON.stringify(evt) + "\n");
   } catch {
     // best-effort, never throw
@@ -90,7 +90,7 @@ export function getRecentEvents(limit = 50): AntfarmEvent[] {
     const lines = content.trim().split("\n").filter(Boolean);
     const events: AntfarmEvent[] = [];
     for (const line of lines) {
-      try { events.push(JSON.parse(line) as AntfarmEvent); } catch {}
+      try { events.push(JSON.parse(line) as AntfarmEvent); } catch { /* best-effort */ }
     }
     return events.slice(-limit);
   } catch {
@@ -108,7 +108,7 @@ export function getRunEvents(runId: string, limit = 200): AntfarmEvent[] {
       try {
         const evt = JSON.parse(line) as AntfarmEvent;
         if (evt.runId === runId || evt.runId.startsWith(runId)) events.push(evt);
-      } catch {}
+      } catch { /* best-effort */ }
     }
     return events.slice(-limit);
   } catch {
