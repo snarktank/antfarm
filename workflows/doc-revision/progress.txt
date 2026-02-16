@@ -26,6 +26,28 @@
 
 **Commit:** aa67f15 - feat: story-001 - Create workflow directory structure and workflow.yml skeleton
 
+## Story 002 ✅ (Completed: 2026-02-16 17:27 EST)
+**Title:** Implement reader agent for Markdown extraction
+
+**What was done:**
+- Created markdown-extractor.ts module in src/lib/doc-revision/
+- Implemented extractMarkdownComments() function that:
+  - Extracts all %% comment %% blocks (single-line and multi-line)
+  - Captures 2 lines of context before and after each comment
+  - Returns structured output: {commentText, lineNumber, contextBefore, contextAfter}
+  - Handles edge cases: comments at file start/end, nested %%, empty comments
+- Updated reader agent SOUL.md with usage instructions
+- Wrote comprehensive test suite with 15 test cases
+- All tests pass ✅
+- Typecheck/build passes ✅
+
+**Files created/modified:**
+- src/lib/doc-revision/markdown-extractor.ts (new)
+- tests/doc-revision-markdown-extractor.test.ts (new)
+- workflows/doc-revision/agents/reader/SOUL.md (updated)
+
+**Commit:** 6191f5d - feat: story-002 - Implement reader agent for Markdown extraction
+
 ## Codebase Patterns
 
 ### Directory Structure
@@ -76,6 +98,13 @@ Agent definitions require:
 - Test file names follow pattern: `<feature>.test.ts`
 - Test structure: describe blocks with it tests
 - Use yaml package to parse workflow.yml files in tests
+- Import from `dist/` not `src/` (compiled output)
+
+### Workflow Library Code
+- Workflow-specific TypeScript code goes in `src/lib/<workflow-name>/`
+- This ensures it's compiled by the build process (tsconfig includes `src/**/*.ts`)
+- Tests import from `dist/lib/<workflow-name>/*.js`
+- Agent SOUL.md files document the API and usage patterns
 
 ## Next Stories
 (To be populated by planner agent)
