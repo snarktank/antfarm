@@ -11,7 +11,13 @@ Write-Host "Installing Antfarm (doanbactam fork)..." -ForegroundColor Cyan
 # Clone or pull
 if (Test-Path "$DEST\.git") {
     Write-Host "Updating existing install..."
-    git -C $DEST pull --ff-only origin main
+    $currentOrigin = (git -C $DEST remote get-url origin 2>$null)
+    if ($currentOrigin -ne $REPO) {
+        Write-Host "Switching origin to fork..."
+        git -C $DEST remote set-url origin $REPO
+    }
+    git -C $DEST fetch origin main
+    git -C $DEST reset --hard origin/main
 } else {
     Write-Host "Cloning repository..."
     New-Item -ItemType Directory -Path (Split-Path $DEST) -Force | Out-Null
