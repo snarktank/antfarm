@@ -1,0 +1,282 @@
+# Ops Workflow — Infrastructure and configuration task automation
+# Optimized for safe, auditable operations with plan/execute/verify pattern.
+# No destructive commands, SQL, or code deployments allowed.
+
+id: ops-workflow
+name: Operations Workflow
+version: 1
+description: |
+  Operations and infrastructure task automation with safety-first design.
+  Planner decomposes ops tasks into safe, executable steps.
+  Setup prepares the operational environment.
+  Executor runs ops tasks with restricted capabilities (config, monitoring, infra only).
+  Verifier validates each task completed correctly.
+  Summary provides audit trail of all operations.
+
+polling:
+  model: default
+  timeoutSeconds: 120
+
+# Safety constraints for all ops tasks
+safety:
+  max_retries: 2
+  reserved_keywords:
+    - destructive
+    - shell_cmd
+    - sql
+    - drop
+    - delete
+  safety_header_template: |
+    ### SAFETY HEADER
+    Do NOT run destructive commands, SQL, or modify files outside workspace. All tasks require explicit acceptance criteria and rollback notes.
+
+agents:
+  - id: planner
+    name: Ops Planner
+    role: analysis
+    description: |
+      Analyzes operational tasks and breaks them into safe, auditable steps.
+      Validates that all steps follow safety constraints and include rollback procedures.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
+  - id: executor
+    name: Ops Executor
+    role: ops
+    description: |
+      Executes ops tasks with restricted capabilities. Role: ops.
+      Limited to: configuration updates, monitoring setup, infrastructure inspection, backup operations.
+      NOT allowed: destructive commands, SQL execution, code deployments, system-level destructive operations.
+      All actions must include rollback procedures and success/failure criteria.
+    workspace:
+      baseDir: agents/executor
+      files:
+        AGENTS.md: agents/executor/AGENTS.md
+        SOUL.md: agents/executor/SOUL.md
+        IDENTITY.md: agents/executor/IDENTITY.md
+
+  - id: verifier
+    name: Ops Verifier
+    role: verification
+    description: |
+      Verifies that operational tasks executed correctly and safely.
+      Checks acceptance criteria, rollback procedures, audit logs.
+      Confirms no destructive operations occurred.
+    workspace:
+      baseDir: agents/verifier
+      files:
+        AGENTS.md: agents/verifier/AGENTS.md
+        SOUL.md: agents/verifier/SOUL.md
+        IDENTITY.md: agents/verifier/IDENTITY.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      Plan operational tasks with safety-first approach.
+
+      ### SAFETY HEADER
+      Do NOT run destructive commands, SQL, or modify files outside workspace. All tasks require explicit acceptance criteria and rollback notes.
+
+      OPERATIONAL TASK:
+      {{task}}
+
+      WORKSPACE: {{workspace}}
+
+      Instructions:
+      1. Analyze the operational task
+      2. Break into safe, atomic subtasks
+      3. For each subtask, define:
+         - Clear acceptance criteria (mechanically verifiable)
+         - Rollback procedure (in case of failure)
+         - Success/failure detection logic
+      4. Validate against safety constraints:
+         - NO destructive commands (drop, delete, format, destroy)
+         - NO SQL execution
+         - NO code deployments or PR operations
+         - Only config, infra, monitoring ops allowed
+      5. Include estimated execution time and risk assessment (low/medium/high)
+      6. Output plan in JSON with safe_tasks array
+
+      Reply with:
+      STATUS: done
+      SAFE_TASKS: [ ... array of task objects with acceptance_criteria, rollback, success_check ... ]
+      RISK_LEVEL: low|medium|high
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: setup
+    agent: executor
+    input: |
+      Prepare the operational environment.
+
+      ### SAFETY HEADER
+      Do NOT run destructive commands, SQL, or modify files outside workspace. All tasks require explicit acceptance criteria and rollback notes.
+
+      OPERATIONAL TASK:
+      {{task}}
+
+      WORKSPACE: {{workspace}}
+
+      Instructions:
+      1. Verify workspace access and permissions
+      2. Check for required tools and credentials
+      3. Establish baseline state (current configuration, running services)
+      4. Create backup/snapshot if applicable
+      5. Log all preparation steps
+      6. Report readiness status
+
+      Reply with:
+      STATUS: done
+      WORKSPACE_READY: true|false
+      BASELINE: <current state snapshot>
+      NOTES: <any warnings or observations>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: execute
+    agent: executor
+    type: loop
+    loop:
+      over: safe_tasks
+      completion: all_done
+      fresh_session: true
+      verify_each: true
+      verify_step: verify
+    input: |
+      Execute operational task with safety verification at each step.
+
+      ### SAFETY HEADER
+      Do NOT run destructive commands, SQL, or modify files outside workspace. All tasks require explicit acceptance criteria and rollback notes.
+
+      OPERATIONAL TASK (overall):
+      {{task}}
+
+      WORKSPACE: {{workspace}}
+
+      CURRENT TASK:
+      {{current_task}}
+
+      COMPLETED TASKS:
+      {{completed_tasks}}
+
+      TASKS REMAINING: {{tasks_remaining}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      Instructions:
+      1. Execute the current task step-by-step
+      2. Log all actions taken with timestamps
+      3. Verify acceptance criteria after each operation
+      4. If any step fails, STOP and report failure with rollback notes
+      5. Do NOT proceed without verifying success
+      6. Include command outputs and state changes in report
+
+      Task Details:
+      - Acceptance Criteria: {{acceptance_criteria}}
+      - Rollback Procedure: {{rollback}}
+      - Success Check: {{success_check}}
+
+      Reply with:
+      STATUS: done
+      ACTIONS: [ ...list of actions taken... ]
+      VERIFICATION: <acceptance criteria met, evidence>
+      LOGS: <command outputs and state changes>
+
+      Or if failed:
+      STATUS: failed
+      ERROR: <what went wrong>
+      ROLLBACK: <suggested rollback steps>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify
+    agent: verifier
+    input: |
+      Verify operational task execution and safety.
+
+      ### SAFETY HEADER
+      Do NOT run destructive commands, SQL, or modify files outside workspace. All tasks require explicit acceptance criteria and rollback notes.
+
+      OPERATIONAL TASK:
+      {{task}}
+
+      WORKSPACE: {{workspace}}
+
+      CURRENT TASK:
+      {{current_task}}
+
+      ACTIONS: {{actions}}
+
+      LOGS: {{logs}}
+
+      Check:
+      1. Acceptance criteria met: {{acceptance_criteria}}
+      2. No destructive commands were executed
+      3. No SQL or code deployment operations occurred
+      4. All logged actions are safe operations (config, monitoring, infra)
+      5. Rollback procedures documented and tested if necessary
+      6. State changes are traceable and auditable
+      7. No modifications outside workspace
+      8. Success detection logic confirms completion
+
+      Reply with:
+      STATUS: done
+      VERIFIED: <what you confirmed and evidence>
+
+      Or if issues found:
+      STATUS: retry
+      ISSUES:
+      - <specific issues found>
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: execute
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: summary
+    agent: planner
+    input: |
+      Summarize the operational execution for audit trail.
+
+      ### SAFETY HEADER
+      Do NOT run destructive commands, SQL, or modify files outside workspace. All tasks require explicit acceptance criteria and rollback notes.
+
+      OPERATIONAL TASK:
+      {{task}}
+
+      COMPLETED TASKS:
+      {{completed_tasks}}
+
+      LOGS:
+      {{logs}}
+
+      Instructions:
+      1. Summarize all tasks executed
+      2. Confirm all acceptance criteria were met
+      3. Document final state vs baseline
+      4. List any rollback procedures not needed (all successful)
+      5. Provide audit trail for compliance
+      6. Note any risks or observations for future runs
+
+      Reply with:
+      STATUS: done
+      SUMMARY: <comprehensive summary of all operations>
+      FINAL_STATE: <resulting system state>
+      AUDIT_TRAIL: <ordered list of all operations with timestamps>
+      OUTCOME: success|partial|failure
+    expects: "STATUS: done"
+    on_fail:
+      escalate_to: human
