@@ -114,6 +114,16 @@ export function startDashboard(port = 3333): http.Server {
       return json(res, getRecentMedicChecks(limit));
     }
 
+    if (p === "/version") {
+      try {
+        const pkgPath = path.resolve(__dirname, "..", "..", "package.json");
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+        return json(res, { version: pkg.version });
+      } catch (err) {
+        return json(res, { error: "Failed to read version" }, 500);
+      }
+    }
+
     // Serve fonts
     if (p.startsWith("/fonts/")) {
       const fontName = path.basename(p);
