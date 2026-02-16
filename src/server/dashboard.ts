@@ -3,12 +3,17 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getDb } from "../db.js";
-import { resolveBundledWorkflowsDir } from "../installer/paths.js";
+import { resolveBundledWorkflowsDir, resolveWorkflowDir } from "../installer/paths.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
+import { stopWorkflow } from "../installer/status.js";
 import { getRunEvents } from "../installer/events.js";
 import { getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
+import { runWorkflow } from "../installer/run.js";
+import { resumeWorkflowRun } from "../installer/resume.js";
+import { loadWorkflowSpec } from "../installer/workflow-spec.js";
+import { removeAgentCrons, setupAgentCrons } from "../installer/agent-cron.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -57,8 +62,27 @@ function getRunById(id: string): (RunInfo & { steps: StepInfo[] }) | null {
 }
 
 function json(res: http.ServerResponse, data: unknown, status = 200) {
-  res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+  });
   res.end(JSON.stringify(data));
+}
+
+function readJsonBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => {
+      try {
+        const text = Buffer.concat(chunks).toString("utf-8");
+        resolve(text ? JSON.parse(text) : {});
+      } catch { resolve({}); }
+    });
+    req.on("error", reject);
+  });
 }
 
 function serveHTML(res: http.ServerResponse) {
@@ -71,7 +95,7 @@ function serveHTML(res: http.ServerResponse) {
 }
 
 export function startDashboard(port = 3333): http.Server {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
 
@@ -112,6 +136,72 @@ export function startDashboard(port = 3333): http.Server {
     if (p === "/api/medic/checks") {
       const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
       return json(res, getRecentMedicChecks(limit));
+    }
+
+    // ── CORS preflight ───────────────────────────────────────────
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      });
+      return res.end();
+    }
+
+    // ── POST: Start a run ───────────────────────────────────────
+    const runCreateMatch = p.match(/^\/api\/workflows\/([^/]+)\/runs$/);
+    if (runCreateMatch && req.method === "POST") {
+      const body = await readJsonBody(req);
+      const workflowId = runCreateMatch[1];
+      const task = String(body.task ?? "").trim();
+      if (!task) return json(res, { ok: false, error: "Missing task" }, 400);
+      try {
+        const run = await runWorkflow({ workflowId, taskTitle: task, notifyUrl: body.notifyUrl as string | undefined });
+        return json(res, { ok: true, ...run });
+      } catch (err) {
+        return json(res, { ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
+      }
+    }
+
+    // ── POST: Stop a run ────────────────────────────────────────
+    const stopMatch = p.match(/^\/api\/runs\/([^/]+)\/stop$/);
+    if (stopMatch && req.method === "POST") {
+      try {
+        const result = await stopWorkflow(stopMatch[1]);
+        if (result.status === "not_found") return json(res, { ok: false, error: result.message }, 404);
+        if (result.status === "already_done") return json(res, { ok: false, error: result.message }, 409);
+        return json(res, { ok: true, ...result });
+      } catch (err) {
+        return json(res, { ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
+      }
+    }
+
+    // ── POST: Resume a run ──────────────────────────────────────
+    const resumeMatch = p.match(/^\/api\/runs\/([^/]+)\/resume$/);
+    if (resumeMatch && req.method === "POST") {
+      try {
+        const result = await resumeWorkflowRun(resumeMatch[1]);
+        if (result.status === "not_found") return json(res, { ok: false, error: result.message }, 404);
+        if (result.status === "not_resumable") return json(res, { ok: false, error: result.message }, 409);
+        return json(res, { ok: true, runId: result.runId, message: result.message });
+      } catch (err) {
+        return json(res, { ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
+      }
+    }
+
+    // ── POST: Ensure crons ──────────────────────────────────────
+    const cronMatch = p.match(/^\/api\/workflows\/([^/]+)\/ensure-crons$/);
+    if (cronMatch && req.method === "POST") {
+      const workflowId = cronMatch[1];
+      try {
+        const workflowDir = resolveWorkflowDir(workflowId);
+        const workflow = await loadWorkflowSpec(workflowDir);
+        await removeAgentCrons(workflowId);
+        await setupAgentCrons(workflow);
+        return json(res, { ok: true, message: `Recreated agent crons for "${workflowId}".` });
+      } catch (err) {
+        return json(res, { ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
+      }
     }
 
     // Serve fonts

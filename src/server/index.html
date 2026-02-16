@@ -174,6 +174,34 @@ select:focus{outline:none;border-color:#8ECFC0}
 .badge-pending{background:var(--accent-muted);color:var(--text-secondary)}
 .badge-blocked{background:var(--accent-orange-faint);color:var(--accent-orange)}
 
+/* ── Action buttons ────────────────────────────────────────────── */
+.action-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid;transition:opacity .15s,background .15s}
+.action-btn:disabled{opacity:.5;cursor:not-allowed}
+.action-btn-primary{background:var(--accent-green);color:#fff;border-color:var(--accent-green)}
+.action-btn-primary:hover:not(:disabled){opacity:.85}
+.action-btn-danger{background:var(--accent-orange);color:#fff;border-color:var(--accent-orange)}
+.action-btn-danger:hover:not(:disabled){opacity:.85}
+.action-btn-secondary{background:transparent;color:var(--text-primary);border-color:var(--border)}
+.action-btn-secondary:hover:not(:disabled){background:var(--bg-surface-alt)}
+.header-actions{display:flex;gap:8px;align-items:center}
+
+/* ── Run form ──────────────────────────────────────────────────── */
+.run-form{display:flex;flex-direction:column;gap:12px}
+.run-form label{font-size:13px;font-weight:500;color:var(--text-primary)}
+.run-form textarea{width:100%;min-height:100px;padding:10px;border:1px solid var(--border);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;resize:vertical;background:var(--bg-surface-alt);color:var(--text-primary)}
+.run-form textarea:focus{outline:none;border-color:var(--accent-green)}
+.run-form-footer{display:flex;justify-content:flex-end;gap:8px}
+
+/* ── Panel actions ─────────────────────────────────────────────── */
+.panel-actions{display:flex;gap:8px;margin-bottom:16px}
+
+/* ── Toast ─────────────────────────────────────────────────────── */
+.toast{position:fixed;bottom:24px;right:24px;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;z-index:200;opacity:0;transform:translateY(10px);transition:opacity .2s,transform .2s;pointer-events:none;max-width:400px;box-shadow:0 4px 16px var(--shadow-heavy)}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast-success{background:var(--accent-green);color:#fff}
+.toast-error{background:var(--accent-orange);color:#fff}
+.toast-info{background:var(--bg-surface);color:var(--text-primary);border:1px solid var(--border)}
+
 /* ── Misc ──────────────────────────────────────────────────────── */
 .empty{color:var(--text-secondary);font-size:12px;text-align:center;padding:24px 8px}
 .refresh-note{color:rgba(255,255,255,.6);font-size:11px;margin-left:auto}
@@ -210,6 +238,10 @@ select:focus{outline:none;border-color:#8ECFC0}
 <header>
   <h1><span>antfarm</span> dashboard</h1>
   <select id="wf-select"><option value="">Loading...</option></select>
+  <div class="header-actions">
+    <button class="action-btn action-btn-primary" id="btn-new-run" onclick="openNewRunForm()" disabled title="Start a new workflow run">▶ New Run</button>
+    <button class="action-btn action-btn-secondary" id="btn-ensure-crons" onclick="ensureCrons()" disabled title="Recreate agent crons" style="color:#fff;border-color:rgba(255,255,255,.3)">⟳ Crons</button>
+  </div>
   <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
   <div class="medic-badge" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
     <span class="medic-dot unknown" id="medic-dot"></span>
@@ -225,6 +257,7 @@ select:focus{outline:none;border-color:#8ECFC0}
 <div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
   <div class="panel" id="panel"></div>
 </div>
+<div class="toast" id="toast"></div>
 
 <script>
 const API = '';
@@ -234,6 +267,25 @@ let currentWf = null;
 async function fetchJSON(url) {
   const r = await fetch(API + url);
   return r.json();
+}
+
+async function apiPost(url, body) {
+  const r = await fetch(API + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || data?.ok === false) throw new Error(data?.error || `Request failed: ${r.status}`);
+  return data;
+}
+
+function showToast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast toast-${type} show`;
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), 4000);
 }
 
 async function loadWorkflows() {
@@ -258,6 +310,8 @@ async function loadWorkflows() {
 
 function selectWorkflow(id) {
   currentWf = workflows.find(w => w.id === id) || null;
+  document.getElementById('btn-new-run').disabled = !currentWf;
+  document.getElementById('btn-ensure-crons').disabled = !currentWf;
   if (currentWf) loadRuns();
   else document.getElementById('board').innerHTML = '<div class="empty" style="margin:auto">Select a workflow</div>';
 }
@@ -339,6 +393,15 @@ async function openRun(id) {
       </div>` : ''}
     </div>`;
   }).join('');
+  let actionsHTML = '<div class="panel-actions">';
+  if (run.status === 'running' || run.status === 'pending') {
+    actionsHTML += `<button class="action-btn action-btn-danger" onclick="stopRun('${run.id}')">⏹ Stop</button>`;
+  }
+  if (run.status === 'failed') {
+    actionsHTML += `<button class="action-btn action-btn-primary" onclick="resumeRun('${run.id}')">▶ Resume</button>`;
+  }
+  actionsHTML += '</div>';
+
   panel.innerHTML = `
     <button class="panel-close" onclick="closePanel()">✕</button>
     <h2>${run.workflow_id}</h2>
@@ -348,6 +411,7 @@ async function openRun(id) {
       <span>Created: ${created}</span>
       <span>Updated: ${updated}</span>
     </div>
+    ${actionsHTML}
     <div class="steps-list">${stepsHTML}</div>
     <div id="stories-panel"></div>
     <div id="activity-panel"></div>
@@ -456,6 +520,79 @@ async function loadStories(runId) {
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();
 setInterval(() => { if (currentWf) loadRuns(); }, 30000);
+
+// ── Actions ─────────────────────────────────────────────────────
+function openNewRunForm() {
+  if (!currentWf) return;
+  const panel = document.getElementById('panel');
+  panel.innerHTML = `
+    <button class="panel-close" onclick="closePanel()">✕</button>
+    <h2>New Run — ${esc(currentWf.name)}</h2>
+    <div class="run-form">
+      <label for="run-task">Task description</label>
+      <textarea id="run-task" placeholder="Describe the task for this workflow run..."></textarea>
+      <div class="run-form-footer">
+        <button class="action-btn action-btn-secondary" onclick="closePanel()">Cancel</button>
+        <button class="action-btn action-btn-primary" id="btn-submit-run" onclick="submitNewRun()">▶ Start Run</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('run-task').focus();
+}
+
+async function submitNewRun() {
+  if (!currentWf) return;
+  const task = document.getElementById('run-task').value.trim();
+  if (!task) { showToast('Please enter a task description', 'error'); return; }
+  const btn = document.getElementById('btn-submit-run');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+  try {
+    const result = await apiPost(`/api/workflows/${currentWf.id}/runs`, { task });
+    closePanel();
+    showToast(`Run #${result.runNumber ?? result.id?.slice(0, 8)} started`, 'success');
+    loadRuns();
+  } catch (err) {
+    showToast(err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = '▶ Start Run';
+  }
+}
+
+async function stopRun(runId) {
+  if (!confirm('Stop this run? All pending steps will be cancelled.')) return;
+  try {
+    await apiPost(`/api/runs/${runId}/stop`);
+    showToast('Run stopped', 'success');
+    await openRun(runId);
+    loadRuns();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function resumeRun(runId) {
+  try {
+    const result = await apiPost(`/api/runs/${runId}/resume`);
+    showToast(result.message || 'Run resumed', 'success');
+    await openRun(runId);
+    loadRuns();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function ensureCrons() {
+  if (!currentWf) return;
+  if (!confirm(`Recreate agent crons for "${currentWf.name}"?`)) return;
+  try {
+    const result = await apiPost(`/api/workflows/${currentWf.id}/ensure-crons`);
+    showToast(result.message || 'Crons recreated', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
 
 // ── Medic ───────────────────────────────────────────────────────
 let medicPanelOpen = false;
