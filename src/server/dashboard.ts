@@ -56,9 +56,24 @@ function getRunById(id: string): (RunInfo & { steps: StepInfo[] }) | null {
   return { ...run, steps };
 }
 
-function json(res: http.ServerResponse, data: unknown, status = 200) {
-  res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+function json(res: http.ServerResponse, data: unknown, status = 200, origin?: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // Only allow localhost origins for CORS; block wildcard
+  if (origin && isLocalhost(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  res.writeHead(status, headers);
   res.end(JSON.stringify(data));
+}
+
+function isLocalhost(origin: string): boolean {
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
 }
 
 function serveHTML(res: http.ServerResponse) {
@@ -71,17 +86,41 @@ function serveHTML(res: http.ServerResponse) {
 }
 
 export function startDashboard(port = 3333): http.Server {
+  const dashboardToken = process.env.ANTFARM_DASHBOARD_TOKEN;
+  
+  function isAuthenticated(req: http.IncomingMessage): boolean {
+    // If no token is configured, allow all requests (backward compatible)
+    if (!dashboardToken) return true;
+    
+    // Check Bearer token in Authorization header
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith("Bearer ")) {
+      return false;
+    }
+    
+    const token = auth.slice("Bearer ".length).trim();
+    return token === dashboardToken;
+  }
+  
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
+    const origin = req.headers.origin;
+    
+    // Check authentication for API endpoints
+    if (p.startsWith("/api/") && !isAuthenticated(req)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
 
     if (p === "/api/workflows") {
-      return json(res, loadWorkflows());
+      return json(res, loadWorkflows(), 200, origin);
     }
 
     const eventsMatch = p.match(/^\/api\/runs\/([^/]+)\/events$/);
     if (eventsMatch) {
-      return json(res, getRunEvents(eventsMatch[1]));
+      return json(res, getRunEvents(eventsMatch[1]), 200, origin);
     }
 
     const storiesMatch = p.match(/^\/api\/runs\/([^/]+)\/stories$/);
@@ -90,28 +129,28 @@ export function startDashboard(port = 3333): http.Server {
       const stories = db.prepare(
         "SELECT * FROM stories WHERE run_id = ? ORDER BY story_index ASC"
       ).all(storiesMatch[1]);
-      return json(res, stories);
+      return json(res, stories, 200, origin);
     }
 
     const runMatch = p.match(/^\/api\/runs\/(.+)$/);
     if (runMatch) {
       const run = getRunById(runMatch[1]);
-      return run ? json(res, run) : json(res, { error: "not found" }, 404);
+      return run ? json(res, run, 200, origin) : json(res, { error: "not found" }, 404, origin);
     }
 
     if (p === "/api/runs") {
       const wf = url.searchParams.get("workflow") ?? undefined;
-      return json(res, getRuns(wf));
+      return json(res, getRuns(wf), 200, origin);
     }
 
     // Medic API
     if (p === "/api/medic/status") {
-      return json(res, getMedicStatus());
+      return json(res, getMedicStatus(), 200, origin);
     }
 
     if (p === "/api/medic/checks") {
       const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
-      return json(res, getRecentMedicChecks(limit));
+      return json(res, getRecentMedicChecks(limit), 200, origin);
     }
 
     // Serve fonts
@@ -121,7 +160,11 @@ export function startDashboard(port = 3333): http.Server {
       const srcFontPath = path.resolve(__dirname, "..", "..", "src", "..", "assets", "fonts", fontName);
       const resolvedFont = fs.existsSync(fontPath) ? fontPath : srcFontPath;
       if (fs.existsSync(resolvedFont)) {
-        res.writeHead(200, { "Content-Type": "font/woff2", "Cache-Control": "public, max-age=31536000", "Access-Control-Allow-Origin": "*" });
+        const headers: Record<string, string> = { "Content-Type": "font/woff2", "Cache-Control": "public, max-age=31536000" };
+        if (origin && isLocalhost(origin)) {
+          headers["Access-Control-Allow-Origin"] = origin;
+        }
+        res.writeHead(200, headers);
         return res.end(fs.readFileSync(resolvedFont));
       }
     }

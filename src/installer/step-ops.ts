@@ -366,7 +366,19 @@ export function cleanupAbandonedSteps(): void {
  * Compute whether a branch has frontend changes relative to main.
  * Returns 'true' or 'false' as a string for template context.
  */
+function isValidBranchName(branch: string): boolean {
+  // Branch names cannot start with '-' (prevents git flag injection)
+  // Allow alphanumeric, dashes, underscores, slashes, dots
+  return /^[a-zA-Z0-9_./][a-zA-Z0-9_.\-/]*$/.test(branch);
+}
+
 export function computeHasFrontendChanges(repo: string, branch: string): string {
+  // Validate branch name to prevent git flag injection
+  if (!isValidBranchName(branch)) {
+    console.warn(`Invalid branch name (potential injection): ${branch}`);
+    return "false";
+  }
+  
   try {
     const output = execFileSync("git", ["diff", "--name-only", `main..${branch}`], {
       cwd: repo,

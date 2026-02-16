@@ -6,3 +6,6 @@ dist/
 *.sqlite3
 progress.txt
 progress*.txt
+.env
+*.key
+*.pem

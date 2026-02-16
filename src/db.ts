@@ -15,12 +15,34 @@ export function getDb(): DatabaseSync {
   if (_db && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
   if (_db) { try { _db.close(); } catch {} }
 
-  fs.mkdirSync(DB_DIR, { recursive: true });
+  // Create directory with secure permissions (owner read/write/execute only)
+  fs.mkdirSync(DB_DIR, { recursive: true, mode: 0o700 });
+  
   _db = new DatabaseSync(DB_PATH);
   _dbOpenedAt = now;
+  
+  // Set secure permissions on database file (owner read/write only)
+  try {
+    fs.chmodSync(DB_PATH, 0o600);
+  } catch {
+    // If chmod fails, continue but log the issue
+    console.warn(`Failed to set secure permissions on ${DB_PATH}`);
+  }
+  
   _db.exec("PRAGMA journal_mode=WAL");
   _db.exec("PRAGMA foreign_keys=ON");
   migrate(_db);
+  
+  // Also secure the WAL and SHM files if they exist
+  try {
+    const walPath = DB_PATH + "-wal";
+    const shmPath = DB_PATH + "-shm";
+    if (fs.existsSync(walPath)) fs.chmodSync(walPath, 0o600);
+    if (fs.existsSync(shmPath)) fs.chmodSync(shmPath, 0o600);
+  } catch {
+    // Best effort
+  }
+  
   return _db;
 }
 

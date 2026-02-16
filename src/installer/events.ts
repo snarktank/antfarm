@@ -61,9 +61,58 @@ function getNotifyUrl(runId: string): string | null {
   }
 }
 
+function isValidWebhookUrl(urlStr: string): boolean {
+  try {
+    // Remove auth fragment before validation
+    const cleanUrl = urlStr.split("#")[0];
+    const url = new URL(cleanUrl);
+    
+    // Must be http or https
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return false;
+    }
+    
+    const hostname = url.hostname;
+    
+    // Block localhost/loopback ranges
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname.startsWith("127.") ||
+      hostname.startsWith("[::1") // IPv6 loopback
+    ) {
+      return false;
+    }
+    
+    // Block private IP ranges
+    if (
+      hostname.startsWith("10.") ||
+      hostname.startsWith("172.") || // 172.16-31
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("169.254.") || // link-local
+      hostname === "0.0.0.0" ||
+      hostname === "::" // IPv6 any
+    ) {
+      return false;
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function fireWebhook(evt: AntfarmEvent): void {
   const raw = getNotifyUrl(evt.runId);
   if (!raw) return;
+  
+  // Validate URL before making request
+  if (!isValidWebhookUrl(raw)) {
+    console.warn(`Webhook URL blocked (private/localhost): ${raw.split("#")[0]}`);
+    return;
+  }
+  
   try {
     let url = raw;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
