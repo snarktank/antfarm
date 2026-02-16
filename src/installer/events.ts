@@ -65,13 +65,18 @@ function fireWebhook(evt: AntfarmEvent): void {
   const raw = getNotifyUrl(evt.runId);
   if (!raw) return;
   try {
-    let url = raw;
+    const url = raw;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const hashIdx = url.indexOf("#auth=");
-    if (hashIdx !== -1) {
-      headers["Authorization"] = decodeURIComponent(url.slice(hashIdx + 6));
-      url = url.slice(0, hashIdx);
+    
+    // Get auth from environment variables (not from URL fragments)
+    // Support both generic ANTFARM_WEBHOOK_AUTH and run-specific ANTFARM_WEBHOOK_AUTH_<runId>
+    const runSpecificEnvKey = `ANTFARM_WEBHOOK_AUTH_${evt.runId}`;
+    const authFromEnv = process.env[runSpecificEnvKey] || process.env.ANTFARM_WEBHOOK_AUTH;
+    
+    if (authFromEnv) {
+      headers["Authorization"] = authFromEnv;
     }
+    
     fetch(url, {
       method: "POST",
       headers,
