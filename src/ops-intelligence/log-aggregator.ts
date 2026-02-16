@@ -148,7 +148,7 @@ export function aggregateEventsByType(
 
     const agg = aggregated.get(eventType)!;
     agg.count++;
-    agg.firstOccurrence = event.ts; // Will be updated as we iterate (sorted chronologically)
+    // Only update lastOccurrence (events are in chronological order)
     agg.lastOccurrence = event.ts;
     agg.occurrences.push(context);
   }
