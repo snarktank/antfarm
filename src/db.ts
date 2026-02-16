@@ -67,6 +67,24 @@ function migrate(db: DatabaseSync): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS event_queue (
+      id TEXT PRIMARY KEY,
+      event_data TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      retry_count INTEGER DEFAULT 0,
+      max_retries INTEGER DEFAULT 5,
+      next_retry_at TEXT,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      delivered_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_event_queue_status ON event_queue(status);
+    CREATE INDEX IF NOT EXISTS idx_event_queue_next_retry ON event_queue(next_retry_at) WHERE status = 'pending';
+    CREATE INDEX IF NOT EXISTS idx_event_queue_run_id ON event_queue(run_id);
   `);
 
   // Add columns to steps table for backwards compat
