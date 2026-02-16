@@ -1,0 +1,61 @@
+# Document Revision Workflow — Processes feedback from Obsidian markdown or Word documents
+id: doc-revision
+name: Document Revision Workflow
+version: 1
+description: |
+  Extracts feedback from Obsidian markdown (%% comment %%) or Microsoft Word (.docx) documents,
+  categorizes and prioritizes the feedback, applies revisions while preserving formatting,
+  verifies all feedback was addressed, and outputs a clean final document in the same format.
+  
+  Supports:
+  - Obsidian markdown with %% comment %% syntax
+  - Microsoft Word .docx with Track Changes and Comments
+
+agents:
+  - id: reader
+    name: Reader
+    role: coding
+    description: Extracts all comments and feedback from markdown or Word documents with context.
+    workspace:
+      baseDir: agents/reader
+      files:
+        SOUL.md: agents/reader/SOUL.md
+
+  - id: analyzer
+    name: Analyzer
+    role: coding
+    description: Categorizes and prioritizes feedback (factual errors, missing info, tone, structure).
+    workspace:
+      baseDir: agents/analyzer
+      files:
+        SOUL.md: agents/analyzer/SOUL.md
+
+  - id: revisor
+    name: Revisor
+    role: coding
+    description: Applies revisions to content while preserving formatting and voice.
+    workspace:
+      baseDir: agents/revisor
+      files:
+        SOUL.md: agents/revisor/SOUL.md
+
+  - id: qa
+    name: QA
+    role: verification
+    description: Verifies all feedback was addressed and checks document consistency.
+    workspace:
+      baseDir: agents/qa
+      files:
+        SOUL.md: agents/qa/SOUL.md
+
+  - id: cleaner
+    name: Cleaner
+    role: coding
+    description: Removes comment markers and track changes, outputs clean final document.
+    workspace:
+      baseDir: agents/cleaner
+      files:
+        SOUL.md: agents/cleaner/SOUL.md
+
+# Steps will be defined in subsequent stories
+steps: []
