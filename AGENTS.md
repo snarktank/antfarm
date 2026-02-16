@@ -56,3 +56,32 @@ If `antfarm` fails with a `node:sqlite` error, your `node` binary may be Bun's w
 - `antfarm uninstall` removes everything: all workflows, agents, cron jobs, and DB state.
 
 If something fails, report the exact error and ask the user to resolve it before continuing.
+
+## Codebase Structure
+
+### Database (src/db.ts)
+- Uses **node:sqlite DatabaseSync** (synchronous, not async)
+- Connection pooling: reuses DB connection for 5 seconds
+- All schema created in `migrate()` function on first `getDb()` call
+- Foreign keys enabled globally with `PRAGMA foreign_keys=ON`
+- Database location: `~/.openclaw/antfarm/antfarm.db`
+
+### Schema Patterns
+- All tables have `created_at` and `updated_at` (TEXT, ISO 8601) for audit trail
+- All IDs are TEXT (stored as UUID strings)
+- Foreign key constraints are enforced
+- Indexes created alongside table definitions for query performance
+- Migration uses `ALTER TABLE ADD COLUMN` with `IF NOT EXISTS` for backwards compatibility
+
+### Testing
+- **Framework:** node:test (built-in)
+- **Run:** `node --test 'tests/**/*.test.ts'`
+- **Build:** `npm run build` (TypeScript compilation + version injection)
+- Tests use temporary databases to avoid side effects
+- Foreign key validation in tests ensures data integrity
+
+### Key Files
+- `src/db.ts` - Database initialization and all schema migrations
+- `src/index.ts` - Package exports
+- `tests/` - Test files (one per feature area)
+- `dist/` - Compiled JavaScript (generated, do not edit)
