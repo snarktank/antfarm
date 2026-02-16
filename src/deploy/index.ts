@@ -16,4 +16,7 @@ export type {
   IDeployExecutor,
 } from "./types.js";
 
+export type { MergeCommitMetadata, MergeDetectionResult } from "./deploy-detector.js";
+
 export { DeployExecutor } from "./deploy-executor.js";
+export { DeployDetector } from "./deploy-detector.js";
