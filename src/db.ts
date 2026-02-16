@@ -67,6 +67,52 @@ function migrate(db: DatabaseSync): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS ops_analysis_runs (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL UNIQUE,
+      analyzed_at TEXT NOT NULL,
+      pattern_count INTEGER NOT NULL DEFAULT 0,
+      finding_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ops_patterns (
+      id TEXT PRIMARY KEY,
+      analysis_id TEXT NOT NULL REFERENCES ops_analysis_runs(id),
+      pattern_type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      occurrence_count INTEGER NOT NULL DEFAULT 1,
+      severity TEXT NOT NULL,
+      first_seen TEXT NOT NULL,
+      last_seen TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ops_findings (
+      id TEXT PRIMARY KEY,
+      analysis_id TEXT NOT NULL REFERENCES ops_analysis_runs(id),
+      finding_type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ops_recommendations (
+      id TEXT PRIMARY KEY,
+      finding_id TEXT NOT NULL REFERENCES ops_findings(id),
+      recommendation_text TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      effort_level TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   // Add columns to steps table for backwards compat
@@ -101,6 +147,19 @@ function migrate(db: DatabaseSync): void {
       ) WHERE run_number IS NULL
     `);
   }
+
+  // Create indexes for ops intelligence tables
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ops_patterns_analysis_id ON ops_patterns(analysis_id);
+    CREATE INDEX IF NOT EXISTS idx_ops_patterns_severity ON ops_patterns(severity);
+    CREATE INDEX IF NOT EXISTS idx_ops_patterns_type ON ops_patterns(pattern_type);
+    CREATE INDEX IF NOT EXISTS idx_ops_findings_analysis_id ON ops_findings(analysis_id);
+    CREATE INDEX IF NOT EXISTS idx_ops_findings_severity ON ops_findings(severity);
+    CREATE INDEX IF NOT EXISTS idx_ops_findings_type ON ops_findings(finding_type);
+    CREATE INDEX IF NOT EXISTS idx_ops_recommendations_finding_id ON ops_recommendations(finding_id);
+    CREATE INDEX IF NOT EXISTS idx_ops_analysis_runs_status ON ops_analysis_runs(status);
+    CREATE INDEX IF NOT EXISTS idx_ops_analysis_runs_run_id ON ops_analysis_runs(run_id);
+  `);
 }
 
 export function nextRunNumber(): number {
