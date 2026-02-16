@@ -7,6 +7,11 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const execFileAsync = promisify(execFile);
 
@@ -65,7 +70,8 @@ export async function extractWordComments(docxPath: string): Promise<WordExtract
   }
 
   // Get the path to the Python extraction script
-  const scriptPath = path.join(__dirname, 'extract-word-comments.py');
+  // Python scripts live in src/, not dist/
+  const scriptPath = path.join(__dirname, '../../..', 'src/lib/doc-revision/extract-word-comments.py');
 
   try {
     // Call Python script

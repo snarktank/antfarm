@@ -58,60 +58,116 @@ describe('Word Extractor', () => {
     });
   });
 
-  describe('Empty Document Handling', () => {
-    let tempDocPath: string;
-    
-    before(async () => {
-      // Create a minimal valid .docx file for testing
-      // A .docx is actually a ZIP file with XML inside
-      // For this test, we'll create a simple test file
-      const tempDir = os.tmpdir();
-      tempDocPath = path.join(tempDir, 'test-empty.docx');
-      
-      // We'll skip this test if we can't create the file
-      // In a full implementation, you'd use a library to create a valid .docx
-    });
+  describe('Track Changes Extraction (Real Fixture)', () => {
+    const fixturePath = path.join(process.cwd(), 'tests/fixtures/test-track-changes.docx');
 
-    it('should handle documents with no comments gracefully', async () => {
-      // Skip if we don't have python-docx installed
+    it('should extract insertions from real Word document', async () => {
       const isInstalled = await checkPythonDocxInstalled();
       if (!isInstalled) {
         console.log('Skipping test: python-docx not installed');
         return;
       }
 
-      // This test would require a sample .docx file
-      // For now, we'll just verify the function structure
-      assert.ok(extractWordComments, 'extractWordComments function should exist');
+      const result = await extractWordComments(fixturePath);
+      
+      assert.ok(!result.error, 'Should not have error for valid fixture');
+      assert.ok(result.trackChanges.length > 0, 'Should extract track changes');
+      
+      // Find insertions
+      const insertions = result.trackChanges.filter(tc => tc.type === 'insertion');
+      assert.ok(insertions.length >= 2, 'Should have at least 2 insertions');
+      
+      // Verify insertion structure
+      const firstInsertion = insertions[0];
+      assert.ok(firstInsertion.author, 'Should have author');
+      assert.ok(firstInsertion.date, 'Should have date');
+      assert.ok(firstInsertion.text, 'Should have text');
+      assert.equal(typeof firstInsertion.paragraphIndex, 'number', 'Should have paragraphIndex');
     });
-  });
 
-  describe('Comment Extraction', () => {
-    it('should extract comment metadata correctly', async () => {
-      // This test requires a sample .docx with comments
-      // In a real implementation, you'd have a test fixture file
+    it('should extract deletions from real Word document', async () => {
+      const isInstalled = await checkPythonDocxInstalled();
+      if (!isInstalled) {
+        console.log('Skipping test: python-docx not installed');
+        return;
+      }
+
+      const result = await extractWordComments(fixturePath);
       
-      // For now, verify the interface structure
-      const result = await extractWordComments('/nonexistent.docx');
+      assert.ok(!result.error, 'Should not have error for valid fixture');
       
-      assert.ok(Array.isArray(result.comments), 'Should return comments array');
-      assert.ok(Array.isArray(result.trackChanges), 'Should return trackChanges array');
-      assert.ok(Array.isArray(result.paragraphs), 'Should return paragraphs array');
+      // Find deletions
+      const deletions = result.trackChanges.filter(tc => tc.type === 'deletion');
+      assert.ok(deletions.length >= 2, 'Should have at least 2 deletions');
+      
+      // Verify deletion structure
+      const firstDeletion = deletions[0];
+      assert.ok(firstDeletion.author, 'Should have author');
+      assert.ok(firstDeletion.date, 'Should have date');
+      assert.ok(firstDeletion.text, 'Should have text');
+      assert.equal(typeof firstDeletion.paragraphIndex, 'number', 'Should have paragraphIndex');
     });
-  });
 
-  describe('Context Extraction', () => {
-    it('should provide context before and after comments', async () => {
-      // Verify the structure of extracted comments includes context fields
-      const result = await extractWordComments('/nonexistent.docx');
+    it('should extract paragraph context correctly', async () => {
+      const isInstalled = await checkPythonDocxInstalled();
+      if (!isInstalled) {
+        console.log('Skipping test: python-docx not installed');
+        return;
+      }
+
+      const result = await extractWordComments(fixturePath);
       
-      // The result will have an error, but the structure should be correct
-      assert.ok('comments' in result, 'Should have comments field');
+      assert.ok(!result.error, 'Should not have error for valid fixture');
+      assert.ok(result.paragraphs.length > 0, 'Should extract paragraphs');
       
-      // If there were comments, they would have:
-      // - contextBefore: string[]
-      // - contextAfter: string[]
-      // - paragraphIndex: number
+      // Verify we have the title paragraph
+      assert.ok(
+        result.paragraphs.some(p => p.includes('Track Changes Extraction')),
+        'Should extract document title'
+      );
+    });
+
+    it('should include author and date metadata', async () => {
+      const isInstalled = await checkPythonDocxInstalled();
+      if (!isInstalled) {
+        console.log('Skipping test: python-docx not installed');
+        return;
+      }
+
+      const result = await extractWordComments(fixturePath);
+      
+      assert.ok(!result.error, 'Should not have error');
+      
+      // Verify specific authors from our test fixture
+      const authors = new Set(result.trackChanges.map(tc => tc.author));
+      assert.ok(authors.has('John Doe'), 'Should have John Doe as author');
+      assert.ok(authors.has('Jane Smith'), 'Should have Jane Smith as author');
+      
+      // Verify dates are present
+      result.trackChanges.forEach(tc => {
+        assert.ok(tc.date, `Track change by ${tc.author} should have date`);
+        assert.match(tc.date, /^\d{4}-\d{2}-\d{2}/, 'Date should be ISO format');
+      });
+    });
+
+    it('should link changes to correct paragraph indices', async () => {
+      const isInstalled = await checkPythonDocxInstalled();
+      if (!isInstalled) {
+        console.log('Skipping test: python-docx not installed');
+        return;
+      }
+
+      const result = await extractWordComments(fixturePath);
+      
+      assert.ok(!result.error, 'Should not have error');
+      
+      // All paragraphIndex values should be valid
+      result.trackChanges.forEach(tc => {
+        assert.ok(
+          tc.paragraphIndex >= 0 && tc.paragraphIndex < result.paragraphs.length,
+          `Paragraph index ${tc.paragraphIndex} should be valid (0-${result.paragraphs.length - 1})`
+        );
+      });
     });
   });
 

@@ -21,6 +21,23 @@ except ImportError:
     sys.exit(1)
 
 
+def extract_text_from_element(element, include_del_text=False):
+    """Extract all text from an XML element recursively."""
+    text = ""
+    # Get direct text nodes
+    for text_elem in element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'):
+        if text_elem.text:
+            text += text_elem.text
+    
+    # Also get deleted text if requested
+    if include_del_text:
+        for del_text_elem in element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}delText'):
+            if del_text_elem.text:
+                text += del_text_elem.text
+    
+    return text
+
+
 def extract_comments(docx_path: str) -> Dict[str, Any]:
     """
     Extract all comments and track changes from a Word document.
@@ -56,11 +73,7 @@ def extract_comments(docx_path: str) -> Dict[str, Any]:
                     date = comment.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}date', '')
                     
                     # Extract comment text
-                    comment_text = ""
-                    for para in comment.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p'):
-                        for text in para.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'):
-                            if text.text:
-                                comment_text += text.text
+                    comment_text = extract_text_from_element(comment)
                     
                     # Find the paragraph that this comment is attached to
                     # This is a simplified approach - in reality, we'd need to traverse the XML more carefully
@@ -77,9 +90,42 @@ def extract_comments(docx_path: str) -> Dict[str, Any]:
                     })
         
         # Extract track changes (revisions)
-        # This is more complex and requires parsing the document XML
-        # For now, we'll mark this as a simplified implementation
-        # Full implementation would require traversing document._element and finding all revision marks
+        # Track changes are marked with w:ins (insertions) and w:del (deletions) in the XML
+        para_index = 0
+        for para in doc.paragraphs:
+            para_element = para._element
+            
+            # Find all insertions in this paragraph
+            for ins in para_element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}ins'):
+                author = ins.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}author', 'Unknown')
+                date = ins.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}date', '')
+                text = extract_text_from_element(ins)
+                
+                if text:  # Only add if there's actual text
+                    result["trackChanges"].append({
+                        "type": "insertion",
+                        "author": author,
+                        "date": date,
+                        "text": text,
+                        "paragraphIndex": para_index
+                    })
+            
+            # Find all deletions in this paragraph
+            for dels in para_element.findall('.//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}del'):
+                author = dels.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}author', 'Unknown')
+                date = dels.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}date', '')
+                text = extract_text_from_element(dels, include_del_text=True)
+                
+                if text:  # Only add if there's actual text
+                    result["trackChanges"].append({
+                        "type": "deletion",
+                        "author": author,
+                        "date": date,
+                        "text": text,
+                        "paragraphIndex": para_index
+                    })
+            
+            para_index += 1
         
         return result
         
