@@ -61,10 +61,54 @@ function getNotifyUrl(runId: string): string | null {
   }
 }
 
+// Validates webhook URL to prevent SSRF attacks
+function validateWebhookUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    
+    // Only allow http and https
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return false;
+    }
+    
+    // Reject localhost and internal IPs
+    const hostname = parsed.hostname.toLowerCase();
+    const internalPatterns = [
+      /^localhost$/,
+      /^127\./,
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[01])\./,
+      /^192\.168\./,
+      /^0\.0\.0\.0$/,
+      /^255\.255\.255\.255$/,
+      // IPv6 patterns (note: hostname includes brackets for IPv6)
+      /^\[fc00:/i,  // IPv6 unique local
+      /^\[fe80:/i,  // IPv6 link-local
+      /^\[::1\]$/,  // IPv6 loopback
+    ];
+    
+    for (const pattern of internalPatterns) {
+      if (pattern.test(hostname)) {
+        return false;
+      }
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function fireWebhook(evt: AntfarmEvent): void {
   const raw = getNotifyUrl(evt.runId);
   if (!raw) return;
   try {
+    // Validate URL to prevent SSRF attacks
+    if (!validateWebhookUrl(raw)) {
+      // Silently fail - do not send webhook to suspicious URLs
+      return;
+    }
+    
     const url = raw;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     

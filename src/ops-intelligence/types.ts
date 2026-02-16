@@ -60,3 +60,45 @@ export interface OpsRecommendation {
   created_at: string;
   updated_at: string;
 }
+
+/**
+ * Event types that can be aggregated for failure analysis
+ */
+export type AggregateableEventType = 'run.failed' | 'step.failed' | 'step.timeout' | 'story.failed';
+
+/**
+ * Raw event from events.jsonl
+ */
+export interface RawEvent {
+  ts: string;
+  event: string;
+  runId?: string;
+  workflowId?: string;
+  stepId?: string;
+  agentId?: string;
+  detail?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Aggregated event with statistics
+ */
+export interface AggregatedEvent {
+  eventType: AggregateableEventType;
+  count: number;
+  firstOccurrence: string; // ISO timestamp
+  lastOccurrence: string; // ISO timestamp
+  occurrences: FailureContext[];
+}
+
+/**
+ * Context extracted from a failure event
+ */
+export interface FailureContext {
+  runId?: string;
+  stepId?: string;
+  workflowId?: string;
+  timestamp: string; // ISO timestamp
+  detail?: string;
+  agentId?: string;
+}
