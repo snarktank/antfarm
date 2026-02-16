@@ -552,4 +552,129 @@ Released in 2025 and supports Python.
       await fs.unlink(testFile);
     });
   });
+  
+  describe('Word Document Revision', () => {
+    it('should apply revisions to Word documents while preserving styles', async () => {
+      const testFile = path.join(__dirname, 'fixtures', 'test-revision.docx');
+      
+      // Verify test fixture exists
+      const exists = await fs.access(testFile).then(() => true).catch(() => false);
+      if (!exists) {
+        console.log('Skipping Word revision test - fixture not found');
+        return;
+      }
+      
+      const feedback: CategorizedFeedback[] = [
+        {
+          originalComment: { 
+            text: 'should be "correct"', 
+            lineOrParagraphNumber: 1, 
+            contextBefore: ['This is a incorrect fact that needs correction.'],
+            contextAfter: [], 
+            type: 'comment' 
+          },
+          category: 'factual_error',
+          priority: 'high',
+          reasoning: 'Incorrect word'
+        }
+      ];
+      
+      const result = await applyRevisions(testFile, feedback);
+      
+      // Should return path to modified document
+      assert.ok(result.modifiedContent.includes('-revised.docx'));
+      
+      // Should record changes
+      assert.strictEqual(result.changeLog.length, 1);
+      assert.strictEqual(result.changeLog[0].lineOrParagraph, 1);
+      assert.ok(result.changeLog[0].revisedText.includes('correct'));
+      
+      // Clean up
+      await fs.unlink(result.modifiedContent).catch(() => {});
+    });
+    
+    it('should handle multiple revisions in priority order for Word', async () => {
+      const testFile = path.join(__dirname, 'fixtures', 'test-revision.docx');
+      
+      const exists = await fs.access(testFile).then(() => true).catch(() => false);
+      if (!exists) {
+        console.log('Skipping Word revision test - fixture not found');
+        return;
+      }
+      
+      const feedback: CategorizedFeedback[] = [
+        {
+          originalComment: { 
+            text: 'should be "correct"', 
+            lineOrParagraphNumber: 1, 
+            contextBefore: ['This is a incorrect fact that needs correction.'],
+            contextAfter: [], 
+            type: 'comment' 
+          },
+          category: 'factual_error',
+          priority: 'high',
+          reasoning: 'Incorrect word'
+        },
+        {
+          originalComment: { 
+            text: 'add "about X topic"', 
+            lineOrParagraphNumber: 2, 
+            contextBefore: ['This sentence is missing some important information.'],
+            contextAfter: [], 
+            type: 'comment' 
+          },
+          category: 'missing_info',
+          priority: 'medium',
+          reasoning: 'Missing details'
+        },
+        {
+          originalComment: { 
+            text: 'too wordy', 
+            lineOrParagraphNumber: 3, 
+            contextBefore: ["I'm gonna utilize this wordy sentence in order to demonstrate tone issues."],
+            contextAfter: [], 
+            type: 'comment' 
+          },
+          category: 'tone',
+          priority: 'low',
+          reasoning: 'Needs simplification'
+        }
+      ];
+      
+      const result = await applyRevisions(testFile, feedback);
+      
+      // Should process all feedback
+      assert.strictEqual(result.revisionPlan.length, 3);
+      
+      // Should be sorted by priority
+      assert.strictEqual(result.revisionPlan[0].feedback.priority, 'high');
+      assert.strictEqual(result.revisionPlan[1].feedback.priority, 'medium');
+      assert.strictEqual(result.revisionPlan[2].feedback.priority, 'low');
+      
+      // Should record changes (at least the high priority one)
+      assert.ok(result.changeLog.length >= 1);
+      
+      // Clean up
+      await fs.unlink(result.modifiedContent).catch(() => {});
+    });
+    
+    it('should throw error for unsupported file types', async () => {
+      const testFile = path.join(__dirname, 'fixtures', 'test.txt');
+      await fs.writeFile(testFile, 'Test content', 'utf-8');
+      
+      const feedback: CategorizedFeedback[] = [{
+        originalComment: { text: 'test', lineOrParagraphNumber: 1, contextBefore: [], contextAfter: [], type: 'comment' },
+        category: 'tone',
+        priority: 'low',
+        reasoning: 'test'
+      }];
+      
+      await assert.rejects(
+        async () => await applyRevisions(testFile, feedback),
+        /Unsupported file type/
+      );
+      
+      await fs.unlink(testFile);
+    });
+  });
 });

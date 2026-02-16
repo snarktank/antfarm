@@ -1,6 +1,8 @@
 import type { CategorizedFeedback, Priority } from './analyzer.js';
 import fs from 'fs/promises';
 import path from 'path';
+import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
 
 export interface RevisionPlan {
   feedback: CategorizedFeedback;
@@ -54,8 +56,10 @@ export async function applyRevisions(
     modifiedContent = result.content;
     changeLog = result.changes;
   } else {
-    // Word support would go here - for now, throw
-    throw new Error('Word document revision not yet implemented');
+    // Word document revision
+    const result = await applyWordRevisions(filePath, revisionPlan);
+    modifiedContent = result.content;
+    changeLog = result.changes;
   }
   
   return {
@@ -103,6 +107,131 @@ function determineAction(feedback: CategorizedFeedback): string {
     case 'structure':
       return `Restructure content at line ${originalComment.lineOrParagraphNumber}: ${originalComment.text}`;
   }
+}
+
+/**
+ * Applies revisions to Word document using python-docx.
+ * Preserves paragraph styles while modifying content.
+ */
+async function applyWordRevisions(
+  filePath: string,
+  plan: RevisionPlan[]
+): Promise<{ content: string; changes: Change[] }> {
+  // Convert revision plan to format expected by Python script
+  const pythonRevisionPlan = plan.map(item => {
+    const { feedback } = item;
+    const paraNumber = feedback.originalComment.lineOrParagraphNumber;
+    
+    // Apply the same revision logic as markdown, but to paragraph content
+    const revisedText = applyWordRevision(feedback);
+    
+    return {
+      paragraphNumber: paraNumber,
+      revisedText,
+      feedbackText: feedback.originalComment.text,
+      reason: feedback.reasoning
+    };
+  });
+  
+  // Create output path for modified document
+  const outputPath = filePath.replace(/\.docx$/i, '-revised.docx');
+  
+  // Call Python script
+  // Python scripts live in src/, not dist/
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const scriptPath = path.join(__dirname, '../../..', 'src/lib/doc-revision/apply-word-revisions.py');
+  
+  const inputData = {
+    inputPath: filePath,
+    outputPath,
+    revisionPlan: pythonRevisionPlan
+  };
+  
+  return new Promise((resolve, reject) => {
+    const pythonProcess = spawn('python3', [scriptPath], {
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    
+    let stdout = '';
+    let stderr = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`Python script failed: ${stderr}`));
+        return;
+      }
+      
+      try {
+        const result = JSON.parse(stdout);
+        
+        if (!result.success) {
+          reject(new Error(result.error || 'Unknown error'));
+          return;
+        }
+        
+        // Return modified document path and changes
+        resolve({
+          content: outputPath, // For Word docs, return path to modified file
+          changes: result.changes
+        });
+      } catch (err) {
+        reject(new Error(`Failed to parse Python output: ${err}`));
+      }
+    });
+    
+    // Send input data to Python script via stdin
+    pythonProcess.stdin.write(JSON.stringify(inputData));
+    pythonProcess.stdin.end();
+  });
+}
+
+/**
+ * Applies a single revision to Word paragraph content.
+ * Similar to markdown revision but without formatting preservation (handled by python-docx).
+ */
+function applyWordRevision(feedback: CategorizedFeedback): string {
+  const { category, originalComment } = feedback;
+  const commentText = originalComment.text;
+  const commentTextLower = commentText.toLowerCase();
+  
+  // Get the original paragraph text from context
+  // For Word, we'll extract from contextBefore/contextAfter if available
+  let content = '';
+  
+  // Try to find content from context
+  if (originalComment.contextBefore && originalComment.contextBefore.length > 0) {
+    content = originalComment.contextBefore[originalComment.contextBefore.length - 1];
+  } else if (originalComment.contextAfter && originalComment.contextAfter.length > 0) {
+    content = originalComment.contextAfter[0];
+  }
+  
+  // Apply category-specific revisions (same logic as markdown)
+  let revisedContent = content;
+  
+  switch (category) {
+    case 'factual_error':
+      revisedContent = handleFactualError(content, commentText, commentTextLower);
+      break;
+    case 'missing_info':
+      revisedContent = handleMissingInfo(content, commentText, commentTextLower);
+      break;
+    case 'tone':
+      revisedContent = handleToneAdjustment(content, commentTextLower);
+      break;
+    case 'structure':
+      // Structure changes typically don't modify content
+      break;
+  }
+  
+  return revisedContent;
 }
 
 /**
