@@ -5,7 +5,12 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bundled workflows ship with antfarm (in the repo's workflows/ directory)
+// Override with ANTFARM_WORKFLOWS_DIR to load workflows from an external location.
 export function resolveBundledWorkflowsDir(): string {
+  const env = process.env.ANTFARM_WORKFLOWS_DIR?.trim();
+  if (env) {
+    return path.resolve(env);
+  }
   // From dist/installer/paths.js -> ../../workflows
   return path.resolve(__dirname, "..", "..", "workflows");
 }
