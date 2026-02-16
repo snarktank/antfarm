@@ -143,6 +143,10 @@ export function getStories(runId: string): Story[] {
     output: r.output ?? undefined,
     retryCount: r.retry_count,
     maxRetries: r.max_retries,
+    evidenceFilePaths: r.evidence_file_paths ? JSON.parse(r.evidence_file_paths) : undefined,
+    evidenceGitDiff: r.evidence_git_diff ?? undefined,
+    evidenceSummary: r.evidence_summary ?? undefined,
+    evidenceValidatedAt: r.evidence_validated_at ?? undefined,
   }));
 }
 
@@ -169,6 +173,10 @@ export function getCurrentStory(stepId: string): Story | null {
     output: row.output ?? undefined,
     retryCount: row.retry_count,
     maxRetries: row.max_retries,
+    evidenceFilePaths: row.evidence_file_paths ? JSON.parse(row.evidence_file_paths) : undefined,
+    evidenceGitDiff: row.evidence_git_diff ?? undefined,
+    evidenceSummary: row.evidence_summary ?? undefined,
+    evidenceValidatedAt: row.evidence_validated_at ?? undefined,
   };
 }
 

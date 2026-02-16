@@ -70,6 +70,10 @@ export type Story = {
   output?: string;
   retryCount: number;
   maxRetries: number;
+  evidenceFilePaths?: string[];
+  evidenceGitDiff?: string;
+  evidenceSummary?: string;
+  evidenceValidatedAt?: string;
 };
 
 export type WorkflowSpec = {

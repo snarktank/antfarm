@@ -25,6 +25,10 @@ export type StepInfo = {
   output: string | null;
   retry_count: number;
   max_retries: number;
+  evidence_file_paths: string | null;
+  evidence_git_diff: string | null;
+  evidence_summary: string | null;
+  evidence_validated_at: string | null;
   created_at: string;
   updated_at: string;
 };
