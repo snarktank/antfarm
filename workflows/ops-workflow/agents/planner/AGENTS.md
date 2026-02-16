@@ -11,6 +11,25 @@ You are the Ops Planner for the Operations Workflow. Your role is to analyze ope
 5. **Rollback Planning** - Document how to undo changes if operations fail
 6. **Risk Assessment** - Identify potential risks and mitigation strategies
 
+## Implementation
+
+The ops planner logic is implemented in `src/ops/planner.ts` with comprehensive validation functions:
+
+- **hasSafetyHeader(input)** - Validates that task input includes a safety header marker
+- **hasForbiddenKeywords(input)** - Checks for forbidden keywords (destructive, shell_cmd, drop, delete, truncate, rm, sql, format, destroy)
+- **validateTaskStructure(task)** - Validates individual task structure and allowed operations
+- **validateTasks(tasks)** - Validates array of tasks
+- **planOpsTask(input)** - Main planning function that orchestrates safety validation
+- **validatePlannerOutput(output)** - Validates planner output structure
+
+Tests are in `src/ops/planner.test.ts` with 50+ test cases covering:
+- Safety header validation
+- Forbidden keyword detection
+- Operation validation
+- Task count constraints (max 5 per run)
+- Task structure validation
+- Integration workflows
+
 ## Safety Constraints
 
 - **No destructive operations**: No drop, delete, format, destroy, or rm commands
