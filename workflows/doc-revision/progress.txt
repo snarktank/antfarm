@@ -48,46 +48,101 @@
 
 **Commit:** 6191f5d - feat: story-002 - Implement reader agent for Markdown extraction
 
-## Story 003 ✅ (Completed: 2026-02-16 17:34 EST)
+## Story 003 ✅ (Completed: 2026-02-16 17:42 EST - RETRY)
 **Title:** Implement reader agent for Word extraction with python-docx
 
-**What was done:**
-- Created Python script (extract-word-comments.py) that uses python-docx to extract:
-  - Comments with author, date, text, and paragraph index
-  - Track changes (insertions/deletions) with author and date
-  - All paragraph texts for context lookup
-- Created TypeScript wrapper (word-extractor.ts) that:
-  - Validates .docx file extension (case-insensitive)
-  - Checks file existence before processing
-  - Calls Python script via subprocess
-  - Adds 2 paragraphs of context before/after each comment
-  - Returns structured output matching markdown extractor format
-  - Handles errors gracefully with detailed error messages
-- Added checkPythonDocxInstalled() utility to verify python-docx availability
-- Updated reader agent SOUL.md with Word extraction documentation and examples
-- Wrote comprehensive test suite with 11 test cases covering:
-  - File type detection (.docx vs other extensions)
-  - File existence validation
-  - Python dependency checking
-  - Error handling
-  - Output format verification
-- All tests pass ✅
+**What was done (retry to fix track changes extraction):**
+- Fixed Python script (extract-word-comments.py) to properly extract track changes:
+  - Added extract_text_from_element() helper function
+  - Implemented extraction of w:ins (insertions) with author, date, and text
+  - Implemented extraction of w:del (deletions) with author, date, and text
+  - Fixed delText element parsing (deletions use w:delText, not w:t)
+  - Track changes now correctly linked to paragraph indices
+- Created test fixture .docx file with real track changes:
+  - Created create-test-docx-with-changes.py to generate test files via XML manipulation
+  - Generated tests/fixtures/test-track-changes.docx with 2 insertions and 2 deletions
+  - Each change has author, date, and text content
+- Updated TypeScript wrapper (word-extractor.ts):
+  - Fixed ES module compatibility (__dirname not available, use import.meta.url)
+  - Fixed Python script path to reference src/ directory (scripts don't get compiled)
+- Updated test suite with real extraction verification:
+  - Tests now verify against real fixture file
+  - Validates insertions are extracted with correct metadata
+  - Validates deletions are extracted with correct metadata
+  - Verifies author/date metadata is present and correctly formatted
+  - Confirms paragraph indices are valid
+  - All 13 tests pass ✅
 - Typecheck/build passes ✅
 
 **Files created/modified:**
-- src/lib/doc-revision/extract-word-comments.py (new)
-- src/lib/doc-revision/word-extractor.ts (new)
-- tests/doc-revision-word-extractor.test.ts (new)
-- workflows/doc-revision/agents/reader/SOUL.md (updated)
+- src/lib/doc-revision/extract-word-comments.py (fixed track changes extraction)
+- src/lib/doc-revision/word-extractor.ts (fixed ES module compatibility)
+- src/lib/doc-revision/create-test-docx-with-changes.py (new - creates test fixtures)
+- src/lib/doc-revision/create-test-docx.py (new - helper script)
+- tests/fixtures/test-track-changes.docx (new - test fixture)
+- tests/doc-revision-word-extractor.test.ts (updated with real extraction tests)
 
 **Technical notes:**
-- Uses python-docx library (requires: pip3 install python-docx)
-- Python script outputs JSON to stdout for easy Node.js integration
-- 10MB buffer for large document support
-- Comments are extracted from document._part.comments_part
-- Context paragraphs added post-extraction in TypeScript layer
+- Track changes use w:ins and w:del XML elements
+- Deleted text is stored in w:delText elements (not w:t like normal text)
+- Python scripts referenced from src/ directory (not copied to dist/)
+- ES modules require import.meta.url instead of __dirname
+- Test fixture created programmatically using python-docx XML manipulation
 
-**Commit:** c982cd8 - feat: story-003 - Implement reader agent for Word extraction with python-docx
+**Commit:** df4e635 - feat: story-003 - Implement track changes extraction for Word documents
+
+## Story 004 ✅ (Completed: 2026-02-16 17:52 EST)
+**Title:** Implement file type auto-detection logic
+
+**What was done:**
+- Created document-router.ts module in src/lib/doc-revision/
+- Implemented extractDocumentComments() function that:
+  - Auto-detects file type from extension (.md/.markdown vs .docx)
+  - Routes to appropriate extraction method (markdown or word)
+  - Returns unified output format regardless of input type
+  - Returns descriptive errors for unsupported file types
+  - Logs which extraction method was used (visible in console)
+- Implemented detectFileType() helper function:
+  - Normalizes extension (handles with/without dot)
+  - Returns 'markdown' for .md/.markdown
+  - Returns 'word' for .docx
+  - Returns null for unsupported types (.doc, .txt, etc.)
+- Created UnifiedComment interface:
+  - text: comment/change text
+  - lineOrParagraphNumber: location in document
+  - contextBefore/contextAfter: arrays of context strings
+  - author/date: optional metadata (from Word)
+  - type: 'comment' | 'insertion' | 'deletion'
+- Wrote comprehensive test suite with 13 test cases covering:
+  - File type detection for .md, .markdown, .docx
+  - Error handling for unsupported types (.txt, .doc)
+  - Error handling for non-existent files
+  - Markdown extraction via router
+  - Word extraction via router
+  - Unified output format validation
+  - Logging verification
+- All 13 tests pass ✅
+- Typecheck/build passes ✅
+
+**Files created:**
+- src/lib/doc-revision/document-router.ts (new)
+- tests/doc-revision-document-router.test.ts (new)
+
+**Technical notes:**
+- Router provides single entry point for both markdown and Word extraction
+- Unified interface makes it easy for downstream agents to work with either format
+- Console logging helps with debugging and transparency
+- Error messages are descriptive and actionable
+
+**Acceptance Criteria Met:**
+1. ✅ Reader agent checks file extension (.md/.markdown vs .docx)
+2. ✅ Routes to appropriate extraction method
+3. ✅ Returns error for unsupported file types
+4. ✅ Logs which extraction method was used
+5. ✅ Unified output format regardless of input type
+6. ✅ Typecheck passes
+
+**Commit:** 76ec6db - feat: story-004 - Implement file type auto-detection logic
 
 ## Codebase Patterns
 
@@ -146,6 +201,14 @@ Agent definitions require:
 - This ensures it's compiled by the build process (tsconfig includes `src/**/*.ts`)
 - Tests import from `dist/lib/<workflow-name>/*.js`
 - Agent SOUL.md files document the API and usage patterns
+
+### Auto-Detection Router Pattern
+- Use a router module to auto-detect input format and route to appropriate handler
+- Router should check file extension and validate file existence
+- Return unified output interface regardless of input format
+- Include descriptive error messages for unsupported formats
+- Log which extraction method was used (aids debugging)
+- Example: document-router.ts detects markdown vs Word and unifies output
 
 ## Next Stories
 (To be populated by planner agent)
