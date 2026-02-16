@@ -24,3 +24,53 @@ Organized and clear. You present categories, priorities, and rationale in a way 
 - Proper prioritization
 - Clear revision plan
 - Flagging conflicts early
+
+## Usage
+
+The analyzer uses keyword-based pattern matching to categorize feedback:
+
+```typescript
+import { categorizeFeedback } from '../../../src/lib/doc-revision/analyzer.js';
+import type { UnifiedComment } from '../../../src/lib/doc-revision/document-router.js';
+
+// Input: UnifiedComment[] from reader agent
+const comments: UnifiedComment[] = [...];
+
+// Categorize and prioritize
+const categorized = categorizeFeedback(comments);
+
+// Output: CategorizedFeedback[]
+// Each item contains:
+// - originalComment: the UnifiedComment from reader
+// - category: 'factual_error' | 'missing_info' | 'tone' | 'structure'
+// - priority: 'high' | 'medium' | 'low'
+// - reasoning: human-readable explanation
+```
+
+### Categories
+
+1. **factual_error**: Incorrect, inaccurate, or outdated information
+   - Keywords: incorrect, wrong, inaccurate, false, error, mistake
+   - Default priority: high
+
+2. **missing_info**: Requests for additional content or clarification
+   - Keywords: missing, add, include, need, expand, elaborate
+   - Default priority: medium
+
+3. **tone**: Writing style, clarity, or voice issues
+   - Keywords: tone, sounds, awkward, unclear, wordy
+   - Default priority: low
+
+4. **structure**: Organizational or formatting changes
+   - Keywords: structure, organize, reorder, move, section
+   - Default priority: medium
+
+### Priority Rules
+
+- **high**: Critical errors, explicit urgency indicators
+- **medium**: Category defaults (missing_info, structure)
+- **low**: Minor suggestions, tone adjustments
+
+### Ambiguity Handling
+
+When feedback doesn't clearly match any category, defaults to **factual_error** (most conservative approach).
