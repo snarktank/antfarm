@@ -7,16 +7,18 @@ import assert from "node:assert/strict";
 
 import { buildPollingPrompt } from "../dist/installer/agent-cron.js";
 
+const MODEL = "anthropic/claude-haiku-4-5:latest";
+
 describe("two-phase-cron-setup", () => {
   describe("buildPollingPrompt with work model", () => {
     it("includes sessions_spawn instruction", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       assert.ok(prompt.includes("sessions_spawn"), "should mention sessions_spawn");
     });
 
-    it("includes the default work model when none specified", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
-      assert.ok(prompt.includes('"default"'), "should include default work model");
+    it("includes the specified work model in the prompt", () => {
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
+      assert.ok(prompt.includes(`"${MODEL}"`), "should include specified work model");
     });
 
     it("includes custom work model when specified", () => {
@@ -25,17 +27,17 @@ describe("two-phase-cron-setup", () => {
     });
 
     it("still includes step claim command", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       assert.ok(prompt.includes('step claim "feature-dev_developer"'));
     });
 
     it("still includes HEARTBEAT_OK for NO_WORK", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       assert.ok(prompt.includes("HEARTBEAT_OK"));
     });
 
     it("remains under 5000 chars (includes embedded work prompt)", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       assert.ok(prompt.length < 5000, `Prompt too long: ${prompt.length} chars`);
     });
   });
@@ -44,18 +46,17 @@ describe("two-phase-cron-setup", () => {
     // These tests verify the exported constants and prompt builder behavior
     // that setupAgentCrons depends on
 
-    it("default work model is 'default'", async () => {
-      // We verify this through the module — the constant is used in setupAgentCrons
-      // The polling prompt doesn't contain the polling model (that's in the cron payload)
-      // but we can verify the work model default
-      const prompt = buildPollingPrompt("test", "agent");
+    it("work model is embedded in the polling prompt", async () => {
       // The polling prompt contains the WORK model, not the polling model
       // The polling model is set in the cron job payload by setupAgentCrons
-      assert.ok(prompt.includes('"default"'), "default work model in prompt");
+      // workModel is now required — no more "default" fallback
+      const prompt = buildPollingPrompt("test", "agent", MODEL);
+      assert.ok(prompt.includes(`"${MODEL}"`), "work model in prompt");
+      assert.ok(!prompt.includes('"default"'), "should never contain 'default' as model");
     });
 
     it("polling prompt uses correct agent id format", () => {
-      const prompt = buildPollingPrompt("security-audit", "scanner");
+      const prompt = buildPollingPrompt("security-audit", "scanner", MODEL);
       assert.ok(prompt.includes("security-audit_scanner"));
     });
   });

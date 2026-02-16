@@ -1,0 +1,163 @@
+id: ops
+name: Ops Workflow
+version: 5
+description: |
+  Dedicated workflow for fast config/deploy/ops tasks with built-in safety.
+  Planner analyzes the ops request, Executor performs safe operations,
+  Verifier confirms task completion. All steps include safety header enforcement.
+
+polling:
+  model: anthropic/qwen3-coder-next:q4_K_M
+  timeoutSeconds: 120
+
+agents:
+  - id: planner
+    name: Planner
+    role: analysis
+    model: anthropic/qwen3-coder-next:q4_K_M
+    description: Analyzes ops requests, creates execution plan with safety review.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
+  - id: executor
+    name: Executor
+    role: ops
+    model: anthropic/qwen3-coder-next:q4_K_M
+    description: Executes safe, non-destructive ops tasks (config, deploy, monitoring).
+    workspace:
+      baseDir: agents/executor
+      files:
+        AGENTS.md: agents/executor/AGENTS.md
+        SOUL.md: agents/executor/SOUL.md
+        IDENTITY.md: agents/executor/IDENTITY.md
+
+  - id: verifier
+    name: Verifier
+    role: verification
+    model: anthropic/qwen3-coder-next:q4_K_M
+    description: Verifies ops task completion and safety constraints.
+    workspace:
+      baseDir: agents/verifier
+      files:
+        AGENTS.md: agents/verifier/AGENTS.md
+        SOUL.md: agents/verifier/SOUL.md
+        IDENTITY.md: agents/verifier/IDENTITY.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      ### SAFETY HEADER
+      Do NOT run destructive commands, SQL, or modify files outside workspace.
+      All tasks require explicit acceptance criteria and rollback notes.
+
+      Analyze this ops request and create an execution plan.
+
+      OPS REQUEST:
+      {{request}}
+
+      Instructions:
+      1. Review the ops request for safety and scope
+      2. Identify what needs to be done (config, deploy, monitoring, etc.)
+      3. Create a step-by-step execution plan
+      4. List any rollback procedures for each step
+      5. Flag any destructive operations (these are NOT allowed)
+      6. Identify acceptance criteria to verify success
+
+      Allowed operations:
+      - Configuration changes (non-production unless approved)
+      - Deployment to staging/dev environments
+      - Monitoring/observability setup
+      - Documentation updates
+      - Non-destructive database operations (queries, read-only)
+
+      NOT allowed (escalate to human):
+      - Production data deletion
+      - SQL DDL modifications (DROP, TRUNCATE)
+      - Destructive infrastructure changes (terminate, remove)
+      - Code changes, PR creation, test execution
+      - Security credential rotation (use human review)
+
+      Reply with:
+      STATUS: done
+      PLAN: step-by-step execution plan
+      ROLLBACK: rollback procedures
+      SAFETY_REVIEW: any concerns or escalations needed
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: execute
+    agent: executor
+    input: |
+      ### SAFETY HEADER
+      Do NOT run destructive commands, SQL, or modify files outside workspace.
+      All tasks require explicit acceptance criteria and rollback notes.
+
+      Execute the ops plan.
+
+      OPS REQUEST:
+      {{request}}
+
+      EXECUTION PLAN:
+      {{plan}}
+
+      ROLLBACK PROCEDURES:
+      {{rollback}}
+
+      Instructions:
+      1. Review the plan for safety constraints
+      2. Execute each step in order
+      3. Log output from each step
+      4. On failure, follow rollback procedures immediately
+      5. Do NOT proceed to next step if current step fails
+      6. Document what was changed
+
+      Reply with:
+      STATUS: done
+      EXECUTED_STEPS: what you did
+      OUTPUT: logs or results
+      CHANGES_MADE: summary of changes
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
+
+  - id: verify
+    agent: verifier
+    input: |
+      ### SAFETY HEADER
+      Do NOT run destructive commands, SQL, or modify files outside workspace.
+      All tasks require explicit acceptance criteria and rollback notes.
+
+      Verify the ops task completion.
+
+      OPS REQUEST:
+      {{request}}
+
+      EXECUTED_STEPS:
+      {{executed_steps}}
+
+      CHANGES_MADE:
+      {{changes_made}}
+
+      Instructions:
+      1. Review what was executed against the original request
+      2. Verify that acceptance criteria from planning were met
+      3. Check that changes are non-destructive and scoped correctly
+      4. Confirm safety constraints were honored
+      5. Validate that no code/PR/test/deploy activities occurred
+      6. Test the results where applicable (config applied, service running, etc.)
+
+      Reply with:
+      STATUS: done
+      VERIFIED: what you confirmed
+      ISSUES: any concerns or incomplete items (empty if none)
+    expects: "STATUS: done"
+    on_fail:
+      escalate_to: human

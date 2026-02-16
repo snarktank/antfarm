@@ -2,6 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { buildPollingPrompt, buildWorkPrompt } from "../dist/installer/agent-cron.js";
 
+const MODEL = "anthropic/claude-haiku-4-5:latest";
+
 /**
  * Integration tests for the full two-phase polling flow.
  * Verifies that setupAgentCrons creates the right structure,
@@ -20,24 +22,23 @@ describe("two-phase-integration", () => {
     });
 
     it("polling prompt embeds the full work prompt for Phase 2 execution", () => {
-      const pollingPrompt = buildPollingPrompt("feature-dev", "developer");
+      const pollingPrompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       const workPrompt = buildWorkPrompt("feature-dev", "developer");
       // The polling prompt should contain the full work prompt between delimiters
       assert.ok(pollingPrompt.includes(workPrompt), "polling prompt embeds full work prompt");
     });
   });
 
-  // AC2: Without polling config, defaults to "default" model
-  // (The default polling MODEL is set in setupAgentCrons payload, not in the prompt itself.
-  //  The prompt contains the WORK model. We verify default work model here.)
-  describe("defaults without polling config", () => {
-    it("uses 'default' work model when no workModel specified", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
-      assert.ok(prompt.includes('"default"'), "default work model");
+  // AC2: workModel is now required — no "default" fallback
+  describe("model is always explicit", () => {
+    it("uses the specified work model in the prompt", () => {
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
+      assert.ok(prompt.includes(`"${MODEL}"`), "explicit work model");
+      assert.ok(!prompt.includes('"default"'), "no default model fallback");
     });
 
     it("agent id uses namespaced format (workflowId_agentId)", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       assert.ok(prompt.includes("feature-dev_developer"), "namespaced agent id");
       assert.ok(!prompt.includes("feature-dev/developer"), "no slash-separated id");
       assert.ok(!prompt.includes("feature-dev-developer"), "no hyphen-delimited id");
@@ -47,7 +48,7 @@ describe("two-phase-integration", () => {
   // AC3: Polling prompt is minimal (under 2000 chars for just the Phase 1 part)
   describe("polling prompt is minimal", () => {
     it("Phase 1 instructions (before work prompt) are concise", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       // Extract just the Phase 1 part (before the embedded work prompt)
       const phase1End = prompt.indexOf("---START WORK PROMPT---");
       assert.ok(phase1End > 0, "work prompt delimiter exists");
@@ -56,14 +57,14 @@ describe("two-phase-integration", () => {
     });
 
     it("polling prompt does not contain AGENTS.md or SOUL.md references", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       assert.ok(!prompt.includes("AGENTS.md"));
       assert.ok(!prompt.includes("SOUL.md"));
       assert.ok(!prompt.includes("MEMORY.md"));
     });
 
     it("polling prompt does not contain heavy workflow context", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       // Should not have acceptance criteria, story details, etc.
       assert.ok(!prompt.includes("Acceptance Criteria"));
       assert.ok(!prompt.includes("COMPLETED STORIES"));
@@ -102,10 +103,10 @@ describe("two-phase-integration", () => {
     });
   });
 
-  // AC5: Backward compatibility — workflows without polling config still work
-  describe("backward compatibility", () => {
-    it("buildPollingPrompt works with no workModel argument", () => {
-      const prompt = buildPollingPrompt("feature-dev", "developer");
+  // AC5: All workflows produce valid prompts with explicit models
+  describe("all workflows produce valid prompts", () => {
+    it("buildPollingPrompt produces valid output with explicit model", () => {
+      const prompt = buildPollingPrompt("feature-dev", "developer", MODEL);
       assert.ok(prompt.length > 0);
       assert.ok(prompt.includes("step claim"));
       assert.ok(prompt.includes("HEARTBEAT_OK"));
@@ -128,7 +129,7 @@ describe("two-phase-integration", () => {
 
       for (const wf of workflows) {
         for (const agent of wf.agents) {
-          const polling = buildPollingPrompt(wf.id, agent);
+          const polling = buildPollingPrompt(wf.id, agent, MODEL);
           const work = buildWorkPrompt(wf.id, agent);
           assert.ok(polling.includes(`${wf.id}_${agent}`), `${wf.id}/${agent} polling agent id`);
           assert.ok(work.includes("step complete"), `${wf.id}/${agent} work has step complete`);

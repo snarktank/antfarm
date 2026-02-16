@@ -13,8 +13,9 @@ export type WorkflowAgentFiles = {
  * - testing:       Read + exec + browser/web for E2E testing, NO write (tester)
  * - pr:            Read + exec only — just runs `gh pr create` (pr)
  * - scanning:      Read + exec + web search for CVE lookups, NO write (scanner)
+ * - ops:           Read + write + exec for safe operations (executor) — NO destructive commands, NO code changes
  */
-export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning";
+export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning" | "ops";
 
 export type WorkflowAgent = {
   id: string;

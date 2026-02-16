@@ -9,13 +9,17 @@ description: |
   PR agent creates the pull request.
 
 polling:
-  model: default
+  model: anthropic/qwen3-coder-next:q4_K_M
   timeoutSeconds: 120
+
+cron:
+  interval_ms: 180000
 
 agents:
   - id: triager
     name: Triager
     role: analysis
+    model: anthropic/qwen3-coder-next:q4_K_M
     description: Analyzes bug reports, reproduces issues, classifies severity.
     workspace:
       baseDir: agents/triager
@@ -27,6 +31,7 @@ agents:
   - id: investigator
     name: Investigator
     role: analysis
+    model: anthropic/qwen3-coder-next:q4_K_M
     description: Traces bugs to root cause and proposes fix approach.
     workspace:
       baseDir: agents/investigator
@@ -38,6 +43,7 @@ agents:
   - id: setup
     name: Setup
     role: coding
+    model: anthropic/qwen3-coder-next:q4_K_M
     description: Creates bugfix branch and establishes baseline.
     workspace:
       baseDir: agents/setup
@@ -49,6 +55,7 @@ agents:
   - id: fixer
     name: Fixer
     role: coding
+    model: anthropic/qwen3-coder-next:q4_K_M
     description: Implements the fix and writes regression tests.
     workspace:
       baseDir: agents/fixer
@@ -60,6 +67,7 @@ agents:
   - id: verifier
     name: Verifier
     role: verification
+    model: anthropic/qwen3-coder-next:q4_K_M
     description: Verifies the fix and regression test correctness.
     workspace:
       baseDir: agents/verifier
@@ -71,6 +79,7 @@ agents:
   - id: pr
     name: PR Creator
     role: pr
+    model: anthropic/qwen3-coder-next:q4_K_M
     description: Creates a pull request with bug fix details.
     workspace:
       baseDir: agents/pr

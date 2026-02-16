@@ -3,12 +3,14 @@
  */
 import { getDb } from "../db.js";
 import { getMaxRoleTimeoutSeconds } from "../installer/install.js";
+import type { CronJobInfo } from "../installer/gateway-api.js";
 
 export type MedicSeverity = "info" | "warning" | "critical";
 export type MedicActionType =
   | "reset_step"
   | "fail_run"
   | "teardown_crons"
+  | "unstick_cron"
   | "none";
 
 export interface MedicFinding {
@@ -188,6 +190,65 @@ export function checkOrphanedCrons(
         severity: "warning",
         message: `${jobCount} cron job(s) for workflow "${wfId}" still running but no active runs exist`,
         action: "teardown_crons",
+        remediated: false,
+      });
+    }
+  }
+
+  return findings;
+}
+
+// ── Check: Stuck Crons ─────────────────────────────────────────────
+
+/**
+ * Detect cron jobs where runningAtMs is set but the session has likely
+ * timed out (running longer than the cron's own timeoutSeconds + 2 min buffer).
+ * These crons are stuck — the gateway won't schedule them again until
+ * runningAtMs is cleared via a disable/enable toggle.
+ *
+ * Also detects scheduler freeze: if ALL antfarm crons have nextRunAtMs
+ * in the past (overdue by > 10 minutes), the scheduler timer is likely dead.
+ */
+export function checkStuckCrons(
+  cronJobs: CronJobInfo[],
+): MedicFinding[] {
+  const findings: MedicFinding[] = [];
+  const now = Date.now();
+
+  const antfarmCrons = cronJobs.filter(
+    (j) => j.name.startsWith("antfarm/") && j.name !== "antfarm/medic" && j.enabled !== false,
+  );
+
+  // Check individual stuck crons (runningAtMs set for too long)
+  for (const job of antfarmCrons) {
+    const runningAt = job.state?.runningAtMs;
+    if (!runningAt) continue;
+    const timeoutMs = ((job.payload?.timeoutSeconds ?? 120) + 120) * 1000; // timeout + 2 min buffer
+    const stuckMs = now - runningAt;
+    if (stuckMs > timeoutMs) {
+      const stuckMin = Math.round(stuckMs / 60000);
+      findings.push({
+        check: "stuck_crons",
+        severity: "warning",
+        message: `Cron "${job.name}" has runningAtMs set for ${stuckMin}min (likely abandoned session) — needs unstick`,
+        action: "unstick_cron",
+        remediated: false,
+      });
+    }
+  }
+
+  // Check for scheduler freeze (all crons overdue by > 10 minutes)
+  if (antfarmCrons.length >= 2) {
+    const overdue = antfarmCrons.filter((j) => {
+      const next = j.state?.nextRunAtMs;
+      return next && now - next > 10 * 60 * 1000;
+    });
+    if (overdue.length === antfarmCrons.length) {
+      findings.push({
+        check: "scheduler_freeze",
+        severity: "critical",
+        message: `All ${antfarmCrons.length} antfarm crons are overdue (>10min) — scheduler may be frozen. Restart gateway: launchctl kickstart -k gui/$(id -u)/ai.openclaw.gateway`,
+        action: "none",
         remediated: false,
       });
     }

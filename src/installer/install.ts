@@ -143,6 +143,21 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     ],
     timeoutSeconds: TIMEOUT_20_MIN,  // security scanning + web lookups
   },
+
+  // ops: read + write + exec for safe operations (config, deploy, monitoring)
+  // NO destructive commands, NO code changes
+  ops: {
+    profile: "coding",
+    deny: [
+      ...ALWAYS_DENY,
+      "image", "tts",                  // unnecessary
+      "group:ui",                      // no browser/canvas
+      // NOTE: write/edit/apply_patch are NOT denied — ops agents need to modify config
+      // However, safety constraints in AGENTS.md/input templates enforce no code changes,
+      // no destructive commands (DROP, TRUNCATE, terminate instances, etc.)
+    ],
+    timeoutSeconds: TIMEOUT_30_MIN,  // ops tasks may be longer
+  },
 };
 
 /**
@@ -166,6 +181,7 @@ function inferRole(agentId: string): AgentRole {
   if (id.includes("verifier")) return "verification";
   if (id.includes("tester")) return "testing";
   if (id.includes("scanner")) return "scanning";
+  if (id.includes("executor")) return "ops";
   if (id === "pr" || id.includes("/pr")) return "pr";
   // developer, fixer, setup → coding
   return "coding";

@@ -21,7 +21,7 @@ describe("bug-fix workflow polling config", () => {
   it("has a polling section with model and timeoutSeconds", async () => {
     const spec = await loadWorkflowSpec(WORKFLOW_DIR);
     assert.ok(spec.polling, "polling config should exist");
-    assert.equal(spec.polling.model, "default");
+    assert.equal(spec.polling.model, "anthropic/qwen3-coder-next:q4_K_M");
     assert.equal(spec.polling.timeoutSeconds, 120);
   });
 
