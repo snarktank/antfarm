@@ -264,71 +264,67 @@ Agent definitions require:
 ## Next Stories
 (To be populated by planner agent)
 
-## Story 006 ✅ (Completed: 2026-02-16 18:02 EST)
+## Story 006 ✅ (Completed: 2026-02-16 18:07 EST - RETRY SUCCESSFUL)
 **Title:** Implement revisor agent content revision logic
 
-**What was done:**
+**What was done (initial + retry):**
 - Created revisor.ts module in src/lib/doc-revision/
 - Implemented applyRevisions() function that:
   - Takes file path and categorized feedback as input
   - Creates revision plan sorted by priority (high → medium → low)
-  - Applies revisions while preserving markdown formatting
+  - Applies revisions while preserving markdown/Word formatting
   - Processes feedback in priority order
   - Returns modified content, change log, and revision plan
-- Markdown formatting preservation:
-  - Preserves headings (#, ##, ###)
-  - Preserves list markers (-, *, +, 1., 2., etc.)
-  - Preserves blockquotes (>)
-  - Preserves leading and trailing whitespace
+- **Markdown revision (initial):**
+  - Preserves headings (#, ##, ###), list markers, blockquotes, whitespace
   - Preserves code blocks and inline code
-- Category-specific revision logic:
-  - Factual errors: Extracts explicit corrections ("should be X", "change to X", "replace with X")
-  - Missing info: Extracts additions ("add X", "include X")
-  - Tone: Applies automatic adjustments (formality, wordiness, casual language)
-  - Structure: Preserves content (structure changes handled at organization level)
-- Fallback behavior when no explicit instruction:
-  - Factual errors: Appends [NEEDS VERIFICATION]
-  - Missing info: Appends [TODO: add details]
-  - Tone: Appends [REVIEW TONE]
+  - Category-specific revision logic (factual errors, missing info, tone, structure)
+  - Fallback behavior with [NEEDS VERIFICATION], [TODO: add details], [REVIEW TONE]
+- **Word revision (retry - NOW IMPLEMENTED):**
+  - Created apply-word-revisions.py Python script using python-docx
+  - Implemented applyWordRevisions() TypeScript wrapper
+  - Uses python-docx to modify paragraphs while preserving styles
+  - Converts revision plan to Python-compatible format
+  - Calls Python script via spawn with JSON stdin/stdout
+  - Returns path to modified .docx file and change log
+  - Proper path resolution (src/ not dist/) for Python scripts
 - Change log tracking:
   - Records line/paragraph number, original text, revised text, reason, feedback text
   - Only records actual changes (skips unchanged lines)
-- Updated revisor agent SOUL.md with:
-  - Usage instructions and code examples
-  - Category definitions and revision approach
-  - Fallback behavior documentation
-  - Examples of each revision type
-- Wrote comprehensive test suite with 23 test cases covering:
-  - Revision plan creation and priority sorting
-  - Markdown formatting preservation (headings, lists, blockquotes, whitespace)
-  - Factual error handling (explicit corrections + fallback)
-  - Missing info handling (explicit additions + fallback)
-  - Tone adjustment (formality, wordiness, casual language + fallback)
-  - Change log recording
-  - Error handling (unsupported file types, invalid line numbers)
-  - Real-world multi-feedback scenario
-- All 23 tests pass ✅
+- Updated revisor agent SOUL.md with usage instructions and examples
+- Wrote comprehensive test suite:
+  - **Initial:** 23 markdown revision tests
+  - **Retry:** Added 3 Word document revision tests
+  - **Total:** 26 revisor tests (plus all other suites = 99 tests)
+  - All 99 tests pass ✅
 - Typecheck/build passes ✅
 
 **Files created/modified:**
-- src/lib/doc-revision/revisor.ts (new)
-- tests/doc-revision-revisor.test.ts (new)
+- src/lib/doc-revision/revisor.ts (modified - added Word support)
+- src/lib/doc-revision/apply-word-revisions.py (new)
+- src/lib/doc-revision/create-test-revision-docx.py (new - test fixture generator)
+- tests/doc-revision-revisor.test.ts (modified - added Word tests)
+- tests/fixtures/test-revision.docx (new - test fixture)
 - workflows/doc-revision/agents/revisor/SOUL.md (updated)
 
 **Technical notes:**
-- Revision logic preserves case from original comment text (not lowercased version)
-- Capitalization preservation for replacements (e.g., "In order to" → "To")
-- Markdown prefix extraction handles common patterns (headings, lists, quotes)
-- Word document revision planned but not implemented (requires python-docx paragraph modification)
+- Revision logic preserves case from original comment text
+- Markdown prefix extraction handles headings, lists, quotes
+- **Word revision:** Python scripts referenced from src/ (not copied to dist/)
+- **Word revision:** Uses spawn with stdin/stdout for JSON communication
+- **Word revision:** paragraph.clear() + add_run() + style restoration preserves formatting
+- Path resolution: `__dirname + '../../../src/lib/doc-revision/apply-word-revisions.py'`
 
 **Acceptance Criteria Met:**
 1. ✅ Revisor agent SOUL.md defines revision approach
 2. ✅ Takes analyzer output and original file as input
 3. ✅ For markdown: preserves heading levels, lists, code blocks, links
-4. ✅ For Word: structure created (implementation planned for future story)
+4. ✅ **For Word: uses python-docx to modify paragraphs while preserving styles** ← FIXED IN RETRY
 5. ✅ Processes feedback in priority order (high → medium → low)
 6. ✅ Creates revision plan before applying changes
 7. ✅ Returns modified content with change log
 8. ✅ Typecheck passes
 
-**Commit:** ab7cca8 - feat: story-006 - Implement revisor agent content revision logic
+**Commits:**
+- ab7cca8 - feat: story-006 - Implement revisor agent content revision logic (initial - markdown only)
+- 453296b - feat: story-006 - Implement Word document revision support (retry - added Word support)
