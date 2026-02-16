@@ -18,8 +18,8 @@ describe('Landing page', () => {
 
   it('index.html contains required sections', () => {
     const html = readFileSync(resolve(landingDir, 'index.html'), 'utf-8');
-    assert.ok(html.includes('id="features"'), 'missing features section');
-    assert.ok(html.includes('id="quickstart"'), 'missing quickstart section');
+    assert.ok(html.includes('id="workflows"'), 'missing workflows section');
+    assert.ok(html.includes('id="security"'), 'missing security section');
     assert.ok(html.includes('id="commands"'), 'missing commands section');
     assert.ok(html.includes('<title>'), 'missing title');
     assert.ok(html.includes('meta name="viewport"'), 'missing viewport meta');
@@ -34,7 +34,7 @@ describe('Landing page', () => {
   it('style.css contains essential rules', () => {
     const css = readFileSync(resolve(landingDir, 'style.css'), 'utf-8');
     assert.ok(css.includes('.hero'), 'missing hero styles');
-    assert.ok(css.includes('.feature-grid'), 'missing feature grid');
+    assert.ok(css.includes('.workflow-grid'), 'missing workflow grid');
     assert.ok(css.includes('@media'), 'missing responsive styles');
   });
 

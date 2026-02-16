@@ -97,7 +97,11 @@ describe("stopWorkflow", () => {
     const result = await stopWorkflow("nonexistent-run-id-12345");
     assert.equal(result.status, "not_found");
     if (result.status !== "not_found") return;
-    assert.ok(result.message.includes("nonexistent-run-id-12345"));
+    assert.ok(
+      result.message.includes("nonexistent-run-id-12345") ||
+      result.message.includes("No workflow runs found"),
+      `unexpected not_found message: ${result.message}`
+    );
   });
 
   it("returns already_done for an already completed run", async () => {

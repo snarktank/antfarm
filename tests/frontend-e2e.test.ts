@@ -36,7 +36,7 @@ describe("E2E: frontend change detection in verify flow", () => {
     // Create a real git repo with a main branch
     execSync("git init && git checkout -b main", { cwd: tmpDir });
     fs.writeFileSync(path.join(tmpDir, "README.md"), "# test");
-    execSync("git add . && git commit -m 'init'", { cwd: tmpDir });
+    execSync("git add . && git commit -m \"init\"", { cwd: tmpDir });
   });
 
   afterEach(() => {
@@ -77,7 +77,7 @@ describe("E2E: frontend change detection in verify flow", () => {
     // Create branch with frontend file
     execSync("git checkout -b feat-frontend-ui", { cwd: tmpDir });
     fs.writeFileSync(path.join(tmpDir, "index.html"), "<html><body>Hello</body></html>");
-    execSync("git add . && git commit -m 'add html'", { cwd: tmpDir });
+    execSync("git add . && git commit -m \"add html\"", { cwd: tmpDir });
 
     insertTestRun(tmpDir, "feat-frontend-ui");
     const result = claimStep(testAgentId);
@@ -103,7 +103,7 @@ describe("E2E: frontend change detection in verify flow", () => {
     execSync("git checkout -b feat-backend-only", { cwd: tmpDir });
     fs.writeFileSync(path.join(tmpDir, "server.ts"), "export const x = 1;");
     fs.writeFileSync(path.join(tmpDir, "utils.py"), "def hello(): pass");
-    execSync("git add . && git commit -m 'add backend'", { cwd: tmpDir });
+    execSync("git add . && git commit -m \"add backend\"", { cwd: tmpDir });
 
     insertTestRun(tmpDir, "feat-backend-only");
     const result = claimStep(testAgentId);
@@ -128,7 +128,7 @@ describe("E2E: frontend change detection in verify flow", () => {
     execSync("git checkout -b feat-css-change", { cwd: tmpDir });
     fs.mkdirSync(path.join(tmpDir, "styles"), { recursive: true });
     fs.writeFileSync(path.join(tmpDir, "styles", "app.css"), "body { margin: 0; }");
-    execSync("git add . && git commit -m 'add css'", { cwd: tmpDir });
+    execSync("git add . && git commit -m \"add css\"", { cwd: tmpDir });
 
     insertTestRun(tmpDir, "feat-css-change");
     const result = claimStep(testAgentId);

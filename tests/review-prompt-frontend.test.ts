@@ -7,13 +7,13 @@ const workflowPath = resolve(
   import.meta.dirname,
   "../workflows/feature-dev/workflow.yml"
 );
-const workflowContent = readFileSync(workflowPath, "utf-8");
+const workflowContent = readFileSync(workflowPath, "utf-8").replace(/\r/g, "");
 
 // Extract the review step input section
 function getReviewInput(): string {
   // Find the review step
   const reviewMatch = workflowContent.match(
-    /- id: review\s+agent: reviewer\s+input: \|\n([\s\S]*?)(?=\n\s+expects:)/
+    /- id: review\n\s+agent: reviewer\n\s+input: \|\n([\s\S]*?)(?=\n\s+expects:)/
   );
   assert.ok(reviewMatch, "review step with input block must exist");
   return reviewMatch[1];
