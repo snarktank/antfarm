@@ -68,3 +68,41 @@ describe("workflow stop CLI", () => {
     }
   });
 });
+
+describe("workflow run CLI with --no-deploy flag", () => {
+  it("help text includes '--no-deploy' flag documentation", () => {
+    let output: string;
+    try {
+      output = execFileSync("node", [cliPath], { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+    } catch (err: any) {
+      output = (err.stdout ?? "") + (err.stderr ?? "");
+    }
+    assert.ok(
+      output.includes("--no-deploy"),
+      "Help text should document --no-deploy flag"
+    );
+    assert.ok(
+      output.includes("workflow run"),
+      "Help text should include workflow run command"
+    );
+  });
+
+  it("help text shows '--no-deploy' for dry-run mode", () => {
+    let output: string;
+    try {
+      output = execFileSync("node", [cliPath], { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+    } catch (err: any) {
+      output = (err.stdout ?? "") + (err.stderr ?? "");
+    }
+    const runLine = output.split("\n").find(line => line.includes("workflow run"));
+    assert.ok(runLine, "Should have workflow run line in help");
+    assert.ok(
+      runLine?.includes("--no-deploy"),
+      "workflow run line should mention --no-deploy flag"
+    );
+    assert.ok(
+      runLine?.includes("dry-run"),
+      "workflow run line should mention dry-run mode"
+    );
+  });
+});
