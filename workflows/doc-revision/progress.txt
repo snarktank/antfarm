@@ -48,6 +48,47 @@
 
 **Commit:** 6191f5d - feat: story-002 - Implement reader agent for Markdown extraction
 
+## Story 003 ✅ (Completed: 2026-02-16 17:34 EST)
+**Title:** Implement reader agent for Word extraction with python-docx
+
+**What was done:**
+- Created Python script (extract-word-comments.py) that uses python-docx to extract:
+  - Comments with author, date, text, and paragraph index
+  - Track changes (insertions/deletions) with author and date
+  - All paragraph texts for context lookup
+- Created TypeScript wrapper (word-extractor.ts) that:
+  - Validates .docx file extension (case-insensitive)
+  - Checks file existence before processing
+  - Calls Python script via subprocess
+  - Adds 2 paragraphs of context before/after each comment
+  - Returns structured output matching markdown extractor format
+  - Handles errors gracefully with detailed error messages
+- Added checkPythonDocxInstalled() utility to verify python-docx availability
+- Updated reader agent SOUL.md with Word extraction documentation and examples
+- Wrote comprehensive test suite with 11 test cases covering:
+  - File type detection (.docx vs other extensions)
+  - File existence validation
+  - Python dependency checking
+  - Error handling
+  - Output format verification
+- All tests pass ✅
+- Typecheck/build passes ✅
+
+**Files created/modified:**
+- src/lib/doc-revision/extract-word-comments.py (new)
+- src/lib/doc-revision/word-extractor.ts (new)
+- tests/doc-revision-word-extractor.test.ts (new)
+- workflows/doc-revision/agents/reader/SOUL.md (updated)
+
+**Technical notes:**
+- Uses python-docx library (requires: pip3 install python-docx)
+- Python script outputs JSON to stdout for easy Node.js integration
+- 10MB buffer for large document support
+- Comments are extracted from document._part.comments_part
+- Context paragraphs added post-extraction in TypeScript layer
+
+**Commit:** c982cd8 - feat: story-003 - Implement reader agent for Word extraction with python-docx
+
 ## Codebase Patterns
 
 ### Directory Structure
