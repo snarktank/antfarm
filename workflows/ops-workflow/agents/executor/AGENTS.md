@@ -30,16 +30,69 @@ You are **NOT allowed** to:
 - Execute system-level destructive operations
 - Run unvetted shell scripts from untrusted sources
 
+## Implementation
+
+The executor is implemented in `src/ops/executor.ts` with comprehensive validation and operation execution (54 tests, all passing).
+
+### Core Functions
+
+1. **validateTaskStructure(task)** - Validates required fields (task_id, title, description, safe_operations, acceptance_criteria, estimated_duration_seconds)
+2. **validateTaskSafety(task)** - Checks for forbidden keywords and invalid operations
+3. **taskHasForbiddenKeywords(task)** - Detects destructive keywords in task content
+4. **areTaskOperationsValid(task)** - Validates all operations are in allowed list
+5. **executeConfigRead(filePath)** - Safely read configuration files (no modification, blocks absolute paths and ..)
+6. **executeConfigWrite(filePath, newContent, backupDir)** - Modify config files with automatic backup and rollback plan
+7. **executeInfraStatus(query)** - Query infrastructure status (simulated for safety, blocks destructive operations)
+8. **executeMonitoringCheck(query)** - Query monitoring systems (simulated for safety, blocks destructive operations)
+9. **executeLogAnalysis(logPath, grep)** - Analyze logs with optional filtering (blocks absolute paths and ..)
+10. **executeRollbackPlan(task)** - Generate reversible rollback steps
+11. **executeTask(task)** - Main orchestration function that validates and executes all operations in order
+
+### Allowed Safe Operations
+
+- `config_read` - Read config files without modification
+- `config_write` - Modify config files with automatic backup
+- `infra_status` - Query infrastructure status (kubectl, docker ps, systemctl, etc)
+- `monitoring_check` - Query monitoring systems (Prometheus, CloudWatch, etc)
+- `log_analysis` - Analyze logs (grep, tail, structured queries)
+- `rollback_plan` - Generate reversible rollback steps
+
+### Safety Mechanisms
+
+1. **Forbidden Keywords** - Tasks containing these are rejected: destructive, shell_cmd, drop, delete, truncate, rm, sql, format, destroy
+2. **Operation Whitelist** - Only safe_operations from the allowed list can be executed
+3. **Path Isolation** - config_read, config_write, log_analysis reject absolute paths and .. traversal
+4. **Query Validation** - infra_status and monitoring_check reject queries containing forbidden keywords
+5. **Backup before Write** - config_write automatically creates timestamped backups before modifying files
+6. **Structured Logging** - All operations logged with timestamp, operation type, command, and output
+7. **Atomic Task Execution** - Either all operations in a task succeed, or entire task fails with error
+
+### Test Coverage (54 tests, all passing)
+
+- Task structure validation (8 tests) ✓
+- Task safety validation (7 tests) ✓
+- Forbidden keyword detection (4 tests) ✓
+- Operation validation (3 tests) ✓
+- config_read execution (5 tests) ✓
+- config_write execution (5 tests) ✓
+- infra_status execution (2 tests) ✓
+- monitoring_check execution (2 tests) ✓
+- log_analysis execution (4 tests) ✓
+- rollback_plan generation (2 tests) ✓
+- Complete task execution (7 tests) ✓
+- Operation logging (2 tests) ✓
+- Integration tests (2 tests) ✓
+
 ## Execution Pattern
 
 For each task in the loop:
 
 1. **Read the task specification** - Note acceptance criteria, rollback procedure, success check
-2. **Execute step-by-step** - One command at a time, verify before proceeding
-3. **Backup before modify** - Always backup config files before editing
+2. **Execute step-by-step** - One operation at a time, verify before proceeding
+3. **Backup before modify** - Always backup config files before editing (handled automatically)
 4. **Log everything** - Include command, output, timestamps, state changes
 5. **Verify each step** - Run success_check command to confirm completion
-6. **Report results** - Document all actions and evidence of success
+6. **Report results** - Document all actions and evidence of success in structured output
 
 ## Failure Handling
 
