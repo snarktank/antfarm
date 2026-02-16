@@ -85,6 +85,7 @@ steps:
       {{task}}
 
       Instructions:
+      0. FIRST: Look for PROJECT.md in the repo root — it has repo paths, deploy info, and key context. If DEVELOPER_DOCS.md exists, reference it for architecture/endpoint details (don't read the whole thing unless needed).
       1. Read the bug report carefully
       2. Explore the codebase to find the affected area
       3. Attempt to reproduce: run tests, check for failing cases, read error logs/stack traces
@@ -179,12 +180,14 @@ steps:
       {{verify_feedback}}
 
       Instructions:
+      0. Read PROJECT.md for repo context. Reference DEVELOPER_DOCS.md if you need architecture/endpoint details.
       1. cd into the repo, checkout the branch
       2. Implement the fix based on the root cause and fix approach
       3. Write a regression test that would have caught this bug
       4. Run {{build_cmd}} to verify the build passes
       5. Run {{test_cmd}} to verify all tests pass
-      6. Commit: fix: brief description of the fix
+      6. If your fix changes architecture, endpoints, DB schema, or core functionality: update DEVELOPER_DOCS.md
+      7. Commit: fix: brief description of the fix
 
       Reply with:
       STATUS: done

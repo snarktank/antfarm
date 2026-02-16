@@ -1,0 +1,393 @@
+id: battlecard
+name: Competitive Battlecard
+version: 1
+description: |
+  End-to-end competitive battlecard production for CyberSense.
+  Researcher gathers competitor intelligence. Analyst maps findings to CyberSense positioning.
+  Drafter assembles the full battlecard using the standard template. Humanizer removes AI patterns.
+  Reviewer validates accuracy, language compliance, and completeness.
+
+agents:
+  - id: researcher
+    name: Researcher
+    role: coding
+    description: Deep competitive research on the target competitor's ransomware/cyber resilience capabilities.
+    workspace:
+      baseDir: agents/researcher
+      files:
+        SOUL.md: agents/researcher/SOUL.md
+
+  - id: analyst
+    name: Analyst
+    role: coding
+    description: Maps competitor capabilities against CyberSense, identifies gaps, frames positioning.
+    workspace:
+      baseDir: agents/analyst
+      files:
+        SOUL.md: agents/analyst/SOUL.md
+
+  - id: drafter
+    name: Drafter
+    role: coding
+    description: Assembles the full battlecard from template using research and analysis.
+    workspace:
+      baseDir: agents/drafter
+      files:
+        SOUL.md: agents/drafter/SOUL.md
+
+  - id: humanizer
+    name: Humanizer
+    role: coding
+    description: Removes AI writing patterns and ensures natural, professional tone.
+    workspace:
+      baseDir: agents/humanizer
+      files:
+        SOUL.md: agents/humanizer/SOUL.md
+
+  - id: reviewer
+    name: Reviewer
+    role: coding
+    description: Final QA pass for accuracy, language compliance, and completeness.
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        SOUL.md: agents/reviewer/SOUL.md
+
+steps:
+  - id: research
+    agent: researcher
+    input: |
+      Research the following competitor for a CyberSense competitive battlecard.
+
+      COMPETITOR: {{task}}
+
+      CONTEXT:
+      - CyberSense is Index Engines' AI-powered data integrity validation product
+      - CyberSense is sold 100% through OEM partners: Dell (primary), IBM, Hitachi Vantara
+      - Competitor context matters: if they're a PRIMARY STORAGE vendor (NetApp, Pure, etc.) the battlecard language should focus on snapshots, primary storage protection, and partners like Hitachi/IBM. If they're a BACKUP vendor (Rubrik, Commvault, Cohesity, etc.) the language should focus on backup copies, cyber recovery vaults, and Dell Cyber Recovery.
+      - Reference existing battlecards at ~/clawd/knowledge/index-engines/battlecards/ for tone and depth
+      - Reference CyberSense knowledge base at ~/clawd/knowledge/index-engines/ for product details
+      - Reference the CyberSense Messaging Guide v2.0 at ~/clawd/knowledge/index-engines/narrative/CyberSense Messaging v2.0 (2025).pdf for approved language
+
+      Instructions:
+      1. Read the existing battlecards (NetApp, Commvault, Rubrik) to understand the depth and style expected
+      2. Research the competitor thoroughly (use exec with curl for web research, or web_search/web_fetch if available):
+         a. Official product documentation for their ransomware/cyber resilience features
+         b. How they position their ransomware detection and recovery capabilities
+         c. Any published accuracy claims, certifications, or third-party validations
+         d. Architecture: how their detection works (behavior-based? signature? content-level?)
+         e. Known limitations, coverage gaps (VMs? databases? page-level?)
+         f. Pricing/packaging model (high-level)
+         g. Target audience and geographic focus
+         h. Recent product announcements or roadmap items
+         i. Any competitive claims they make against Dell/CyberSense specifically
+      3. For each competing feature/product, document:
+         - What it is and how it works (technically accurate)
+         - Where it helps (be fair — acknowledge real strengths)
+         - Drawbacks relevant to CyberSense comparison (be specific, not generic)
+      4. Identify the competitive setting:
+         - Is this a primary storage competitor or a backup/recovery competitor?
+         - Which OEM partner deals would this competitor appear in?
+         - What's the typical "better together" story? (complement vs. replace)
+
+      IMPORTANT: Be thorough and factual. Cite sources. Don't fabricate capabilities or limitations.
+      Save all research to /tmp/battlecard-research.md
+
+      Reply with:
+      STATUS: done
+      COMPETITOR_TYPE: primary_storage|backup_recovery|hybrid
+      OEM_CONTEXT: which OEM partner deals this appears in
+      FEATURES_FOUND: count of competing features documented
+      KEY_STRENGTHS: top 3 real competitor strengths
+      KEY_GAPS: top 3 gaps CyberSense addresses
+      RESEARCH_FILE: /tmp/battlecard-research.md
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: analyze
+    agent: analyst
+    input: |
+      Analyze the competitor research and map it to CyberSense positioning.
+
+      COMPETITOR: {{task}}
+      COMPETITOR_TYPE: {{competitor_type}}
+      OEM_CONTEXT: {{oem_context}}
+      KEY_STRENGTHS: {{key_strengths}}
+      KEY_GAPS: {{key_gaps}}
+
+      Read the research file at {{research_file}}.
+
+      Also read these reference materials:
+      - Existing battlecards: ~/clawd/knowledge/index-engines/battlecards/ (study ALL three for patterns)
+      - CyberSense product knowledge: ~/clawd/knowledge/index-engines/
+      - GTM overview: ~/clawd/knowledge/index-engines/GTM-OVERVIEW.md
+
+      Instructions:
+      1. Study all 3 existing battlecards carefully. Note the PATTERNS:
+         a. Capabilities Comparison table always uses these CyberSense categories:
+            - Detection Accuracy (99.99% SLA validated by ESG)
+            - Deep Content Inspection (200+ content-based statistics, byte-level)
+            - Databases & Core Infrastructure (page-level validation)
+            - Advanced Threat Detection (zero-day, partial/slow encryption, polymorphic)
+            - Custom YARA & Malware Signatures (proactive + retroactive)
+            - Forensic Reporting (auto-generated per scan, SIEM/SOAR integration)
+            - Data Integrity Validation (proves data is clean and safe to restore)
+            - Last Known Clean Recovery Point Identification (automatic with every scan)
+         b. CyberSense descriptions in the comparison table are CONSISTENT across battlecards — reuse them
+         c. "Why We Win" themes follow a pattern: CyberSense advantage → competitor limitation → customer impact (problem/solution/benefit)
+         d. "Why We Lose" uses THREAT → TRUTH → TURN framework
+         e. Objection handling follows: objection → "The Truth & How to Respond" → bottom line
+         f. Leading Questions follow: question → where we lead → proof points
+
+      2. For this competitor, determine:
+         a. Which CyberSense capabilities are most relevant to highlight
+         b. The "better together" framing (if backup vendor: Dell CRV + CyberSense; if primary storage: Hitachi/IBM + CyberSense)
+         c. 3-5 "Why We Win" themes (map to the competitor's specific gaps)
+         d. 4-6 loss themes with THREAT/TRUTH/TURN
+         e. 4-6 objections with handling
+         f. 4-6 leading questions
+
+      3. Populate the Relevant Features table:
+         - For each competing feature: Feature name | How It Works | Drawbacks
+         - Be fair and accurate — acknowledge strengths before noting gaps
+
+      4. For the Capabilities Comparison table:
+         - CyberSense column: reuse standard language from existing battlecards
+         - Competitor column: specific, factual descriptions of their capability (or lack thereof)
+         - Customer Impact column: frame as "With CyberSense: ... With [Competitor]: ..."
+
+      Save analysis to /tmp/battlecard-analysis.md
+
+      Reply with:
+      STATUS: done
+      BETTER_TOGETHER: the positioning framing
+      WIN_THEMES_COUNT: number of "why we win" themes
+      LOSS_THEMES_COUNT: number of "why we lose" themes
+      OBJECTIONS_COUNT: number of objections handled
+      QUESTIONS_COUNT: number of leading questions
+      ANALYSIS_FILE: /tmp/battlecard-analysis.md
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: draft
+    agent: drafter
+    input: |
+      Draft the full competitive battlecard.
+
+      COMPETITOR: {{task}}
+      COMPETITOR_TYPE: {{competitor_type}}
+      OEM_CONTEXT: {{oem_context}}
+      BETTER_TOGETHER: {{better_together}}
+
+      Read the research at {{research_file}} and analysis at {{analysis_file}}.
+
+      Also read these for template reference:
+      - NetApp battlecard (GOLD STANDARD for structure): ~/clawd/knowledge/index-engines/battlecards/NetApp Battlecard Draft.docx
+      - All existing battlecards for tone consistency: ~/clawd/knowledge/index-engines/battlecards/
+
+      BATTLECARD TEMPLATE — Follow this exact structure:
+
+      # [Competitor Name] Battlecard
+
+      ## 📈 I. Company & Market Overview
+      - Elevator Pitch / General Services Description
+      - Target Audience
+      - Geographic Focus
+
+      ## ⚙️ II. Core Offerings & Positioning
+      - Relevant Products / Features
+      - Core Value Proposition
+      - Pricing / Packaging Strategy (high-level)
+      - Key Differentiator (their perceived strength)
+
+      ## 💰 III. Key Win/Loss Themes
+      - General Strengths (what prospects praise)
+      - General Weaknesses (gaps CyberSense addresses)
+      - Top Case Study Themes
+
+      ## IV. Relevant Features
+      [Table: Feature | How It Works | Drawbacks]
+      - One row per competing feature
+      - Be fair in "How It Works" — technically accurate
+      - "Drawbacks" should be specific to the CyberSense comparison
+
+      ## V. Capabilities Comparison
+      [Table: Capability | CyberSense | [Competitor] | Customer Impact]
+      - Use the standard 8 CyberSense capability categories
+      - CyberSense descriptions: reuse standard language from existing battlecards
+      - Competitor: factual, specific
+      - Customer Impact: "With CyberSense: ... With [Competitor]: ..."
+
+      ## VI. Better Together: [Competitor] + [OEM Partner] + CyberSense
+      (if backup vendor, frame around Dell Cyber Recovery Vault)
+      (if primary storage vendor, frame around relevant OEM partner)
+      - General Positioning
+      - One-line position
+      - Use this when (3 scenarios)
+      - Core points to land (4 points)
+      - Talk track examples (3 examples)
+      - Do / Don't guidance
+      - Proof points to cite
+
+      ## VII. Why We Win Against [Competitor]
+      For each theme (3-5):
+      ### [Number]) [Theme Title]
+      **CyberSense advantage:** [specific]
+      **[Competitor] limitation:** [specific, fair]
+      **Customer impact:**
+      - The problem: [what the gap means for the customer]
+      - Our solution: [how CyberSense addresses it]
+      - Benefit: [business outcome]
+
+      ## VIII. Why We Lose + How to Combat
+      [Table: Loss Theme | The THREAT | The TRUTH | The TURN]
+
+      ## IX. Objection Handling
+      For each objection:
+      **"[Objection quote]"**
+      The Truth & How to Respond: [specific rebuttal]
+      Bottom line: [one-sentence closer]
+
+      ## X. Leading Questions
+      [Table: Question to Ask | Where We Lead & Why It Works | Proof Points]
+
+      LANGUAGE RULES (CRITICAL):
+      - NEVER say "detects ransomware" → say "detects ransomware-induced corruption"
+      - NEVER say "anomaly detection" when describing CyberSense → say "data integrity validation"
+      - NEVER say "AI-powered protection" or "next-generation" or "advanced protection"
+      - CyberSense does NOT detect ransomware attacks — it validates data integrity and identifies corruption
+      - If competitor is primary storage: use "snapshots" language, reference Hitachi/IBM partnerships
+      - If competitor is backup: use "backup copies" language, reference Dell Cyber Recovery Vault
+      - Keep CyberSense capability descriptions CONSISTENT with existing battlecards
+
+      Save the complete battlecard to ~/Documents/Knowledge Base and Workflows/03_creating/index-engines/[Competitor Name] - Battlecard - DRAFT.md
+
+      Reply with:
+      STATUS: done
+      SECTIONS: count of sections completed
+      FEATURES_TABLE_ROWS: count
+      CAPABILITIES_TABLE_ROWS: count
+      WIN_THEMES: count
+      LOSS_THEMES: count
+      OBJECTIONS: count
+      QUESTIONS: count
+      OUTPUT_FILE: path to the saved battlecard
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: humanize
+    agent: humanizer
+    input: |
+      Humanize the battlecard draft to remove AI writing patterns.
+
+      Read the battlecard at {{output_file}}.
+      Read the humanizer skill guide at ~/.openclaw/skills/humanizer/SKILL.md.
+
+      Instructions:
+      1. Read the humanizer skill guide FIRST to understand the 24 AI writing patterns
+      2. Read the full battlecard
+      3. Apply humanizer patterns while preserving:
+         - All technical accuracy
+         - All table structures (don't break tables)
+         - CyberSense standard language (these are intentional, not AI patterns)
+         - B2B sales enablement conventions (e.g., "Customer Impact", "Bottom line:")
+         - Specific metrics and claims (99.99%, 200+ statistics, etc.)
+      4. Focus humanization on:
+         - Narrative sections (Why We Win, Objection Handling, Leading Questions)
+         - Removing em dash overuse (but keep where grammatically needed)
+         - Fixing AI vocabulary (leverage, utilize, cutting-edge, etc.)
+         - Breaking up overly parallel structures
+         - Removing significance inflation
+         - Making talk tracks sound like real sellers would say them
+      5. Save the humanized version back to the same file path
+
+      Reply with:
+      STATUS: done
+      PATTERNS_FIXED: list of AI patterns found and fixed
+      SECTIONS_MODIFIED: which sections were edited
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: review
+    agent: reviewer
+    input: |
+      Review the completed battlecard for quality, accuracy, and compliance.
+
+      Read the battlecard at {{output_file}}.
+
+      Also read for reference:
+      - NetApp battlecard (gold standard): ~/clawd/knowledge/index-engines/battlecards/NetApp Battlecard Draft.docx
+      - CyberSense Messaging Guide: ~/clawd/knowledge/index-engines/narrative/CyberSense Messaging v2.0 (2025).pdf
+
+      REVIEW CHECKLIST:
+
+      1. STRUCTURE: Does it follow the exact template (Sections I-X)?
+         - All sections present and in order
+         - Tables properly formatted
+         - No missing sections
+
+      2. LANGUAGE COMPLIANCE:
+         - ZERO instances of "detects ransomware" (must be "ransomware-induced corruption")
+         - ZERO instances of "anomaly detection" describing CyberSense (must be "data integrity validation")
+         - No "AI-powered protection," "next-generation," "advanced protection"
+         - CyberSense capability descriptions match existing battlecards
+
+      3. COMPETITIVE ACCURACY:
+         - Competitor capabilities described fairly (not strawmanned)
+         - Competitor strengths acknowledged before pivoting
+         - Claims about competitor limitations are specific and verifiable
+         - No fabricated features or capabilities
+
+      4. CYBERSENSE CONSISTENCY:
+         - 99.99% accuracy SLA (validated by ESG) mentioned correctly
+         - 200+ content-based statistics
+         - Byte-level / page-level language used correctly
+         - CyberSense Research Lab (not "Detonation Lab" in customer-facing content)
+         - Forensic reporting described consistently
+
+      5. CONTEXT APPROPRIATENESS:
+         - Primary storage competitors: snapshot language, Hitachi/IBM context
+         - Backup competitors: backup copy language, Dell CRV context
+         - "Better Together" framing appropriate for the competitor type
+
+      6. TONE:
+         - Professional but not robotic
+         - No AI writing patterns (em dash overuse, significance inflation, etc.)
+         - Talk tracks sound like real sellers
+         - Objection handling sounds like real conversations
+
+      7. COMPLETENESS:
+         - All table cells populated (no TBD or Coming Soon unless genuinely pending)
+         - Proof points referenced where available
+         - At least 3 Why We Win themes
+         - At least 4 loss themes with THREAT/TRUTH/TURN
+         - At least 4 objections handled
+         - At least 4 leading questions
+
+      If issues found, fix them directly in the file.
+
+      Reply with:
+      STATUS: done
+      LANGUAGE_VIOLATIONS: count (should be 0)
+      COMPLETENESS_SCORE: percentage
+      ISSUES_FOUND: list of issues (if any)
+      ISSUES_FIXED: list of fixes applied
+      FINAL_FILE: path to the final battlecard
+
+      Or if major issues that need re-drafting:
+      STATUS: retry
+      ISSUES: what needs to be re-done
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: draft
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human

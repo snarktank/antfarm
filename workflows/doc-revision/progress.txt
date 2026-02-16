@@ -1,0 +1,81 @@
+# Doc-Revision Workflow Progress
+
+## Story 001 ✅ (Completed: 2026-02-16 17:20 EST)
+**Title:** Create workflow directory structure and workflow.yml skeleton
+
+**What was done:**
+- Created ~/clawd/antfarm/workflows/doc-revision/ directory structure
+- Created agents/ subdirectory with 5 agent folders: reader, analyzer, revisor, qa, cleaner
+- Created SOUL.md files for each agent with role-specific personality and working style
+- Created workflow.yml skeleton with:
+  - Workflow metadata (id, name, version, description)
+  - 5 agent definitions (reader, analyzer, revisor, qa, cleaner)
+  - Empty steps array (to be populated in future stories)
+- Wrote comprehensive test suite: tests/doc-revision-workflow-structure.test.ts
+- All tests pass ✅
+- Typecheck/build passes ✅
+
+**Files created:**
+- workflows/doc-revision/workflow.yml
+- workflows/doc-revision/agents/reader/SOUL.md
+- workflows/doc-revision/agents/analyzer/SOUL.md
+- workflows/doc-revision/agents/revisor/SOUL.md
+- workflows/doc-revision/agents/qa/SOUL.md
+- workflows/doc-revision/agents/cleaner/SOUL.md
+- tests/doc-revision-workflow-structure.test.ts
+
+**Commit:** aa67f15 - feat: story-001 - Create workflow directory structure and workflow.yml skeleton
+
+## Codebase Patterns
+
+### Directory Structure
+- Workflows live in `workflows/<workflow-name>/`
+- Each workflow has an `agents/` subdirectory with one folder per agent
+- Each agent folder contains at least a SOUL.md file
+
+### Agent SOUL.md Format
+SOUL.md files follow this structure:
+```markdown
+# <Agent Name> - Soul
+
+You're a [role description]. [Core job description]
+
+## Personality
+[Character traits and approach]
+
+## How You Work
+[Concrete work process, typically bullet points]
+
+## Communication Style
+[How the agent communicates findings/results]
+
+## What You Care About
+[Core values and priorities]
+```
+
+### Workflow.yml Structure
+Required top-level fields:
+- `id`: kebab-case workflow identifier
+- `name`: Human-readable workflow name
+- `version`: Numeric version
+- `description`: Multi-line description of what the workflow does
+- `agents`: Array of agent definitions
+- `steps`: Array of workflow steps (can be empty for skeleton)
+
+Agent definitions require:
+- `id`: Agent identifier
+- `name`: Human-readable agent name
+- `role`: Agent role type (coding, verification, analysis, etc.)
+- `description`: What the agent does
+- `workspace`: Object with `baseDir` and `files` mapping
+
+### Testing Patterns
+- Tests live in `tests/` directory
+- Use Node.js native test runner (`node:test`)
+- Import assertions from `node:assert/strict`
+- Test file names follow pattern: `<feature>.test.ts`
+- Test structure: describe blocks with it tests
+- Use yaml package to parse workflow.yml files in tests
+
+## Next Stories
+(To be populated by planner agent)
