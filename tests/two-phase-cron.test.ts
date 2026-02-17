@@ -9,9 +9,9 @@ import { buildPollingPrompt } from "../dist/installer/agent-cron.js";
 
 describe("two-phase-cron-setup", () => {
   describe("buildPollingPrompt with work model", () => {
-    it("includes sessions_spawn instruction", () => {
+    it("includes spawn instruction", () => {
       const prompt = buildPollingPrompt("feature-dev", "developer");
-      assert.ok(prompt.includes("sessions_spawn"), "should mention sessions_spawn");
+      assert.ok(prompt.includes("claude -p"), "should mention claude spawn command");
     });
 
     it("includes the default work model when none specified", () => {

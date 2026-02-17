@@ -30,31 +30,28 @@ describe("buildPollingPrompt", () => {
     assert.ok(prompt.includes("stepId"), "should mention stepId field");
     assert.ok(prompt.includes("runId"), "should mention runId field");
     assert.ok(prompt.includes("input"), "should mention input field");
-    assert.ok(prompt.includes("parse"), "should instruct to parse JSON");
   });
 
-  it("includes sessions_spawn invocation with correct agentId", () => {
+  it("includes spawn invocation with correct agentId", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer");
-    assert.ok(prompt.includes("sessions_spawn"), "should mention sessions_spawn");
-    assert.ok(prompt.includes('"feature-dev-developer"'), "should include full agentId");
+    assert.ok(prompt.includes("claude -p"), "should mention claude spawn command");
+    assert.ok(prompt.includes("feature-dev-developer"), "should include full agentId");
   });
 
   it("includes the full work prompt with step complete/fail instructions", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer");
     assert.ok(prompt.includes("step complete"), "should include step complete from work prompt");
     assert.ok(prompt.includes("step fail"), "should include step fail from work prompt");
-    assert.ok(prompt.includes("---START WORK PROMPT---"), "should delimit work prompt");
-    assert.ok(prompt.includes("---END WORK PROMPT---"), "should delimit work prompt");
   });
 
   it("specifies the full model for the spawned task", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer", "claude-opus-4-6");
-    assert.ok(prompt.includes('"claude-opus-4-6"'), "should specify model for spawn");
+    assert.ok(prompt.includes("claude-opus-4-6"), "should specify model for spawn");
   });
 
   it("uses default model when workModel not provided", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer");
-    assert.ok(prompt.includes('"claude-opus-4-6"'), "should use default model");
+    assert.ok(prompt.includes("claude-opus-4-6"), "should use default model");
   });
 
   it("instructs to include claimed JSON in spawned task", () => {
