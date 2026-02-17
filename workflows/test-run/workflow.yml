@@ -1,0 +1,26 @@
+# No-op test run workflow
+id: test-run
+name: Test Run
+version: 1
+description: "A no-op workflow used to verify that bundled workflows can be discovered, installed, and run."
+
+agents:
+  - id: noop
+    name: Noop Agent
+    role: testing
+    workspace:
+      baseDir: agents/noop
+      files:
+        AGENTS.md: agents/noop/AGENTS.md
+        SOUL.md: agents/noop/SOUL.md
+        IDENTITY.md: agents/noop/IDENTITY.md
+
+steps:
+  - id: run
+    agent: noop
+    input: |
+      No-op: just confirm the workflow engine can claim/complete a step.
+
+      Reply with:
+      STATUS: done
+    expects: "STATUS: done"

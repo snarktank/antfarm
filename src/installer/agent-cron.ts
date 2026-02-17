@@ -1,7 +1,13 @@
-import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAvailable } from "./gateway-api.js";
+import {
+  createAgentCronJob as createAgentCronJobImpl,
+  deleteAgentCronJobs as deleteAgentCronJobsImpl,
+  listCronJobs as listCronJobsImpl,
+  checkCronToolAvailable as checkCronToolAvailableImpl,
+} from "./gateway-api.js";
 import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
+import { resolveModelId } from "./model-resolve.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
@@ -90,10 +96,43 @@ The workflow cannot advance until you report. Your session ending without report
 const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
 const DEFAULT_POLLING_MODEL = "default";
 
+// ---------------------------------------------------------------------------
+// Test hooks: allow unit tests to stub gateway-api (cron) operations.
+// Node's built-in test runner does not support ESM module mocking reliably,
+// so we provide a narrow, explicit override mechanism.
+// ---------------------------------------------------------------------------
+
+type GatewayApi = {
+  createAgentCronJob: typeof createAgentCronJobImpl;
+  deleteAgentCronJobs: typeof deleteAgentCronJobsImpl;
+  listCronJobs: typeof listCronJobsImpl;
+  checkCronToolAvailable: typeof checkCronToolAvailableImpl;
+};
+
+const defaultGatewayApi: GatewayApi = {
+  createAgentCronJob: createAgentCronJobImpl,
+  deleteAgentCronJobs: deleteAgentCronJobsImpl,
+  listCronJobs: listCronJobsImpl,
+  checkCronToolAvailable: checkCronToolAvailableImpl,
+};
+
+let gatewayApi: GatewayApi = defaultGatewayApi;
+
+export function __setGatewayApiForTests(overrides: Partial<GatewayApi>): void {
+  gatewayApi = { ...gatewayApi, ...overrides };
+}
+
+export function __resetGatewayApiForTests(): void {
+  gatewayApi = defaultGatewayApi;
+}
+
+
 export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
-  const model = workModel ?? "default";
+  // If no model is provided, omit it and let OpenClaw pick its configured default.
+  const model = (workModel ?? "").trim();
+  const modelLine = model ? `- model: "${model}"` : `- (omit model — use OpenClaw default)`;
   const workPrompt = buildWorkPrompt(workflowId, agentId);
 
   return `Step 1 — Quick check for pending work (lightweight, no side effects):
@@ -111,7 +150,7 @@ If output is "NO_WORK", reply HEARTBEAT_OK and stop.
 If JSON is returned, parse it to extract stepId, runId, and input fields.
 Then call sessions_spawn with these parameters:
 - agentId: "${fullAgentId}"
-- model: "${model}"
+${modelLine}
 - task: The full work prompt below, followed by "\\n\\nCLAIMED STEP JSON:\\n" and the exact JSON output from step claim.
 
 Full work prompt to include in the spawned task:
@@ -138,12 +177,18 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const agentId = `${workflow.id}_${agent.id}`;
 
     // Two-phase: Phase 1 uses cheap polling model + minimal prompt
-    const pollingModel = agent.pollingModel ?? workflowPollingModel;
-    const workModel = agent.model; // Phase 2 model (passed to sessions_spawn via prompt)
-    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
+    // Note: many OpenClaw configs do NOT have a literal model id named "default".
+    const pollingModelRaw = agent.pollingModel ?? workflowPollingModel;
+    const pollingModel = (await resolveModelId(pollingModelRaw, { preferFallback: true })) ?? pollingModelRaw;
+
+    // Phase 2 model (passed to sessions_spawn via prompt). If unspecified, prefer letting
+    // OpenClaw pick its configured primary default rather than forcing a literal "default".
+    const workModelResolved = await resolveModelId(agent.model, { preferFallback: false });
+
+    const prompt = buildPollingPrompt(workflow.id, agent.id, workModelResolved);
     const timeoutSeconds = workflowPollingTimeout;
 
-    const result = await createAgentCronJob({
+    const result = await gatewayApi.createAgentCronJob({
       name: cronName,
       schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
@@ -160,7 +205,7 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
 }
 
 export async function removeAgentCrons(workflowId: string): Promise<void> {
-  await deleteAgentCronJobs(`antfarm/${workflowId}/`);
+  await gatewayApi.deleteAgentCronJobs(`antfarm/${workflowId}/`);
 }
 
 // ── Run-scoped cron lifecycle ───────────────────────────────────────
@@ -180,7 +225,7 @@ function countActiveRuns(workflowId: string): number {
  * Check if crons already exist for a workflow.
  */
 async function workflowCronsExist(workflowId: string): Promise<boolean> {
-  const result = await listCronJobs();
+  const result = await gatewayApi.listCronJobs();
   if (!result.ok || !result.jobs) return false;
   const prefix = `antfarm/${workflowId}/`;
   return result.jobs.some((j) => j.name.startsWith(prefix));
@@ -194,7 +239,7 @@ export async function ensureWorkflowCrons(workflow: WorkflowSpec): Promise<void>
   if (await workflowCronsExist(workflow.id)) return;
 
   // Preflight: verify cron tool is accessible before attempting to create jobs
-  const preflight = await checkCronToolAvailable();
+  const preflight = await gatewayApi.checkCronToolAvailable();
   if (!preflight.ok) {
     throw new Error(preflight.error!);
   }
