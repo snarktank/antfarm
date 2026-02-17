@@ -135,14 +135,15 @@ describe("Database module", () => {
     it("can insert and query a run record", () => {
       const db = getDb();
       const now = new Date().toISOString();
+      const runId = `run-insert-${testCounter}-${Date.now()}`;
       db.prepare(
         "INSERT INTO runs (id, workflow_id, task, status, context, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      ).run("run-1", "wf-1", "test task", "running", "{}", now, now);
+      ).run(runId, "wf-1", "test task", "running", "{}", now, now);
 
       const row = db
         .prepare("SELECT * FROM runs WHERE id = ?")
-        .get("run-1") as { id: string; task: string; status: string };
-      assert.equal(row.id, "run-1");
+        .get(runId) as { id: string; task: string; status: string };
+      assert.equal(row.id, runId);
       assert.equal(row.task, "test task");
       assert.equal(row.status, "running");
     });
