@@ -13,8 +13,19 @@ const FRONTEND_DIRS = [
 
 const TEST_PATTERNS = ['.test.', '.spec.', '__tests__/'];
 
+/**
+ * Directories whose HTML/CSS are server-rendered or backend templates,
+ * not standalone frontend code that can be visually verified via file:// URL.
+ */
+const SERVER_SIDE_DIRS = ['src/server/', 'server/', 'api/', 'backend/'];
+
 function isTestFile(file: string): boolean {
   return TEST_PATTERNS.some(p => file.includes(p));
+}
+
+function isServerSideFile(file: string): boolean {
+  const normalized = file.replace(/\\/g, '/');
+  return SERVER_SIDE_DIRS.some(dir => normalized.includes(dir) || normalized.startsWith(dir));
 }
 
 /**
@@ -24,6 +35,7 @@ function isTestFile(file: string): boolean {
 export function isFrontendChange(files: string[]): boolean {
   return files.some(file => {
     if (isTestFile(file)) return false;
+    if (isServerSideFile(file)) return false;
 
     // Check extension
     const dot = file.lastIndexOf('.');

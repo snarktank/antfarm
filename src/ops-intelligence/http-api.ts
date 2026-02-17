@@ -55,19 +55,38 @@ export function startOpsIntelligenceAPI(port = 3334) {
             return;
           }
 
+          // Prepare the filter options for the log aggregator
+          const filterOptions: any = {};
+          
+          if (requestData.fromDate) {
+            filterOptions.fromDate = requestData.fromDate;
+          }
+          
+          if (requestData.toDate) {
+            filterOptions.toDate = requestData.toDate;
+          }
+          
+          if (requestData.maxRuns) {
+            filterOptions.maxRuns = requestData.maxRuns;
+          }
+
+          // Perform the analysis using the log aggregator
+          const aggregationResult = await aggregateAllLogs(filterOptions);
+
           // Insert into database
           const db = getDb();
           const now = new Date().toISOString();
           
+          const runId = `run-${Date.now()}`;
           db.prepare(`
             INSERT INTO ops_analysis_runs (id, run_id, analyzed_at, pattern_count, finding_count, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
-            `run-${Date.now()}`,
+            runId,
             requestData.runId,
             now,
-            0,  // pattern_count
-            0,  // finding_count
+            aggregationResult.aggregatedEvents.length,  // pattern_count  
+            aggregationResult.totalFailures,  // finding_count
             "completed", // status
             now,
             now

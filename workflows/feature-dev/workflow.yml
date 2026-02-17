@@ -13,6 +13,9 @@ polling:
   model: anthropic/qwen3-coder:30b
   timeoutSeconds: 120
 
+context:
+  repo: /Users/froelich/.openclaw/workspace/antfarm
+
 cron:
   interval_ms: 180000
 
@@ -102,8 +105,10 @@ steps:
       TASK:
       {{task}}
 
+      REPO: {{repo}}
+
       Instructions:
-      1. Explore the codebase to understand the stack, conventions, and patterns
+      1. cd into {{repo}} and explore the codebase to understand the stack, conventions, and patterns
       2. Break the task into small user stories (max 20)
       3. Order by dependency: schema/DB first, backend, frontend, integration
       4. Each story must fit in one developer session (one context window)
@@ -112,11 +117,19 @@ steps:
       7. Every story MUST include test criteria — "Tests for [feature] pass"
       8. The developer is expected to write tests as part of each story
 
-      Reply with:
+      REQUIRED OUTPUT FORMAT — you MUST include ALL of these lines:
+      ```
       STATUS: done
-      REPO: /path/to/repo
-      BRANCH: feature-branch-name
-      STORIES_JSON: [ ... array of story objects ... ]
+      BRANCH: feature/short-name-for-this-task
+      STORIES_JSON: [{"id":"US-001","title":"...","description":"...","acceptanceCriteria":["..."]}]
+      ```
+
+      CRITICAL RULES:
+      - STATUS, BRANCH, and STORIES_JSON lines are MANDATORY
+      - BRANCH must be a valid git branch name (use feature/ prefix)
+      - STORIES_JSON must be a valid JSON array on a SINGLE line (no newlines inside the JSON)
+      - Each story object MUST have: id, title, description, acceptanceCriteria (array of strings)
+      - If STORIES_JSON is too long for one line, split into multiple stories with fewer criteria
     expects: "STATUS: done"
     max_retries: 2
     on_fail:

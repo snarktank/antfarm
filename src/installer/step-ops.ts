@@ -820,8 +820,8 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
   }
 
   const next = db.prepare(
-    "SELECT id, step_id FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
-  ).get(runId) as { id: string; step_id: string } | undefined;
+    "SELECT id, step_id, step_index FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
+  ).get(runId) as { id: string; step_id: string; step_index: number } | undefined;
 
   const incomplete = db.prepare(
     "SELECT id FROM steps WHERE run_id = ? AND status IN ('failed', 'pending', 'running') LIMIT 1"
@@ -833,6 +833,17 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
 
   const wfId = getWorkflowId(runId);
   if (next) {
+    // Only advance if ALL preceding steps (lower step_index) are done.
+    // This prevents test/pr from running while verify is still failing.
+    const blockerBefore = db.prepare(
+      "SELECT id, step_id, status FROM steps WHERE run_id = ? AND step_index < ? AND status != 'done' LIMIT 1"
+    ).get(runId, next.step_index) as { id: string; step_id: string; status: string } | undefined;
+
+    if (blockerBefore) {
+      logger.info(`Pipeline blocked: step "${next.step_id}" waiting on "${blockerBefore.step_id}" (status: ${blockerBefore.status})`, { runId });
+      return { advanced: false, runCompleted: false };
+    }
+
     db.prepare(
       "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
     ).run(next.id);
