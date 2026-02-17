@@ -99,6 +99,36 @@ describe("Database module", () => {
       const db2 = getDb();
       assert.strictEqual(db1, db2, "should return cached singleton");
     });
+
+    it("reuses cached instance within DB_MAX_AGE_MS (5000ms)", () => {
+      const db1 = getDb();
+      // Advance time by 4999ms — still within the 5000ms TTL
+      dateNowValue += 4999;
+      const db2 = getDb();
+      assert.strictEqual(db1, db2, "should return cached instance within TTL");
+    });
+
+    it("creates a new instance after DB_MAX_AGE_MS expires", () => {
+      const db1 = getDb();
+      // Advance time past 5000ms TTL
+      dateNowValue += 6000;
+      const db2 = getDb();
+      assert.notStrictEqual(db1, db2, "should create new instance after TTL expires");
+    });
+  });
+
+  describe("getDb() — PRAGMA settings", () => {
+    it("applies PRAGMA journal_mode=WAL", () => {
+      const db = getDb();
+      const row = db.prepare("PRAGMA journal_mode").get() as { journal_mode: string };
+      assert.equal(row.journal_mode, "wal", "journal_mode should be WAL");
+    });
+
+    it("applies PRAGMA foreign_keys=ON", () => {
+      const db = getDb();
+      const row = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number };
+      assert.equal(row.foreign_keys, 1, "foreign_keys should be ON (1)");
+    });
   });
 
   describe("getDb() — migration creates all tables", () => {
