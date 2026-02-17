@@ -1,0 +1,22 @@
+# Progress Log
+Run: 854182e4-07d2-49ce-bfcc-bd82c96b04b2
+Task: Add bundled test-run workflow spec
+Started: 2026-02-17T10:40:00Z
+
+## Codebase Patterns
+- Tests import runtime JS from dist/*.js (tests use dist builds)
+- Workflows are bundled in workflows/<id>/workflow.yml and are discovered by listing directories
+
+---
+
+## 2026-02-17T10:56:00Z - US-001: Add bundled test-run workflow spec
+- Added workflows/test-run/workflow.yml (no-op workflow with single noop agent and step)
+- Added tests/tests-run-bundled.test.ts to verify listBundledWorkflows and loadWorkflowSpec
+- Built project (tsc) and verified tests pass for this story
+- Commits:
+  - feat: US-001 - Add bundled test-run workflow spec (d7cf436)
+  - test: US-001 - bundled test-run spec tests (65a0c47)
+  - test: US-001 - use dist imports in bundled workflow tests (08a1670)
+
+**Learnings:** tests must import from dist, and bundled workflows are discovered by presence of workflow.yml in workflows/*
+---
