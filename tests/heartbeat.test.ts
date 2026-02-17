@@ -179,8 +179,9 @@ describe("HeartbeatManager", () => {
   });
 
   describe("getHeartbeatLockFile", () => {
-    it("returns a lock file path containing the step ID", () => {
+    it("returns a lock file path under /tmp/antfarm/ containing the step ID", () => {
       const lockFile = getHeartbeatLockFile("step-abc-123");
+      assert.ok(lockFile.startsWith("/tmp/antfarm/"), "lock file should be under /tmp/antfarm/");
       assert.ok(lockFile.includes("step-abc-123"), "lock file path should contain step ID");
       assert.ok(lockFile.endsWith(".lock"), "lock file should end with .lock");
       assert.ok(lockFile.includes("heartbeat-"), "lock file should contain heartbeat- prefix");
