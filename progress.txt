@@ -1,29 +1,42 @@
 # Progress Log
-Run: 047f8650-e1d3-4695-bf25-8390e26b061c
-Task: Add easter egg ant command to antfarm CLI
-Started: 2026-02-11 05:47 ET
+Run: 88ee2eb8-3bb7-4204-a009-d798b82d8589
+Task: Add production testing step to bug-fix and feature-dev workflows for testable deployments
+Started: 2026-02-16 18:00 ET
 
 ## Codebase Patterns
-- CLI entry: `src/cli/cli.ts`, commands matched via `group` variable from `process.argv[2]`
-- Dynamic imports used for command modules (e.g., `await import("./ant.js")`)
+- Workflow crons created dynamically when runs start via `ensureWorkflowCrons()` in `src/installer/agent-cron.ts`
+- Cron creation logic checks for existing crons to avoid duplicates
+- Tests use `node --test tests/<file>.test.ts` (node:test + node:assert/strict)
+- Workflow specs define agents and steps in `workflows/<name>/workflow.yml`
+- Agent provisioning happens in `src/installer/agent-provision.ts`
 - Build: `npm run build` runs `tsc -p tsconfig.json` + copies HTML + chmod
-- Tests: `node --test dist/<file>.test.js` (node:test + node:assert/strict)
-- ESM with NodeNext module resolution, `.js` extensions in imports
 
 ---
 
-## 2026-02-11 05:47 - US-001: Add ant easter egg module with ASCII art and quotes
-- Created `src/cli/ant.ts` with `printAnt()` function, 10 quotes, ASCII ant art
-- Created `src/cli/ant.test.ts` with 4 tests (art output, quote output, 8+ unique quotes, no-throw)
-- Wired `ant` command into `src/cli/cli.ts` via dynamic import
-- Files changed: `src/cli/ant.ts` (new), `src/cli/ant.test.ts` (new), `src/cli/cli.ts` (modified)
-- **Learnings:** CLI uses simple if-chain for command routing, not a framework
+## 2026-02-16 18:34 - story-001: Verify and commit prod-test implementation
+- Added prod-test step to bug-fix and feature-dev workflows
+- Created prod-tester agent with environment detection logic
+- Added conditional skip logic for non-testable deployments (browser extensions, local tools)
+- Files changed:
+  - `workflows/bug-fix/workflow.yml` (added prod-test step)
+  - `workflows/feature-dev/workflow.yml` (added prod-test step)
+  - `agents/shared/prod-tester/AGENTS.md` (new)
+  - `agents/shared/prod-tester/SOUL.md` (new)
+  - `agents/shared/prod-tester/IDENTITY.md` (new)
+- **Learnings:** Workflow steps can be conditional; agents detect deployment type from PROJECT.md
 ---
 
-## 2026-02-11 05:52 - US-002: Wire ant command into CLI and add tests
-- Created `tests/ant.test.ts` with 3 CLI integration tests (ASCII art, quote output, hidden from help)
-- Tests use child_process.execFileSync to run the actual CLI binary
-- All acceptance criteria verified: CLI works, hidden from help, tests pass, build passes
-- Files changed: `tests/ant.test.ts` (new)
-- **Learnings:** Node 22 runs .ts files directly with type stripping; tests in `tests/` use this approach
+## 2026-02-17 00:27 - story-002: Fix cron creation for dynamically added agents
+- Fixed bug where new agents added to existing workflows didn't get crons created
+- Root cause: `workflowCronsExist()` returned true if ANY cron existed, preventing creation of missing crons
+- Solution: Modified `ensureWorkflowCrons()` to check for each agent individually and create only missing crons
+- Added comprehensive tests for cron creation logic:
+  - Initial cron creation for all agents
+  - Idempotency (don't create duplicates)
+  - Incremental additions (new agents get crons automatically)
+  - Cron removal
+- Files changed:
+  - `src/installer/agent-cron.ts` (fixed cron creation logic)
+  - `tests/agent-cron.test.ts` (new, 4 tests)
+- **Learnings:** Always test edge cases like adding to existing collections; incremental updates are common in workflow evolution
 ---
