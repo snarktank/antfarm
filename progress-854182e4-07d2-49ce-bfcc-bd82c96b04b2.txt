@@ -28,3 +28,11 @@ Started: 2026-02-17T10:40:00Z
 
 **Learnings:** installWorkflow reads OpenClaw config from OPENCLAW_STATE_DIR/openclaw.json; tests should create it when using a temp state dir.
 ---
+
+## 2026-02-17T11:32:00Z - US-001: Fix tests for omitted default work model
+- Updated polling prompt / two-phase prompt tests to match intended behavior: omit model in sessions_spawn when workModel is unspecified (let OpenClaw choose configured default).
+- Files changed: tests/polling-prompt.test.ts, tests/two-phase-cron.test.ts, tests/two-phase-integration.test.ts
+- Commit: test: align polling prompt tests with omitted default model (9111f13)
+
+**Learnings:** buildPollingPrompt intentionally omits model line when workModel is undefined; tests should assert omission rather than literal "default".
+---
