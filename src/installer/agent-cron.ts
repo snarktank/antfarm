@@ -2,6 +2,7 @@ import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAva
 import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
+import { resolveModelId } from "./model-resolve.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
@@ -93,7 +94,9 @@ const DEFAULT_POLLING_MODEL = "default";
 export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
-  const model = workModel ?? "default";
+  // If no model is provided, omit it and let OpenClaw pick its configured default.
+  const model = (workModel ?? "").trim();
+  const modelLine = model ? `- model: "${model}"` : `- (omit model — use OpenClaw default)`;
   const workPrompt = buildWorkPrompt(workflowId, agentId);
 
   return `Step 1 — Quick check for pending work (lightweight, no side effects):
@@ -111,7 +114,7 @@ If output is "NO_WORK", reply HEARTBEAT_OK and stop.
 If JSON is returned, parse it to extract stepId, runId, and input fields.
 Then call sessions_spawn with these parameters:
 - agentId: "${fullAgentId}"
-- model: "${model}"
+${modelLine}
 - task: The full work prompt below, followed by "\\n\\nCLAIMED STEP JSON:\\n" and the exact JSON output from step claim.
 
 Full work prompt to include in the spawned task:
@@ -138,9 +141,15 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const agentId = `${workflow.id}_${agent.id}`;
 
     // Two-phase: Phase 1 uses cheap polling model + minimal prompt
-    const pollingModel = agent.pollingModel ?? workflowPollingModel;
-    const workModel = agent.model; // Phase 2 model (passed to sessions_spawn via prompt)
-    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
+    // Note: many OpenClaw configs do NOT have a literal model id named "default".
+    const pollingModelRaw = agent.pollingModel ?? workflowPollingModel;
+    const pollingModel = (await resolveModelId(pollingModelRaw, { preferFallback: true })) ?? pollingModelRaw;
+
+    // Phase 2 model (passed to sessions_spawn via prompt). If unspecified, prefer letting
+    // OpenClaw pick its configured primary default rather than forcing a literal "default".
+    const workModelResolved = await resolveModelId(agent.model, { preferFallback: false });
+
+    const prompt = buildPollingPrompt(workflow.id, agent.id, workModelResolved);
     const timeoutSeconds = workflowPollingTimeout;
 
     const result = await createAgentCronJob({
