@@ -10,6 +10,8 @@ import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
 import { getMaxRoleTimeoutSeconds } from "./install.js";
 import { isFrontendChange } from "../lib/frontend-detect.js";
+import { resolveWorkflowDir } from "./paths.js";
+import YAML from "yaml";
 
 /**
  * Parse KEY: value lines from step output with support for multi-line values.
@@ -71,6 +73,32 @@ function getWorkflowId(runId: string): string | undefined {
     const row = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(runId) as { workflow_id: string } | undefined;
     return row?.workflow_id;
   } catch { return undefined; }
+}
+
+/**
+ * Get the set of context keys seeded by the workflow spec (workflow.context).
+ * These keys are protected — step outputs cannot overwrite them.
+ * Cached per workflow to avoid repeated YAML reads.
+ */
+const seedKeyCache = new Map<string, Set<string>>();
+function getSeedContextKeys(runId: string): Set<string> {
+  const wfId = getWorkflowId(runId);
+  if (!wfId) return new Set();
+  if (seedKeyCache.has(wfId)) return seedKeyCache.get(wfId)!;
+
+  try {
+    const wfDir = resolveWorkflowDir(wfId);
+    const ymlPath = path.join(wfDir, "workflow.yml");
+    const raw = fs.readFileSync(ymlPath, "utf-8");
+    const spec = YAML.parse(raw);
+    const keys = new Set(
+      Object.keys(spec?.context ?? {}).map((k: string) => k.toLowerCase())
+    );
+    seedKeyCache.set(wfId, keys);
+    return keys;
+  } catch {
+    return new Set();
+  }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -595,9 +623,14 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string };
   const context: Record<string, string> = JSON.parse(run.context);
 
-  // Parse KEY: value lines and merge into context
+  // Parse KEY: value lines and merge into context (protect seed keys)
   const parsed = parseOutputKeyValues(output);
+  const seedKeys = getSeedContextKeys(step.run_id);
   for (const [key, value] of Object.entries(parsed)) {
+    if (seedKeys.has(key)) {
+      logger.info(`Skipping step output key "${key}" — protected by workflow seed context`, { runId: step.run_id, stepId: step.step_id });
+      continue;
+    }
     context[key] = value;
   }
 

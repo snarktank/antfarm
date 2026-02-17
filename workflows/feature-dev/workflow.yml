@@ -126,6 +126,7 @@ steps:
 
       CRITICAL RULES:
       - STATUS, BRANCH, and STORIES_JSON lines are MANDATORY
+      - Do NOT output a REPO line — repo is already configured
       - BRANCH must be a valid git branch name (use feature/ prefix)
       - STORIES_JSON must be a valid JSON array on a SINGLE line (no newlines inside the JSON)
       - Each story object MUST have: id, title, description, acceptanceCriteria (array of strings)
