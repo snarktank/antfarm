@@ -12,6 +12,8 @@ agents:
       baseDir: agents/noop
       files:
         AGENTS.md: agents/noop/AGENTS.md
+        SOUL.md: agents/noop/SOUL.md
+        IDENTITY.md: agents/noop/IDENTITY.md
 
 steps:
   - id: run
