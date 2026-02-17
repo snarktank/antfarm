@@ -391,10 +391,12 @@ export type PeekResult = "HAS_WORK" | "NO_WORK";
  */
 export function peekStep(agentId: string): PeekResult {
   const db = getDb();
+  // Only match 'pending' — 'waiting' steps can't be claimed yet (predecessor not done).
+  // Returning HAS_WORK for waiting steps wastes a model call on step claim that finds nothing.
   const row = db.prepare(
     `SELECT COUNT(*) as cnt FROM steps s
      JOIN runs r ON r.id = s.run_id
-     WHERE s.agent_id = ? AND s.status IN ('pending', 'waiting')
+     WHERE s.agent_id = ? AND s.status = 'pending'
        AND r.status = 'running'`
   ).get(agentId) as { cnt: number };
   return row.cnt > 0 ? "HAS_WORK" : "NO_WORK";

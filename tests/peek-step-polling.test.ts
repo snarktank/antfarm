@@ -4,7 +4,7 @@
  * Validates:
  * 1. peekStep() returns NO_WORK when agent's step is already done
  * 2. peekStep() returns HAS_WORK when agent has pending work
- * 3. peekStep() returns NO_WORK when agent's step is waiting (run active but step not yet reachable)
+ * 3. peekStep() returns NO_WORK when agent's step is waiting (not yet claimable)
  * 4. peekStep() returns HAS_WORK only for running runs (not failed/completed)
  * 5. Polling prompt includes step peek before step claim
  * 6. claimStep() still works correctly (throttled cleanup doesn't break it)
@@ -155,7 +155,7 @@ describe("peekStep logic (direct DB validation)", () => {
     const row = db.prepare(
       `SELECT COUNT(*) as cnt FROM steps s
        JOIN runs r ON r.id = s.run_id
-       WHERE s.agent_id = 'bug-fix_triager' AND s.status IN ('pending', 'waiting')
+       WHERE s.agent_id = 'bug-fix_triager' AND s.status = 'pending'
          AND r.status = 'running'`
     ).get() as { cnt: number };
 
@@ -178,7 +178,7 @@ describe("peekStep logic (direct DB validation)", () => {
     const row = db.prepare(
       `SELECT COUNT(*) as cnt FROM steps s
        JOIN runs r ON r.id = s.run_id
-       WHERE s.agent_id = 'bug-fix_fixer' AND s.status IN ('pending', 'waiting')
+       WHERE s.agent_id = 'bug-fix_fixer' AND s.status = 'pending'
          AND r.status = 'running'`
     ).get() as { cnt: number };
 
@@ -201,7 +201,7 @@ describe("peekStep logic (direct DB validation)", () => {
     const row = db.prepare(
       `SELECT COUNT(*) as cnt FROM steps s
        JOIN runs r ON r.id = s.run_id
-       WHERE s.agent_id = 'bug-fix_fixer' AND s.status IN ('pending', 'waiting')
+       WHERE s.agent_id = 'bug-fix_fixer' AND s.status = 'pending'
          AND r.status = 'running'`
     ).get() as { cnt: number };
 
@@ -238,14 +238,15 @@ describe("peekStep logic (direct DB validation)", () => {
       const row = db.prepare(
         `SELECT COUNT(*) as cnt FROM steps s
          JOIN runs r ON r.id = s.run_id
-         WHERE s.agent_id = ? AND s.status IN ('pending', 'waiting')
+         WHERE s.agent_id = ? AND s.status = 'pending'
            AND r.status = 'running'`
       ).get(a.agentId) as { cnt: number };
 
-      if (a.status === "done") {
-        assert.equal(row.cnt, 0, `${a.agentId} (done) should have NO_WORK`);
+      if (a.status === "pending") {
+        assert.ok(row.cnt > 0, `${a.agentId} (pending) should have HAS_WORK`);
       } else {
-        assert.ok(row.cnt > 0, `${a.agentId} (${a.status}) should have HAS_WORK`);
+        // done and waiting agents should both return NO_WORK
+        assert.equal(row.cnt, 0, `${a.agentId} (${a.status}) should have NO_WORK`);
       }
     }
   });
@@ -256,7 +257,7 @@ describe("peekStep logic (direct DB validation)", () => {
 describe("polling prompt includes step peek", () => {
   it("includes step peek command before step claim", async () => {
     const { buildPollingPrompt } = await import("../dist/installer/agent-cron.js");
-    const prompt = buildPollingPrompt("bug-fix", "fixer");
+    const prompt = buildPollingPrompt("bug-fix", "fixer", "anthropic/claude-haiku-4-5:latest");
     assert.ok(prompt.includes("step peek"), "should include step peek command");
     
     // step peek should appear BEFORE step claim
@@ -267,7 +268,7 @@ describe("polling prompt includes step peek", () => {
 
   it("instructs to stop on NO_WORK from peek without running claim", async () => {
     const { buildPollingPrompt } = await import("../dist/installer/agent-cron.js");
-    const prompt = buildPollingPrompt("bug-fix", "fixer");
+    const prompt = buildPollingPrompt("bug-fix", "fixer", "anthropic/claude-haiku-4-5:latest");
     assert.ok(prompt.includes("NO_WORK"), "should mention NO_WORK");
     assert.ok(prompt.includes("HEARTBEAT_OK"), "should still include HEARTBEAT_OK");
     assert.ok(
@@ -278,13 +279,13 @@ describe("polling prompt includes step peek", () => {
 
   it("includes step peek with correct agent id", async () => {
     const { buildPollingPrompt } = await import("../dist/installer/agent-cron.js");
-    const prompt = buildPollingPrompt("bug-fix", "triager");
+    const prompt = buildPollingPrompt("bug-fix", "triager", "anthropic/claude-haiku-4-5:latest");
     assert.ok(prompt.includes('step peek "bug-fix_triager"'), "should include correct agent id in peek");
   });
 
   it("still includes sessions_spawn for when work exists", async () => {
     const { buildPollingPrompt } = await import("../dist/installer/agent-cron.js");
-    const prompt = buildPollingPrompt("bug-fix", "fixer");
+    const prompt = buildPollingPrompt("bug-fix", "fixer", "anthropic/claude-haiku-4-5:latest");
     assert.ok(prompt.includes("sessions_spawn"), "should still include sessions_spawn");
   });
 });

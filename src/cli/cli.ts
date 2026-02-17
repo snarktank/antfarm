@@ -110,6 +110,9 @@ function printUsage() {
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "antfarm step stories <run-id>       List stories for a run",
       "",
+      "antfarm cron list                    List antfarm cron jobs",
+      "antfarm cron unstick [<workflow>]     Clear stuck crons (disable/enable cycle)",
+      "",
       "antfarm medic install                Install medic watchdog cron",
       "antfarm medic uninstall              Remove medic cron",
       "antfarm medic run                    Run medic check now (manual trigger)",
@@ -269,6 +272,61 @@ async function main() {
     console.log(`Dashboard started (PID ${result.pid})`);
     console.log(`  http://localhost:${result.port}`);
     return;
+  }
+
+  if (group === "cron") {
+    if (action === "unstick") {
+      const { listCronJobs, unstickCronJob } = await import("../installer/gateway-api.js");
+      const listResult = await listCronJobs();
+      if (!listResult.ok || !listResult.jobs) {
+        process.stderr.write(`Failed to list crons: ${listResult.error}\n`);
+        process.exit(1);
+      }
+
+      // Filter to antfarm crons, optionally by workflow name
+      const prefix = target ? `antfarm/${target}/` : "antfarm/";
+      const stuck = listResult.jobs.filter((j) => j.name.startsWith(prefix));
+
+      if (stuck.length === 0) {
+        console.log(target ? `No antfarm crons found for workflow "${target}".` : "No antfarm crons found.");
+        return;
+      }
+
+      let unstuck = 0;
+      for (const job of stuck) {
+        const result = await unstickCronJob(job.id);
+        if (result.ok) {
+          unstuck++;
+          console.log(`  ✓ ${job.name}`);
+        } else {
+          console.log(`  ✗ ${job.name}: ${result.error}`);
+        }
+      }
+      console.log(`\nUnstuck ${unstuck}/${stuck.length} cron(s) (disable/enable cycle clears runningAtMs).`);
+      return;
+    }
+
+    if (action === "list") {
+      const { listCronJobs } = await import("../installer/gateway-api.js");
+      const result = await listCronJobs();
+      if (!result.ok || !result.jobs) {
+        process.stderr.write(`Failed to list crons: ${result.error}\n`);
+        process.exit(1);
+      }
+      const antfarmJobs = result.jobs.filter((j) => j.name.startsWith("antfarm/"));
+      if (antfarmJobs.length === 0) { console.log("No antfarm crons found."); return; }
+      console.log(`Antfarm crons (${antfarmJobs.length}):`);
+      for (const j of antfarmJobs) {
+        console.log(`  ${j.name} (${j.id.slice(0, 8)})`);
+      }
+      return;
+    }
+
+    process.stderr.write(`Unknown cron action: ${action}\n`);
+    process.stderr.write("Usage:\n");
+    process.stderr.write("  antfarm cron list                  List antfarm cron jobs\n");
+    process.stderr.write("  antfarm cron unstick [<workflow>]   Clear stuck crons via API toggle\n");
+    process.exit(1);
   }
 
   if (group === "medic") {
@@ -649,8 +707,9 @@ async function main() {
     const { setupAgentCrons, removeAgentCrons } = await import("../installer/agent-cron.js");
     const workflowDir = resolveWorkflowDir(target);
     const workflow = await loadWorkflowSpec(workflowDir);
-    // Force recreate: remove existing then create fresh
+    // Force recreate: remove existing then create fresh (with delay to let gateway settle)
     await removeAgentCrons(target);
+    await new Promise((r) => setTimeout(r, 200));
     await setupAgentCrons(workflow);
     console.log(`Recreated agent crons for workflow "${target}".`);
     return;

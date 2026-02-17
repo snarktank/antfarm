@@ -250,7 +250,15 @@ export async function checkCronToolAvailable(): Promise<{ ok: boolean; error?: s
   }
 }
 
-export async function listCronJobs(): Promise<{ ok: boolean; jobs?: Array<{ id: string; name: string }>; error?: string }> {
+export interface CronJobInfo {
+  id: string;
+  name: string;
+  enabled?: boolean;
+  state?: { runningAtMs?: number; nextRunAtMs?: number };
+  payload?: { timeoutSeconds?: number; model?: string };
+}
+
+export async function listCronJobs(): Promise<{ ok: boolean; jobs?: CronJobInfo[]; error?: string }> {
   // --- Try HTTP first ---
   const httpResult = await listCronJobsHTTP();
   if (httpResult !== null) return httpResult;
@@ -267,7 +275,7 @@ export async function listCronJobs(): Promise<{ ok: boolean; jobs?: Array<{ id: 
 }
 
 /** HTTP-only list. Returns null on 404/network error. */
-async function listCronJobsHTTP(): Promise<{ ok: boolean; jobs?: Array<{ id: string; name: string }>; error?: string } | null> {
+async function listCronJobsHTTP(): Promise<{ ok: boolean; jobs?: CronJobInfo[]; error?: string } | null> {
   const gateway = await getGatewayConfig();
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -347,13 +355,61 @@ async function deleteCronJobHTTP(jobId: string): Promise<{ ok: boolean; error?: 
   }
 }
 
+// ---------------------------------------------------------------------------
+// Cron update — used for unsticking (disable/enable cycle clears runningAtMs)
+// ---------------------------------------------------------------------------
+
+export async function updateCronJob(
+  jobId: string,
+  patch: Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string }> {
+  const gateway = await getGatewayConfig();
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (gateway.secret) headers["Authorization"] = `Bearer ${gateway.secret}`;
+
+    const response = await fetch(`${gateway.url}/tools/invoke`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        tool: "cron",
+        args: { action: "update", id: jobId, patch },
+        sessionKey: "agent:main:main",
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return { ok: false, error: `Gateway returned ${response.status}: ${text}` };
+    }
+
+    const result = await response.json();
+    return result.ok ? { ok: true } : { ok: false, error: result.error?.message ?? "Unknown error" };
+  } catch (err) {
+    return { ok: false, error: `HTTP request failed: ${err}` };
+  }
+}
+
+/**
+ * Unstick a cron job by toggling enabled off/on via the gateway API.
+ * This clears the in-memory runningAtMs flag and resets nextRunAtMs.
+ */
+export async function unstickCronJob(jobId: string): Promise<{ ok: boolean; error?: string }> {
+  const disable = await updateCronJob(jobId, { enabled: false });
+  if (!disable.ok) return disable;
+  // Small delay to let the gateway process the state change
+  await new Promise((r) => setTimeout(r, 100));
+  return updateCronJob(jobId, { enabled: true });
+}
+
 export async function deleteAgentCronJobs(namePrefix: string): Promise<void> {
   const listResult = await listCronJobs();
   if (!listResult.ok || !listResult.jobs) return;
 
-  for (const job of listResult.jobs) {
-    if (job.name.startsWith(namePrefix)) {
-      await deleteCronJob(job.id);
-    }
+  const toDelete = listResult.jobs.filter((job) => job.name.startsWith(namePrefix));
+  for (let i = 0; i < toDelete.length; i++) {
+    await deleteCronJob(toDelete[i].id);
+    // Small delay between deletions to avoid overwhelming the gateway scheduler
+    if (i < toDelete.length - 1) await new Promise((r) => setTimeout(r, 50));
   }
 }

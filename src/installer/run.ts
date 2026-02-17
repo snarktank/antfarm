@@ -10,6 +10,7 @@ export async function runWorkflow(params: {
   workflowId: string;
   taskTitle: string;
   notifyUrl?: string;
+  dryRun?: boolean;
 }): Promise<{ id: string; runNumber: number; workflowId: string; task: string; status: string }> {
   const workflowDir = resolveWorkflowDir(params.workflowId);
   const workflow = await loadWorkflowSpec(workflowDir);
@@ -20,6 +21,7 @@ export async function runWorkflow(params: {
 
   const initialContext: Record<string, string> = {
     task: params.taskTitle,
+    dry_run: String(params.dryRun ?? false),
     ...workflow.context,
   };
 

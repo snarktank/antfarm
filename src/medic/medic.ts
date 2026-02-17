@@ -7,10 +7,11 @@
 import { getDb } from "../db.js";
 import { emitEvent, type EventType } from "../installer/events.js";
 import { teardownWorkflowCronsIfIdle } from "../installer/agent-cron.js";
-import { listCronJobs } from "../installer/gateway-api.js";
+import { listCronJobs, unstickCronJob } from "../installer/gateway-api.js";
 import {
   runSyncChecks,
   checkOrphanedCrons,
+  checkStuckCrons,
   type MedicFinding,
 } from "./checks.js";
 import crypto from "node:crypto";
@@ -119,6 +120,22 @@ async function remediate(finding: MedicFinding): Promise<boolean> {
       }
     }
 
+    case "unstick_cron": {
+      // Extract cron name from message, look up its ID from the cached cron list
+      const nameMatch = finding.message.match(/Cron "([^"]+)"/);
+      if (!nameMatch) return false;
+      try {
+        const cronList = await listCronJobs();
+        if (!cronList.ok || !cronList.jobs) return false;
+        const job = cronList.jobs.find((j) => j.name === nameMatch[1]);
+        if (!job) return false;
+        const result = await unstickCronJob(job.id);
+        return result.ok;
+      } catch {
+        return false;
+      }
+    }
+
     case "none":
     default:
       return false;
@@ -145,15 +162,16 @@ export async function runMedicCheck(): Promise<MedicCheckResult> {
   // Gather all findings
   const findings: MedicFinding[] = runSyncChecks();
 
-  // Async check: orphaned crons
+  // Async checks that require the cron job list from the gateway
   try {
     const cronResult = await listCronJobs();
     if (cronResult.ok && cronResult.jobs) {
       const antfarmCrons = cronResult.jobs.filter(j => j.name.startsWith("antfarm/"));
       findings.push(...checkOrphanedCrons(antfarmCrons));
+      findings.push(...checkStuckCrons(cronResult.jobs));
     }
   } catch {
-    // Can't check crons — skip this check
+    // Can't check crons — skip these checks
   }
 
   // Remediate

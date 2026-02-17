@@ -9,13 +9,17 @@ description: |
   Verifier confirms each fix. Tester runs final integration validation. PR agent creates the pull request.
 
 polling:
-  model: default
+  model: anthropic/qwen3-coder:30b
   timeoutSeconds: 120
+
+cron:
+  interval_ms: 180000
 
 agents:
   - id: scanner
     name: Scanner
     role: scanning
+    model: anthropic/qwen3-coder:30b
     description: Explores codebase and runs comprehensive security analysis.
     workspace:
       baseDir: agents/scanner
@@ -27,6 +31,7 @@ agents:
   - id: prioritizer
     name: Prioritizer
     role: analysis
+    model: anthropic/qwen3-coder:30b
     description: Deduplicates, ranks, and groups findings into a fix plan.
     workspace:
       baseDir: agents/prioritizer
@@ -38,6 +43,7 @@ agents:
   - id: setup
     name: Setup
     role: coding
+    model: anthropic/qwen3-coder:30b
     description: Creates security branch and establishes baseline.
     workspace:
       baseDir: agents/setup
@@ -49,6 +55,7 @@ agents:
   - id: fixer
     name: Fixer
     role: coding
+    model: anthropic/qwen3-coder:30b
     description: Implements security fixes one at a time with regression tests.
     workspace:
       baseDir: agents/fixer
@@ -60,6 +67,7 @@ agents:
   - id: verifier
     name: Verifier
     role: verification
+    model: anthropic/qwen3-coder:30b
     description: Verifies each fix is correct and the vulnerability is patched.
     workspace:
       baseDir: agents/verifier
@@ -71,6 +79,7 @@ agents:
   - id: tester
     name: Tester
     role: testing
+    model: anthropic/qwen3-coder:30b
     description: Final integration testing and audit re-run after all fixes.
     workspace:
       baseDir: agents/tester
@@ -82,6 +91,7 @@ agents:
   - id: pr
     name: PR Creator
     role: pr
+    model: anthropic/qwen3-coder:30b
     description: Creates a pull request summarizing the security audit and fixes.
     workspace:
       baseDir: agents/pr
@@ -89,17 +99,6 @@ agents:
         AGENTS.md: ../../agents/shared/pr/AGENTS.md
         SOUL.md: ../../agents/shared/pr/SOUL.md
         IDENTITY.md: ../../agents/shared/pr/IDENTITY.md
-
-  - id: security-audit_deployer
-    name: Deploy Agent
-    role: deployment
-    description: Executes safe deployment after PR approval.
-    workspace:
-      baseDir: agents/deployer
-      files:
-        AGENTS.md: agents/deployer/AGENTS.md
-        SOUL.md: agents/deployer/SOUL.md
-        IDENTITY.md: agents/deployer/IDENTITY.md
 
 steps:
   - id: scan
@@ -403,65 +402,5 @@ steps:
       STATUS: done
       PR: URL to the pull request
     expects: "STATUS: done"
-    on_fail:
-      escalate_to: human
-
-  - id: deploy
-    agent: security-audit_deployer
-    condition: "no_deploy != true"
-    input: |
-      Execute safe deployment of the security fixes.
-
-      TASK:
-      {{task}}
-
-      REPO: {{repo}}
-      BRANCH: {{branch}}
-      BUILD_CMD: {{build_cmd}}
-      TEST_CMD: {{test_cmd}}
-
-      PR: {{pr}}
-      VULNERABILITY_COUNT: {{vulnerability_count}}
-      CRITICAL_COUNT: {{critical_count}}
-      HIGH_COUNT: {{high_count}}
-      CHANGES: {{changes}}
-      RESULTS: {{results}}
-      AUDIT_AFTER: {{audit_after}}
-
-      PROGRESS LOG:
-      {{progress}}
-
-      Instructions (SAFETY CRITICAL):
-      1. Validate PR is merged and code is live
-      2. Perform a dry-run deployment first:
-         - Pull latest code: git pull
-         - Install dependencies: npm install
-         - Build: {{build_cmd}}
-         - Run tests: {{test_cmd}} (if configured)
-      3. Create a detailed deployment report including:
-         - Security vulnerabilities fixed ({{critical_count}} critical, {{high_count}} high)
-         - All changes deployed (from {{changes}})
-         - Build and test status
-         - Audit comparison (before vs. {{audit_after}})
-         - Confirmation that critical/high vulnerabilities are patched
-      4. Document rollback plan for all changes:
-         - How to revert the deployment
-         - Previous version reference
-         - Any database migrations to reverse
-      5. DO NOT execute destructive changes without explicit confirmation
-      6. Exclude all secrets, API keys, passwords from deploy logs
-      7. Send deployment summary to Telegram (if configured)
-      8. Alert if any deferred vulnerabilities remain
-
-      Reply with:
-      STATUS: done
-      DEPLOYMENT_REPORT: detailed report of deployment status and rollback plan
-      TELEGRAM_SENT: true|false (whether notification was sent)
-
-      Or if deployment should not proceed:
-      STATUS: abort
-      REASON: why deployment should not proceed
-    expects: "STATUS: done|abort"
-    max_retries: 1
     on_fail:
       escalate_to: human
