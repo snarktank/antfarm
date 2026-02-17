@@ -153,7 +153,15 @@ export function getMaxRoleTimeoutSeconds(): number {
   return Math.max(...Object.values(ROLE_POLICIES).map(r => r.timeoutSeconds));
 }
 
-const SUBAGENT_POLICY = { allowAgents: [] as string[] };
+/**
+ * Build per-agent subagent policy that allows the agent to spawn itself.
+ * Two-phase polling requires agents to call sessions_spawn with their own
+ * agent id to hand off claimed work to a worker session.
+ * An empty allowAgents array causes "forbidden" errors on spawn.
+ */
+function buildSubagentPolicy(agentId: string) {
+  return { allowAgents: [agentId] };
+}
 
 /**
  * Infer an agent's role from its id when not explicitly set in workflow YAML.
@@ -219,7 +227,7 @@ function upsertAgent(
     workspace: agent.workspaceDir,
     agentDir: agent.agentDir,
     tools: buildToolsConfig(agent.role),
-    subagents: SUBAGENT_POLICY,
+    subagents: buildSubagentPolicy(agent.id),
   };
   if (agent.model) payload.model = agent.model;
   // Note: timeoutSeconds is NOT written to the agent config entry because

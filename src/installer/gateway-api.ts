@@ -139,6 +139,10 @@ export async function createAgentCronJob(job: {
       args.push("--agent", job.agentId);
     }
 
+    if (job.payload?.kind) {
+      args.push("--kind", job.payload.kind);
+    }
+
     if (job.payload?.message) {
       args.push("--message", job.payload.message);
     }

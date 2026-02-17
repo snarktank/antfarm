@@ -380,21 +380,52 @@ export function computeHasFrontendChanges(repo: string, branch: string): string 
   }
 }
 
+// ── Step target resolution ──────────────────────────────────────────
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resolve a step target to a UUID. Agents frequently pass the human-readable
+ * step name (e.g. "setup", "plan") instead of the UUID from step claim.
+ * If the target is already a UUID, pass through. Otherwise, look up the
+ * currently-running step with that name and return its UUID.
+ */
+export function resolveStepTarget(target: string): string {
+  if (UUID_REGEX.test(target)) return target;
+
+  const db = getDb();
+  const row = db.prepare(
+    `SELECT s.id FROM steps s
+     JOIN runs r ON r.id = s.run_id
+     WHERE s.step_id = ? AND s.status = 'running' AND r.status = 'running'
+     ORDER BY s.updated_at DESC LIMIT 1`
+  ).get(target) as { id: string } | undefined;
+
+  if (row) {
+    process.stderr.write(`Resolved step name "${target}" to UUID ${row.id}\n`);
+    return row.id;
+  }
+
+  return target;
+}
+
 // ── Peek (lightweight work check) ───────────────────────────────────
 
 export type PeekResult = "HAS_WORK" | "NO_WORK";
 
 /**
- * Lightweight check: does this agent have any pending/waiting steps in active runs?
+ * Lightweight check: does this agent have any pending steps in active runs?
  * Unlike claimStep(), this runs a single cheap COUNT query — no cleanup, no context resolution.
- * Returns "HAS_WORK" if any pending/waiting steps exist, "NO_WORK" otherwise.
+ * Only checks for 'pending' status (matching claimStep behavior) — 'waiting' steps
+ * are not yet claimable and would cause wasted polling sessions.
+ * Returns "HAS_WORK" if any pending steps exist, "NO_WORK" otherwise.
  */
 export function peekStep(agentId: string): PeekResult {
   const db = getDb();
   const row = db.prepare(
     `SELECT COUNT(*) as cnt FROM steps s
      JOIN runs r ON r.id = s.run_id
-     WHERE s.agent_id = ? AND s.status IN ('pending', 'waiting')
+     WHERE s.agent_id = ? AND s.status = 'pending'
        AND r.status = 'running'`
   ).get(agentId) as { cnt: number };
   return row.cnt > 0 ? "HAS_WORK" : "NO_WORK";
@@ -605,6 +636,34 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
 
   // T5: Parse STORIES_JSON from output (any step, typically the planner)
   parseAndInsertStories(output, step.run_id);
+
+  // Guard: if a downstream loop step expects stories but none were parsed, fail the step.
+  // This catches planners that output STATUS: done without STORIES_JSON.
+  const hasStoriesJson = output.split("\n").some(l => l.startsWith("STORIES_JSON:"));
+  if (!hasStoriesJson) {
+    const downstreamLoop = db.prepare(
+      `SELECT id FROM steps WHERE run_id = ? AND type = 'loop' AND step_index > ?
+       AND loop_config LIKE '%"over":"stories"%' LIMIT 1`
+    ).get(step.run_id, step.step_index) as { id: string } | undefined;
+
+    if (downstreamLoop) {
+      const existingStories = db.prepare(
+        "SELECT COUNT(*) as cnt FROM stories WHERE run_id = ?"
+      ).get(step.run_id) as { cnt: number };
+
+      if (existingStories.cnt === 0) {
+        db.prepare("UPDATE steps SET status = 'failed', output = ?, updated_at = datetime('now') WHERE id = ?")
+          .run("Step completed without STORIES_JSON but downstream loop requires stories", stepId);
+        db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?")
+          .run(step.run_id);
+        const wfId = getWorkflowId(step.run_id);
+        emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: "Missing STORIES_JSON for downstream loop" });
+        emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Missing STORIES_JSON for downstream loop" });
+        scheduleRunCronTeardown(step.run_id);
+        return { advanced: false, runCompleted: false };
+      }
+    }
+  }
 
   // T7: Loop step completion
   if (step.type === "loop" && step.current_story_id) {

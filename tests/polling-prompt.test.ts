@@ -52,9 +52,9 @@ describe("buildPollingPrompt", () => {
     assert.ok(prompt.includes('"claude-opus-4-6"'), "should specify model for spawn");
   });
 
-  it("uses default model when workModel not provided", () => {
+  it("omits model parameter when workModel not provided", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer");
-    assert.ok(prompt.includes('"default"'), "should use default model");
+    assert.ok(!prompt.includes('- model:'), "should not include model line when no workModel");
   });
 
   it("instructs to include claimed JSON in spawned task", () => {

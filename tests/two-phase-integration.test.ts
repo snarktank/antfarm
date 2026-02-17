@@ -27,13 +27,12 @@ describe("two-phase-integration", () => {
     });
   });
 
-  // AC2: Without polling config, defaults to "default" model
-  // (The default polling MODEL is set in setupAgentCrons payload, not in the prompt itself.
-  //  The prompt contains the WORK model. We verify default work model here.)
+  // AC2: Without polling config, model parameter is omitted from prompt
+  // to avoid "model not allowed" errors with invalid "default" string.
   describe("defaults without polling config", () => {
-    it("uses 'default' work model when no workModel specified", () => {
+    it("omits model parameter when no workModel specified", () => {
       const prompt = buildPollingPrompt("feature-dev", "developer");
-      assert.ok(prompt.includes('"default"'), "default work model");
+      assert.ok(!prompt.includes('- model:'), "should not include model line when no workModel");
     });
 
     it("agent id uses namespaced format (workflowId_agentId)", () => {

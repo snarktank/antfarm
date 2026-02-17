@@ -93,8 +93,13 @@ const DEFAULT_POLLING_MODEL = "default";
 export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
-  const model = workModel ?? "default";
   const workPrompt = buildWorkPrompt(workflowId, agentId);
+
+  // Only include model parameter if explicitly configured — "default" is not a valid
+  // model identifier and causes "model not allowed" errors in sessions_spawn.
+  const modelLine = workModel && workModel !== "default"
+    ? `\n- model: "${workModel}"`
+    : "";
 
   return `Step 1 — Quick check for pending work (lightweight, no side effects):
 \`\`\`
@@ -110,8 +115,7 @@ If output is "NO_WORK", reply HEARTBEAT_OK and stop.
 
 If JSON is returned, parse it to extract stepId, runId, and input fields.
 Then call sessions_spawn with these parameters:
-- agentId: "${fullAgentId}"
-- model: "${model}"
+- agentId: "${fullAgentId}"${modelLine}
 - task: The full work prompt below, followed by "\\n\\nCLAIMED STEP JSON:\\n" and the exact JSON output from step claim.
 
 Full work prompt to include in the spawned task:

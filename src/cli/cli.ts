@@ -23,7 +23,7 @@ import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
-import { claimStep, completeStep, failStep, getStories, peekStep } from "../installer/step-ops.js";
+import { claimStep, completeStep, failStep, getStories, peekStep, resolveStepTarget } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
@@ -368,6 +368,7 @@ async function main() {
     }
     if (action === "complete") {
       if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
+      const resolvedTarget = resolveStepTarget(target);
       // Read output from args or stdin
       let output = args.slice(3).join(" ").trim();
       if (!output) {
@@ -378,14 +379,15 @@ async function main() {
         }
         output = Buffer.concat(chunks).toString("utf-8").trim();
       }
-      const result = completeStep(target, output);
+      const result = completeStep(resolvedTarget, output);
       process.stdout.write(JSON.stringify(result) + "\n");
       return;
     }
     if (action === "fail") {
       if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
+      const resolvedTarget = resolveStepTarget(target);
       const error = args.slice(3).join(" ").trim() || "Unknown error";
-      const result = failStep(target, error);
+      const result = failStep(resolvedTarget, error);
       process.stdout.write(JSON.stringify(result) + "\n");
       return;
     }

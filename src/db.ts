@@ -3,25 +3,50 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const DB_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
-const DB_PATH = path.join(DB_DIR, "antfarm.db");
+const DEFAULT_DB_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
+const DEFAULT_DB_PATH = path.join(DEFAULT_DB_DIR, "antfarm.db");
+
+/**
+ * Resolve the database path. Supports ANTFARM_DB_PATH env var override
+ * so tests can use an isolated temporary database instead of production.
+ */
+function resolveDbPath(): string {
+  return process.env.ANTFARM_DB_PATH ?? DEFAULT_DB_PATH;
+}
 
 let _db: DatabaseSync | null = null;
 let _dbOpenedAt = 0;
+let _dbPath: string | null = null;
 const DB_MAX_AGE_MS = 5000;
 
 export function getDb(): DatabaseSync {
   const now = Date.now();
-  if (_db && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
+  const dbPath = resolveDbPath();
+
+  // Reopen if TTL expired or path changed (e.g. test isolation)
+  if (_db && _dbPath === dbPath && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
   if (_db) { try { _db.close(); } catch {} }
 
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  _db = new DatabaseSync(DB_PATH);
+  const dbDir = path.dirname(dbPath);
+  fs.mkdirSync(dbDir, { recursive: true });
+  _db = new DatabaseSync(dbPath);
+  _dbPath = dbPath;
   _dbOpenedAt = now;
   _db.exec("PRAGMA journal_mode=WAL");
   _db.exec("PRAGMA foreign_keys=ON");
   migrate(_db);
   return _db;
+}
+
+/**
+ * Close the current DB connection. Useful for test teardown.
+ */
+export function closeDb(): void {
+  if (_db) {
+    try { _db.close(); } catch {}
+    _db = null;
+    _dbPath = null;
+  }
 }
 
 function migrate(db: DatabaseSync): void {
@@ -110,5 +135,5 @@ export function nextRunNumber(): number {
 }
 
 export function getDbPath(): string {
-  return DB_PATH;
+  return resolveDbPath();
 }
