@@ -938,3 +938,78 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     return { retrying: true, runFailed: false };
   }
 }
+
+/**
+ * Reset a stalled step using the abandonment budget instead of the retry budget.
+ * Use this for timeout/stall recovery — not for explicit agent failures.
+ *
+ * Single steps: increments abandoned_count (max MAX_ABANDON_RESETS).
+ * Loop steps with a current story: increments story retry_count (same as failStep loop path).
+ * Neither path touches the step's retry_count for single steps.
+ */
+export function resetStep(stepId: string, reason: string): { reset: boolean; runFailed: boolean } {
+  const db = getDb();
+
+  const step = db.prepare(
+    "SELECT run_id, retry_count, max_retries, type, current_story_id, abandoned_count FROM steps WHERE id = ?"
+  ).get(stepId) as { run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null; abandoned_count: number } | undefined;
+
+  if (!step) throw new Error(`Step not found: ${stepId}`);
+
+  const wfId = getWorkflowId(step.run_id);
+
+  // Loop step with a current story: apply per-story retry (same budget as failStep)
+  if (step.type === "loop" && step.current_story_id) {
+    const story = db.prepare(
+      "SELECT id, retry_count, max_retries, story_id, title FROM stories WHERE id = ?"
+    ).get(step.current_story_id) as { id: string; retry_count: number; max_retries: number; story_id: string; title: string } | undefined;
+
+    if (story) {
+      const newRetry = story.retry_count + 1;
+      if (newRetry > story.max_retries) {
+        // Story retries exhausted — fail everything
+        db.prepare("UPDATE stories SET status = 'failed', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
+        db.prepare("UPDATE steps SET status = 'failed', output = ?, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(reason, stepId);
+        db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(step.run_id);
+        emitEvent({ ts: new Date().toISOString(), event: "story.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, storyId: story.story_id, storyTitle: story.title, detail: reason });
+        emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: reason });
+        emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Story timeout retries exhausted" });
+        scheduleRunCronTeardown(step.run_id);
+        return { reset: false, runFailed: true };
+      }
+
+      // Reset story + step to pending for retry
+      db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
+      db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(stepId);
+      emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: `Story ${story.story_id} reset — timeout (story retry ${newRetry})` });
+      logger.info(`Step reset (story timeout): ${story.story_id}`, { runId: step.run_id, stepId: stepId });
+      return { reset: true, runFailed: false };
+    }
+  }
+
+  // Single step (or loop without current story): use abandoned_count, NOT retry_count
+  const newAbandonCount = (step.abandoned_count ?? 0) + 1;
+
+  if (newAbandonCount >= MAX_ABANDON_RESETS) {
+    // Too many abandons — fail the step and run
+    db.prepare(
+      "UPDATE steps SET status = 'failed', output = ?, abandoned_count = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(`Step timed out and abandoned (${newAbandonCount} times): ${reason}`, newAbandonCount, stepId);
+    db.prepare(
+      "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+    ).run(step.run_id);
+    emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: `Abandon limit reached (${newAbandonCount}/${MAX_ABANDON_RESETS})` });
+    emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: "Step abandoned too many times" });
+    emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Step abandoned and abandon limit reached" });
+    scheduleRunCronTeardown(step.run_id);
+    return { reset: false, runFailed: true };
+  }
+
+  // Reset to pending — do NOT increment retry_count
+  db.prepare(
+    "UPDATE steps SET status = 'pending', abandoned_count = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(newAbandonCount, stepId);
+  emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: `Reset to pending (abandon ${newAbandonCount}/${MAX_ABANDON_RESETS}): ${reason}` });
+  logger.info(`Step reset (abandon ${newAbandonCount}/${MAX_ABANDON_RESETS}): ${reason}`, { runId: step.run_id, stepId: stepId });
+  return { reset: true, runFailed: false };
+}
