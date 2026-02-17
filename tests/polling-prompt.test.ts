@@ -52,9 +52,11 @@ describe("buildPollingPrompt", () => {
     assert.ok(prompt.includes('"claude-opus-4-6"'), "should specify model for spawn");
   });
 
-  it("uses default model when workModel not provided", () => {
+  it("omits model when workModel not provided (OpenClaw default)", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer");
-    assert.ok(prompt.includes('"default"'), "should use default model");
+    // When workModel is unspecified, we OMIT the model and let OpenClaw pick its configured default.
+    assert.ok(prompt.includes("omit model"), "should instruct to omit model");
+    assert.ok(!prompt.includes("- model:"), "should not include a model field when unspecified");
   });
 
   it("instructs to include claimed JSON in spawned task", () => {
