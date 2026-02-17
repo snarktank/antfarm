@@ -58,7 +58,7 @@ mock.module("../dist/lib/logger.js", {
 });
 
 // Import after mocks are set up
-const { loadConfig, getDefaultConfig, getConfigPath } = await import(
+const { loadConfig, getDefaultConfig, getConfigPath, saveConfig } = await import(
   "../dist/config.js"
 );
 
@@ -203,6 +203,107 @@ describe("Config", () => {
 
       const config = loadConfig();
       assert.equal(config.concurrency.opus, 99);
+    });
+
+    it("overrides polling settings from env vars", () => {
+      process.env.ANTFARM_POLLING_INTERVAL_MS = "60000";
+      process.env.ANTFARM_POLLING_TIMEOUT_SECONDS = "60";
+
+      const config = loadConfig();
+      assert.equal(config.polling.intervalMs, 60_000);
+      assert.equal(config.polling.timeoutSeconds, 60);
+    });
+
+    it("overrides worker settings from env vars", () => {
+      process.env.ANTFARM_WORKER_TIMEOUT_SECONDS = "900";
+      process.env.ANTFARM_WORKER_HEARTBEAT_ENABLED = "false";
+
+      const config = loadConfig();
+      assert.equal(config.worker.timeoutSeconds, 900);
+      assert.equal(config.worker.heartbeatEnabled, false);
+    });
+
+    it("overrides resource limit settings from env vars", () => {
+      process.env.ANTFARM_RESOURCE_CPU_QUOTA = "75%";
+      process.env.ANTFARM_RESOURCE_MEMORY_MAX = "4G";
+
+      const config = loadConfig();
+      assert.equal(config.resourceLimits.cpuQuota, "75%");
+      assert.equal(config.resourceLimits.memoryMax, "4G");
+    });
+
+    it("overrides monitoring settings from env vars", () => {
+      process.env.ANTFARM_MONITORING_LAG_WARNING_MS = "200";
+      process.env.ANTFARM_MONITORING_LAG_CRITICAL_MS = "2000";
+
+      const config = loadConfig();
+      assert.equal(config.monitoring.eventLoopLagWarningMs, 200);
+      assert.equal(config.monitoring.eventLoopLagCriticalMs, 2000);
+    });
+
+    it("heartbeat enabled accepts '1' as true", () => {
+      process.env.ANTFARM_WORKER_HEARTBEAT_ENABLED = "1";
+
+      const config = loadConfig();
+      assert.equal(config.worker.heartbeatEnabled, true);
+    });
+  });
+
+  describe("saveConfig", () => {
+    it("writes config to the expected path", () => {
+      saveConfig({ concurrency: { opus: 10, sonnet: 20, haiku: 40 } });
+
+      const written = mockFiles.get(CONFIG_PATH);
+      assert.ok(written, "config file should have been written");
+      const parsed = JSON.parse(written);
+      assert.equal(parsed.concurrency.opus, 10);
+      assert.equal(parsed.concurrency.sonnet, 20);
+      assert.equal(parsed.concurrency.haiku, 40);
+    });
+
+    it("merges with existing config file", () => {
+      // Pre-populate with existing config
+      mockFiles.set(
+        CONFIG_PATH,
+        JSON.stringify({ polling: { intervalMs: 60_000 } })
+      );
+
+      saveConfig({ concurrency: { opus: 10, sonnet: 20, haiku: 40 } });
+
+      const written = mockFiles.get(CONFIG_PATH);
+      assert.ok(written);
+      const parsed = JSON.parse(written);
+      // New values written
+      assert.equal(parsed.concurrency.opus, 10);
+      // Existing values preserved
+      assert.equal(parsed.polling.intervalMs, 60_000);
+    });
+
+    it("creates config from scratch when no existing file", () => {
+      // mockFiles is empty — no config file exists
+      saveConfig({ worker: { timeoutSeconds: 600 } } as any);
+
+      const written = mockFiles.get(CONFIG_PATH);
+      assert.ok(written);
+      const parsed = JSON.parse(written);
+      assert.equal(parsed.worker.timeoutSeconds, 600);
+    });
+  });
+
+  describe("getConfigPath", () => {
+    it("returns path containing antfarm.json", () => {
+      const configPath = getConfigPath();
+      assert.ok(configPath.endsWith("antfarm.json"));
+    });
+
+    it("returns path under .openclaw directory", () => {
+      const configPath = getConfigPath();
+      assert.ok(configPath.includes(".openclaw"));
+    });
+
+    it("returns path under the mocked home directory", () => {
+      const configPath = getConfigPath();
+      assert.ok(configPath.startsWith(FAKE_HOME));
     });
   });
 });
