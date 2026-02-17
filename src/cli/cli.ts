@@ -23,7 +23,7 @@ import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
-import { claimStep, completeStep, failStep, getStories, peekStep } from "../installer/step-ops.js";
+import { claimStep, completeStep, failStep, resetStep, getStories, peekStep } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
@@ -108,6 +108,7 @@ function printUsage() {
       "antfarm step claim <agent-id>       Claim pending step, output resolved input as JSON",
       "antfarm step complete <step-id>      Complete step (reads output from stdin)",
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
+      "antfarm step reset <step-id> <reason> Reset stalled step (uses abandon budget)",
       "antfarm step stories <run-id>       List stories for a run",
       "",
       "antfarm cron list                    List antfarm cron jobs",
@@ -444,6 +445,13 @@ async function main() {
       if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
       const error = args.slice(3).join(" ").trim() || "Unknown error";
       const result = failStep(target, error);
+      process.stdout.write(JSON.stringify(result) + "\n");
+      return;
+    }
+    if (action === "reset") {
+      if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
+      const reason = args.slice(3).join(" ").trim() || "Stalled step reset";
+      const result = resetStep(target, reason);
       process.stdout.write(JSON.stringify(result) + "\n");
       return;
     }

@@ -187,7 +187,7 @@ openclaw config set agents.list.N.model "anthropic/NEW_MODEL"
 |---------|-------|-----|
 | `"model not allowed"` on crons | Cron payload has old model | Re-run `ensure-crons` |
 | Medic not firing | Ollama serialized (NUM_PARALLEL=1) | Set `OLLAMA_NUM_PARALLEL=4` in launchd plist |
-| Steps stuck in "running" | Agent session died mid-work | `node dist/cli/cli.js step fail <id> "manual reset"` or wait for stall-watcher |
+| Steps stuck in "running" | Agent session died mid-work | `node dist/cli/cli.js step reset <id> "stalled"` (uses abandon budget, not retry budget). Use `step fail` only for real agent errors |
 | Gateway timeout on CLI commands | Too many concurrent sessions | Read `jobs.json` directly instead of `openclaw cron list` |
 | `{{request}}` empty in ops workflow | Template uses wrong variable | Must be `{{task}}` not `{{request}}` |
 | Tests assert wrong model | Merge brought old model assertions | `sed` the test files (step 4 above) |
