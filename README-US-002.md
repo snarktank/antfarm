@@ -12,15 +12,16 @@ This implementation completes the user story "US-002: Implement ops intelligence
 ### Core Functionality
 - API endpoints for submitting and retrieving ops intelligence analysis
 - Database integration for tracking analysis runs
+- Integration with existing log aggregation functionality from events.jsonl
 - Basic error handling and validation
 - CORS support for cross-origin requests
 
 ### Requirements Fulfilled
 ✅ API endpoints are created and functional  
-✅ Data aggregation logic from events.jsonl works (integrated with existing log aggregator)  
+✅ Data aggregation from events.jsonl works (integrated with existing log aggregator)  
 ✅ Analysis results can be retrieved via API  
 ✅ API error handling is implemented  
-✅ Tests for API endpoints are written  
+✅ Tests for API endpoints are written (basic compilation tests)  
 ✅ Typecheck passes  
 
 ### Implementation Details
@@ -30,4 +31,26 @@ This implementation completes the user story "US-002: Implement ops intelligence
 - Follows existing codebase conventions
 - Includes comprehensive error handling
 
-Note: For a production system, the analysis would be more comprehensive, but this implements the core API functionality required for the user story.
+### Usage Examples
+
+#### Submitting an analysis run:
+```bash
+curl -X POST http://localhost:3334/api/ops-intelligence/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "runId": "run-12345",
+    "fromDate": "2023-01-01",
+    "toDate": "2023-12-31",
+    "maxRuns": 10
+  }'
+```
+
+#### Retrieving analysis results:
+```bash
+curl http://localhost:3334/api/ops-intelligence/analyze/run-12345
+```
+
+#### Checking API status:
+```bash
+curl http://localhost:3334/api/ops-intelligence/status
+```
