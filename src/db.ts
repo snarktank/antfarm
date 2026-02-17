@@ -9,25 +9,35 @@ function resolveOpenClawStateDir(): string {
   return path.join(os.homedir(), ".openclaw");
 }
 
-const DB_DIR = path.join(resolveOpenClawStateDir(), "antfarm");
-const DB_PATH = path.join(DB_DIR, "antfarm.db");
+function resolveDbPath(): { dir: string; path: string } {
+  // IMPORTANT: OPENCLAW_STATE_DIR can be set per-test (node:test runs files in parallel).
+  // So we must resolve the state dir at call time, not module import time.
+  const dbDir = path.join(resolveOpenClawStateDir(), "antfarm");
+  return { dir: dbDir, path: path.join(dbDir, "antfarm.db") };
+}
 
 let _db: DatabaseSync | null = null;
 let _dbOpenedAt = 0;
+let _dbPath: string | null = null;
 const DB_MAX_AGE_MS = 5000;
 
 export function getDb(): DatabaseSync {
   const now = Date.now();
-  if (_db && now - _dbOpenedAt < DB_MAX_AGE_MS) return _db;
+  const { dir: dbDir, path: dbPath } = resolveDbPath();
+
+  if (_db && _dbPath === dbPath && now - _dbOpenedAt < DB_MAX_AGE_MS) return _db;
+
   if (_db) {
     try {
       _db.close();
     } catch {}
   }
 
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  _db = new DatabaseSync(DB_PATH);
+  fs.mkdirSync(dbDir, { recursive: true });
+  _db = new DatabaseSync(dbPath);
   _dbOpenedAt = now;
+  _dbPath = dbPath;
+
   _db.exec("PRAGMA journal_mode=WAL");
   _db.exec("PRAGMA foreign_keys=ON");
   _db.exec("PRAGMA busy_timeout=5000");
@@ -123,5 +133,5 @@ export function nextRunNumber(): number {
 }
 
 export function getDbPath(): string {
-  return DB_PATH;
+  return resolveDbPath().path;
 }
