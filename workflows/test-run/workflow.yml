@@ -2,7 +2,7 @@
 id: test-run
 name: Test Run
 version: 1
-description: "A no-op workflow used to verify that bundled workflows can be discovered and loaded."
+description: "A no-op workflow used to verify that bundled workflows can be discovered, installed, and run."
 
 agents:
   - id: noop
@@ -17,5 +17,8 @@ steps:
   - id: run
     agent: noop
     input: |
-      echo "noop"
+      No-op: just confirm the workflow engine can claim/complete a step.
+
+      Reply with:
+      STATUS: done
     expects: "STATUS: done"
