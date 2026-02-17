@@ -3,7 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const DB_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
+function resolveOpenClawStateDir(): string {
+  const env = process.env.OPENCLAW_STATE_DIR?.trim();
+  if (env) return env;
+  return path.join(os.homedir(), ".openclaw");
+}
+
+const DB_DIR = path.join(resolveOpenClawStateDir(), "antfarm");
 const DB_PATH = path.join(DB_DIR, "antfarm.db");
 
 let _db: DatabaseSync | null = null;
@@ -12,14 +18,19 @@ const DB_MAX_AGE_MS = 5000;
 
 export function getDb(): DatabaseSync {
   const now = Date.now();
-  if (_db && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
-  if (_db) { try { _db.close(); } catch {} }
+  if (_db && now - _dbOpenedAt < DB_MAX_AGE_MS) return _db;
+  if (_db) {
+    try {
+      _db.close();
+    } catch {}
+  }
 
   fs.mkdirSync(DB_DIR, { recursive: true });
   _db = new DatabaseSync(DB_PATH);
   _dbOpenedAt = now;
   _db.exec("PRAGMA journal_mode=WAL");
   _db.exec("PRAGMA foreign_keys=ON");
+  _db.exec("PRAGMA busy_timeout=5000");
   migrate(_db);
   return _db;
 }
@@ -105,7 +116,9 @@ function migrate(db: DatabaseSync): void {
 
 export function nextRunNumber(): number {
   const db = getDb();
-  const row = db.prepare("SELECT COALESCE(MAX(run_number), 0) + 1 AS next FROM runs").get() as { next: number };
+  const row = db
+    .prepare("SELECT COALESCE(MAX(run_number), 0) + 1 AS next FROM runs")
+    .get() as { next: number };
   return row.next;
 }
 
