@@ -42,6 +42,12 @@ describe('isFrontendChange', () => {
     assert.equal(isFrontendChange(['src/lib/logger.ts']), false);
   });
 
+  it('returns false for shell scripts and other non-frontend files', () => {
+    assert.equal(isFrontendChange(['scripts/deploy.sh']), false);
+    assert.equal(isFrontendChange(['Makefile']), false);
+    assert.equal(isFrontendChange(['README.md']), false);
+  });
+
   it('returns false for test files even with frontend extensions', () => {
     assert.equal(isFrontendChange(['src/App.test.tsx']), false);
     assert.equal(isFrontendChange(['src/Button.spec.tsx']), false);
