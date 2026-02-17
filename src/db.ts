@@ -113,6 +113,42 @@ function migrate(db: DatabaseSync): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    -- Ops Intelligence Module Tables
+    CREATE TABLE IF NOT EXISTS ops_metrics (
+      id TEXT PRIMARY KEY,
+      timestamp TEXT NOT NULL,
+      metric_type TEXT NOT NULL,
+      value REAL NOT NULL,
+      unit TEXT,
+      tags TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ops_alerts (
+      id TEXT PRIMARY KEY,
+      alert_type TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      resolved_at TEXT,
+      source TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS ops_system_logs (
+      id TEXT PRIMARY KEY,
+      timestamp TEXT NOT NULL,
+      log_level TEXT NOT NULL,
+      message TEXT NOT NULL,
+      source TEXT,
+      metadata TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 
   // Add columns to steps table for backwards compat
@@ -159,6 +195,16 @@ function migrate(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_ops_recommendations_finding_id ON ops_recommendations(finding_id);
     CREATE INDEX IF NOT EXISTS idx_ops_analysis_runs_status ON ops_analysis_runs(status);
     CREATE INDEX IF NOT EXISTS idx_ops_analysis_runs_run_id ON ops_analysis_runs(run_id);
+    
+    -- Indexes for new ops intelligence tables
+    CREATE INDEX IF NOT EXISTS idx_ops_metrics_timestamp ON ops_metrics(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_ops_metrics_type ON ops_metrics(metric_type);
+    CREATE INDEX IF NOT EXISTS idx_ops_alerts_severity ON ops_alerts(severity);
+    CREATE INDEX IF NOT EXISTS idx_ops_alerts_status ON ops_alerts(status);
+    CREATE INDEX IF NOT EXISTS idx_ops_alerts_type ON ops_alerts(alert_type);
+    CREATE INDEX IF NOT EXISTS idx_ops_system_logs_timestamp ON ops_system_logs(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_ops_system_logs_level ON ops_system_logs(log_level);
+    CREATE INDEX IF NOT EXISTS idx_ops_system_logs_source ON ops_system_logs(source);
   `);
 }
 
