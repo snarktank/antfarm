@@ -50,8 +50,10 @@ RULES:
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
 
-export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
-  const agents = workflow.agents;
+export async function setupAgentCrons(workflow: WorkflowSpec, agentFilter?: (agent: typeof workflow.agents[0]) => boolean): Promise<void> {
+  const agents = agentFilter ? workflow.agents.filter(agentFilter) : workflow.agents;
+  if (agents.length === 0) return;
+  
   // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
   const everyMs = (workflow as any).cron?.interval_ms ?? DEFAULT_EVERY_MS;
   for (let i = 0; i < agents.length; i++) {
@@ -98,29 +100,37 @@ function countActiveRuns(workflowId: string): number {
 }
 
 /**
- * Check if crons already exist for a workflow.
+ * Get the set of existing cron names for a workflow.
  */
-async function workflowCronsExist(workflowId: string): Promise<boolean> {
+async function getExistingCronNames(workflowId: string): Promise<Set<string>> {
   const result = await listCronJobs();
-  if (!result.ok || !result.jobs) return false;
+  if (!result.ok || !result.jobs) return new Set();
   const prefix = `antfarm/${workflowId}/`;
-  return result.jobs.some((j) => j.name.startsWith(prefix));
+  return new Set(
+    result.jobs
+      .filter((j) => j.name.startsWith(prefix))
+      .map((j) => j.name)
+  );
 }
 
 /**
  * Start crons for a workflow when a run begins.
- * No-ops if crons already exist (another run of the same workflow is active).
+ * Creates only missing crons (allows adding agents to existing workflows).
  */
 export async function ensureWorkflowCrons(workflow: WorkflowSpec): Promise<void> {
-  if (await workflowCronsExist(workflow.id)) return;
-
+  const existingCrons = await getExistingCronNames(workflow.id);
+  
   // Preflight: verify cron tool is accessible before attempting to create jobs
   const preflight = await checkCronToolAvailable();
   if (!preflight.ok) {
     throw new Error(preflight.error!);
   }
 
-  await setupAgentCrons(workflow);
+  // Create crons only for agents that don't have one yet
+  await setupAgentCrons(workflow, (agent) => {
+    const cronName = `antfarm/${workflow.id}/${agent.id}`;
+    return !existingCrons.has(cronName);
+  });
 }
 
 /**

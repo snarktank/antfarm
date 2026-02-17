@@ -57,5 +57,197 @@ agents:
       files:
         SOUL.md: agents/cleaner/SOUL.md
 
-# Steps will be defined in subsequent stories
-steps: []
+steps:
+  - id: read
+    agent: reader
+    input: |
+      Extract ALL feedback from the document provided by the user.
+      
+      - Auto-detect file type (markdown vs .docx)
+      - Use the appropriate extractor (markdown-extractor.ts or word-extractor.ts)
+      - Capture ALL comments with surrounding context
+      - Output a structured list in this format:
+      
+      ```
+      ## Feedback Extraction
+      
+      **File:** [filename]
+      **Type:** [markdown | word]
+      **Total feedback items:** [count]
+      
+      ### Item 1
+      **Location:** Line X (or Paragraph Y for Word)
+      **Feedback:** [comment text]
+      **Context before:**
+      [2 lines/paragraphs before]
+      **Context after:**
+      [2 lines/paragraphs after]
+      
+      [repeat for each item]
+      ```
+      
+      Reply with:
+      STATUS: done
+      FILE_TYPE: markdown|word
+      TOTAL_ITEMS: count
+      EXTRACTION_FILE: path to saved extraction
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: analyze
+    agent: analyzer
+    input: |
+      Review all extracted feedback and categorize each item:
+      
+      Categories:
+      - **factual-error**: Incorrect information that must be fixed
+      - **missing-info**: Gaps that need to be filled
+      - **tone**: Voice/style adjustments
+      - **structure**: Organization or flow improvements
+      - **clarification**: Unclear sections that need rewriting
+      - **minor**: Typos, formatting, optional tweaks
+      
+      Priority:
+      - **critical**: Must fix (factual errors, missing key info)
+      - **important**: Should fix (clarity, structure issues)
+      - **nice-to-have**: Optional improvements
+      
+      Output:
+      ```
+      ## Feedback Analysis
+      
+      ### Critical Items ([count])
+      1. [Location] - [Category] - [Brief description]
+      
+      ### Important Items ([count])
+      1. [Location] - [Category] - [Brief description]
+      
+      ### Nice-to-Have ([count])
+      1. [Location] - [Category] - [Brief description]
+      ```
+      
+      Reply with:
+      STATUS: done
+      CRITICAL_COUNT: count
+      IMPORTANT_COUNT: count
+      NICE_TO_HAVE_COUNT: count
+      ANALYSIS_FILE: path to saved analysis
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: revise
+    agent: revisor
+    input: |
+      Apply ALL feedback (critical + important, optionally nice-to-have).
+      
+      Rules:
+      - Keep the original formatting and structure
+      - Preserve the document's voice and tone
+      - Address feedback in order of priority
+      - For markdown: Preserve headings, lists, code blocks, etc.
+      - For Word: Preserve paragraph structure
+      - DO NOT include comment markers (%% %%) or track changes in output
+      - Output the COMPLETE revised document
+      
+      Start with:
+      ```
+      ## Revised Document
+      
+      [full document text with all revisions applied]
+      ```
+      
+      Reply with:
+      STATUS: done
+      REVISIONS_APPLIED: count
+      REVISED_FILE: path to saved revised document
+    expects: "STATUS: done"
+    max_retries: 2
+
+  - id: verify
+    agent: qa
+    input: |
+      Compare the revised document against the original feedback list.
+      
+      For each feedback item, verify:
+      1. Was it addressed? (yes/no/partially)
+      2. Is the revision accurate and appropriate?
+      3. Does it preserve document quality?
+      
+      Report any missed or poorly-addressed feedback.
+      
+      Output:
+      ```
+      ## QA Verification
+      
+      **Total feedback items:** [count]
+      **Addressed:** [count]
+      **Partially addressed:** [count]
+      **Not addressed:** [count]
+      
+      ### Addressed Items ✅
+      1. [Item] - [How it was addressed]
+      
+      ### Issues Found ⚠️
+      1. [Item] - [What's missing or wrong]
+      
+      ### Overall Assessment
+      [PASS | NEEDS REVISION]
+      
+      [Additional notes]
+      ```
+      
+      Reply with:
+      STATUS: done|retry
+      ADDRESSED: count
+      PARTIALLY_ADDRESSED: count
+      NOT_ADDRESSED: count
+      OVERALL: PASS|NEEDS_REVISION
+      ISSUES: list of issues (if any)
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: revise
+      max_retries: 1
+    max_retries: 2
+
+  - id: finalize
+    agent: cleaner
+    input: |
+      Create the final clean document for delivery.
+      
+      For markdown:
+      - Remove ALL %% comment %% markers
+      - Ensure proper markdown formatting
+      - Output as clean .md file
+      
+      For Word:
+      - Remove all track changes
+      - Remove all comments
+      - Output instructions for creating clean .docx
+      
+      Save the final document to the workspace with filename:
+      `[original-name]-REVISED.[md|docx]`
+      
+      Output:
+      ```
+      ## Final Document
+      
+      **File:** [filename]
+      **Status:** Ready for delivery
+      
+      [Complete document text]
+      
+      ---
+      
+      ## Summary
+      - [X] feedback items addressed
+      - [Y] revisions made
+      - Document ready for review
+      ```
+      
+      Reply with:
+      STATUS: done
+      FINAL_FILE: path to final clean document
+      ITEMS_ADDRESSED: count
+      REVISIONS_MADE: count
+    expects: "STATUS: done"
+    max_retries: 2
