@@ -20,3 +20,11 @@ Started: 2026-02-17T10:40:00Z
 
 **Learnings:** tests must import from dist, and bundled workflows are discovered by presence of workflow.yml in workflows/*
 ---
+
+## 2026-02-17T11:10:00Z - US-001: Add bundled test-run workflow spec (fix bootstrap + install test)
+- Fixed test-run bundled workflow to include a real bootstrap file at workflows/test-run/agents/noop/AGENTS.md.
+- Updated workflows/test-run/workflow.yml to reference the bundled noop AGENTS.md and to use a true no-op step expecting STATUS: done.
+- Extended tests/test-run-bundled.test.ts to also assert installWorkflow({workflowId: "test-run"}) succeeds using an isolated OPENCLAW_STATE_DIR temp dir + minimal openclaw.json.
+
+**Learnings:** installWorkflow reads OpenClaw config from OPENCLAW_STATE_DIR/openclaw.json; tests should create it when using a temp state dir.
+---
