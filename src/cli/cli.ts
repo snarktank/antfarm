@@ -21,6 +21,7 @@ import { getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.j
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows, getWorkflowInfoList } from "../installer/workflow-fetch.js";
 import { getWorkflowDetails, formatWorkflowDetails } from "../installer/workflow-show.js";
+import { deleteWorkflow } from "../installer/workflow-delete.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
@@ -93,6 +94,7 @@ function printUsage() {
       "antfarm workflow list                List available workflows",
       "antfarm workflow show <name>        Show detailed workflow configuration",
       "antfarm workflow install <name>      Install a workflow",
+      "antfarm workflow delete <name>      Delete a workflow (blocked if runs active, --force to override)",
       "antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
       "antfarm workflow uninstall --all     Uninstall all workflows (--force to override)",
       "antfarm workflow run <name> <task>   Start a workflow run",
@@ -505,6 +507,27 @@ async function main() {
     const result = await installWorkflow({ workflowId: target });
     process.stdout.write(`Installed workflow: ${result.workflowId}\nAgent crons will start when a run begins.\n`);
     process.stdout.write(`\nStart with: antfarm workflow run ${result.workflowId} "your task"\n`);
+    return;
+  }
+
+  if (action === "delete") {
+    if (!target) { 
+      process.stderr.write("Missing workflow name.\n"); 
+      printUsage(); 
+      process.exit(1); 
+    }
+    const force = args.includes("--force");
+    try {
+      const result = await deleteWorkflow(target, force);
+      process.stdout.write(result.message + "\n");
+      if (result.removedAgents.length > 0) {
+        process.stdout.write(`Removed ${result.removedAgents.length} agent(s): ${result.removedAgents.join(", ")}\n`);
+      }
+      process.stdout.write(`Backup size: ${(result.backup.size / 1024).toFixed(1)} KB\n`);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
     return;
   }
 
