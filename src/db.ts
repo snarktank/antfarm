@@ -85,6 +85,15 @@ function migrate(db: DatabaseSync): void {
   if (!colNames.has("abandoned_count")) {
     db.exec("ALTER TABLE steps ADD COLUMN abandoned_count INTEGER DEFAULT 0");
   }
+  if (!colNames.has("claimed_at")) {
+    db.exec("ALTER TABLE steps ADD COLUMN claimed_at TEXT");
+  }
+  if (!colNames.has("last_error")) {
+    db.exec("ALTER TABLE steps ADD COLUMN last_error TEXT");
+  }
+  if (!colNames.has("model_used")) {
+    db.exec("ALTER TABLE steps ADD COLUMN model_used TEXT");
+  }
 
   // Add columns to runs table for backwards compat
   const runCols = db.prepare("PRAGMA table_info(runs)").all() as Array<{ name: string }>;

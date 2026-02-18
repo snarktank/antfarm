@@ -25,6 +25,9 @@ export type StepInfo = {
   output: string | null;
   retry_count: number;
   max_retries: number;
+  claimed_at: string | null;
+  last_error: string | null;
+  model_used: string | null;
   created_at: string;
   updated_at: string;
 };
