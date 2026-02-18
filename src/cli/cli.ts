@@ -19,7 +19,7 @@ import { installWorkflow } from "../installer/install.js";
 import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../installer/uninstall.js";
 import { getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
-import { listBundledWorkflows } from "../installer/workflow-fetch.js";
+import { listBundledWorkflows, getWorkflowInfoList } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
@@ -451,10 +451,22 @@ async function main() {
   }
 
   if (action === "list") {
-    const workflows = await listBundledWorkflows();
-    if (workflows.length === 0) { process.stdout.write("No workflows available.\n"); } else {
+    const workflows = await getWorkflowInfoList();
+    if (workflows.length === 0) { 
+      process.stdout.write("No workflows available.\n"); 
+    } else {
       process.stdout.write("Available workflows:\n");
-      for (const w of workflows) process.stdout.write(`  ${w}\n`);
+      process.stdout.write(`${"ID".padEnd(16)} ${"NAME".padEnd(30)} ${"VER".padEnd(4)} ${"RUNS".padEnd(5)} ${"STATUS"}\n`);
+      process.stdout.write("─".repeat(70) + "\n");
+      
+      for (const w of workflows) {
+        const id = w.id.padEnd(16);
+        const name = (w.name.length > 30 ? w.name.slice(0, 27) + "..." : w.name).padEnd(30);
+        const version = w.version.toString().padEnd(4);
+        const runs = w.activeRuns.toString().padEnd(5);
+        const status = w.status;
+        process.stdout.write(`${id} ${name} ${version} ${runs} ${status}\n`);
+      }
     }
     return;
   }

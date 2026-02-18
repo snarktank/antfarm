@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { resolveBundledWorkflowDir, resolveBundledWorkflowsDir, resolveWorkflowDir, resolveWorkflowRoot } from "./paths.js";
+import { loadWorkflowSpec } from "./workflow-spec.js";
+import { checkActiveRuns } from "./uninstall.js";
 
 async function pathExists(filePath: string): Promise<boolean> {
   try {
@@ -62,4 +64,50 @@ export async function fetchWorkflow(workflowId: string): Promise<{ workflowDir: 
   await copyDirectory(bundledDir, destination);
   
   return { workflowDir: destination, bundledSourceDir: bundledDir };
+}
+
+export interface WorkflowInfo {
+  id: string;
+  name: string;
+  version: number;
+  activeRuns: number;
+  status: "ACTIVE" | "IDLE";
+}
+
+/**
+ * Get enhanced workflow information including metadata and active run counts
+ */
+export async function getWorkflowInfoList(): Promise<WorkflowInfo[]> {
+  const bundledDir = resolveBundledWorkflowsDir();
+  try {
+    const entries = await fs.readdir(bundledDir, { withFileTypes: true });
+    const workflows: WorkflowInfo[] = [];
+    
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const workflowYml = path.join(bundledDir, entry.name, "workflow.yml");
+        if (await pathExists(workflowYml)) {
+          try {
+            const spec = await loadWorkflowSpec(path.join(bundledDir, entry.name));
+            const activeRuns = checkActiveRuns(spec.id);
+            
+            workflows.push({
+              id: spec.id,
+              name: spec.name || spec.id,
+              version: spec.version || 1,
+              activeRuns: activeRuns.length,
+              status: activeRuns.length > 0 ? "ACTIVE" : "IDLE"
+            });
+          } catch (err) {
+            // Skip workflows that fail to load
+            console.warn(`Failed to load workflow ${entry.name}: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+      }
+    }
+    
+    return workflows.sort((a, b) => a.id.localeCompare(b.id));
+  } catch {
+    return [];
+  }
 }
