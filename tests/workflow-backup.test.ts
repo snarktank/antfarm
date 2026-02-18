@@ -332,8 +332,8 @@ test("createWorkflowBackup - backup path format is correct", async () => {
     assert(result.backupPath.endsWith(result.timestamp));
 
     // Extract and validate timestamp format
-    const timestampMatch = result.timestamp.match(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/);
-    assert(timestampMatch, "Timestamp should match YYYY-MM-DD_HH-MM-SS format");
+    const timestampMatch = result.timestamp.match(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-\d{3}$/);
+    assert(timestampMatch, "Timestamp should match YYYY-MM-DD_HH-MM-SS-sss format");
 
   } finally {
     await cleanupTestWorkspace();

@@ -130,7 +130,7 @@ export async function listWorkflowBackups(workflowId?: string): Promise<BackupRe
     if (!entry.isDirectory()) continue;
 
     // Parse backup directory name: <workflow-id>-<timestamp>
-    const match = entry.name.match(/^(.+)-(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})$/);
+    const match = entry.name.match(/^(.+)-(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-\d{3})$/);
     if (!match) continue;
 
     const [, backupWorkflowId, timestamp] = match;
