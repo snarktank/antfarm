@@ -25,6 +25,7 @@ import { deleteWorkflow } from "../installer/workflow-delete.js";
 import { exportWorkflow } from "../installer/workflow-export.js";
 import { importWorkflow } from "../installer/workflow-import.js";
 import { copyWorkflow } from "../installer/workflow-copy.js";
+import { editWorkflow } from "../installer/workflow-edit.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
@@ -96,6 +97,7 @@ function printUsage() {
       "",
       "antfarm workflow list                List available workflows",
       "antfarm workflow show <name>        Show detailed workflow configuration",
+      "antfarm workflow edit <name>        Edit workflow YAML in your default editor",
       "antfarm workflow export <name>      Export workflow YAML to stdout (--output <file> to save)",
       "antfarm workflow import <file>      Import workflow from YAML file (--overwrite to replace existing)",
       "antfarm workflow copy <source> <new-id>  Copy existing workflow with new ID",
@@ -491,6 +493,30 @@ async function main() {
       const details = await getWorkflowDetails(target);
       const formatted = formatWorkflowDetails(details);
       process.stdout.write(formatted + "\n");
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (action === "edit") {
+    if (!target) { 
+      process.stderr.write("Missing workflow name.\n"); 
+      printUsage(); 
+      process.exit(1); 
+    }
+    try {
+      const result = await editWorkflow(target);
+      process.stdout.write(result.message + "\n");
+      
+      if (result.validationErrors && result.validationErrors.length > 0) {
+        process.stderr.write("\nValidation errors:\n");
+        for (const error of result.validationErrors) {
+          process.stderr.write(`  - ${error}\n`);
+        }
+        process.exit(1);
+      }
     } catch (err) {
       process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
       process.exit(1);

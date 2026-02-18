@@ -26,7 +26,7 @@ function resolveBackupRoot(): string {
 
 function generateTimestamp(): string {
   const now = new Date();
-  return now.toISOString().replace(/[:.]/g, "-").replace("T", "_").slice(0, 19);
+  return now.toISOString().replace(/[:.]/g, "-").replace("T", "_").slice(0, 23);
 }
 
 export interface BackupResult {
