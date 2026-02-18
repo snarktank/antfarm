@@ -62,6 +62,82 @@ describe("installer/paths", () => {
     }
   });
 
+  // ── All exports return strings ──────────────────────────────────
+
+  describe("all exported functions return strings", () => {
+    it("resolveOpenClawStateDir returns a string", () => {
+      assert.equal(typeof resolveOpenClawStateDir(), "string");
+    });
+
+    it("resolveOpenClawConfigPath returns a string", () => {
+      assert.equal(typeof resolveOpenClawConfigPath(), "string");
+    });
+
+    it("resolveAntfarmRoot returns a string", () => {
+      assert.equal(typeof resolveAntfarmRoot(), "string");
+    });
+
+    it("resolveWorkflowRoot returns a string", () => {
+      assert.equal(typeof resolveWorkflowRoot(), "string");
+    });
+
+    it("resolveWorkflowDir returns a string", () => {
+      assert.equal(typeof resolveWorkflowDir("test"), "string");
+    });
+
+    it("resolveWorkflowWorkspaceRoot returns a string", () => {
+      assert.equal(typeof resolveWorkflowWorkspaceRoot(), "string");
+    });
+
+    it("resolveWorkflowWorkspaceDir returns a string", () => {
+      assert.equal(typeof resolveWorkflowWorkspaceDir("test"), "string");
+    });
+
+    it("resolveRunRoot returns a string", () => {
+      assert.equal(typeof resolveRunRoot(), "string");
+    });
+
+    it("resolveBundledWorkflowsDir returns a string", () => {
+      assert.equal(typeof resolveBundledWorkflowsDir(), "string");
+    });
+
+    it("resolveBundledWorkflowDir returns a string", () => {
+      assert.equal(typeof resolveBundledWorkflowDir("test"), "string");
+    });
+
+    it("resolveAntfarmCli returns a string", () => {
+      assert.equal(typeof resolveAntfarmCli(), "string");
+    });
+  });
+
+  // ── ID-parameterised paths include the given ID ────────────────
+
+  describe("ID-parameterised paths include the given ID", () => {
+    it("resolveWorkflowDir includes workflow ID", () => {
+      const id = "agent-abc-123";
+      assert.ok(
+        resolveWorkflowDir(id).includes(id),
+        "workflow dir should contain the workflow ID"
+      );
+    });
+
+    it("resolveWorkflowWorkspaceDir includes workflow ID", () => {
+      const id = "agent-xyz-789";
+      assert.ok(
+        resolveWorkflowWorkspaceDir(id).includes(id),
+        "workspace dir should contain the workflow ID"
+      );
+    });
+
+    it("resolveBundledWorkflowDir includes workflow ID", () => {
+      const id = "bundled-agent-42";
+      assert.ok(
+        resolveBundledWorkflowDir(id).includes(id),
+        "bundled workflow dir should contain the workflow ID"
+      );
+    });
+  });
+
   // ── resolveOpenClawStateDir ──────────────────────────────────────
 
   describe("resolveOpenClawStateDir", () => {
