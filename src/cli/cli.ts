@@ -22,6 +22,7 @@ import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows, getWorkflowInfoList } from "../installer/workflow-fetch.js";
 import { getWorkflowDetails, formatWorkflowDetails } from "../installer/workflow-show.js";
 import { deleteWorkflow } from "../installer/workflow-delete.js";
+import { exportWorkflow } from "../installer/workflow-export.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
@@ -93,6 +94,7 @@ function printUsage() {
       "",
       "antfarm workflow list                List available workflows",
       "antfarm workflow show <name>        Show detailed workflow configuration",
+      "antfarm workflow export <name>      Export workflow YAML to stdout (--output <file> to save)",
       "antfarm workflow install <name>      Install a workflow",
       "antfarm workflow delete <name>      Delete a workflow (blocked if runs active, --force to override)",
       "antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
@@ -485,6 +487,32 @@ async function main() {
       const details = await getWorkflowDetails(target);
       const formatted = formatWorkflowDetails(details);
       process.stdout.write(formatted + "\n");
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (action === "export") {
+    if (!target) { 
+      process.stderr.write("Missing workflow name.\n"); 
+      printUsage(); 
+      process.exit(1); 
+    }
+    
+    // Check for --output flag
+    const outputIdx = args.indexOf("--output");
+    const outputPath = outputIdx !== -1 && args[outputIdx + 1] ? args[outputIdx + 1] : undefined;
+    
+    try {
+      const result = await exportWorkflow(target, outputPath);
+      
+      if (outputPath) {
+        process.stdout.write(`Exported workflow "${result.workflowId}" to ${outputPath} (${result.size} bytes)\n`);
+      } else {
+        process.stdout.write(result.yamlContent);
+      }
     } catch (err) {
       process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
       process.exit(1);
