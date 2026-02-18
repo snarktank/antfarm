@@ -61,4 +61,62 @@ describe('isFrontendChange', () => {
   it('returns true if any file is frontend among non-frontend files', () => {
     assert.equal(isFrontendChange(['src/db.ts', 'src/cli/cli.ts', 'landing/index.html']), true);
   });
+
+  // --- Additional edge-case tests (p48-s3) ---
+
+  it('detects React project files (.jsx/.tsx in src)', () => {
+    assert.equal(isFrontendChange(['src/components/Button.jsx']), true);
+    assert.equal(isFrontendChange(['src/hooks/useAuth.tsx']), true);
+    assert.equal(isFrontendChange(['src/components/Modal.tsx']), true);
+  });
+
+  it('detects Vue project files (.vue)', () => {
+    assert.equal(isFrontendChange(['src/components/Header.vue']), true);
+    assert.equal(isFrontendChange(['src/views/Home.vue']), true);
+  });
+
+  it('detects Next.js-style pages directory files', () => {
+    assert.equal(isFrontendChange(['pages/index.ts']), true);
+    assert.equal(isFrontendChange(['src/pages/api/hello.ts']), true);
+    assert.equal(isFrontendChange(['pages/_app.tsx']), true);
+  });
+
+  it('returns false for backend-only projects with no frontend files', () => {
+    assert.equal(isFrontendChange(['src/server.ts', 'src/routes/api.ts', 'package.json']), false);
+    assert.equal(isFrontendChange(['src/worker/heartbeat.ts', 'src/db.ts']), false);
+    assert.equal(isFrontendChange(['.env', 'tsconfig.json', 'package-lock.json']), false);
+  });
+
+  it('handles files without extensions gracefully', () => {
+    assert.equal(isFrontendChange(['Dockerfile']), false);
+    assert.equal(isFrontendChange(['Makefile']), false);
+    assert.equal(isFrontendChange(['.gitignore']), false);
+  });
+
+  it('handles case-insensitive extension matching', () => {
+    assert.equal(isFrontendChange(['page.HTML']), true);
+    assert.equal(isFrontendChange(['style.CSS']), true);
+    assert.equal(isFrontendChange(['app.JSX']), true);
+  });
+
+  it('handles Windows-style backslash paths', () => {
+    assert.equal(isFrontendChange(['src\\components\\Button.tsx']), true);
+    assert.equal(isFrontendChange(['src\\pages\\Home.ts']), true);
+  });
+
+  it('handles deeply nested frontend directories', () => {
+    assert.equal(isFrontendChange(['packages/ui/src/components/Button.ts']), true);
+    assert.equal(isFrontendChange(['apps/web/public/manifest.json']), true);
+  });
+
+  it('returns false for test files in frontend directories', () => {
+    assert.equal(isFrontendChange(['src/components/Button.test.tsx']), false);
+    assert.equal(isFrontendChange(['__tests__/views/Home.vue']), false);
+    assert.equal(isFrontendChange(['pages/index.spec.tsx']), false);
+  });
+
+  it('handles single-file input', () => {
+    assert.equal(isFrontendChange(['index.html']), true);
+    assert.equal(isFrontendChange(['server.ts']), false);
+  });
 });
