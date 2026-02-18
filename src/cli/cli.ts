@@ -20,6 +20,7 @@ import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../in
 import { getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows, getWorkflowInfoList } from "../installer/workflow-fetch.js";
+import { getWorkflowDetails, formatWorkflowDetails } from "../installer/workflow-show.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
@@ -90,6 +91,7 @@ function printUsage() {
       "antfarm uninstall [--force]          Full uninstall (workflows, agents, crons, DB)",
       "",
       "antfarm workflow list                List available workflows",
+      "antfarm workflow show <name>        Show detailed workflow configuration",
       "antfarm workflow install <name>      Install a workflow",
       "antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
       "antfarm workflow uninstall --all     Uninstall all workflows (--force to override)",
@@ -467,6 +469,23 @@ async function main() {
         const status = w.status;
         process.stdout.write(`${id} ${name} ${version} ${runs} ${status}\n`);
       }
+    }
+    return;
+  }
+
+  if (action === "show") {
+    if (!target) { 
+      process.stderr.write("Missing workflow name.\n"); 
+      printUsage(); 
+      process.exit(1); 
+    }
+    try {
+      const details = await getWorkflowDetails(target);
+      const formatted = formatWorkflowDetails(details);
+      process.stdout.write(formatted + "\n");
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
     }
     return;
   }
