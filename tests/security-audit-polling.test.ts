@@ -21,7 +21,7 @@ describe("security-audit workflow polling config", () => {
   it("has a polling section with model and timeoutSeconds", async () => {
     const spec = await loadWorkflowSpec(WORKFLOW_DIR);
     assert.ok(spec.polling, "polling config should exist");
-    assert.equal(spec.polling.model, "sonnet-4.5");
+    assert.equal(spec.polling.model, "claude-sonnet-4-20250514");
     assert.equal(spec.polling.timeoutSeconds, 120);
   });
 
