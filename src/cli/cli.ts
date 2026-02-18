@@ -24,6 +24,7 @@ import { getWorkflowDetails, formatWorkflowDetails } from "../installer/workflow
 import { deleteWorkflow } from "../installer/workflow-delete.js";
 import { exportWorkflow } from "../installer/workflow-export.js";
 import { importWorkflow } from "../installer/workflow-import.js";
+import { copyWorkflow } from "../installer/workflow-copy.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
@@ -97,6 +98,7 @@ function printUsage() {
       "antfarm workflow show <name>        Show detailed workflow configuration",
       "antfarm workflow export <name>      Export workflow YAML to stdout (--output <file> to save)",
       "antfarm workflow import <file>      Import workflow from YAML file (--overwrite to replace existing)",
+      "antfarm workflow copy <source> <new-id>  Copy existing workflow with new ID",
       "antfarm workflow install <name>      Install a workflow",
       "antfarm workflow delete <name>      Delete a workflow (blocked if runs active, --force to override)",
       "antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
@@ -542,6 +544,33 @@ async function main() {
       if (result.backup) {
         process.stdout.write(`Backup created: ${result.backup.backupPath}\n`);
       }
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (action === "copy") {
+    if (!target) { 
+      process.stderr.write("Missing source workflow name.\n"); 
+      printUsage(); 
+      process.exit(1); 
+    }
+    
+    const newId = args[3]; // Fourth argument is the new ID
+    if (!newId) {
+      process.stderr.write("Missing new workflow ID.\n");
+      printUsage();
+      process.exit(1);
+    }
+    
+    try {
+      const result = await copyWorkflow(target, newId);
+      process.stdout.write(result.message + "\n");
+      process.stdout.write(`Source: ${result.sourcePath}\n`);
+      process.stdout.write(`Target: ${result.targetPath}\n`);
+      process.stdout.write(`Size: ${(result.size / 1024).toFixed(1)} KB\n`);
     } catch (err) {
       process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
       process.exit(1);
