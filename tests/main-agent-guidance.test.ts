@@ -1,10 +1,11 @@
 /**
- * main-agent-guidance module unit tests
+ * Agent guidance content generation unit tests
  *
- * Tests the guidance content generation for TOOLS.md and AGENTS.md,
- * including the upsertBlock/removeBlock helpers and the async
- * updateMainAgentGuidance / removeMainAgentGuidance functions.
- * Mocks node:fs/promises and openclaw-config to control I/O.
+ * Tests guidance content injected into agents:
+ * - main-agent-guidance.ts: TOOLS.md / AGENTS.md block generation
+ * - agent-cron.ts: buildWorkPrompt / buildPollingPrompt (step claim, complete, fail)
+ *
+ * Mocks node:fs/promises, openclaw-config, and paths to control I/O.
  */
 
 import { describe, it, beforeEach, mock } from "node:test";
@@ -50,12 +51,32 @@ mock.module("../dist/installer/openclaw-config.js", {
   },
 });
 
+mock.module("../dist/installer/paths.js", {
+  namedExports: {
+    resolveAntfarmCli: () => "/home/testuser/.openclaw/workspace/antfarm/dist/cli/cli.js",
+    resolveBundledWorkflowsDir: () => "/home/testuser/.openclaw/workspace/antfarm/workflows",
+    resolveBundledWorkflowDir: (id: string) => `/home/testuser/.openclaw/workspace/antfarm/workflows/${id}`,
+    resolveOpenClawStateDir: () => "/home/testuser/.openclaw",
+    resolveOpenClawConfigPath: () => "/home/testuser/.openclaw/openclaw.json",
+    resolveAntfarmRoot: () => "/home/testuser/.openclaw/antfarm",
+    resolveWorkflowRoot: () => "/home/testuser/.openclaw/antfarm/workflows",
+    resolveWorkflowDir: (id: string) => `/home/testuser/.openclaw/antfarm/workflows/${id}`,
+    resolveWorkflowWorkspaceRoot: () => "/home/testuser/.openclaw/workspaces/workflows",
+    resolveWorkflowWorkspaceDir: (id: string) => `/home/testuser/.openclaw/workspaces/workflows/${id}`,
+    resolveRunRoot: () => "/home/testuser/.openclaw/antfarm/runs",
+  },
+});
+
 // Import after mocks
 const { updateMainAgentGuidance, removeMainAgentGuidance } = await import(
   "../dist/installer/main-agent-guidance.js"
 );
 
-// ── Tests ───────────────────────────────────────────────────────────
+const { buildWorkPrompt, buildPollingPrompt } = await import(
+  "../dist/installer/agent-cron.js"
+);
+
+// ── main-agent-guidance tests ───────────────────────────────────────
 
 describe("updateMainAgentGuidance", () => {
   beforeEach(() => {
@@ -234,7 +255,6 @@ describe("removeMainAgentGuidance", () => {
   });
 
   it("handles missing files gracefully", async () => {
-    // Files don't exist - readFileOrEmpty returns ""
     await assert.doesNotReject(
       () => removeMainAgentGuidance(),
       "should not throw when files are missing"
@@ -249,8 +269,6 @@ describe("removeMainAgentGuidance", () => {
 
     await removeMainAgentGuidance();
 
-    // The function writes when content is truthy, but removeBlock returns
-    // the same content if no block found. So files will be written.
     const toolsContent = writtenFiles.get(toolsPath);
     if (toolsContent) {
       assert.ok(
@@ -258,5 +276,95 @@ describe("removeMainAgentGuidance", () => {
         "should not introduce antfarm block"
       );
     }
+  });
+});
+
+// ── agent-cron prompt guidance tests ────────────────────────────────
+
+describe("buildWorkPrompt — agent guidance content", () => {
+  it("returns a non-empty string", () => {
+    const prompt = buildWorkPrompt("test-wf", "worker");
+    assert.ok(typeof prompt === "string", "should return a string");
+    assert.ok(prompt.trim().length > 0, "should be non-empty");
+  });
+
+  it("contains step complete and step fail instructions", () => {
+    const prompt = buildWorkPrompt("test-wf", "worker");
+    assert.ok(
+      prompt.includes("step complete"),
+      "should contain step complete instruction"
+    );
+    assert.ok(
+      prompt.includes("step fail"),
+      "should contain step fail instruction"
+    );
+  });
+
+  it("includes CRITICAL warning about reporting completion", () => {
+    const prompt = buildWorkPrompt("test-wf", "worker");
+    assert.ok(
+      prompt.includes("CRITICAL"),
+      "should include CRITICAL warning"
+    );
+    assert.ok(
+      prompt.includes("step complete") && prompt.includes("step fail"),
+      "CRITICAL warning relates to step complete/fail reporting"
+    );
+  });
+
+  it("references the antfarm CLI path", () => {
+    const prompt = buildWorkPrompt("test-wf", "worker");
+    assert.ok(
+      prompt.includes("cli.js"),
+      "should reference the antfarm CLI path"
+    );
+  });
+});
+
+describe("buildPollingPrompt — agent guidance content", () => {
+  it("contains antfarm step claim command syntax", () => {
+    const prompt = buildPollingPrompt("test-wf", "worker");
+    assert.ok(
+      prompt.includes("step claim"),
+      "should contain step claim command"
+    );
+    assert.ok(
+      prompt.includes("test-wf-worker"),
+      "should include the full agent ID in step claim"
+    );
+  });
+
+  it("contains step complete and step fail instructions", () => {
+    const prompt = buildPollingPrompt("test-wf", "worker");
+    assert.ok(
+      prompt.includes("step complete"),
+      "should contain step complete instruction"
+    );
+    assert.ok(
+      prompt.includes("step fail"),
+      "should contain step fail instruction"
+    );
+  });
+
+  it("includes CRITICAL warning about reporting completion", () => {
+    const prompt = buildPollingPrompt("test-wf", "worker");
+    assert.ok(
+      prompt.includes("CRITICAL"),
+      "should include CRITICAL warning about reporting"
+    );
+  });
+
+  it("references the antfarm CLI path", () => {
+    const prompt = buildPollingPrompt("test-wf", "worker");
+    assert.ok(
+      prompt.includes("cli.js"),
+      "should reference the antfarm CLI path"
+    );
+  });
+
+  it("returns a non-empty string", () => {
+    const prompt = buildPollingPrompt("test-wf", "worker");
+    assert.ok(typeof prompt === "string", "should return a string");
+    assert.ok(prompt.trim().length > 0, "should be non-empty");
   });
 });
