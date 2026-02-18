@@ -7,6 +7,7 @@ import { readOpenClawConfig, writeOpenClawConfig, type OpenClawConfig } from "./
 import { updateMainAgentGuidance } from "./main-agent-guidance.js";
 import { addSubagentAllowlist } from "./subagent-allowlist.js";
 import { installAntfarmSkill } from "./skill-install.js";
+import { validateWorkflowYaml } from "./workflow-validation.js";
 import type { AgentRole, WorkflowInstallResult } from "./types.js";
 
 function ensureAgentList(config: { agents?: { list?: Array<Record<string, unknown>>; defaults?: Record<string, unknown> } }) {
@@ -236,6 +237,19 @@ async function writeWorkflowMetadata(params: { workflowDir: string; workflowId: 
 
 export async function installWorkflow(params: { workflowId: string }): Promise<WorkflowInstallResult> {
   const { workflowDir, bundledSourceDir } = await fetchWorkflow(params.workflowId);
+  
+  // Validate workflow YAML before installation
+  const workflowYamlPath = path.join(workflowDir, "workflow.yml");
+  const yamlContent = await fs.readFile(workflowYamlPath, "utf-8");
+  const validationResult = validateWorkflowYaml(yamlContent);
+  
+  if (!validationResult.valid) {
+    const errorMessages = validationResult.errors.map(err => 
+      err.field ? `${err.field}: ${err.message}` : err.message
+    );
+    throw new Error(`Invalid workflow configuration:\n${errorMessages.join('\n')}`);
+  }
+  
   const workflow = await loadWorkflowSpec(workflowDir);
   const provisioned = await provisionAgents({ workflow, workflowDir, bundledSourceDir });
 
