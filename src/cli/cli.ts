@@ -23,6 +23,7 @@ import { listBundledWorkflows, getWorkflowInfoList } from "../installer/workflow
 import { getWorkflowDetails, formatWorkflowDetails } from "../installer/workflow-show.js";
 import { deleteWorkflow } from "../installer/workflow-delete.js";
 import { exportWorkflow } from "../installer/workflow-export.js";
+import { importWorkflow } from "../installer/workflow-import.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
@@ -95,6 +96,7 @@ function printUsage() {
       "antfarm workflow list                List available workflows",
       "antfarm workflow show <name>        Show detailed workflow configuration",
       "antfarm workflow export <name>      Export workflow YAML to stdout (--output <file> to save)",
+      "antfarm workflow import <file>      Import workflow from YAML file (--overwrite to replace existing)",
       "antfarm workflow install <name>      Install a workflow",
       "antfarm workflow delete <name>      Delete a workflow (blocked if runs active, --force to override)",
       "antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
@@ -512,6 +514,33 @@ async function main() {
         process.stdout.write(`Exported workflow "${result.workflowId}" to ${outputPath} (${result.size} bytes)\n`);
       } else {
         process.stdout.write(result.yamlContent);
+      }
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (action === "import") {
+    if (!target) { 
+      process.stderr.write("Missing YAML file path.\n"); 
+      printUsage(); 
+      process.exit(1); 
+    }
+    
+    // Check for --overwrite flag
+    const overwrite = args.includes("--overwrite");
+    
+    try {
+      const result = await importWorkflow(target, overwrite);
+      
+      process.stdout.write(result.message + "\n");
+      process.stdout.write(`Imported from: ${result.importedFrom}\n`);
+      process.stdout.write(`Size: ${(result.size / 1024).toFixed(1)} KB\n`);
+      
+      if (result.backup) {
+        process.stdout.write(`Backup created: ${result.backup.backupPath}\n`);
       }
     } catch (err) {
       process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
