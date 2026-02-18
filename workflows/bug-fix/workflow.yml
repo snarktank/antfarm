@@ -99,6 +99,7 @@ steps:
       AFFECTED_AREA: what files/modules are affected
       REPRODUCTION: how to reproduce the bug
       PROBLEM_STATEMENT: clear description of what's wrong
+      IS_TEST_SCENARIO: true|false (set to true if this appears to be a placeholder/test report)
     expects: "STATUS: done"
     max_retries: 2
     on_fail:
@@ -117,6 +118,7 @@ steps:
       AFFECTED_AREA: {{affected_area}}
       REPRODUCTION: {{reproduction}}
       PROBLEM_STATEMENT: {{problem_statement}}
+      IS_TEST_SCENARIO: {{is_test_scenario}}
 
       Instructions:
       1. Read the code in the affected area
@@ -174,6 +176,7 @@ steps:
       ROOT_CAUSE: {{root_cause}}
       FIX_APPROACH: {{fix_approach}}
       PROBLEM_STATEMENT: {{problem_statement}}
+      IS_TEST_SCENARIO: {{is_test_scenario}}
 
       VERIFY FEEDBACK (if retrying):
       {{verify_feedback}}
@@ -210,6 +213,7 @@ steps:
       REGRESSION_TEST: {{regression_test}}
       ROOT_CAUSE: {{root_cause}}
       PROBLEM_STATEMENT: {{problem_statement}}
+      IS_TEST_SCENARIO: {{is_test_scenario}}
 
       Instructions:
       1. Run the full test suite with {{test_cmd}}
@@ -252,6 +256,7 @@ steps:
       CHANGES: {{changes}}
       REGRESSION_TEST: {{regression_test}}
       VERIFIED: {{verified}}
+      IS_TEST_SCENARIO: {{is_test_scenario}}
 
       PR title format: fix: brief description of what was fixed
 

@@ -44,6 +44,43 @@ REPRODUCTION: how to reproduce (steps, failing test, or "see failing test X")
 PROBLEM_STATEMENT: clear 2-3 sentence description of what's wrong
 ```
 
+## Detecting Test/Placeholder Reports
+
+Some bug reports may be minimal placeholders used for testing the workflow pipeline itself. Detect these by checking for:
+
+- Very short reports (e.g., "test bug", "placeholder", "test")
+- Lack of specific error messages, stack traces, or reproduction steps
+- Generic descriptions without concrete details
+
+When you detect a placeholder report:
+1. Set `IS_TEST_SCENARIO: true` in your output
+2. Set severity to "low" (appropriate for test scenarios)
+3. Document that this is a workflow test in `AFFECTED_AREA`
+4. Still produce structured output for downstream validation
+
+## Test Mode Flag
+
+If the bug report contains `[TEST_MODE]` or mentions being a workflow test, include:
+```
+TEST_MODE: true
+```
+
+This helps downstream agents distinguish test runs from production bug fixes.
+
+## Output Format (Extended)
+
+```
+STATUS: done
+REPO: /path/to/repo
+BRANCH: bugfix-branch-name
+SEVERITY: critical|high|medium|low
+AFFECTED_AREA: files and modules affected
+REPRODUCTION: how to reproduce the bug
+PROBLEM_STATEMENT: clear description of what's wrong
+IS_TEST_SCENARIO: true|false (optional)
+TEST_MODE: true|false (optional)
+```
+
 ## What NOT To Do
 
 - Don't fix the bug — you're a triager, not a fixer
