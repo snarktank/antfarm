@@ -1,8 +1,16 @@
 node_modules/
 dist/
+test-dist/
 .DS_Store
 *.db
 *.sqlite
 *.sqlite3
 progress.txt
 progress*.txt
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx

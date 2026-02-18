@@ -19,7 +19,14 @@ import { installWorkflow } from "../installer/install.js";
 import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../installer/uninstall.js";
 import { getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
-import { listBundledWorkflows } from "../installer/workflow-fetch.js";
+import { listBundledWorkflows, getWorkflowInfoList } from "../installer/workflow-fetch.js";
+import { getWorkflowDetails, formatWorkflowDetails } from "../installer/workflow-show.js";
+import { deleteWorkflow } from "../installer/workflow-delete.js";
+import { exportWorkflow } from "../installer/workflow-export.js";
+import { importWorkflow } from "../installer/workflow-import.js";
+import { copyWorkflow } from "../installer/workflow-copy.js";
+import { editWorkflow } from "../installer/workflow-edit.js";
+import { renameWorkflow } from "../installer/workflow-rename.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
@@ -86,41 +93,551 @@ function printEvents(events: AntfarmEvent[]): void {
 function printUsage() {
   process.stdout.write(
     [
-      "antfarm install                      Install all bundled workflows",
-      "antfarm uninstall [--force]          Full uninstall (workflows, agents, crons, DB)",
+      "Antfarm - Workflow automation with AI agents",
       "",
-      "antfarm workflow list                List available workflows",
-      "antfarm workflow install <name>      Install a workflow",
-      "antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
-      "antfarm workflow uninstall --all     Uninstall all workflows (--force to override)",
-      "antfarm workflow run <name> <task>   Start a workflow run",
-      "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
-      "antfarm workflow runs                List all workflow runs",
-      "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
-      "antfarm workflow stop <run-id>        Stop/cancel a running workflow",
-      "antfarm workflow ensure-crons <name>  Recreate agent crons for a workflow",
+      "USAGE:",
+      "  antfarm <command> [options]",
+      "  antfarm <group> <action> [target] [options]",
       "",
-      "antfarm dashboard [start] [--port N]   Start dashboard daemon (default: 3333)",
-      "antfarm dashboard stop                  Stop dashboard daemon",
-      "antfarm dashboard status                Check dashboard status",
+      "SETUP:",
+      "  antfarm install                      Install all bundled workflows",
+      "  antfarm uninstall [--force]          Full uninstall (workflows, agents, crons, DB)",
       "",
-      "antfarm step peek <agent-id>        Lightweight check for pending work (HAS_WORK or NO_WORK)",
-      "antfarm step claim <agent-id>       Claim pending step, output resolved input as JSON",
-      "antfarm step complete <step-id>      Complete step (reads output from stdin)",
-      "antfarm step fail <step-id> <error>  Fail step with retry logic",
-      "antfarm step stories <run-id>       List stories for a run",
+      "WORKFLOW MANAGEMENT:",
+      "  antfarm workflow list                List available workflows",
+      "  antfarm workflow show <name>         Show detailed workflow configuration",
+      "  antfarm workflow edit <name>         Edit workflow YAML in your default editor",
+      "  antfarm workflow export <name>       Export workflow YAML to stdout (--output <file> to save)",
+      "  antfarm workflow import <file>       Import workflow from YAML file (--overwrite to replace existing)",
+      "  antfarm workflow copy <source> <new-id>  Copy existing workflow with new ID",
+      "  antfarm workflow rename <old> <new>  Rename workflow ID and update internal references",
+      "  antfarm workflow install <name>      Install a workflow",
+      "  antfarm workflow delete <name>       Delete a workflow (blocked if runs active, --force to override)",
+      "  antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
+      "  antfarm workflow uninstall --all     Uninstall all workflows (--force to override)",
       "",
-      "antfarm medic install                Install medic watchdog cron",
-      "antfarm medic uninstall              Remove medic cron",
-      "antfarm medic run                    Run medic check now (manual trigger)",
-      "antfarm medic status                 Show medic health summary",
-      "antfarm medic log [<count>]          Show recent medic check history",
+      "WORKFLOW EXECUTION:",
+      "  antfarm workflow run <name> <task>   Start a workflow run",
+      "  antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
+      "  antfarm workflow runs                List all workflow runs",
+      "  antfarm workflow resume <run-id>     Resume a failed run from where it left off",
+      "  antfarm workflow stop <run-id>       Stop/cancel a running workflow",
+      "  antfarm workflow ensure-crons <name> Recreate agent crons for a workflow",
       "",
-      "antfarm logs [<lines>]               Show recent activity (from events)",
-      "antfarm logs <run-id>                Show activity for a specific run",
+      "DASHBOARD:",
+      "  antfarm dashboard [start] [--port N] Start dashboard daemon (default: 3333)",
+      "  antfarm dashboard stop               Stop dashboard daemon",
+      "  antfarm dashboard status             Check dashboard status",
       "",
-      "antfarm version                      Show installed version",
-      "antfarm update                       Pull latest, rebuild, and reinstall workflows",
+      "STEP OPERATIONS:",
+      "  antfarm step peek <agent-id>         Lightweight check for pending work (HAS_WORK or NO_WORK)",
+      "  antfarm step claim <agent-id>        Claim pending step, output resolved input as JSON",
+      "  antfarm step complete <step-id>      Complete step (reads output from stdin)",
+      "  antfarm step fail <step-id> <error>  Fail step with retry logic",
+      "  antfarm step stories <run-id>        List stories for a run",
+      "",
+      "SYSTEM HEALTH:",
+      "  antfarm medic install               Install medic watchdog cron",
+      "  antfarm medic uninstall             Remove medic cron",
+      "  antfarm medic run                   Run medic check now (manual trigger)",
+      "  antfarm medic status                Show medic health summary",
+      "  antfarm medic log [<count>]         Show recent medic check history",
+      "",
+      "LOGGING:",
+      "  antfarm logs [<lines>]              Show recent activity (from events)",
+      "  antfarm logs <run-id>               Show activity for a specific run",
+      "",
+      "OTHER:",
+      "  antfarm version                     Show installed version",
+      "  antfarm update                      Pull latest, rebuild, and reinstall workflows",
+      "",
+      "Use --help with any command for detailed documentation and examples.",
+      "Examples:",
+      "  antfarm workflow --help             Show detailed workflow commands",
+      "  antfarm workflow run --help         Show workflow run syntax with examples",
+    ].join("\n") + "\n",
+  );
+}
+
+function printWorkflowUsage() {
+  process.stdout.write(
+    [
+      "Workflow Management Commands",
+      "",
+      "USAGE:",
+      "  antfarm workflow <action> [target] [options]",
+      "",
+      "DISCOVERY & INFORMATION:",
+      "  antfarm workflow list               List available workflows with status",
+      "  antfarm workflow show <name>        Show detailed workflow configuration",
+      "",
+      "LIFECYCLE MANAGEMENT:",
+      "  antfarm workflow install <name>     Install a workflow from bundled workflows",
+      "  antfarm workflow uninstall <name>   Uninstall a workflow (blocked if runs active)",
+      "  antfarm workflow delete <name>      Delete a workflow with backup (--force to override active runs)",
+      "",
+      "IMPORT/EXPORT/COPY:",
+      "  antfarm workflow export <name>      Export workflow YAML to stdout",
+      "    --output <file>                   Save to file instead of stdout",
+      "  antfarm workflow import <file>      Import workflow from YAML file",
+      "    --overwrite                       Replace existing workflow (creates backup)",
+      "  antfarm workflow copy <src> <id>    Copy existing workflow with new ID",
+      "",
+      "EDITING:",
+      "  antfarm workflow edit <name>        Edit workflow YAML in your default editor",
+      "  antfarm workflow rename <old> <new> Rename workflow ID and update references",
+      "",
+      "EXECUTION:",
+      "  antfarm workflow run <name> <task>  Start a workflow run with task description",
+      "    --notify-url <url>                Send completion notification to URL",
+      "  antfarm workflow status <query>     Check run status (task substring or run ID prefix)",
+      "  antfarm workflow runs               List all workflow runs",
+      "  antfarm workflow resume <run-id>    Resume a failed run from where it left off",
+      "  antfarm workflow stop <run-id>      Stop/cancel a running workflow",
+      "",
+      "MAINTENANCE:",
+      "  antfarm workflow ensure-crons <name> Recreate agent crons for a workflow",
+      "",
+      "EXAMPLES:",
+      "  antfarm workflow list                           # List all workflows",
+      "  antfarm workflow show bug-fix                   # Show bug-fix workflow details",
+      "  antfarm workflow run feature-dev \"Add login\"    # Start feature development",
+      "  antfarm workflow export bug-fix --output backup.yml  # Export to file",
+      "  antfarm workflow import my-workflow.yml --overwrite  # Import with overwrite",
+      "  antfarm workflow copy feature-dev my-feature    # Copy workflow with new ID",
+      "  antfarm workflow edit my-feature                # Edit workflow in editor",
+      "  antfarm workflow delete old-workflow --force    # Force delete with active runs",
+      "",
+      "Use --help with specific actions for more details:",
+      "  antfarm workflow run --help         # Detailed run command help",
+      "  antfarm workflow export --help      # Export command options",
+    ].join("\n") + "\n",
+  );
+}
+
+function printWorkflowRunHelp() {
+  process.stdout.write(
+    [
+      "Start a workflow run",
+      "",
+      "USAGE:",
+      "  antfarm workflow run <name> <task> [options]",
+      "",
+      "ARGUMENTS:",
+      "  <name>    Workflow ID to run (e.g., feature-dev, bug-fix, security-audit)",
+      "  <task>    Task description - what you want the workflow to accomplish",
+      "",
+      "OPTIONS:",
+      "  --notify-url <url>   Send completion notification to this URL (HTTP POST)",
+      "  --help              Show this help message",
+      "",
+      "EXAMPLES:",
+      "  # Start feature development workflow",
+      "  antfarm workflow run feature-dev \"Implement user authentication\"",
+      "",
+      "  # Start bug fix workflow",
+      "  antfarm workflow run bug-fix \"Fix login redirect issue on mobile\"",
+      "",
+      "  # Run security audit with notification",
+      "  antfarm workflow run security-audit \"Check for XSS vulnerabilities\" \\",
+      "    --notify-url https://hooks.slack.com/services/...",
+      "",
+      "  # Run workflow with detailed task description",
+      "  antfarm workflow run feature-dev \\",
+      "    \"Add password reset functionality with email verification and secure tokens\"",
+      "",
+      "TASK DESCRIPTION TIPS:",
+      "  • Be specific about what you want to accomplish",
+      "  • Include context about existing code or constraints",
+      "  • Mention specific technologies or frameworks if relevant",
+      "  • Use quotes to wrap multi-word descriptions",
+      "",
+      "The workflow will:",
+      "  1. Create a new run with unique ID and number",
+      "  2. Start the workflow agents based on the defined steps",
+      "  3. Agents will claim and execute steps according to the workflow configuration",
+      "  4. You can monitor progress with 'antfarm workflow status <run-id>'",
+      "",
+      "Related commands:",
+      "  antfarm workflow list               # List available workflows",
+      "  antfarm workflow show <name>        # View workflow details before running",
+      "  antfarm workflow status <run-id>    # Check run progress",
+      "  antfarm workflow stop <run-id>      # Cancel a running workflow",
+    ].join("\n") + "\n",
+  );
+}
+
+function printWorkflowExportHelp() {
+  process.stdout.write(
+    [
+      "Export workflow YAML configuration",
+      "",
+      "USAGE:",
+      "  antfarm workflow export <name> [options]",
+      "",
+      "ARGUMENTS:",
+      "  <name>    Workflow ID to export (e.g., feature-dev, bug-fix)",
+      "",
+      "OPTIONS:",
+      "  --output <file>     Save to file instead of stdout",
+      "  --help             Show this help message",
+      "",
+      "EXAMPLES:",
+      "  # Export to stdout (for piping or viewing)",
+      "  antfarm workflow export feature-dev",
+      "",
+      "  # Export to file",
+      "  antfarm workflow export bug-fix --output my-bug-fix.yml",
+      "",
+      "  # Export to nested directory (creates directories automatically)",
+      "  antfarm workflow export security-audit --output backups/workflows/security.yml",
+      "",
+      "  # Export and pipe to another command",
+      "  antfarm workflow export feature-dev | grep -A 5 \"agents:\"",
+      "",
+      "OUTPUT FORMAT:",
+      "  The exported YAML includes complete workflow configuration:",
+      "  • Workflow metadata (id, name, version, description)",
+      "  • Agent definitions with workspace and skill configurations", 
+      "  • Step definitions with dependencies and execution logic",
+      "  • All comments and formatting from the original file are preserved",
+      "",
+      "USE CASES:",
+      "  • Create backups before editing workflows",
+      "  • Share workflow configurations with team members",
+      "  • Template creation - export, modify, and import as new workflow",
+      "  • Version control - track changes to workflow definitions",
+      "  • Debugging - examine complete workflow structure",
+      "",
+      "Related commands:",
+      "  antfarm workflow import <file>      # Import workflow from YAML file",
+      "  antfarm workflow copy <src> <new>   # Copy workflow with new ID",
+      "  antfarm workflow edit <name>        # Edit workflow in your editor",
+    ].join("\n") + "\n",
+  );
+}
+
+function printWorkflowImportHelp() {
+  process.stdout.write(
+    [
+      "Import workflow from YAML file",
+      "",
+      "USAGE:",
+      "  antfarm workflow import <file> [options]",
+      "",
+      "ARGUMENTS:",
+      "  <file>    Path to YAML workflow file",
+      "",
+      "OPTIONS:",
+      "  --overwrite    Replace existing workflow (creates backup first)",
+      "  --help        Show this help message",
+      "",
+      "EXAMPLES:",
+      "  # Import new workflow",
+      "  antfarm workflow import my-workflow.yml",
+      "",
+      "  # Import and overwrite existing workflow (creates backup)",
+      "  antfarm workflow import updated-feature-dev.yml --overwrite",
+      "",
+      "  # Import from URL (using curl)",
+      "  curl -s https://example.com/workflow.yml | antfarm workflow import /dev/stdin",
+      "",
+      "VALIDATION:",
+      "  The import process validates:",
+      "  • YAML syntax is correct",
+      "  • Required fields (id, name, agents, steps) are present",
+      "  • Agent references in steps exist in the agents section",
+      "  • Step configurations are valid (loops, dependencies, etc.)",
+      "  • Workflow ID format follows naming conventions",
+      "",
+      "WORKFLOW STRUCTURE:",
+      "  Required YAML structure:",
+      "    id: my-workflow            # Unique workflow identifier",
+      "    name: My Workflow          # Human-readable name",
+      "    version: 1                 # Version number",
+      "    agents:                    # Agent definitions",
+      "      - id: my-agent",
+      "        role: developer",
+      "        # ... agent configuration",
+      "    steps:                     # Execution steps",
+      "      - id: step1",
+      "        agent: my-agent",
+      "        # ... step configuration",
+      "",
+      "CONFLICT HANDLING:",
+      "  • Without --overwrite: Import fails if workflow ID already exists",
+      "  • With --overwrite: Creates backup of existing workflow before replacement",
+      "  • Bundled workflows cannot be overwritten (read-only protection)",
+      "",
+      "Related commands:",
+      "  antfarm workflow export <name>      # Export workflow to YAML",
+      "  antfarm workflow copy <src> <new>   # Duplicate existing workflow",
+      "  antfarm workflow show <name>        # View workflow configuration",
+    ].join("\n") + "\n",
+  );
+}
+
+function printWorkflowCopyHelp() {
+  process.stdout.write(
+    [
+      "Copy existing workflow with new ID",
+      "",
+      "USAGE:",
+      "  antfarm workflow copy <source> <new-id>",
+      "",
+      "ARGUMENTS:",
+      "  <source>    Source workflow ID to copy from",
+      "  <new-id>    New workflow ID (lowercase letters, numbers, hyphens only)",
+      "",
+      "OPTIONS:",
+      "  --help     Show this help message",
+      "",
+      "EXAMPLES:",
+      "  # Copy feature-dev workflow as my-feature",
+      "  antfarm workflow copy feature-dev my-feature",
+      "",
+      "  # Copy bug-fix workflow with descriptive name",
+      "  antfarm workflow copy bug-fix hotfix-login-issue",
+      "",
+      "  # Copy security workflow for testing",
+      "  antfarm workflow copy security-audit security-test",
+      "",
+      "WORKFLOW ID RULES:",
+      "  • Must contain only lowercase letters, numbers, and hyphens",
+      "  • Cannot start or end with a hyphen",
+      "  • Must be unique (not conflict with existing workflows)",
+      "  • Should be descriptive but concise",
+      "",
+      "WHAT GETS COPIED:",
+      "  • Complete workflow.yml configuration",
+      "  • All agent directories and workspace files",
+      "  • Updated workflow ID and name in copied YAML",
+      "  • Name gets \"(Copy)\" appended automatically",
+      "",
+      "Related commands:",
+      "  antfarm workflow import <file>       # Import from external YAML file",
+      "  antfarm workflow export <name>       # Export workflow to file",
+      "  antfarm workflow edit <name>         # Edit copied workflow",
+      "  antfarm workflow rename <old> <new>  # Rename workflow after copying",
+    ].join("\n") + "\n",
+  );
+}
+
+function printWorkflowEditHelp() {
+  process.stdout.write(
+    [
+      "Edit workflow YAML in your default editor",
+      "",
+      "USAGE:",
+      "  antfarm workflow edit <name>",
+      "",
+      "ARGUMENTS:",
+      "  <name>    Workflow ID to edit",
+      "",
+      "OPTIONS:",
+      "  --help    Show this help message",
+      "",
+      "EXAMPLES:",
+      "  # Edit feature-dev workflow",
+      "  antfarm workflow edit feature-dev",
+      "",
+      "  # Edit bug-fix workflow",
+      "  antfarm workflow edit bug-fix",
+      "",
+      "  # Edit custom workflow",
+      "  antfarm workflow edit my-workflow",
+      "",
+      "EDITOR SELECTION:",
+      "  The command uses your preferred editor in this order:",
+      "  1. $VISUAL environment variable",
+      "  2. $EDITOR environment variable", 
+      "  3. nano (fallback)",
+      "",
+      "SAFETY FEATURES:",
+      "  • Automatic backup created before editing",
+      "  • YAML validation after editing",
+      "  • Backup restored if validation fails",
+      "  • Handles editor cancellation gracefully",
+      "",
+      "VALIDATION:",
+      "  After editing, the workflow is validated for:",
+      "  • YAML syntax correctness",
+      "  • Required fields (id, name, agents, steps)",
+      "  • Agent references in steps",
+      "  • Step configuration validity",
+      "",
+      "TIPS:",
+      "  • Use Ctrl+X, Y, Enter to save and exit in nano",
+      "  • Press Ctrl+C to cancel without saving changes",
+      "  • Validation errors will show specific field issues",
+      "",
+      "Related commands:",
+      "  antfarm workflow show <name>         # View workflow before editing",
+      "  antfarm workflow export <name>       # Export workflow to backup file",
+      "  antfarm workflow copy <src> <new>    # Copy workflow before editing",
+    ].join("\n") + "\n",
+  );
+}
+
+function printWorkflowRenameHelp() {
+  process.stdout.write(
+    [
+      "Rename workflow ID and update internal references",
+      "",
+      "USAGE:",
+      "  antfarm workflow rename <old-id> <new-id>",
+      "",
+      "ARGUMENTS:",
+      "  <old-id>    Current workflow ID",
+      "  <new-id>    New workflow ID (lowercase letters, numbers, hyphens only)",
+      "",
+      "OPTIONS:",
+      "  --help     Show this help message",
+      "",
+      "EXAMPLES:",
+      "  # Rename workflow to be more descriptive",
+      "  antfarm workflow rename feature-dev user-auth-feature",
+      "",
+      "  # Rename after copying for specific project",
+      "  antfarm workflow rename my-feature mobile-app-feature",
+      "",
+      "  # Rename for version-specific workflow",
+      "  antfarm workflow rename bug-fix bug-fix-v2",
+      "",
+      "WHAT GETS UPDATED:",
+      "  • Workflow directory name",
+      "  • Workflow ID in workflow.yml",
+      "  • Agent registrations in OpenClaw config",
+      "  • Database records and references",
+      "  • Associated workspace directories",
+      "  • Agent cron job registrations",
+      "",
+      "SAFETY CHECKS:",
+      "  • Validates new ID format and uniqueness",
+      "  • Blocks rename if workflow has active runs",
+      "  • Updates all internal references atomically",
+      "",
+      "ID FORMAT RULES:",
+      "  • Lowercase letters, numbers, and hyphens only",
+      "  • Cannot start or end with hyphen",
+      "  • Must be unique across all workflows",
+      "  • Keep it descriptive but concise",
+      "",
+      "Related commands:",
+      "  antfarm workflow copy <src> <new>    # Copy with new ID instead",
+      "  antfarm workflow show <name>         # View workflow details",
+      "  antfarm workflow list               # List all workflows",
+    ].join("\n") + "\n",
+  );
+}
+
+function printWorkflowDeleteHelp() {
+  process.stdout.write(
+    [
+      "Delete workflow with automatic backup",
+      "",
+      "USAGE:",
+      "  antfarm workflow delete <name> [options]",
+      "",
+      "ARGUMENTS:",
+      "  <name>    Workflow ID to delete",
+      "",
+      "OPTIONS:",
+      "  --force    Override active run check and force deletion",
+      "  --help     Show this help message",
+      "",
+      "EXAMPLES:",
+      "  # Delete workflow (blocked if runs are active)",
+      "  antfarm workflow delete old-workflow",
+      "",
+      "  # Force delete even with active runs",
+      "  antfarm workflow delete broken-workflow --force",
+      "",
+      "  # Delete custom workflow",
+      "  antfarm workflow delete my-test-workflow",
+      "",
+      "SAFETY FEATURES:",
+      "  • Automatic backup created before deletion",
+      "  • Active run check prevents accidental deletion",
+      "  • --force flag required to override active run protection",
+      "  • Cannot delete bundled workflows (read-only)",
+      "",
+      "WHAT GETS REMOVED:",
+      "  • Workflow directory and all files",
+      "  • Agent cron jobs and registrations",
+      "  • Database records (preserving run history)",
+      "  • Workspace directories",
+      "  • OpenClaw agent configurations",
+      "",
+      "BACKUP INFORMATION:",
+      "  • Backup stored in ~/.openclaw/antfarm/backups/",
+      "  • Backup format: <workflow-id>-<timestamp>",
+      "  • Can be restored manually if needed",
+      "",
+      "WARNING:",
+      "  • Deletion is permanent (except for backup)",
+      "  • Use 'workflow copy' to create safe copies first",
+      "  • Consider 'workflow export' for version control",
+      "",
+      "Related commands:",
+      "  antfarm workflow export <name>       # Create external backup",
+      "  antfarm workflow copy <src> <new>    # Create copy before deletion",
+      "  antfarm workflow status <name>       # Check for active runs",
+    ].join("\n") + "\n",
+  );
+}
+
+function printWorkflowShowHelp() {
+  process.stdout.write(
+    [
+      "Show detailed workflow configuration",
+      "",
+      "USAGE:",
+      "  antfarm workflow show <name>",
+      "",
+      "ARGUMENTS:",
+      "  <name>    Workflow ID to display",
+      "",
+      "OPTIONS:",
+      "  --help    Show this help message",
+      "",
+      "EXAMPLES:",
+      "  # Show feature development workflow",
+      "  antfarm workflow show feature-dev",
+      "",
+      "  # Show bug fix workflow details",
+      "  antfarm workflow show bug-fix",
+      "",
+      "  # Show custom workflow",
+      "  antfarm workflow show my-workflow",
+      "",
+      "INFORMATION DISPLAYED:",
+      "  • Workflow metadata (ID, name, version, status)",
+      "  • Active run count and status",
+      "  • Agent definitions with roles and descriptions",
+      "  • Agent workspace configurations and skills",
+      "  • Step definitions with dependencies",
+      "  • Loop configurations and verification settings",
+      "",
+      "OUTPUT FORMAT:",
+      "  The output is formatted for easy reading with:",
+      "  • Clear section headers",
+      "  • Indented hierarchical information",
+      "  • Truncated long fields for better display",
+      "  • Skills and workspace file summaries",
+      "",
+      "USE CASES:",
+      "  • Review workflow before running",
+      "  • Understand agent roles and capabilities",
+      "  • Check step dependencies and flow",
+      "  • Debug workflow configuration issues",
+      "  • Learn from existing workflow patterns",
+      "",
+      "Related commands:",
+      "  antfarm workflow list               # List all available workflows",
+      "  antfarm workflow edit <name>        # Edit workflow configuration",
+      "  antfarm workflow run <name> <task>  # Start workflow with task",
+      "  antfarm workflow export <name>      # Export for external viewing",
     ].join("\n") + "\n",
   );
 }
@@ -128,6 +645,12 @@ function printUsage() {
 async function main() {
   const args = process.argv.slice(2);
   const [group, action, target] = args;
+
+  // Handle help flags
+  if (!group || group === "help" || group === "--help" || group === "-h") {
+    printUsage();
+    return;
+  }
 
   if (group === "version" || group === "--version" || group === "-v") {
     console.log(`antfarm v${getVersion()}`);
@@ -346,7 +869,7 @@ async function main() {
     }
 
     printUsage();
-    process.exit(1);
+    return;
   }
 
   if (group === "step") {
@@ -399,9 +922,9 @@ async function main() {
       }
       return;
     }
-    process.stderr.write(`Unknown step action: ${action}\n`);
+    process.stderr.write(`Unknown step action: ${action}\n\n`);
     printUsage();
-    process.exit(1);
+    return;
   }
 
   if (group === "logs") {
@@ -436,8 +959,20 @@ async function main() {
     return;
   }
 
-  if (args.length < 2) { printUsage(); process.exit(1); }
-  if (group !== "workflow") { printUsage(); process.exit(1); }
+  // Handle workflow group specifically
+  if (group === "workflow") {
+    // Handle workflow help
+    if (!action || action === "help" || action === "--help" || action === "-h") {
+      printWorkflowUsage();
+      return;
+    }
+    // Continue to workflow command handling below...
+  } else {
+    // For non-workflow commands, require at least 2 args
+    if (args.length < 2) { printUsage(); return; }
+    // Unknown group
+    printUsage(); return;
+  }
 
   if (action === "runs") {
     const runs = listRuns();
@@ -451,16 +986,198 @@ async function main() {
   }
 
   if (action === "list") {
-    const workflows = await listBundledWorkflows();
-    if (workflows.length === 0) { process.stdout.write("No workflows available.\n"); } else {
+    const workflows = await getWorkflowInfoList();
+    if (workflows.length === 0) { 
+      process.stdout.write("No workflows available.\n"); 
+    } else {
       process.stdout.write("Available workflows:\n");
-      for (const w of workflows) process.stdout.write(`  ${w}\n`);
+      process.stdout.write(`${"ID".padEnd(16)} ${"NAME".padEnd(30)} ${"VER".padEnd(4)} ${"RUNS".padEnd(5)} ${"STATUS"}\n`);
+      process.stdout.write("─".repeat(70) + "\n");
+      
+      for (const w of workflows) {
+        const id = w.id.padEnd(16);
+        const name = (w.name.length > 30 ? w.name.slice(0, 27) + "..." : w.name).padEnd(30);
+        const version = w.version.toString().padEnd(4);
+        const runs = w.activeRuns.toString().padEnd(5);
+        const status = w.status;
+        process.stdout.write(`${id} ${name} ${version} ${runs} ${status}\n`);
+      }
+    }
+    return;
+  }
+
+  if (action === "show") {
+    // Handle show help
+    if (!target || target === "--help" || target === "-h") {
+      if (!target) {
+        process.stderr.write("Missing workflow name.\n\n");
+      }
+      printWorkflowShowHelp();
+      return;
+    }
+    
+    try {
+      const details = await getWorkflowDetails(target);
+      const formatted = formatWorkflowDetails(details);
+      process.stdout.write(formatted + "\n");
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (action === "edit") {
+    // Handle edit help
+    if (!target || target === "--help" || target === "-h") {
+      if (!target) {
+        process.stderr.write("Missing workflow name.\n\n");
+      }
+      printWorkflowEditHelp();
+      return;
+    }
+    
+    try {
+      const result = await editWorkflow(target);
+      process.stdout.write(result.message + "\n");
+      
+      if (result.validationErrors && result.validationErrors.length > 0) {
+        process.stderr.write("\nValidation errors:\n");
+        for (const error of result.validationErrors) {
+          process.stderr.write(`  - ${error}\n`);
+        }
+        process.exit(1);
+      }
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (action === "export") {
+    // Handle export help
+    if (!target || target === "--help" || target === "-h") {
+      if (!target) {
+        process.stderr.write("Missing workflow name.\n\n");
+      }
+      printWorkflowExportHelp();
+      return;
+    }
+    
+    // Check for --output flag
+    const outputIdx = args.indexOf("--output");
+    const outputPath = outputIdx !== -1 && args[outputIdx + 1] ? args[outputIdx + 1] : undefined;
+    
+    try {
+      const result = await exportWorkflow(target, outputPath);
+      
+      if (outputPath) {
+        process.stdout.write(`Exported workflow "${result.workflowId}" to ${outputPath} (${result.size} bytes)\n`);
+      } else {
+        process.stdout.write(result.yamlContent);
+      }
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (action === "import") {
+    // Handle import help
+    if (!target || target === "--help" || target === "-h") {
+      if (!target) {
+        process.stderr.write("Missing YAML file path.\n\n");
+      }
+      printWorkflowImportHelp();
+      return;
+    }
+    
+    // Check for --overwrite flag
+    const overwrite = args.includes("--overwrite");
+    
+    try {
+      const result = await importWorkflow(target, overwrite);
+      
+      process.stdout.write(result.message + "\n");
+      process.stdout.write(`Imported from: ${result.importedFrom}\n`);
+      process.stdout.write(`Size: ${(result.size / 1024).toFixed(1)} KB\n`);
+      
+      if (result.backup) {
+        process.stdout.write(`Backup created: ${result.backup.backupPath}\n`);
+      }
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (action === "copy") {
+    // Handle copy help
+    if (!target || target === "--help" || target === "-h") {
+      if (!target) {
+        process.stderr.write("Missing source workflow name.\n\n");
+      }
+      printWorkflowCopyHelp();
+      return;
+    }
+    
+    const newId = args[3]; // Fourth argument is the new ID
+    if (!newId) {
+      process.stderr.write("Missing new workflow ID.\n\n");
+      printWorkflowCopyHelp();
+      return;
+    }
+    
+    try {
+      const result = await copyWorkflow(target, newId);
+      process.stdout.write(result.message + "\n");
+      process.stdout.write(`Source: ${result.sourcePath}\n`);
+      process.stdout.write(`Target: ${result.targetPath}\n`);
+      process.stdout.write(`Size: ${(result.size / 1024).toFixed(1)} KB\n`);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (action === "rename") {
+    // Handle rename help
+    if (!target || target === "--help" || target === "-h") {
+      if (!target) {
+        process.stderr.write("Missing old workflow name.\n\n");
+      }
+      printWorkflowRenameHelp();
+      return;
+    }
+    
+    const newId = args[3]; // Fourth argument is the new ID
+    if (!newId) {
+      process.stderr.write("Missing new workflow ID.\n\n");
+      printWorkflowRenameHelp();
+      return;
+    }
+    
+    try {
+      const result = await renameWorkflow(target, newId);
+      process.stdout.write(result.message + "\n");
+      process.stdout.write(`Renamed from: ${result.oldPath}\n`);
+      process.stdout.write(`Renamed to: ${result.newPath}\n`);
+      if (result.updatedAgents.length > 0) {
+        process.stdout.write(`Updated ${result.updatedAgents.length} agent(s): ${result.updatedAgents.join(", ")}\n`);
+      }
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
     }
     return;
   }
 
   if (action === "stop") {
-    if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+    if (!target) { process.stderr.write("Missing run-id.\n\n"); printWorkflowUsage(); return; }
     const result = await stopWorkflow(target);
     if (result.status === "not_found") { process.stderr.write(result.message + "\n"); process.exit(1); }
     if (result.status === "already_done") { process.stderr.write(result.message + "\n"); process.exit(1); }
@@ -468,7 +1185,70 @@ async function main() {
     return;
   }
 
-  if (!target) { printUsage(); process.exit(1); }
+  // Commands with custom target handling must come BEFORE the general target check
+  if (action === "run") {
+    // Handle run help
+    if (!target || target === "--help" || target === "-h") {
+      if (!target) {
+        process.stderr.write("Missing workflow name and task.\n\n");
+      }
+      printWorkflowRunHelp();
+      return;
+    }
+    
+    // Check if second argument is help flag
+    if (args[3] === "--help" || args[3] === "-h") {
+      printWorkflowRunHelp();
+      return;
+    }
+    
+    let notifyUrl: string | undefined;
+    const runArgs = args.slice(3);
+    const nuIdx = runArgs.indexOf("--notify-url");
+    if (nuIdx !== -1) {
+      notifyUrl = runArgs[nuIdx + 1];
+      runArgs.splice(nuIdx, 2);
+    }
+    const taskTitle = runArgs.join(" ").trim();
+    if (!taskTitle) { 
+      process.stderr.write("Missing task title.\n\n"); 
+      printWorkflowRunHelp(); 
+      return; 
+    }
+    const run = await runWorkflow({ workflowId: target, taskTitle, notifyUrl });
+    process.stdout.write(
+      [`Run: #${run.runNumber} (${run.id})`, `Workflow: ${run.workflowId}`, `Task: ${run.task}`, `Status: ${run.status}`].join("\n") + "\n",
+    );
+    return;
+  }
+
+  if (action === "delete") {
+    // Handle delete help
+    if (!target || target === "--help" || target === "-h") {
+      if (!target) {
+        process.stderr.write("Missing workflow name.\n\n");
+      }
+      printWorkflowDeleteHelp();
+      return;
+    }
+    
+    const force = args.includes("--force");
+    try {
+      const result = await deleteWorkflow(target, force);
+      process.stdout.write(result.message + "\n");
+      if (result.removedAgents.length > 0) {
+        process.stdout.write(`Removed ${result.removedAgents.length} agent(s): ${result.removedAgents.join(", ")}\n`);
+      }
+      process.stdout.write(`Backup size: ${(result.backup.size / 1024).toFixed(1)} KB\n`);
+    } catch (err) {
+      process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+      process.exit(1);
+    }
+    return;
+  }
+
+  // General target check - applies to commands that don't have custom target handling
+  if (!target) { printWorkflowUsage(); return; }
 
   if (action === "install") {
     const result = await installWorkflow({ workflowId: target });
@@ -476,6 +1256,8 @@ async function main() {
     process.stdout.write(`\nStart with: antfarm workflow run ${result.workflowId} "your task"\n`);
     return;
   }
+
+  // Moved delete command to before general target check
 
   if (action === "uninstall") {
     const force = args.includes("--force");
@@ -656,26 +1438,11 @@ async function main() {
     return;
   }
 
-  if (action === "run") {
-    let notifyUrl: string | undefined;
-    const runArgs = args.slice(3);
-    const nuIdx = runArgs.indexOf("--notify-url");
-    if (nuIdx !== -1) {
-      notifyUrl = runArgs[nuIdx + 1];
-      runArgs.splice(nuIdx, 2);
-    }
-    const taskTitle = runArgs.join(" ").trim();
-    if (!taskTitle) { process.stderr.write("Missing task title.\n"); printUsage(); process.exit(1); }
-    const run = await runWorkflow({ workflowId: target, taskTitle, notifyUrl });
-    process.stdout.write(
-      [`Run: #${run.runNumber} (${run.id})`, `Workflow: ${run.workflowId}`, `Task: ${run.task}`, `Status: ${run.status}`].join("\n") + "\n",
-    );
-    return;
-  }
-
-  process.stderr.write(`Unknown action: ${action}\n`);
-  printUsage();
-  process.exit(1);
+  // All command handlers are above this point
+  
+  process.stderr.write(`Unknown action: ${action}\n\n`);
+  printWorkflowUsage();
+  return;
 }
 
 main().catch((err) => {

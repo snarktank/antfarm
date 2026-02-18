@@ -1,10 +1,13 @@
 import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { loadWorkflowSpec } from "./workflow-spec.js";
 import { resolveWorkflowDir } from "./paths.js";
 import { getDb, nextRunNumber } from "../db.js";
 import { logger } from "../lib/logger.js";
 import { ensureWorkflowCrons } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
+import { validateWorkflowYaml } from "./workflow-validation.js";
 
 export async function runWorkflow(params: {
   workflowId: string;
@@ -12,6 +15,19 @@ export async function runWorkflow(params: {
   notifyUrl?: string;
 }): Promise<{ id: string; runNumber: number; workflowId: string; task: string; status: string }> {
   const workflowDir = resolveWorkflowDir(params.workflowId);
+  
+  // Validate workflow YAML before starting execution
+  const workflowYamlPath = path.join(workflowDir, "workflow.yml");
+  const yamlContent = await fs.readFile(workflowYamlPath, "utf-8");
+  const validationResult = validateWorkflowYaml(yamlContent);
+  
+  if (!validationResult.valid) {
+    const errorMessages = validationResult.errors.map(err => 
+      err.field ? `${err.field}: ${err.message}` : err.message
+    );
+    throw new Error(`Cannot start workflow - invalid configuration:\n${errorMessages.join('\n')}`);
+  }
+  
   const workflow = await loadWorkflowSpec(workflowDir);
   const db = getDb();
   const now = new Date().toISOString();
