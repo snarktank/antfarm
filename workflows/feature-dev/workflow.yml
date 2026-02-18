@@ -10,7 +10,7 @@ description: |
   Then integration/E2E testing, PR creation, and code review.
 
 polling:
-  model: default
+  model: sonnet
   timeoutSeconds: 120
 
 agents:
@@ -319,7 +319,11 @@ steps:
       - Description explaining what and why
       - Reference to what was tested
 
-      Use: gh pr create
+      Use:
+      git-pr create --title "<clear title summarizing the change>" --description "<description explaining what/why + test coverage>" --head {{branch}} --base main
+
+      If PR already exists for the branch, return that existing PR URL and treat as success.
+      Do not infer PR URL. Use the exact URL returned by git-pr output.
 
       Reply with:
       STATUS: done
@@ -346,11 +350,11 @@ steps:
       - Test coverage
       - Follows project conventions
 
-      Use: gh pr view, gh pr diff to read the PR.
+      Use: git-pr view, git-pr diff to read the PR.
 
-      IMPORTANT: Post your review to the PR on GitHub using:
-      - If approving: gh pr review <number> --approve --body "your review summary"
-      - If requesting changes: gh pr review <number> --request-changes --body "your feedback"
+      IMPORTANT: Post your review to the PR using provider-agnostic commands:
+      - If approving: git-pr review <number> --approve --body "your review summary"
+      - If requesting changes: git-pr review <number> --request-changes --body "your feedback"
 
       ## Visual Review (Frontend Changes)
       Has frontend changes: {{has_frontend_changes}}

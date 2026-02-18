@@ -9,7 +9,7 @@ description: |
   PR agent creates the pull request.
 
 polling:
-  model: default
+  model: sonnet
   timeoutSeconds: 120
 
 agents:
@@ -286,7 +286,11 @@ steps:
       {{verified}}
       ```
 
-      Use: gh pr create
+      Use:
+      git-pr create --title "fix: brief description of what was fixed" --description "<full PR body above>" --head {{branch}} --base main
+
+      If PR already exists for the branch, return that existing PR URL and treat as success.
+      Do not infer PR URL. Use the exact URL returned by git-pr output.
 
       Reply with:
       STATUS: done

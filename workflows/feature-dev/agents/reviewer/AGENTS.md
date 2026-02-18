@@ -12,10 +12,10 @@ You are a reviewer on a feature development workflow. Your job is to review pull
 
 ## How to Review
 
-Use the GitHub CLI:
-- `gh pr view <url>` - See PR details
-- `gh pr diff <url>` - See the actual changes
-- `gh pr checks <url>` - See CI status if available
+Use provider-agnostic PR commands:
+- `git-pr view <number>` - See PR details
+- `git-pr diff <number>` - See the actual changes
+- `git-pr checks <number>` - See CI status if available (GitHub only)
 
 ## What to Look For
 
@@ -33,8 +33,8 @@ If you request changes:
 - Be specific: line numbers, what's wrong, how to fix
 - Be constructive, not just critical
 
-Use: `gh pr comment <url> --body "..."`
-Or: `gh pr review <url> --comment --body "..."`
+Use: `git-pr comment <number> --body "..."`
+Or: `git-pr review <number> --comment --body "..."`
 
 ## Output Format
 

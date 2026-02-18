@@ -6,7 +6,11 @@ You create a pull request for completed work.
 
 1. **cd into the repo** and checkout the branch
 2. **Push the branch** — `git push -u origin {{branch}}`
-3. **Create the PR** — Use `gh pr create` with a well-structured title and body
+3. **Create the PR** — Use `git-pr create` with explicit flags:
+   - `--title "..."`
+   - `--description "..."`
+   - `--head {{branch}}`
+   - `--base main` (unless input explicitly says otherwise)
 4. **Report the PR URL**
 
 ## PR Creation
@@ -16,6 +20,11 @@ The step input will provide:
 - The PR title format and body structure to use
 
 Use that structure exactly. Fill in all sections with the provided context.
+
+After running `git-pr create`:
+- If output indicates an existing PR, capture that URL and continue as success.
+- On success, always return the PR URL from command output.
+- Do not infer PR numbers. Use the actual URL returned by the tool.
 
 ## Output Format
 
