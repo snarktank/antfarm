@@ -18,7 +18,6 @@ agents:
     name: Planner
     role: analysis
     description: Decomposes tasks into ordered user stories.
-    model: anthropic/claude-opus-4
     workspace:
       baseDir: agents/planner
       files:
@@ -30,7 +29,6 @@ agents:
     name: Setup
     role: coding
     description: Prepares environment, creates branch, establishes baseline.
-    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/setup
       files:
@@ -42,7 +40,6 @@ agents:
     name: Developer
     role: coding
     description: Implements features, writes tests, creates PRs.
-    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/developer
       files:
@@ -54,7 +51,6 @@ agents:
     name: Verifier
     role: verification
     description: Quick sanity check - did developer actually do the work?
-    model: anthropic/claude-sonnet-4-5
     workspace:
       baseDir: agents/verifier
       skills:
@@ -68,7 +64,6 @@ agents:
     name: Tester
     role: testing
     description: Integration and E2E testing after all stories are implemented.
-    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/tester
       files:
@@ -80,7 +75,6 @@ agents:
     name: Reviewer
     role: analysis
     description: Reviews PRs, requests changes or approves.
-    model: anthropic/claude-sonnet-4-5
     workspace:
       baseDir: agents/reviewer
       skills:

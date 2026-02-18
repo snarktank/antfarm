@@ -1,0 +1,151 @@
+id: content-review
+name: Technical Blog Post Review Workflow
+version: 1
+description: |
+  Multi-agent content review pipeline for technical blog posts.
+  Researcher studies existing posts for style/voice patterns.
+  Technical-Reviewer validates technical accuracy against codebase.
+  Editor synthesizes feedback and creates PR with improvements.
+
+  All agents use OpenAI Codex throughout.
+
+polling:
+  model: anthropic/claude-sonnet-4-5
+  timeoutSeconds: 180
+
+agents:
+  - id: researcher
+    name: Style Researcher
+    role: analysis
+    description: Studies existing blog posts to extract style, voice, and technical depth patterns.
+    model: anthropic/claude-sonnet-4-5
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+        SOUL.md: agents/researcher/SOUL.md
+        IDENTITY.md: agents/researcher/IDENTITY.md
+
+  - id: technical-reviewer
+    name: Technical Reviewer
+    role: verification
+    description: Deep-dives codebase to validate technical claims and identify inaccuracies.
+    model: anthropic/claude-sonnet-4-5
+    workspace:
+      baseDir: agents/technical-reviewer
+      files:
+        AGENTS.md: agents/technical-reviewer/AGENTS.md
+        SOUL.md: agents/technical-reviewer/SOUL.md
+        IDENTITY.md: agents/technical-reviewer/IDENTITY.md
+
+  - id: editor
+    name: Editor
+    role: coding
+    description: Drafts improvements based on feedback and creates PR with co-author attribution.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/editor
+      files:
+        AGENTS.md: agents/editor/AGENTS.md
+        SOUL.md: agents/editor/SOUL.md
+        IDENTITY.md: agents/editor/IDENTITY.md
+
+steps:
+  - id: analyze-style
+    agent: researcher
+    input: |
+      Study the existing blog posts in this repository to understand style, voice, and technical patterns.
+
+      REPO: {{repo}}
+      POST_TO_REVIEW: {{post_path}}
+
+      Instructions:
+      1. Clone or navigate to the repo
+      2. Read all posts in /updates/content/ (skip the one being reviewed)
+      3. Extract patterns:
+         - Tone (technical depth, formality, humor)
+         - Structure (intro, body, conclusion patterns)
+         - Technical detail level (code examples, architecture depth)
+         - Vocabulary and phrasing preferences
+         - Common rhetorical devices or storytelling approaches
+      4. Create a style guide summary
+
+      Reply with:
+      STATUS: done
+      STYLE_GUIDE: |
+        <Your findings about voice, tone, structure, technical depth>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: review-technical-accuracy
+    agent: technical-reviewer
+    input: |
+      Review the post for technical accuracy by cross-referencing claims with the codebase.
+
+      REPO: {{repo}}
+      POST_PATH: {{post_path}}
+      STYLE_GUIDE: {{style_guide}}
+
+      Instructions:
+      1. Read the blog post at {{post_path}}
+      2. Identify all technical claims (architecture decisions, API behavior, performance characteristics, etc.)
+      3. Navigate the codebase to verify each claim
+      4. Flag inaccuracies, outdated info, or misleading statements
+      5. Note areas that need more technical depth or examples
+      6. Check if code examples (if any) are correct and runnable
+
+      Reply with:
+      STATUS: done
+      FINDINGS: |
+        <List of issues found, organized by severity>
+        
+        INACCURACIES:
+        - [claim] is incorrect because [codebase evidence]
+        
+        MISSING DEPTH:
+        - [section] could benefit from [specific technical detail from codebase]
+        
+        CODE EXAMPLES:
+        - [example status and suggested fixes]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: draft-improvements
+    agent: editor
+    input: |
+      Draft improvements to the blog post based on style guide and technical review findings.
+
+      REPO: {{repo}}
+      POST_PATH: {{post_path}}
+      AUTHOR: {{author}}
+      STYLE_GUIDE: {{style_guide}}
+      TECHNICAL_FINDINGS: {{findings}}
+
+      Instructions:
+      1. Read the original post
+      2. Apply technical corrections from the review
+      3. Enhance sections flagged as needing more depth
+      4. Ensure voice/tone matches the style guide
+      5. Fix any code examples
+      6. Create a new branch: content-review/{{post_name}}
+      7. Make edits to the post file
+      8. Commit with message: "content: review and improve {{post_name}}"
+      9. Create PR using gh cli with:
+         - Title: "Content review: {{post_title}}"
+         - Body: Summary of changes + technical fixes applied
+         - Co-author trailer: Co-authored-by: Codex <codex@openai.com>
+
+      Reply with:
+      STATUS: done
+      BRANCH: <branch name>
+      PR_URL: <GitHub PR URL>
+      SUMMARY: |
+        <Brief summary of improvements made>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human

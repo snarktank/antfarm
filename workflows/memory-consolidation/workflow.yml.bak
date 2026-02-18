@@ -1,0 +1,200 @@
+id: memory-consolidation
+name: Self-Improvement Memory Consolidation
+version: 1
+description: |
+  Autonomous memory consolidation workflow. Analyzes recent session transcripts,
+  extracts learnings, reorganizes long-term memory, and identifies self-improvement
+  opportunities. Creates PR with updated memory files.
+
+  All agents use OpenAI Codex.
+
+polling:
+  model: openai/gpt-5.2-codex
+  timeoutSeconds: 180
+
+agents:
+  - id: analyst
+    name: Session Analyst
+    role: analysis
+    description: Reads recent session transcripts and extracts key information.
+    model: openai/gpt-5.2-codex
+    workspace:
+      baseDir: agents/analyst
+      files:
+        AGENTS.md: agents/analyst/AGENTS.md
+        SOUL.md: agents/analyst/SOUL.md
+        IDENTITY.md: agents/analyst/IDENTITY.md
+
+  - id: librarian
+    name: Memory Librarian
+    role: coding
+    description: Reorganizes MEMORY.md for searchability and removes stale info.
+    model: openai/gpt-5.2-codex
+    workspace:
+      baseDir: agents/librarian
+      files:
+        AGENTS.md: agents/librarian/AGENTS.md
+        SOUL.md: agents/librarian/SOUL.md
+        IDENTITY.md: agents/librarian/IDENTITY.md
+
+  - id: reflection
+    name: Self-Reflection Agent
+    role: analysis
+    description: Identifies patterns in agent behavior and opportunities for improvement.
+    model: openai/gpt-5.2-codex
+    workspace:
+      baseDir: agents/reflection
+      files:
+        AGENTS.md: agents/reflection/AGENTS.md
+        SOUL.md: agents/reflection/SOUL.md
+        IDENTITY.md: agents/reflection/IDENTITY.md
+
+  - id: updater
+    name: Memory Updater
+    role: coding
+    description: Applies updates to memory files and creates PR.
+    model: openai/gpt-5.2-codex
+    workspace:
+      baseDir: agents/updater
+      files:
+        AGENTS.md: agents/updater/AGENTS.md
+        SOUL.md: agents/updater/SOUL.md
+        IDENTITY.md: agents/updater/IDENTITY.md
+
+steps:
+  - id: analyze-sessions
+    agent: analyst
+    input: |
+      Analyze recent session transcripts to extract learnings and context.
+
+      WORKSPACE: {{workspace}}
+      DAYS_BACK: {{days_back}}
+
+      Instructions:
+      1. Find session transcript files (*.jsonl in workspace or sessions dir)
+      2. Read transcripts from the last {{days_back}} days
+      3. Extract:
+         - New facts about users, projects, or infrastructure
+         - Technical decisions made and their rationale
+         - Unresolved issues or pending work
+         - Tools used and their effectiveness
+         - Patterns in user requests
+      4. Note any recurring themes or context that's mentioned multiple times
+      5. Identify information that contradicts existing MEMORY.md entries
+
+      Reply with:
+      STATUS: done
+      NEW_FACTS: |
+        <List of new facts to add to memory>
+      
+      UPDATED_FACTS: |
+        <Facts that need updating in existing memory>
+      
+      STALE_INFO: |
+        <Info in MEMORY.md that's no longer relevant>
+      
+      PENDING_ITEMS: |
+        <Unresolved issues that need tracking>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: reorganize-memory
+    agent: librarian
+    input: |
+      Reorganize MEMORY.md for better searchability and coherence.
+
+      WORKSPACE: {{workspace}}
+      NEW_FACTS: {{new_facts}}
+      UPDATED_FACTS: {{updated_facts}}
+      STALE_INFO: {{stale_info}}
+
+      Instructions:
+      1. Read current MEMORY.md
+      2. Remove stale information
+      3. Update facts that have changed
+      4. Add new facts in appropriate sections
+      5. Reorganize if sections are getting too large (split, group by theme)
+      6. Ensure consistent formatting
+      7. Add "Last consolidated: [date]" footer
+      8. Create backup: MEMORY.md.bak
+
+      Reply with:
+      STATUS: done
+      CHANGES_MADE: |
+        <Summary of memory reorganization>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: self-reflect
+    agent: reflection
+    input: |
+      Analyze agent behavior patterns and identify improvement opportunities.
+
+      WORKSPACE: {{workspace}}
+      DAYS_BACK: {{days_back}}
+
+      Instructions:
+      1. Read the same session transcripts analyzed earlier
+      2. Focus on agent responses (role: assistant)
+      3. Identify patterns:
+         - Redundant questions (asking for info already in context)
+         - Verbose responses (could be more concise)
+         - Missed opportunities (should have used a tool, didn't)
+         - Tool misuse (inefficient tool choices)
+         - Context gaps (lost track of previous conversation)
+      4. Note positive patterns too (what's working well)
+      5. Compare against SOUL.md and AGENTS.md guidelines
+
+      Reply with:
+      STATUS: done
+      WEAKNESSES: |
+        <Specific patterns that need improvement>
+      
+      STRENGTHS: |
+        <What's working well>
+      
+      RECOMMENDATIONS: |
+        <Concrete suggestions for SOUL.md or AGENTS.md updates>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: apply-updates
+    agent: updater
+    input: |
+      Apply memory updates and create PR with improvements.
+
+      WORKSPACE: {{workspace}}
+      CHANGES_MADE: {{changes_made}}
+      WEAKNESSES: {{weaknesses}}
+      STRENGTHS: {{strengths}}
+      RECOMMENDATIONS: {{recommendations}}
+      PENDING_ITEMS: {{pending_items}}
+
+      Instructions:
+      1. Create branch: memory-consolidation/[date]
+      2. MEMORY.md should already be updated by librarian (verify)
+      3. Create or update SELF_REFLECTION.md with:
+         - Date of analysis
+         - Weaknesses identified
+         - Strengths to maintain
+         - Recommendations for improvement
+      4. If recommendations suggest SOUL.md or AGENTS.md changes, create PROPOSED_UPDATES.md (don't modify directly - needs human approval)
+      5. Commit: "memory: consolidation for [date range]"
+      6. Create PR with summary of changes
+
+      Reply with:
+      STATUS: done
+      BRANCH: <branch name>
+      PR_URL: <GitHub PR URL>
+      SUMMARY: |
+        <What was consolidated and learned>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human

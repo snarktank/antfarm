@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Antfarm Dashboard</title>
+<title>Marlin's Antfarm</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono&display=swap" rel="stylesheet">
@@ -164,6 +164,10 @@ select:focus{outline:none;border-color:#8ECFC0}
 .step-name{font-size:13px;font-weight:500;color:var(--text-primary);flex:1}
 .step-agent{font-size:11px;color:var(--text-secondary);font-family:'Geist Mono',monospace}
 .step-status{font-size:11px;text-transform:uppercase;font-weight:600}
+.step-header{display:flex;align-items:center;gap:8px;padding:10px 12px;flex-wrap:wrap}
+.step-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px 12px;padding:0 12px 10px 44px;font-size:11px;color:var(--text-secondary)}
+.step-meta-item{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.step-meta-item strong{color:var(--text-primary);font-weight:500}
 
 /* ── Badges ────────────────────────────────────────────────────── */
 .badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;text-transform:uppercase}
@@ -173,6 +177,7 @@ select:focus{outline:none;border-color:#8ECFC0}
 .badge-waiting{background:var(--accent-muted);color:var(--text-secondary)}
 .badge-pending{background:var(--accent-muted);color:var(--text-secondary)}
 .badge-blocked{background:var(--accent-orange-faint);color:var(--accent-orange)}
+.badge-stalled{background:var(--accent-orange-subtle);color:var(--accent-orange)}
 
 /* ── Misc ──────────────────────────────────────────────────────── */
 .empty{color:var(--text-secondary);font-size:12px;text-align:center;padding:24px 8px}
@@ -208,7 +213,7 @@ select:focus{outline:none;border-color:#8ECFC0}
 </head>
 <body>
 <header>
-  <h1><span>antfarm</span> dashboard</h1>
+  <h1>Marlin's Antfarm</h1>
   <select id="wf-select"><option value="">Loading...</option></select>
   <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
   <div class="medic-badge" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
@@ -315,6 +320,21 @@ const stepIcons = {done:'✓',running:'●',pending:'○',waiting:'◌',failed:'
 function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // Normalize SQLite datetime('now') format (no T/Z) to proper ISO 8601 UTC
 function parseTS(ts) { if (!ts) return null; if (!ts.endsWith('Z') && !ts.includes('+')) ts = ts.replace(' ', 'T') + 'Z'; return new Date(ts); }
+function formatTimestamp(ts) { const d = parseTS(ts); return d ? d.toLocaleString() : '—'; }
+function formatIdle(updatedAt) {
+  const d = parseTS(updatedAt);
+  if (!d) return { label: '—', minutes: 0 };
+  const ms = Math.max(0, Date.now() - d.getTime());
+  const mins = Math.floor(ms / 60000);
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  if (hours > 0) return { label: `${hours}h ${remMins}m`, minutes: mins };
+  return { label: `${mins}m`, minutes: mins };
+}
+function clipText(s, max = 320) {
+  if (!s) return '';
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
 
 async function openRun(id) {
   const run = await fetchJSON(`/api/runs/${id}`);
@@ -324,18 +344,30 @@ async function openRun(id) {
   const stepsHTML = (run.steps || []).map(s => {
     const st = s.status || 'waiting';
     const icon = stepIcons[st] || '○';
-    const hasOutput = !!s.output;
-    const toggleAttr = hasOutput ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" style="cursor:pointer"` : '';
+    const idle = formatIdle(s.updated_at);
+    const stalled = idle.minutes > 10;
+    const outputSnippet = clipText(s.output || '');
+    const hasDetails = Boolean(s.last_error || outputSnippet);
+    const toggleAttr = hasDetails ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" style="cursor:pointer"` : '';
     return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
+      <div class="step-header">
         <div class="step-icon ${st}">${icon}</div>
         <div class="step-name" style="flex:1">${s.step_id}</div>
         <div class="step-agent">${s.agent_id || ''}</div>
         <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
-        ${hasOutput ? '<span class="step-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
+        ${stalled ? '<div class="step-status"><span class="badge badge-stalled">stalled</span></div>' : ''}
+        ${hasDetails ? '<span class="step-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
       </div>
-      ${hasOutput ? `<div class="step-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6">
-        <details style="margin-top:4px" onclick="event.stopPropagation()"><summary style="font-size:11px;color:var(--text-secondary);cursor:pointer;font-weight:500">Output</summary><pre style="margin-top:6px;padding:8px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto">${esc(s.output)}</pre></details>
+      <div class="step-meta">
+        <div class="step-meta-item"><strong>claimed_at:</strong> ${formatTimestamp(s.claimed_at)}</div>
+        <div class="step-meta-item"><strong>updated_at:</strong> ${formatTimestamp(s.updated_at)}</div>
+        <div class="step-meta-item"><strong>retry_count:</strong> ${s.retry_count ?? 0}</div>
+        <div class="step-meta-item"><strong>model:</strong> ${esc(s.model_used || '—')}</div>
+        <div class="step-meta-item"><strong>idle:</strong> ${idle.label}</div>
+      </div>
+      ${hasDetails ? `<div class="step-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6">
+        <div style="margin-bottom:8px"><div style="font-size:11px;color:var(--text-secondary);font-weight:500">Last error</div><pre style="margin-top:4px;padding:8px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:180px;overflow-y:auto">${esc(s.last_error || '—')}</pre></div>
+        <div><div style="font-size:11px;color:var(--text-secondary);font-weight:500">Last output snippet</div><pre style="margin-top:4px;padding:8px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow-y:auto">${esc(outputSnippet || '—')}</pre></div>
       </div>` : ''}
     </div>`;
   }).join('');

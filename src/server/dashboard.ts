@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 interface WorkflowDef {
   id: string;
   name: string;
-  steps: Array<{ id: string; agent: string }>;
+  steps: Array<{ id: string; agent: string; model?: string }>;
 }
 
 function loadWorkflows(): WorkflowDef[] {
@@ -27,14 +27,33 @@ function loadWorkflows(): WorkflowDef[] {
       const ymlPath = path.join(dir, entry.name, "workflow.yml");
       if (!fs.existsSync(ymlPath)) continue;
       const parsed = YAML.parse(fs.readFileSync(ymlPath, "utf-8"));
+      const agentModels = new Map<string, string | undefined>(
+        (parsed.agents ?? []).map((a: any) => [String(a.id), typeof a.model === "string" ? a.model : undefined])
+      );
       results.push({
         id: parsed.id ?? entry.name,
         name: parsed.name ?? entry.name,
-        steps: (parsed.steps ?? []).map((s: any) => ({ id: s.id, agent: s.agent })),
+        steps: (parsed.steps ?? []).map((s: any) => ({
+          id: s.id,
+          agent: s.agent,
+          model: agentModels.get(String(s.agent)),
+        })),
       });
     }
   } catch { /* empty */ }
   return results;
+}
+
+function buildStepModelMap(workflowId: string): Map<string, string | undefined> {
+  const wf = loadWorkflows().find((w) => w.id === workflowId);
+  return new Map((wf?.steps ?? []).map((s) => [s.id, s.model]));
+}
+
+function attachStepModels(steps: StepInfo[], modelByStepId: Map<string, string | undefined>): StepInfo[] {
+  return steps.map((s) => ({
+    ...s,
+    model_used: s.model_used ?? modelByStepId.get(s.step_id) ?? null,
+  }));
 }
 
 function getRuns(workflowId?: string): Array<RunInfo & { steps: StepInfo[] }> {
@@ -42,9 +61,15 @@ function getRuns(workflowId?: string): Array<RunInfo & { steps: StepInfo[] }> {
   const runs = workflowId
     ? db.prepare("SELECT * FROM runs WHERE workflow_id = ? ORDER BY created_at DESC").all(workflowId) as RunInfo[]
     : db.prepare("SELECT * FROM runs ORDER BY created_at DESC").all() as RunInfo[];
+
+  const modelByWorkflow = new Map<string, Map<string, string | undefined>>();
   return runs.map((r) => {
+    if (!modelByWorkflow.has(r.workflow_id)) {
+      modelByWorkflow.set(r.workflow_id, buildStepModelMap(r.workflow_id));
+    }
+    const modelByStepId = modelByWorkflow.get(r.workflow_id)!;
     const steps = db.prepare("SELECT * FROM steps WHERE run_id = ? ORDER BY step_index ASC").all(r.id) as StepInfo[];
-    return { ...r, steps };
+    return { ...r, steps: attachStepModels(steps, modelByStepId) };
   });
 }
 
@@ -52,8 +77,9 @@ function getRunById(id: string): (RunInfo & { steps: StepInfo[] }) | null {
   const db = getDb();
   const run = db.prepare("SELECT * FROM runs WHERE id = ?").get(id) as RunInfo | undefined;
   if (!run) return null;
+  const modelByStepId = buildStepModelMap(run.workflow_id);
   const steps = db.prepare("SELECT * FROM steps WHERE run_id = ? ORDER BY step_index ASC").all(run.id) as StepInfo[];
-  return { ...run, steps };
+  return { ...run, steps: attachStepModels(steps, modelByStepId) };
 }
 
 function json(res: http.ServerResponse, data: unknown, status = 200) {
