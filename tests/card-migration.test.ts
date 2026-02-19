@@ -132,7 +132,7 @@ describe("Card component migration", () => {
     });
 
     it("should preserve badge and timestamp structure", () => {
-      assert.match(srcHTML, /<span class="badge \$\{badge\}">\$\{run\.status\}<\/span>/);
+      assert.match(srcHTML, /<span class="\$\{badgeInfo\.classes\}" style="\$\{badgeInfo\.style\}">\$\{run\.status\}<\/span>/);
       assert.match(srcHTML, /<span>\$\{time\}<\/span>/);
     });
   });
@@ -170,7 +170,7 @@ describe("Card component migration", () => {
     });
 
     it("should preserve badge rendering", () => {
-      assert.match(srcHTML, /const badge = `badge-\$\{run\.status\}`;/);
+      assert.match(srcHTML, /const badgeInfo = getBadgeClasses\(run\.status\)/);
     });
 
     it("should preserve timestamp rendering", () => {

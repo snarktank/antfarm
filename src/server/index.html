@@ -156,13 +156,7 @@ select:focus{border-color:#8ECFC0}
 .step-status{font-size:11px;text-transform:uppercase;font-weight:600}
 
 /* ── Badges ────────────────────────────────────────────────────── */
-.badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;text-transform:uppercase}
-.badge-running{background:var(--accent-teal-subtle);color:var(--accent-teal)}
-.badge-done,.badge-completed{background:var(--accent-green-subtle);color:var(--accent-green)}
-.badge-failed,.badge-error{background:var(--accent-orange-subtle);color:var(--accent-orange)}
-.badge-waiting{background:var(--accent-muted);color:var(--text-secondary)}
-.badge-pending{background:var(--accent-muted);color:var(--text-secondary)}
-.badge-blocked{background:var(--accent-orange-faint);color:var(--accent-orange)}
+/* Badge styling migrated to Tailwind classes */
 
 /* ── Misc ──────────────────────────────────────────────────────── */
 .empty{color:var(--text-secondary);font-size:12px;text-align:center;padding:24px 8px}
@@ -219,6 +213,26 @@ select:focus{border-color:#8ECFC0}
 const API = '';
 let workflows = [];
 let currentWf = null;
+
+// Badge helper - returns Tailwind classes and inline styles for status badges
+function getBadgeClasses(status) {
+  const baseClasses = 'text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase';
+  const statusMap = {
+    'running': { bg: 'var(--accent-teal-subtle)', color: 'var(--accent-teal)' },
+    'done': { bg: 'var(--accent-green-subtle)', color: 'var(--accent-green)' },
+    'completed': { bg: 'var(--accent-green-subtle)', color: 'var(--accent-green)' },
+    'failed': { bg: 'var(--accent-orange-subtle)', color: 'var(--accent-orange)' },
+    'error': { bg: 'var(--accent-orange-subtle)', color: 'var(--accent-orange)' },
+    'waiting': { bg: 'var(--accent-muted)', color: 'var(--text-secondary)' },
+    'pending': { bg: 'var(--accent-muted)', color: 'var(--text-secondary)' },
+    'blocked': { bg: 'var(--accent-orange-faint)', color: 'var(--accent-orange)' }
+  };
+  const colors = statusMap[status] || statusMap['pending'];
+  return {
+    classes: baseClasses,
+    style: `background:${colors.bg};color:${colors.color}`
+  };
+}
 
 async function fetchJSON(url) {
   const r = await fetch(API + url);
@@ -281,14 +295,14 @@ function renderBoard(wf, runs) {
       : cards.map(run => {
           const isDone = run.status === 'done';
           const isFailed = run.status === 'failed' || run.status === 'error';
-          const badge = `badge-${run.status}`;
+          const badgeInfo = getBadgeClasses(run.status);
           const time = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || "" : '';
           const title = run.task.length > 60 ? run.task.slice(0, 57) + '…' : run.task;
           const borderLeft = isDone ? 'border-l-[3px] border-l-[var(--accent-green)]' : isFailed ? 'border-l-[3px] border-l-[var(--accent-orange)]' : '';
           return `<div class="rounded-md border p-3 cursor-pointer transition-all duration-150 hover:shadow-lg ${borderLeft}" style="background:var(--bg-surface-alt);border-color:var(--border)" onclick="openRun('${run.id}')" onmouseenter="this.style.borderColor='var(--accent-orange)'" onmouseleave="this.style.borderColor='var(--border)'">
             <div class="text-[13px] font-medium mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap" style="color:var(--text-primary)" title="${run.task.replace(/"/g, '&quot;')}">${title}</div>
             <div class="text-[11px] flex justify-between items-center" style="color:var(--text-secondary)">
-              <span class="badge ${badge}">${run.status}</span>
+              <span class="${badgeInfo.classes}" style="${badgeInfo.style}">${run.status}</span>
               <span>${time}</span>
             </div>
           </div>`;
@@ -313,6 +327,7 @@ async function openRun(id) {
   const stepsHTML = (run.steps || []).map(s => {
     const st = s.status || 'waiting';
     const icon = stepIcons[st] || '○';
+    const badgeInfo = getBadgeClasses(st);
     const hasOutput = !!s.output;
     const toggleAttr = hasOutput ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" style="cursor:pointer"` : '';
     return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
@@ -320,7 +335,7 @@ async function openRun(id) {
         <div class="step-icon ${st}">${icon}</div>
         <div class="step-name" style="flex:1">${s.step_id}</div>
         <div class="step-agent">${s.agent_id || ''}</div>
-        <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
+        <div class="step-status"><span class="${badgeInfo.classes}" style="${badgeInfo.style}">${st}</span></div>
         ${hasOutput ? '<span class="step-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
       </div>
       ${hasOutput ? `<div class="step-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6">
@@ -328,12 +343,13 @@ async function openRun(id) {
       </div>` : ''}
     </div>`;
   }).join('');
+  const runBadgeInfo = getBadgeClasses(run.status);
   panel.innerHTML = `
     <button class="panel-close" onclick="closePanel()">✕</button>
     <h2>${run.workflow_id}</h2>
     <div class="panel-task">${esc(run.task)}</div>
     <div class="panel-meta">
-      <span><span class="badge badge-${run.status}">${run.status}</span></span>
+      <span><span class="${runBadgeInfo.classes}" style="${runBadgeInfo.style}">${run.status}</span></span>
       <span>Created: ${created}</span>
       <span>Updated: ${updated}</span>
     </div>
@@ -418,6 +434,7 @@ async function loadStories(runId) {
         ${stories.map((s, i) => {
           const st = s.status || 'pending';
           const icon = stepIcons[st] || '○';
+          const badgeInfo = getBadgeClasses(st);
           let ac = [];
           try { ac = JSON.parse(s.acceptance_criteria || '[]'); } catch { ac = [s.acceptance_criteria]; }
           const retryInfo = s.retry_count > 0 ? ` <span style="color:var(--accent-orange);font-size:10px">(retry ${s.retry_count})</span>` : '';
@@ -427,7 +444,7 @@ async function loadStories(runId) {
             <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
               <div class="step-icon ${st}">${icon}</div>
               <div class="step-name" style="flex:1">${s.story_id}: ${s.title}${retryInfo}</div>
-              <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
+              <div class="step-status"><span class="${badgeInfo.classes}" style="${badgeInfo.style}">${st}</span></div>
               ${hasDetails ? '<span class="story-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
             </div>
             ${hasDetails ? `<div class="story-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6">
