@@ -6,6 +6,7 @@ Started: 2026-02-20 00:24 CST
 ## Codebase Patterns
 - `src/db.ts` uses in-place idempotent migrations: create base tables with `CREATE TABLE IF NOT EXISTS`, then add newly introduced columns by probing `PRAGMA table_info(...)` and applying guarded `ALTER TABLE ... ADD COLUMN`.
 - DB migration tests should isolate `os.homedir()` by setting `process.env.HOME` and importing `dist/db.js` dynamically with a cache-busting query string.
+- Structured planner payloads in step output are parsed as multi-line `KEY_JSON:` blocks up to the next `KEY:` boundary (see `collectJsonBlock` in `src/installer/step-ops.ts`).
 
 ---
 
@@ -19,4 +20,18 @@ Started: 2026-02-20 00:24 CST
   - migration idempotency check via repeated open
 - Files changed: `src/db.ts`, `tests/db-scope-freeze-migration.test.ts`
 - **Learnings:** using per-test temporary HOME + dynamic module import is a reliable way to test DB migration behavior tied to `os.homedir()` constants.
+---
+
+## 2026-02-20 00:40 CST - US-002: Persist planner-defined scope baseline after plan completion
+- Extended planner output parsing in `src/installer/step-ops.ts` to parse `SCOPE_JSON` alongside `STORIES_JSON` via shared `collectJsonBlock` logic.
+- Added scope normalization and persistence pipeline:
+  - accepts object payloads of array fields (e.g. `in_scope`, `out_of_scope`) and array payloads of typed items
+  - validates malformed/invalid entries with deterministic error messages
+  - persists deduplicated rows to `run_scope_items` at `scope_version = 1`
+  - marks run scope metadata as `scope_status = 'draft'` and `scope_version = 1`
+- Updated key-value output parser to skip `SCOPE_JSON` so structured payload stays on the dedicated parsing path.
+- Added tests in `tests/planner-scope-baseline-persistence.test.ts` for valid persistence and malformed parse failure.
+- Extended `tests/multiline-output-parsing.test.ts` to assert both `STORIES_JSON` and `SCOPE_JSON` are excluded from generic key-value parsing.
+- Files changed: `src/installer/step-ops.ts`, `tests/planner-scope-baseline-persistence.test.ts`, `tests/multiline-output-parsing.test.ts`
+- **Learnings:** for modules that bind DB path from `os.homedir()` at import time, keep one HOME per test file (or reload module graph) to avoid cross-test DB-path drift.
 ---

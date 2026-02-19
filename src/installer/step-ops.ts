@@ -15,7 +15,7 @@ import { isFrontendChange } from "../lib/frontend-detect.js";
  * Parse KEY: value lines from step output with support for multi-line values.
  * Accumulates continuation lines until the next KEY: boundary or end of output.
  * Returns a map of lowercase keys to their (trimmed) values.
- * Skips STORIES_JSON keys (handled separately).
+ * Skips STORIES_JSON and SCOPE_JSON keys (handled separately).
  */
 export function parseOutputKeyValues(output: string): Record<string, string> {
   const result: Record<string, string> = {};
@@ -24,7 +24,7 @@ export function parseOutputKeyValues(output: string): Record<string, string> {
   let pendingValue = "";
 
   function commitPending() {
-    if (pendingKey && !pendingKey.startsWith("STORIES_JSON")) {
+    if (pendingKey && !pendingKey.startsWith("STORIES_JSON") && !pendingKey.startsWith("SCOPE_JSON")) {
       result[pendingKey.toLowerCase()] = pendingValue.trim();
     }
     pendingKey = null;
@@ -188,20 +188,25 @@ function formatCompletedStories(stories: Story[]): string {
 /**
  * Parse STORIES_JSON from step output and insert stories into the DB.
  */
-function parseAndInsertStories(output: string, runId: string): void {
+function collectJsonBlock(output: string, key: "STORIES_JSON" | "SCOPE_JSON"): string | null {
   const lines = output.split("\n");
-  const startIdx = lines.findIndex(l => l.startsWith("STORIES_JSON:"));
-  if (startIdx === -1) return;
+  const startIdx = lines.findIndex(l => l.startsWith(`${key}:`));
+  if (startIdx === -1) return null;
 
-  // Collect JSON text: first line after prefix, then subsequent lines until next KEY: or end
-  const firstLine = lines[startIdx].slice("STORIES_JSON:".length).trim();
+  const firstLine = lines[startIdx].slice(`${key}:`.length).trim();
   const jsonLines = [firstLine];
   for (let i = startIdx + 1; i < lines.length; i++) {
     if (/^[A-Z_]+:\s/.test(lines[i])) break;
     jsonLines.push(lines[i]);
   }
 
-  const jsonText = jsonLines.join("\n").trim();
+  return jsonLines.join("\n").trim();
+}
+
+function parseAndInsertStories(output: string, runId: string): void {
+  const jsonText = collectJsonBlock(output, "STORIES_JSON");
+  if (!jsonText) return;
+
   let stories: any[];
   try {
     stories = JSON.parse(jsonText);
@@ -235,6 +240,85 @@ function parseAndInsertStories(output: string, runId: string): void {
     }
     seenIds.add(s.id);
     insert.run(crypto.randomUUID(), runId, i, s.id, s.title, s.description, JSON.stringify(ac), now, now);
+  }
+}
+
+function normalizeScopeItems(payload: unknown): Array<{ item_type: string; item_value: string }> {
+  if (Array.isArray(payload)) {
+    return payload.map((entry, idx) => {
+      if (typeof entry === "string") {
+        const value = entry.trim();
+        if (!value) throw new Error(`SCOPE_JSON item at index ${idx} is empty`);
+        return { item_type: "item", item_value: value };
+      }
+      if (entry && typeof entry === "object") {
+        const row = entry as Record<string, unknown>;
+        const itemTypeRaw = row["type"] ?? row["item_type"];
+        const itemValueRaw = row["value"] ?? row["item_value"];
+        if (typeof itemTypeRaw !== "string" || !itemTypeRaw.trim() || typeof itemValueRaw !== "string" || !itemValueRaw.trim()) {
+          throw new Error(`SCOPE_JSON item at index ${idx} must include non-empty type and value`);
+        }
+        return { item_type: itemTypeRaw.trim(), item_value: itemValueRaw.trim() };
+      }
+      throw new Error(`SCOPE_JSON item at index ${idx} must be a string or object`);
+    });
+  }
+
+  if (!payload || typeof payload !== "object") {
+    throw new Error("SCOPE_JSON must be an object or an array");
+  }
+
+  const rows: Array<{ item_type: string; item_value: string }> = [];
+  for (const [itemType, rawValues] of Object.entries(payload as Record<string, unknown>)) {
+    if (!Array.isArray(rawValues)) {
+      throw new Error(`SCOPE_JSON field "${itemType}" must be an array`);
+    }
+    for (let i = 0; i < rawValues.length; i++) {
+      const raw = rawValues[i];
+      if (typeof raw !== "string" || !raw.trim()) {
+        throw new Error(`SCOPE_JSON field "${itemType}" has invalid value at index ${i}`);
+      }
+      rows.push({ item_type: itemType, item_value: raw.trim() });
+    }
+  }
+  return rows;
+}
+
+function parseAndPersistScopeBaseline(output: string, runId: string): void {
+  const jsonText = collectJsonBlock(output, "SCOPE_JSON");
+  if (!jsonText) return;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch (e) {
+    throw new Error(`Failed to parse SCOPE_JSON: ${(e as Error).message}`);
+  }
+
+  const normalized = normalizeScopeItems(parsed);
+  const deduped = new Map<string, { item_type: string; item_value: string }>();
+  for (const item of normalized) {
+    deduped.set(`${item.item_type}\u0000${item.item_value}`, item);
+  }
+
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.exec("BEGIN");
+  try {
+    db.prepare("DELETE FROM run_scope_items WHERE run_id = ? AND scope_version = 1").run(runId);
+    const insert = db.prepare(
+      "INSERT INTO run_scope_items (run_id, scope_version, item_type, item_value, created_at) VALUES (?, 1, ?, ?, ?)"
+    );
+    for (const item of deduped.values()) {
+      insert.run(runId, item.item_type, item.item_value, now);
+    }
+    db.prepare(
+      "UPDATE runs SET scope_status = 'draft', scope_version = 1, updated_at = datetime('now') WHERE id = ?"
+    ).run(runId);
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
   }
 }
 
@@ -603,8 +687,9 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
     "UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?"
   ).run(JSON.stringify(context), step.run_id);
 
-  // T5: Parse STORIES_JSON from output (any step, typically the planner)
+  // Parse planner JSON blocks (typically from planner step output)
   parseAndInsertStories(output, step.run_id);
+  parseAndPersistScopeBaseline(output, step.run_id);
 
   // T7: Loop step completion
   if (step.type === "loop" && step.current_story_id) {

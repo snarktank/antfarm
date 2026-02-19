@@ -103,12 +103,18 @@ describe("parseOutputKeyValues — multi-line output parsing", () => {
     assert.ok(data.includes('"name": "b"'), "should include continuation of JSON");
   });
 
-  it("skips STORIES_JSON keys", () => {
-    const output = 'STATUS: done\nSTORIES_JSON: [{"id": "s1"}]\nCOUNT: 1';
+  it("skips STORIES_JSON and SCOPE_JSON keys", () => {
+    const output = [
+      'STATUS: done',
+      'STORIES_JSON: [{"id": "s1"}]',
+      'SCOPE_JSON: {"in_scope": ["src/**"]}',
+      'COUNT: 1',
+    ].join("\n");
     const result = parseOutputKeyValues(output);
     assert.equal(result["status"], "done");
     assert.equal(result["count"], "1");
     assert.equal(result["stories_json"], undefined, "STORIES_JSON should be skipped");
+    assert.equal(result["scope_json"], undefined, "SCOPE_JSON should be skipped");
   });
 
   it("handles empty output", () => {
