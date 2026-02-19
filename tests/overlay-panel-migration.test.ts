@@ -152,8 +152,8 @@ describe('US-006: Overlay and Panel Container Migration', () => {
       assert.match(html, /\.overlay\.open\{opacity:1;pointer-events:auto\}/);
     });
 
-    it('should have migration comment', () => {
-      assert.match(html, /\/\* Overlay and panel container migrated to Tailwind classes \*\//);
+    it('should have migration comment (updated in US-007)', () => {
+      assert.match(html, /\/\* Overlay, panel container, panel header, and close button migrated to Tailwind classes \*\//);
     });
   });
 
@@ -176,20 +176,12 @@ describe('US-006: Overlay and Panel Container Migration', () => {
       assert.match(html, /document\.getElementById\('overlay'\)\.classList\.add\('open'\)/);
     });
 
-    it('should preserve panel-close button CSS (not in this story scope)', () => {
-      assert.match(html, /\.panel-close\{/);
-    });
-
-    it('should preserve panel h2 CSS (not in this story scope)', () => {
-      assert.match(html, /\.panel h2\{/);
-    });
-
-    it('should preserve panel-task CSS (not in this story scope)', () => {
-      assert.match(html, /\.panel-task\{/);
-    });
-
-    it('should preserve panel-meta CSS (not in this story scope)', () => {
-      assert.match(html, /\.panel-meta\{/);
+    it('should note that panel header CSS was migrated in US-007', () => {
+      // Panel header, close button, task, and meta CSS migrated to Tailwind in US-007
+      assert.ok(!html.includes('.panel-close{'), 'panel-close CSS migrated to Tailwind');
+      assert.ok(!html.includes('.panel h2{'), 'panel h2 CSS migrated to Tailwind');
+      assert.ok(!html.includes('.panel-task{'), 'panel-task CSS migrated to Tailwind');
+      assert.ok(!html.includes('.panel-meta{'), 'panel-meta CSS migrated to Tailwind');
     });
   });
 

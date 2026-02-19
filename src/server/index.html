@@ -132,14 +132,8 @@ select:focus{border-color:#8ECFC0}
 /* Card styling migrated to Tailwind classes */
 
 /* ── Overlay / Panel ───────────────────────────────────────────── */
-/* Overlay and panel container migrated to Tailwind classes */
+/* Overlay, panel container, panel header, and close button migrated to Tailwind classes */
 .overlay.open{opacity:1;pointer-events:auto}
-.panel-close{position:absolute;top:12px;right:16px;background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px}
-.panel-close:hover{color:var(--text-primary);background:var(--bg-column-header)}
-.panel h2{font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:4px;padding-right:40px}
-.panel-task{font-size:13px;color:var(--text-secondary);margin-bottom:16px;white-space:pre-wrap;word-break:break-word;max-height:120px;overflow-y:auto;line-height:1.5}
-.panel-meta{display:flex;gap:12px;margin-bottom:20px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap}
-.panel-meta span{display:flex;align-items:center;gap:4px}
 
 /* ── Steps ─────────────────────────────────────────────────────── */
 .steps-list{display:flex;flex-direction:column;gap:8px}
@@ -344,13 +338,13 @@ async function openRun(id) {
   }).join('');
   const runBadgeInfo = getBadgeClasses(run.status);
   panel.innerHTML = `
-    <button class="panel-close" onclick="closePanel()">✕</button>
-    <h2>${run.workflow_id}</h2>
-    <div class="panel-task">${esc(run.task)}</div>
-    <div class="panel-meta">
-      <span><span class="${runBadgeInfo.classes}" style="${runBadgeInfo.style}">${run.status}</span></span>
-      <span>Created: ${created}</span>
-      <span>Updated: ${updated}</span>
+    <button class="absolute top-3 right-4 bg-transparent border-none text-xl cursor-pointer px-2 py-1 rounded hover:bg-opacity-100 transition-colors" style="color:var(--text-secondary)" onmouseenter="this.style.color='var(--text-primary)';this.style.background='var(--bg-column-header)'" onmouseleave="this.style.color='var(--text-secondary)';this.style.background='transparent'" onclick="closePanel()">✕</button>
+    <h2 class="text-base font-semibold mb-1 pr-10" style="color:var(--text-primary)">${run.workflow_id}</h2>
+    <div class="text-[13px] mb-4 whitespace-pre-wrap break-words max-h-[120px] overflow-y-auto leading-normal" style="color:var(--text-secondary)">${esc(run.task)}</div>
+    <div class="flex gap-3 mb-5 text-xs flex-wrap" style="color:var(--text-secondary)">
+      <span class="flex items-center gap-1"><span class="${runBadgeInfo.classes}" style="${runBadgeInfo.style}">${run.status}</span></span>
+      <span class="flex items-center gap-1">Created: ${created}</span>
+      <span class="flex items-center gap-1">Updated: ${updated}</span>
     </div>
     <div class="steps-list">${stepsHTML}</div>
     <div id="stories-panel"></div>

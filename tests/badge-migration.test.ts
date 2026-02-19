@@ -110,7 +110,7 @@ describe('Badge Migration - Tailwind CSS', () => {
     });
 
     it('panel badge uses Tailwind classes from runBadgeInfo', () => {
-      assert(srcHTML.match(/<span><span class="\$\{runBadgeInfo\.classes\}"/), 'Panel badge should use runBadgeInfo.classes');
+      assert(srcHTML.match(/<span class="flex items-center gap-1"><span class="\$\{runBadgeInfo\.classes\}"/), 'Panel badge should use runBadgeInfo.classes');
     });
 
     it('panel badge uses inline styles from runBadgeInfo', () => {
