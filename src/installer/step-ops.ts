@@ -322,6 +322,118 @@ function parseAndPersistScopeBaseline(output: string, runId: string): void {
   }
 }
 
+export class ScopeFreezeError extends Error {
+  readonly code: "SCOPE_ALREADY_FROZEN" | "SCOPE_VERSION_BUMP_REQUIRED" | "RUN_NOT_FOUND";
+
+  constructor(code: "SCOPE_ALREADY_FROZEN" | "SCOPE_VERSION_BUMP_REQUIRED" | "RUN_NOT_FOUND", message: string) {
+    super(message);
+    this.name = "ScopeFreezeError";
+    this.code = code;
+  }
+}
+
+export interface FreezeScopeOptions {
+  nextVersion?: number;
+}
+
+export interface RunScopeSnapshot {
+  runId: string;
+  status: string;
+  scopeVersion: number;
+  scopeFrozenAt: string | null;
+  items: Array<{ itemType: string; itemValue: string }>;
+}
+
+export function readRunScope(runId: string): RunScopeSnapshot {
+  const db = getDb();
+  const run = db.prepare(
+    "SELECT id, scope_status, scope_version, scope_frozen_at FROM runs WHERE id = ?"
+  ).get(runId) as { id: string; scope_status: string; scope_version: number; scope_frozen_at: string | null } | undefined;
+
+  if (!run) {
+    throw new ScopeFreezeError("RUN_NOT_FOUND", `Run not found: ${runId}`);
+  }
+
+  const items = db.prepare(
+    "SELECT item_type, item_value FROM run_scope_items WHERE run_id = ? AND scope_version = ? ORDER BY item_type, item_value"
+  ).all(runId, run.scope_version) as Array<{ item_type: string; item_value: string }>;
+
+  return {
+    runId,
+    status: run.scope_status,
+    scopeVersion: run.scope_version,
+    scopeFrozenAt: run.scope_frozen_at,
+    items: items.map((item) => ({ itemType: item.item_type, itemValue: item.item_value })),
+  };
+}
+
+export function freezeRunScope(runId: string, options: FreezeScopeOptions = {}): RunScopeSnapshot {
+  const db = getDb();
+  const run = db.prepare(
+    "SELECT id, workflow_id, scope_status, scope_version FROM runs WHERE id = ?"
+  ).get(runId) as { id: string; workflow_id: string; scope_status: string; scope_version: number } | undefined;
+
+  if (!run) {
+    throw new ScopeFreezeError("RUN_NOT_FOUND", `Run not found: ${runId}`);
+  }
+
+  const currentVersion = run.scope_version;
+  if (run.scope_status === "frozen") {
+    if (options.nextVersion == null) {
+      throw new ScopeFreezeError(
+        "SCOPE_ALREADY_FROZEN",
+        `Scope already frozen for run ${runId} at version ${currentVersion}`,
+      );
+    }
+    if (!Number.isInteger(options.nextVersion) || options.nextVersion <= currentVersion) {
+      throw new ScopeFreezeError(
+        "SCOPE_VERSION_BUMP_REQUIRED",
+        `Scope version bump required: current=${currentVersion}, requested=${options.nextVersion}`,
+      );
+    }
+  }
+
+  const targetVersion = options.nextVersion ?? currentVersion;
+  if (!Number.isInteger(targetVersion) || targetVersion < 1) {
+    throw new ScopeFreezeError(
+      "SCOPE_VERSION_BUMP_REQUIRED",
+      `Scope version bump required: current=${currentVersion}, requested=${targetVersion}`,
+    );
+  }
+
+  const now = new Date().toISOString();
+  db.exec("BEGIN");
+  try {
+    if (targetVersion !== currentVersion) {
+      db.prepare(
+        `INSERT INTO run_scope_items (run_id, scope_version, item_type, item_value, created_at)
+         SELECT run_id, ?, item_type, item_value, ?
+         FROM run_scope_items
+         WHERE run_id = ? AND scope_version = ?`
+      ).run(targetVersion, now, runId, currentVersion);
+    }
+
+    db.prepare(
+      "UPDATE runs SET scope_status = 'frozen', scope_version = ?, scope_frozen_at = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(targetVersion, now, runId);
+
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
+
+  emitEvent({
+    ts: now,
+    event: "scope.frozen",
+    runId,
+    workflowId: run.workflow_id,
+    detail: `Scope frozen at version ${targetVersion}`,
+  });
+
+  return readRunScope(runId);
+}
+
 // ── Abandoned Step Cleanup ──────────────────────────────────────────
 
 const ABANDONED_THRESHOLD_MS = (getMaxRoleTimeoutSeconds() + 5 * 60) * 1000; // max role timeout + 5 min buffer

@@ -7,6 +7,7 @@ Started: 2026-02-20 00:24 CST
 - `src/db.ts` uses in-place idempotent migrations: create base tables with `CREATE TABLE IF NOT EXISTS`, then add newly introduced columns by probing `PRAGMA table_info(...)` and applying guarded `ALTER TABLE ... ADD COLUMN`.
 - DB migration tests should isolate `os.homedir()` by setting `process.env.HOME` and importing `dist/db.js` dynamically with a cache-busting query string.
 - Structured planner payloads in step output are parsed as multi-line `KEY_JSON:` blocks up to the next `KEY:` boundary (see `collectJsonBlock` in `src/installer/step-ops.ts`).
+- Service-layer domain errors in installer flows should be deterministic via typed error codes (e.g., `ScopeFreezeError.code`) so retry/verify logic can assert behavior without fragile message matching.
 
 ---
 
@@ -34,4 +35,14 @@ Started: 2026-02-20 00:24 CST
 - Extended `tests/multiline-output-parsing.test.ts` to assert both `STORIES_JSON` and `SCOPE_JSON` are excluded from generic key-value parsing.
 - Files changed: `src/installer/step-ops.ts`, `tests/planner-scope-baseline-persistence.test.ts`, `tests/multiline-output-parsing.test.ts`
 - **Learnings:** for modules that bind DB path from `os.homedir()` at import time, keep one HOME per test file (or reload module graph) to avoid cross-test DB-path drift.
+---
+## 2026-02-20 00:47 CST - US-003: Implement backend API for freezing and reading execution scope
+- Added backend service APIs in `src/installer/step-ops.ts`:
+  - `freezeRunScope(runId, options?)` to freeze active scope, stamp `scope_frozen_at`, and support explicit version bump for re-freeze.
+  - `readRunScope(runId)` to return current scope version, freeze metadata, and normalized scope items.
+  - `ScopeFreezeError` with deterministic `code` values for duplicate freeze and invalid version bump scenarios.
+- Added auditable freeze transition event emission (`scope.frozen`) and wired new event type in `src/installer/events.ts`.
+- Added tests in `tests/scope-freeze-read-api.test.ts` covering freeze transition, read API payload, deterministic duplicate-freeze rejection, and allowed re-freeze on version increment.
+- Files changed: `src/installer/step-ops.ts`, `src/installer/events.ts`, `tests/scope-freeze-read-api.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** Re-freeze semantics can be safely implemented by cloning current-version scope rows into a newer version inside one transaction, then flipping active `runs.scope_version`.
 ---
