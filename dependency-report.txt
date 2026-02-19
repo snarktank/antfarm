@@ -1,0 +1,15 @@
+Dependency Tree Report for antfarm v0.5.1
+==================================================
+
+antfarm@0.5.1 /Users/froelich/.openclaw/workspace/antfarm
++-- @types/node@25.3.0
++-- json5@2.2.3
++-- typescript@5.9.3
+`-- yaml@2.8.2
+
+
+Test Results Summary:
+======================
+All 171 tests passed with zero failures
+Build completed successfully
+No vulnerabilities found
