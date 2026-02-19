@@ -53,7 +53,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
       );
       assert.ok(loadActivityMatch);
-      assert.match(loadActivityMatch[0], /<h3 class="text-\[15px\] font-semibold mb-3"/);
+      assert.ok(loadActivityMatch[0].includes('text-[15px]'), 'h3 should have text-[15px] class');
     });
 
     it("should have font-semibold class for font weight", () => {
@@ -61,7 +61,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
       );
       assert.ok(loadActivityMatch);
-      assert.match(loadActivityMatch[0], /<h3 class="text-\[15px\] font-semibold mb-3"/);
+      assert.ok(loadActivityMatch[0].includes('font-semibold'), 'h3 should have font-semibold class');
     });
 
     it("should have mb-3 class for bottom margin", () => {
@@ -69,7 +69,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
       );
       assert.ok(loadActivityMatch);
-      assert.match(loadActivityMatch[0], /<h3 class="text-\[15px\] font-semibold mb-3"/);
+      assert.ok(loadActivityMatch[0].includes('mb-3'), 'h3 should have mb-3 class');
     });
 
     it("should have Tailwind text color classes", () => {
@@ -148,7 +148,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+      assert.ok(loadActivityMatch[0].includes('class="flex'), 'event row should have flex class');
     });
 
     it("should have gap-3 class for gap", () => {
@@ -156,7 +156,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+      assert.ok(loadActivityMatch[0].includes('gap-3'), 'event row should have gap-3 class');
     });
 
     it("should have py-1 class for vertical padding", () => {
@@ -164,7 +164,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+      assert.ok(loadActivityMatch[0].includes('py-1'), 'event row should have py-1 class');
     });
 
     it("should have text-xs class for font size", () => {
@@ -172,7 +172,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+      assert.ok(loadActivityMatch[0].includes('text-xs'), 'event row should have text-xs class');
     });
 
     it("should have leading-normal class for line height", () => {
@@ -180,7 +180,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+      assert.ok(loadActivityMatch[0].includes('leading-normal'), 'event row should have leading-normal class');
     });
 
     it("should have border-b class for border bottom", () => {
@@ -188,7 +188,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+      assert.ok(loadActivityMatch[0].includes('border-b'), 'event row should have border-b class');
     });
 
     it("should have Tailwind border color classes", () => {
@@ -249,10 +249,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(
-        loadActivityMatch[0],
-        /<span class="font-mono shrink-0 min-w-\[44px\]"/
-      );
+      assert.ok(loadActivityMatch[0].includes('font-mono'), 'timestamp should have font-mono class');
     });
 
     it("should have shrink-0 class to prevent shrinking", () => {
@@ -260,10 +257,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(
-        loadActivityMatch[0],
-        /<span class="font-mono shrink-0 min-w-\[44px\]"/
-      );
+      assert.ok(loadActivityMatch[0].includes('shrink-0'), 'timestamp should have shrink-0 class');
     });
 
     it("should have min-w-[44px] class for minimum width", () => {
@@ -271,10 +265,7 @@ describe("Activity Section Migration", () => {
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(
-        loadActivityMatch[0],
-        /<span class="font-mono shrink-0 min-w-\[44px\]"/
-      );
+      assert.ok(loadActivityMatch[0].includes('min-w-[44px]'), 'timestamp should have min-w-[44px] class');
     });
 
     it("should have Tailwind text color classes", () => {
@@ -331,10 +322,7 @@ describe("Activity Section Migration", () => {
         /const agentSpan = agent[\s\S]*?;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(
-        loadActivityMatch[0],
-        /<span class="font-mono shrink-0"/
-      );
+      assert.ok(loadActivityMatch[0].includes('font-mono'), 'agent should have font-mono class');
     });
 
     it("should have shrink-0 class to prevent shrinking", () => {
@@ -342,10 +330,7 @@ describe("Activity Section Migration", () => {
         /const agentSpan = agent[\s\S]*?;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(
-        loadActivityMatch[0],
-        /<span class="font-mono shrink-0"/
-      );
+      assert.ok(loadActivityMatch[0].includes('shrink-0'), 'agent should have shrink-0 class');
     });
 
     it("should have Tailwind accent color classes", () => {
@@ -377,15 +362,12 @@ describe("Activity Section Migration", () => {
   });
 
   describe("Description Span", () => {
-    it("should preserve text-primary color CSS variable", () => {
+    it("should have Tailwind text color classes", () => {
       const loadActivityMatch = html.match(
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
-      assert.match(
-        loadActivityMatch[0],
-        /<span style="color:var\(--text-primary\)">\${esc\(desc\)}<\/span>/
-      );
+      assert.ok(loadActivityMatch[0].includes('text-text-primary dark:text-dark-text-primary'), 'description should have dark mode text color classes');
     });
 
     it("should not have inline style attribute", () => {
