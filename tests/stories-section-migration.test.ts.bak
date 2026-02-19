@@ -15,8 +15,8 @@ describe('Stories Section Migration (US-009)', () => {
       assert.ok(html.includes('<div class="mt-6 border-t pt-5"'), 'Should use mt-6 border-t pt-5 classes');
     });
 
-    it('uses Tailwind classes for border color with dark mode', () => {
-      assert.ok(html.includes('border-border-default dark:border-dark-border-default'), 'Should use Tailwind border classes');
+    it('preserves border color via CSS variable', () => {
+      assert.ok(html.includes('style="border-color:var(--border)"'), 'Should preserve --border variable');
     });
 
     it('does not use inline styles for spacing', () => {
@@ -42,10 +42,10 @@ describe('Stories Section Migration (US-009)', () => {
       assert.ok(html.includes('<h3 class="text-[15px] font-semibold"'), 'Should use text-[15px] font-semibold');
     });
 
-    it('uses Tailwind classes for text color with dark mode', () => {
+    it('preserves text color via CSS variable', () => {
       const h3Match = html.match(/<h3 class="[^"]*"[^>]*>/);
       assert.ok(h3Match, 'Should have h3 element');
-      assert.ok(h3Match[0].includes('text-text-primary dark:text-dark-text-primary'), 'Should use Tailwind text classes');
+      assert.ok(h3Match[0].includes('style="color:var(--text-primary)"'), 'Should preserve --text-primary variable');
     });
 
     it('does not use inline font-size and font-weight', () => {
@@ -59,10 +59,10 @@ describe('Stories Section Migration (US-009)', () => {
       assert.ok(html.includes('<span class="text-[13px] font-semibold"'), 'Should use text-[13px] font-semibold for done count');
     });
 
-    it('uses Tailwind classes for accent color with dark mode', () => {
+    it('preserves accent color via CSS variable', () => {
       const spanMatch = html.match(/<span class="text-\[13px\] font-semibold"[^>]*>.*done<\/span>/);
       assert.ok(spanMatch, 'Should have done count span');
-      assert.ok(spanMatch[0].includes('text-accent-green dark:text-dark-accent-green'), 'Should use Tailwind accent classes');
+      assert.ok(spanMatch[0].includes('style="color:var(--accent-green)"'), 'Should preserve --accent-green variable');
     });
   });
 
@@ -71,10 +71,10 @@ describe('Stories Section Migration (US-009)', () => {
       assert.ok(html.includes('class="rounded h-2 mb-4 overflow-hidden"'), 'Should use rounded h-2 mb-4 overflow-hidden');
     });
 
-    it('uses Tailwind classes for background with dark mode', () => {
+    it('preserves background via CSS variable', () => {
       const progressMatch = html.match(/class="rounded h-2 mb-4 overflow-hidden"[^>]*>/);
       assert.ok(progressMatch, 'Should have progress bar container');
-      assert.ok(progressMatch[0].includes('bg-accent-muted dark:bg-dark-accent-muted'), 'Should use Tailwind background classes');
+      assert.ok(progressMatch[0].includes('style="background:var(--accent-muted)"'), 'Should preserve --accent-muted variable');
     });
 
     it('does not use inline height:8px', () => {
@@ -96,11 +96,10 @@ describe('Stories Section Migration (US-009)', () => {
       assert.ok(html.includes('class="h-full rounded transition-[width] duration-300"'), 'Should use h-full rounded transition-[width] duration-300');
     });
 
-    it('uses Tailwind classes for background and preserves dynamic width', () => {
+    it('preserves dynamic width via inline style', () => {
       const fillMatch = html.match(/class="h-full rounded transition-\[width\] duration-300"[^>]*>/);
       assert.ok(fillMatch, 'Should have progress bar fill');
-      assert.ok(fillMatch[0].includes('bg-accent-green dark:bg-dark-accent-green'), 'Should use Tailwind background classes');
-      assert.ok(fillMatch[0].includes('width:${pct}%'), 'Should preserve dynamic width');
+      assert.ok(fillMatch[0].includes('style="background:var(--accent-green);width:${pct}%"'), 'Should preserve dynamic width');
     });
 
     it('uses duration-300 for transition', () => {
@@ -130,10 +129,10 @@ describe('Stories Section Migration (US-009)', () => {
       assert.ok(html.includes('retryInfo = s.retry_count > 0 ? ` <span class="text-[10px]"'), 'Should use text-[10px] for retry count');
     });
 
-    it('uses Tailwind classes for orange color with dark mode', () => {
+    it('preserves orange color via CSS variable', () => {
       const retryMatch = html.match(/retryInfo = s\.retry_count > 0 \?[^:]*:[^;]*/);
       assert.ok(retryMatch, 'Should have retry count logic');
-      assert.ok(retryMatch[0].includes('text-accent-orange dark:text-dark-accent-orange'), 'Should use Tailwind accent classes');
+      assert.ok(retryMatch[0].includes('style="color:var(--accent-orange)"'), 'Should preserve --accent-orange variable');
     });
 
     it('does not use inline font-size:10px', () => {
@@ -166,10 +165,10 @@ describe('Stories Section Migration (US-009)', () => {
       assert.ok(html.includes('<div class="font-semibold text-[11px] uppercase tracking-wide mb-1"'), 'Should use Tailwind classes for AC header');
     });
 
-    it('uses Tailwind classes for AC header color with dark mode', () => {
+    it('preserves AC header color via CSS variable', () => {
       const acHeaderMatch = html.match(/<div class="font-semibold text-\[11px\] uppercase tracking-wide mb-1"[^>]*>/);
       assert.ok(acHeaderMatch, 'Should have AC header');
-      assert.ok(acHeaderMatch[0].includes('text-accent-green dark:text-dark-accent-green'), 'Should use Tailwind accent classes for AC header');
+      assert.ok(acHeaderMatch[0].includes('style="color:var(--accent-green)"'), 'Should preserve --accent-green for AC header');
     });
 
     it('uses Tailwind classes for AC labels', () => {
