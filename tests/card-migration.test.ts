@@ -11,8 +11,8 @@ describe("Card component migration", () => {
   const srcHTML = readFileSync(srcFile, "utf-8");
 
   describe("Card structure with Tailwind classes", () => {
-    it("should have migration comment for card CSS", () => {
-      assert.match(srcHTML, /Card styling migrated to Tailwind classes/);
+    it("should not have <style> block in index.html (CSS moved to input.css)", () => {
+      assert.ok(!srcHTML.includes('<style>'), 'index.html should not have <style> block');
     });
 
     it("should have removed old .card CSS rule", () => {

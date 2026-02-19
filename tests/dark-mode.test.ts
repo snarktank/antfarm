@@ -231,12 +231,8 @@ describe('Dark Mode with Tailwind', () => {
   });
 
   describe('CSS Variable Removal', () => {
-    it('body CSS rule migrated comment exists', () => {
-      assert.match(srcHtml, /Body styling migrated to Tailwind classes with dark: variants/, 'body CSS migration comment should exist');
-    });
-
-    it('empty class CSS rule migrated comment exists', () => {
-      assert.match(srcHtml, /\.empty class migrated to Tailwind classes with dark: variants/, '.empty CSS migration comment should exist');
+    it('should not have <style> block in index.html (CSS moved to input.css)', () => {
+      assert.ok(!srcHtml.includes('<style>'), 'index.html should not have <style> block');
     });
 
     it('no inline styles with --bg-page variable in body', () => {

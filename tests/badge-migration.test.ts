@@ -147,8 +147,8 @@ describe('Badge Migration - Tailwind CSS with Dark Mode', () => {
       assert(!srcHTML.match(/\.badge-blocked\s*\{/), 'Old .badge-blocked CSS should be removed');
     });
 
-    it('has migration comment for badge styling', () => {
-      assert(srcHTML.includes('Badge styling migrated to Tailwind classes'), 'Should have badge migration comment');
+    it('should not have <style> block in index.html (CSS moved to input.css)', () => {
+      assert.ok(!srcHTML.includes('<style>'), 'index.html should not have <style> block');
     });
   });
 

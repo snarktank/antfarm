@@ -426,11 +426,8 @@ describe("Activity Section Migration", () => {
       assert.ok(!loadActivityMatch[0].includes('line-height:1.5'));
     });
 
-    it("should have updated migration comment", () => {
-      assert.match(
-        html,
-        /\/\* Overlay, panel container, panel header, close button, step rows, stories section, and activity section migrated to Tailwind classes \*\//
-      );
+    it("should not have <style> block in index.html (CSS moved to input.css)", () => {
+      assert.ok(!html.includes('<style>'), 'index.html should not have <style> block');
     });
   });
 

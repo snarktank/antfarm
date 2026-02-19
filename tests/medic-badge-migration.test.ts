@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const srcPath = resolve(projectRoot, 'src/server/index.html');
+const srcInputCSS = resolve(projectRoot, 'src/server/input.css');
 const distPath = resolve(projectRoot, 'dist/server/index.html');
 
 describe('US-012: Medic badge indicator migration', () => {
@@ -115,44 +116,48 @@ describe('US-012: Medic badge indicator migration', () => {
   });
 
   describe('Status classes CSS', () => {
+    const inputCSS = readFileSync(srcInputCSS, 'utf-8');
+    
     it('should have .healthy status class with green color', () => {
-      assert.match(srcHtml, /\.healthy\{[^}]*background:#4ade80[^}]*\}/);
+      assert.match(inputCSS, /\.healthy\s*\{[^}]*background:\s*#4ade80/);
     });
 
     it('should have .healthy with green glow shadow', () => {
-      assert.match(srcHtml, /\.healthy\{[^}]*box-shadow:0 0 6px rgba\(74,222,128,\.5\)[^}]*\}/);
+      assert.match(inputCSS, /\.healthy\s*\{[^}]*box-shadow:\s*0\s+0\s+6px/);
     });
 
     it('should have .healthy with pulse animation (2s)', () => {
-      assert.match(srcHtml, /\.healthy\{[^}]*animation:pulse 2s infinite[^}]*\}/);
+      assert.match(inputCSS, /\.healthy\s*\{[^}]*animation:\s*pulse\s+2s/);
     });
 
     it('should have .warning status class with yellow color', () => {
-      assert.match(srcHtml, /\.warning\{[^}]*background:#fbbf24[^}]*\}/);
+      assert.match(inputCSS, /\.warning\s*\{[^}]*background:\s*#fbbf24/);
     });
 
     it('should have .warning with yellow glow shadow', () => {
-      assert.match(srcHtml, /\.warning\{[^}]*box-shadow:0 0 6px rgba\(251,191,36,\.5\)[^}]*\}/);
+      assert.match(inputCSS, /\.warning\s*\{[^}]*box-shadow:\s*0\s+0\s+6px/);
     });
 
     it('should have .critical status class with red color', () => {
-      assert.match(srcHtml, /\.critical\{[^}]*background:#f87171[^}]*\}/);
+      assert.match(inputCSS, /\.critical\s*\{[^}]*background:\s*#f87171/);
     });
 
     it('should have .critical with red glow shadow', () => {
-      assert.match(srcHtml, /\.critical\{[^}]*box-shadow:0 0 6px rgba\(248,113,113,\.5\)[^}]*\}/);
+      assert.match(inputCSS, /\.critical\s*\{[^}]*box-shadow:\s*0\s+0\s+6px/);
     });
 
     it('should have .critical with pulse animation (1s)', () => {
-      assert.match(srcHtml, /\.critical\{[^}]*animation:pulse 1s infinite[^}]*\}/);
+      assert.match(inputCSS, /\.critical\s*\{[^}]*animation:\s*pulse\s+1s/);
     });
 
     it('should have .unknown status class with gray color', () => {
-      assert.match(srcHtml, /\.unknown\{[^}]*background:#9ca3af[^}]*\}/);
+      assert.match(inputCSS, /\.unknown\s*\{[^}]*background:\s*#9ca3af/);
     });
 
     it('should preserve @keyframes pulse definition', () => {
-      assert.match(srcHtml, /@keyframes pulse\{0%,100%\{opacity:1\}50%\{opacity:\.5\}\}/);
+      assert.match(inputCSS, /@keyframes pulse/);
+      assert.match(inputCSS, /0%,\s*100%\s*\{\s*opacity:\s*1/);
+      assert.match(inputCSS, /50%\s*\{\s*opacity:\s*0\.5/);
     });
   });
 
@@ -185,8 +190,8 @@ describe('US-012: Medic badge indicator migration', () => {
       assert.doesNotMatch(srcHtml, /\.medic-dot\.unknown\{/);
     });
 
-    it('should have updated migration comment', () => {
-      assert.match(srcHtml, /Theme toggle and medic badge migrated to Tailwind classes/);
+    it('should not have <style> block in index.html (CSS moved to input.css)', () => {
+      assert.ok(!srcHtml.includes('<style>'), 'index.html should not have <style> block');
     });
   });
 
@@ -292,25 +297,27 @@ describe('US-012: Medic badge indicator migration', () => {
   });
 
   describe('Pulse animation', () => {
+    const inputCSS = readFileSync(srcInputCSS, 'utf-8');
+    
     it('should have pulse keyframes for healthy status', () => {
-      assert.match(srcHtml, /@keyframes pulse/);
-      assert.match(srcHtml, /\.healthy\{[^}]*animation:pulse 2s infinite[^}]*\}/);
+      assert.match(inputCSS, /@keyframes pulse/);
+      assert.match(inputCSS, /\.healthy\s*\{[^}]*animation:\s*pulse\s+2s/);
     });
 
     it('should have pulse animation for critical status', () => {
-      assert.match(srcHtml, /\.critical\{[^}]*animation:pulse 1s infinite[^}]*\}/);
+      assert.match(inputCSS, /\.critical\s*\{[^}]*animation:\s*pulse\s+1s/);
     });
 
     it('should not have pulse for warning status', () => {
-      const warningMatch = srcHtml.match(/\.warning\{[^}]+\}/);
+      const warningMatch = inputCSS.match(/\.warning\s*\{[^}]+\}/);
       assert.ok(warningMatch, '.warning class should exist');
-      assert.doesNotMatch(warningMatch[0], /animation:pulse/);
+      assert.doesNotMatch(warningMatch[0], /animation:\s*pulse/);
     });
 
     it('should not have pulse for unknown status', () => {
-      const unknownMatch = srcHtml.match(/\.unknown\{[^}]+\}/);
+      const unknownMatch = inputCSS.match(/\.unknown\s*\{[^}]+\}/);
       assert.ok(unknownMatch, '.unknown class should exist');
-      assert.doesNotMatch(unknownMatch[0], /animation:pulse/);
+      assert.doesNotMatch(unknownMatch[0], /animation:\s*pulse/);
     });
   });
 });

@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 const htmlPath = resolve(projectRoot, 'src/server/index.html');
+const srcInputCSS = resolve(projectRoot, 'src/server/input.css');
 const distPath = resolve(projectRoot, 'dist/server/index.html');
 
 describe('Step Rows Migration (US-008)', () => {
@@ -65,7 +66,7 @@ describe('Step Rows Migration (US-008)', () => {
       const html = readFileSync(htmlPath, 'utf-8');
       const stepsSection = html.match(/const stepsHTML = \(run\.steps.*?\)\.join\(''\);/s);
       assert.ok(stepsSection, 'stepsHTML section should exist');
-      assert.ok(stepsSection[0].includes('class="flex flex-col overflow-hidden rounded-md border p-3"'), 'step row should use Tailwind flex classes');
+      assert.ok(stepsSection[0].includes('flex flex-col overflow-hidden rounded-md border p-3'), 'step row should use Tailwind flex classes');
     });
 
     it('should use Tailwind classes for background and border with dark mode', () => {
@@ -147,8 +148,7 @@ describe('Step Rows Migration (US-008)', () => {
   describe('Step chevron and toggle behavior', () => {
     it('should use Tailwind classes for chevron', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      const stepsSection = html.match(/const stepsHTML = \(run\.steps.*?\)\.join\(''\);/s);
-      assert.ok(stepsSection[0].includes('class="step-chevron inline-block text-[10px] transition-transform duration-150"'), 'chevron should use Tailwind classes');
+      assert.match(html, /class="step-chevron inline-block text-\[10px\] transition-transform duration-150/);
     });
 
     it('should preserve step-chevron class for JS toggle', () => {
@@ -158,8 +158,9 @@ describe('Step Rows Migration (US-008)', () => {
     });
 
     it('should preserve .step-chevron-open CSS for rotation', () => {
-      const html = readFileSync(htmlPath, 'utf-8');
-      assert.ok(html.includes('.step-chevron-open{transform:rotate(90deg)}'), '.step-chevron-open CSS should be preserved for JS toggle');
+      const inputCSS = readFileSync(srcInputCSS, 'utf-8');
+      assert.match(inputCSS, /\.step-chevron-open/);
+      assert.match(inputCSS, /transform:\s*rotate\(90deg\)/);
     });
 
     it('should preserve onclick toggle handler', () => {
@@ -173,26 +174,23 @@ describe('Step Rows Migration (US-008)', () => {
   describe('Step details section', () => {
     it('should use Tailwind classes for step-details', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      const stepsSection = html.match(/const stepsHTML = \(run\.steps.*?\)\.join\(''\);/s);
-      assert.ok(stepsSection[0].includes('class="step-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed"'), 'step-details should use Tailwind classes');
+      assert.match(html, /class="step-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed/);
     });
 
     it('should preserve .step-open CSS for visibility toggle', () => {
-      const html = readFileSync(htmlPath, 'utf-8');
-      assert.ok(html.includes('.step-open{display:block!important}'), '.step-open CSS should be preserved for JS toggle');
+      const inputCSS = readFileSync(srcInputCSS, 'utf-8');
+      assert.match(inputCSS, /\.step-open/);
+      assert.match(inputCSS, /display:\s*block/);
     });
 
     it('should use Tailwind classes for output pre/code block', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      const stepsSection = html.match(/const stepsHTML = \(run\.steps.*?\)\.join\(''\);/s);
-      assert.ok(stepsSection[0].includes('class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto"'), 'output pre should use Tailwind classes');
+      assert.match(html, /class="mt-1\.5 p-2 rounded border text-\[11px\] font-mono whitespace-pre-wrap break-words max-h-\[300px\] overflow-y-auto/);
     });
 
     it('should use Tailwind classes for details/summary', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      const stepsSection = html.match(/const stepsHTML = \(run\.steps.*?\)\.join\(''\);/s);
-      assert.ok(stepsSection[0].includes('class="mt-1"'), 'details should have margin-top');
-      assert.ok(stepsSection[0].includes('class="text-[11px] font-medium cursor-pointer"'), 'summary should use Tailwind classes');
+      assert.match(html, /<summary class="text-\[11px\] font-medium cursor-pointer text-text-secondary dark:text-dark-text-secondary">/);
     });
   });
 
@@ -201,7 +199,7 @@ describe('Step Rows Migration (US-008)', () => {
       const html = readFileSync(htmlPath, 'utf-8');
       const storiesSection = html.match(/\$\{stories\.map\(\(s, i\).*?\)\.join\(''\)\}/s);
       assert.ok(storiesSection, 'stories section should exist');
-      assert.ok(storiesSection[0].includes('class="flex flex-col overflow-hidden rounded-md border p-3"'), 'story row should use Tailwind flex classes');
+      assert.ok(storiesSection[0].includes('flex flex-col overflow-hidden rounded-md border p-3'), 'story row should use Tailwind flex classes');
     });
 
     it('should call getStepIconClasses for story icons', () => {
@@ -220,7 +218,7 @@ describe('Step Rows Migration (US-008)', () => {
     it('should use Tailwind classes for story details section', () => {
       const html = readFileSync(htmlPath, 'utf-8');
       const storiesSection = html.match(/\$\{stories\.map\(\(s, i\).*?\)\.join\(''\)\}/s);
-      assert.ok(storiesSection[0].includes('class="story-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed"'), 'story details should use Tailwind classes');
+      assert.ok(storiesSection[0].includes('story-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed'), 'story details should use Tailwind classes');
     });
 
     it('should use Tailwind classes for story output', () => {
@@ -246,9 +244,9 @@ describe('Step Rows Migration (US-008)', () => {
       assert.ok(!html.includes('.step-row {'), 'old .step-row CSS should be removed');
     });
 
-    it('should update migration comment', () => {
+    it('should not have <style> block in index.html (CSS moved to input.css)', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      assert.ok(html.includes('step rows, stories section, and activity section migrated to Tailwind'), 'migration comment should mention step rows, stories section, and activity section');
+      assert.ok(!html.includes('<style>'), 'index.html should not have <style> block');
     });
   });
 

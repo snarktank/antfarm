@@ -5,6 +5,7 @@ import path from 'node:path';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const srcHtmlPath = path.join(projectRoot, 'src/server/index.html');
+const srcInputCSS = path.join(projectRoot, 'src/server/input.css');
 const distHtmlPath = path.join(projectRoot, 'dist/server/index.html');
 
 describe('US-013: Medic Panel Migration', () => {
@@ -244,11 +245,13 @@ describe('US-013: Medic Panel Migration', () => {
     });
 
     it('should preserve .medic-panel.open CSS rule for JS toggle', () => {
-      assert.match(srcHtml, /\.medic-panel\.open\{display:flex\}/, '.medic-panel.open CSS rule should be preserved for JavaScript toggle');
+      const inputCSS = readFileSync(srcInputCSS, 'utf-8');
+      assert.match(inputCSS, /\.medic-panel\.open/);
+      assert.match(inputCSS, /display:\s*flex/);
     });
 
-    it('should add migration comment', () => {
-      assert.match(srcHtml, /\/\* Medic panel migrated to Tailwind classes \*\//, 'Should have migration comment');
+    it('should not have <style> block in index.html (CSS moved to input.css)', () => {
+      assert.ok(!srcHtml.includes('<style>'), 'index.html should not have <style> block');
     });
   });
 

@@ -305,11 +305,8 @@ describe("Board Layout Migration - US-003", () => {
       );
     });
 
-    it("board migration comment exists", () => {
-      assert.ok(
-        html.includes("/* Board layout migrated to Tailwind classes */"),
-        "Migration comment should be present"
-      );
+    it("should not have <style> block in index.html (CSS moved to input.css)", () => {
+      assert.ok(!html.includes('<style>'), 'index.html should not have <style> block');
     });
   });
 

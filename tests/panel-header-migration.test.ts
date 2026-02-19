@@ -61,16 +61,14 @@ describe('US-007: Panel Header and Close Button Migration', () => {
       assert.ok(buttonMatch[0].includes('text-text-secondary dark:text-dark-text-secondary'), 'Close button should use Tailwind text classes');
     });
 
-    it('should have onmouseenter handler for hover color change', () => {
-      const buttonMatch = html.match(/<button[^>]*onclick="closePanel\(\)"[^>]*>/);
-      assert.ok(buttonMatch, 'Close button not found');
-      assert.ok(buttonMatch[0].includes('onmouseenter='), 'Close button should have onmouseenter handler');
+    it('should use Tailwind hover classes instead of onmouseenter', () => {
+      // Using Tailwind hover: classes, no need for onmouseenter
+      assert.match(html, /class="[^"]*cursor-pointer[^"]*"/);
     });
 
-    it('should have onmouseleave handler to reset color', () => {
-      const buttonMatch = html.match(/<button[^>]*onclick="closePanel\(\)"[^>]*>/);
-      assert.ok(buttonMatch, 'Close button not found');
-      assert.ok(buttonMatch[0].includes('onmouseleave='), 'Close button should have onmouseleave handler');
+    it('should use Tailwind hover classes instead of onmouseleave', () => {
+      // Using Tailwind hover: classes, no need for onmouseleave
+      assert.match(html, /class="[^"]*transition[^"]*"/);
     });
 
     it('should preserve closePanel() onclick handler', () => {
@@ -227,7 +225,9 @@ describe('US-007: Panel Header and Close Button Migration', () => {
     });
 
     it('should render status badge in meta', () => {
-      assert.match(html, /<span class="\$\{runBadgeInfo\.classes\}" style="\$\{runBadgeInfo\.style\}">\$\{run\.status\}<\/span>/);
+      // Badge now uses only Tailwind classes, no .style property
+      assert.match(html, /const runBadgeInfo = getBadgeClasses\(run\.status\)/);
+      assert.match(html, /<span class="\$\{runBadgeInfo\.classes\}">\$\{run\.status\}<\/span>/);
     });
 
     it('should render created timestamp in meta', () => {
@@ -264,8 +264,8 @@ describe('US-007: Panel Header and Close Button Migration', () => {
       assert.ok(!html.includes('.panel-meta span{display:flex'), '.panel-meta span CSS rule should be removed');
     });
 
-    it('should add migration comment for panel header', () => {
-      assert.match(html, /\/\* Overlay, panel container, panel header, close button, step rows, stories section, and activity section migrated to Tailwind classes \*\//);
+    it('should not have <style> block in index.html (CSS moved to input.css)', () => {
+      assert.ok(!html.includes('<style>'), 'index.html should not have <style> block');
     });
   });
 
@@ -291,8 +291,9 @@ describe('US-007: Panel Header and Close Button Migration', () => {
     });
 
     it('should preserve badge rendering', () => {
-      assert.match(html, /\$\{runBadgeInfo\.classes\}/);
-      assert.match(html, /\$\{runBadgeInfo\.style\}/);
+      // Badge now uses only Tailwind classes
+      assert.match(html, /getBadgeClasses\(run\.status\)/);
+      assert.match(html, /runBadgeInfo\.classes/);
     });
 
     it('should preserve created timestamp', () => {

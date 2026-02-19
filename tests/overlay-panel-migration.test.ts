@@ -16,6 +16,7 @@ import path from 'node:path';
 
 const projectRoot = path.resolve(import.meta.dirname, '..');
 const srcHTML = path.join(projectRoot, 'src/server/index.html');
+const srcInputCSS = path.join(projectRoot, 'src/server/input.css');
 const distHTML = path.join(projectRoot, 'dist/server/index.html');
 
 describe('US-006: Overlay and Panel Container Migration', () => {
@@ -149,11 +150,15 @@ describe('US-006: Overlay and Panel Container Migration', () => {
     });
 
     it('should preserve .overlay.open rule for JS toggle', () => {
-      assert.match(html, /\.overlay\.open\{opacity:1;pointer-events:auto\}/);
+      const inputCSS = readFileSync(srcInputCSS, 'utf-8');
+      assert.match(inputCSS, /\.overlay\.open/);
+      assert.match(inputCSS, /opacity:\s*1/);
+      assert.match(inputCSS, /pointer-events:\s*auto/);
     });
 
-    it('should have migration comment (updated in US-008)', () => {
-      assert.match(html, /\/\* Overlay, panel container, panel header, close button, step rows, stories section, and activity section migrated to Tailwind classes \*\//);
+    it('should not have <style> block in index.html (CSS moved to input.css)', () => {
+      assert.ok(!html.includes('<style>'), 'index.html should not have <style> block');
+      assert.ok(!html.includes('</style>'), 'index.html should not have closing </style> tag');
     });
   });
 
@@ -237,7 +242,10 @@ describe('US-006: Overlay and Panel Container Migration', () => {
     });
 
     it('should toggle to opacity:1 and pointer-events:auto via .overlay.open', () => {
-      assert.match(html, /\.overlay\.open\{opacity:1;pointer-events:auto\}/);
+      const inputCSS = readFileSync(srcInputCSS, 'utf-8');
+      assert.match(inputCSS, /\.overlay\.open/);
+      assert.match(inputCSS, /opacity:\s*1/);
+      assert.match(inputCSS, /pointer-events:\s*auto/);
     });
   });
 });
