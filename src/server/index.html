@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono&display=swap" rel="stylesheet">
+<link href="output.css" rel="stylesheet">
 <style>
 /* ── Theme tokens ──────────────────────────────────────────────── */
 :root {
@@ -114,17 +115,15 @@
 /* ── Base ──────────────────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg-page);color:var(--text-primary);min-height:100vh}
-header{background:var(--header-bg);border-bottom:2px solid var(--header-border);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-header img{height:36px;border-radius:6px}
-header h1{font-family:'Inter',sans-serif;font-size:22px;font-weight:600;color:#fff;letter-spacing:0}
-header h1 span{color:var(--accent-highlight)}
-select{background:var(--header-select-bg);color:#fff;border:1px solid var(--header-select-border);border-radius:6px;padding:6px 12px;font-size:14px;cursor:pointer}
-select option{background:var(--header-select-bg);color:#fff}
-select:focus{outline:none;border-color:#8ECFC0}
 
-/* ── Theme toggle ─────────────────────────────────────────────── */
-.theme-toggle{background:none;border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;cursor:pointer;padding:5px 8px;font-size:16px;line-height:1;transition:border-color .15s}
+/* Header styling moved to Tailwind classes in HTML */
+
+select option{background:var(--header-select-bg);color:#fff}
+select:focus{border-color:#8ECFC0}
+
+/* ── Theme toggle & Medic badge hover states ────────────────────── */
 .theme-toggle:hover{border-color:rgba(255,255,255,.5)}
+.medic-badge:hover{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.05)}
 
 /* ── Board ─────────────────────────────────────────────────────── */
 .board{display:flex;gap:16px;padding:24px;overflow-x:auto;min-height:calc(100vh - 65px)}
@@ -207,15 +206,15 @@ select:focus{outline:none;border-color:#8ECFC0}
 </style>
 </head>
 <body>
-<header>
-  <h1><span>antfarm</span> dashboard</h1>
-  <select id="wf-select"><option value="">Loading...</option></select>
-  <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
-  <div class="medic-badge" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
+<header class="flex flex-wrap items-center gap-4 px-6 py-3 border-b-2" style="background:var(--header-bg);border-color:var(--header-border)">
+  <h1 class="text-xl font-semibold text-white tracking-normal"><span style="color:var(--accent-highlight)">antfarm</span> dashboard</h1>
+  <select id="wf-select" class="rounded-md px-3 py-1.5 text-sm text-white cursor-pointer border focus:outline-none transition-colors" style="background:var(--header-select-bg);border-color:var(--header-select-border)"><option value="">Loading...</option></select>
+  <button class="theme-toggle border rounded-md text-white cursor-pointer px-2 py-1 text-base leading-none transition-colors hover:border-opacity-50" style="background:none;border-color:rgba(255,255,255,.2)" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
+  <div class="medic-badge flex items-center gap-1.5 text-xs cursor-pointer px-2.5 py-1 border rounded-md transition-colors" style="color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.15);background:transparent" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
     <span class="medic-dot unknown" id="medic-dot"></span>
     <span id="medic-label">Medic</span>
   </div>
-  <span class="refresh-note" id="refresh-note">Auto-refresh: 30s</span>
+  <span class="text-xs ml-auto" style="color:rgba(255,255,255,.6)" id="refresh-note">Auto-refresh: 30s</span>
 </header>
 <div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
 <div class="medic-panel" id="medic-panel">
