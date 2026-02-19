@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antfarm Workflow Dashboard</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #030711;
+        --panel: #0b101c;
+        --panel-alt: #111827;
+        --border: rgba(255, 255, 255, 0.08);
+        --text-primary: #f8fbff;
+        --text-muted: rgba(248, 251, 255, 0.7);
+        --accent: #7dd3fc;
+        --accent-strong: #34d399;
+        --status-info: #60a5fa;
+        --status-success: #34d399;
+        --status-warning: #fbbf24;
+        --status-error: #f87171;
+        font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at top, rgba(59, 130, 246, 0.25), transparent 45%), var(--bg);
+        color: var(--text-primary);
+      }
+
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 48px 1.5rem 64px;
+        display: flex;
+        flex-direction: column;
+        gap: 32px;
+      }
+
+      .hero {
+        background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(9, 10, 16, 0.9));
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 32px;
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        border: 1px solid rgba(255, 255, 255, 0.03);
+      }
+
+      .hero-body {
+        max-width: 600px;
+      }
+
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin: 0 0 8px;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 3vw, 2.75rem);
+        margin: 0 0 12px;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--text-muted);
+        line-height: 1.5;
+      }
+
+      .db-path {
+        margin: 12px 0 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        font-size: 0.9rem;
+        color: var(--text-muted);
+      }
+
+      .db-path code {
+        background: rgba(255, 255, 255, 0.04);
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-family: "Fira Code", "JetBrains Mono", monospace;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: flex-end;
+        gap: 12px;
+      }
+
+      button {
+        border: none;
+        border-radius: 999px;
+        font-size: 0.95rem;
+        padding: 12px 20px;
+        background: rgba(37, 99, 235, 0.15);
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: background 0.15s ease;
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: progress;
+      }
+
+      button:hover:not(:disabled) {
+        background: rgba(37, 99, 235, 0.35);
+      }
+
+      .hint {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin: 0;
+      }
+
+      .note {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        margin: -8px 0 0;
+      }
+
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+      }
+
+      .stat-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .stat-card .label {
+        margin: 0;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-size: 0.78rem;
+      }
+
+      .value {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: 600;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 12px;
+      }
+
+      .section-head h2 {
+        margin: 0;
+        font-size: 1.25rem;
+      }
+
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+      }
+
+      .run-card {
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 18px;
+        background: rgba(15, 23, 42, 0.7);
+      }
+
+      .run-card__header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .run-card__task {
+        margin: 8px 0 12px;
+        color: var(--text-muted);
+      }
+
+      .run-card__meta {
+        margin: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px 12px;
+      }
+
+      .run-card__meta dt {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-muted);
+        margin-bottom: 2px;
+      }
+
+      .run-card__meta dd {
+        margin: 0;
+        font-size: 0.9rem;
+      }
+
+      .status-chip {
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: capitalize;
+        border: 1px solid transparent;
+      }
+
+      .status-chip--running {
+        background: rgba(59, 130, 246, 0.2);
+        border-color: rgba(59, 130, 246, 0.7);
+      }
+
+      .status-chip--completed {
+        background: rgba(34, 197, 94, 0.25);
+      }
+
+      .status-chip--failed {
+        background: rgba(251, 113, 133, 0.25);
+      }
+
+      .status-chip--waiting {
+        background: rgba(226, 232, 240, 0.1);
+        color: #e5e7eb;
+      }
+
+      .two-panel {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+      }
+
+      .status-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .status-list li {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: var(--panel-alt);
+      }
+
+      .status-pill {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 10px;
+      }
+
+      .status-pill--running {
+        background: var(--status-info);
+      }
+
+      .status-pill--completed {
+        background: var(--status-success);
+      }
+
+      .status-pill--waiting {
+        background: var(--status-warning);
+      }
+
+      .status-pill--failed {
+        background: var(--status-error);
+      }
+
+      .status-pill--unknown {
+        background: rgba(248, 251, 255, 0.4);
+      }
+
+      .status-list span {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .stories-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .story-card {
+        padding: 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .story-card h3 {
+        margin: 0 0 6px;
+        font-size: 1.05rem;
+      }
+
+      .story-card .story-meta {
+        margin: 0;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+      }
+
+      .story-card p {
+        margin: 6px 0;
+        line-height: 1.4;
+      }
+
+      .recent-steps-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .recent-step {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px dashed rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.015);
+      }
+
+      .recent-step__top {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+      }
+
+      .recent-step__status {
+        text-transform: capitalize;
+      }
+
+      .recent-step__time {
+        margin: 4px 0 0;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .status-message {
+        padding: 14px 18px;
+        border-radius: 14px;
+        border: 1px solid transparent;
+        font-size: 0.95rem;
+      }
+
+      .status-message.message-info {
+        background: rgba(59, 130, 246, 0.15);
+        border-color: rgba(59, 130, 246, 0.4);
+        color: var(--text-primary);
+      }
+
+      .status-message.message-success {
+        background: rgba(34, 197, 94, 0.15);
+        border-color: rgba(34, 197, 94, 0.4);
+      }
+
+      .status-message.message-error {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.4);
+        color: #fee2e2;
+      }
+
+      @media (max-width: 700px) {
+        .hero {
+          flex-direction: column;
+        }
+
+        .hero-actions {
+          align-items: flex-start;
+        }
+
+        .section-head {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div class="hero-body">
+          <p class="eyebrow">Local Antfarm</p>
+          <h1>Workflow Dashboard</h1>
+          <p class="subtitle">
+            A dark-mode snapshot of workflow runs, step status, and stories sourced directly from your
+            Antfarm SQLite database.
+          </p>
+          <p class="db-path">
+            <span>Data:</span>
+            <code>/home/adam/.openclaw/antfarm/antfarm.db</code>
+          </p>
+          <p class="note">
+            Open this file using <code>file:///home/adam/.openclaw/workspace/antfarm/dashboard/index.html</code> and allow
+            your browser to read the database file when prompted.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="refresh-btn" type="button">⟳ Refresh dashboard</button>
+          <p class="hint">Click to re-read the database when new runs arrive.</p>
+        </div>
+      </header>
+
+      <section class="status-grid">
+        <article class="stat-card">
+          <p class="label">Total runs</p>
+          <p class="value" id="total-runs">—</p>
+          <p class="hint" id="runs-hint">Loading…</p>
+        </article>
+        <article class="stat-card">
+          <p class="label">Active runs</p>
+          <p class="value" id="running-runs">—</p>
+          <p class="hint" id="running-hint">Live status will appear here.</p>
+        </article>
+        <article class="stat-card">
+          <p class="label">Tracked steps</p>
+          <p class="value" id="steps-count">—</p>
+          <p class="hint" id="steps-card-hint">Grouping statuses below.</p>
+        </article>
+        <article class="stat-card">
+          <p class="label">Stories</p>
+          <p class="value" id="stories-count">—</p>
+          <p class="hint" id="stories-card-hint">Latest stories sorted by activity.</p>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <h2>Recent workflow runs</h2>
+            <p class="hint">Showing the last few modified runs.</p>
+          </div>
+          <span class="hint" id="last-refreshed">—</span>
+        </div>
+        <div id="runs-list" class="card-grid"></div>
+      </section>
+
+      <section class="panel two-panel">
+        <div>
+          <div class="section-head">
+            <div>
+              <h2>Steps by status</h2>
+              <p class="hint">Current counts sourced from the database.</p>
+            </div>
+            <span class="hint" id="step-section-hint">—</span>
+          </div>
+          <ul id="step-status-list" class="status-list"></ul>
+          <div style="margin-top: 18px;">
+            <h3 class="hint" style="text-transform: uppercase; letter-spacing:0.1em; font-size:0.75rem;">Recent steps</h3>
+            <ul id="recent-steps-list" class="recent-steps-list"></ul>
+          </div>
+        </div>
+        <div>
+          <div class="section-head">
+            <div>
+              <h2>Stories</h2>
+              <p class="hint">Sorted by the most recent update.</p>
+            </div>
+            <span class="hint" id="story-section-hint">—</span>
+          </div>
+          <div id="stories-list" class="stories-list"></div>
+        </div>
+      </section>
+
+      <div id="status-message" class="status-message message-info">Preparing to load data…</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.0/sql-wasm.js"></script>
+    <script>
+      const DATABASE_PATH = 'file:///home/adam/.openclaw/antfarm/antfarm.db';
+      const SQL_JS_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.0';
+      const MAX_RUN_CARDS = 8;
+      const MAX_RECENT_STEPS = 12;
+      const MAX_STORIES = 10;
+
+      const totalRunsEl = document.getElementById('total-runs');
+      const runningRunsEl = document.getElementById('running-runs');
+      const stepsCountEl = document.getElementById('steps-count');
+      const storiesCountEl = document.getElementById('stories-count');
+      const runsHintEl = document.getElementById('runs-hint');
+      const runningHintEl = document.getElementById('running-hint');
+      const stepsCardHintEl = document.getElementById('steps-card-hint');
+      const storiesCardHintEl = document.getElementById('stories-card-hint');
+      const stepSectionHintEl = document.getElementById('step-section-hint');
+      const storySectionHintEl = document.getElementById('story-section-hint');
+      const lastRefreshedEl = document.getElementById('last-refreshed');
+      const runsListEl = document.getElementById('runs-list');
+      const stepStatusListEl = document.getElementById('step-status-list');
+      const recentStepsListEl = document.getElementById('recent-steps-list');
+      const storiesListEl = document.getElementById('stories-list');
+      const statusMessageEl = document.getElementById('status-message');
+      const refreshButton = document.getElementById('refresh-btn');
+
+      let initSqlPromise;
+      const timeFormatter = new Intl.DateTimeFormat('en', {
+        dateStyle: 'medium',
+        timeStyle: 'short'
+      });
+
+      const numberFromDb = value => {
+        if (typeof value === 'bigint') return Number(value);
+        return Number.isFinite(Number(value)) ? Number(value) : 0;
+      };
+
+      const setStatusMessage = (text, variant = 'info') => {
+        if (!text) {
+          statusMessageEl.textContent = '';
+          statusMessageEl.className = 'status-message';
+          return;
+        }
+        statusMessageEl.textContent = text;
+        statusMessageEl.className = `status-message message-${variant}`;
+      };
+
+      const formatDate = value => {
+        if (!value) return '—';
+        const candidate = new Date(value);
+        if (Number.isNaN(candidate)) return value;
+        return timeFormatter.format(candidate);
+      };
+
+      const createMetaRow = (container, label, value) => {
+        const labelEl = document.createElement('dt');
+        labelEl.textContent = label;
+        const valueEl = document.createElement('dd');
+        valueEl.textContent = value;
+        container.append(labelEl, valueEl);
+      };
+
+      const buildRunCard = run => {
+        const card = document.createElement('article');
+        const status = (run.status || 'waiting').toLowerCase();
+        card.className = `run-card run-card--${status}`;
+
+        const header = document.createElement('div');
+        header.className = 'run-card__header';
+
+        const title = document.createElement('h3');
+        const runLabel = run.run_number ? `Run #${run.run_number}` : `Run ${run.id?.slice(0, 6) ?? '—'}`;
+        title.textContent = runLabel;
+
+        const statusChip = document.createElement('span');
+        statusChip.className = `status-chip status-chip--${status}`;
+        statusChip.textContent = status;
+
+        header.append(title, statusChip);
+        card.appendChild(header);
+
+        const task = document.createElement('p');
+        task.className = 'run-card__task';
+        task.textContent = run.task || 'Workflow task unavailable';
+        card.appendChild(task);
+
+        const meta = document.createElement('dl');
+        meta.className = 'run-card__meta';
+        createMetaRow(meta, 'Workflow', run.workflow_id || '—');
+        createMetaRow(meta, 'Created', formatDate(run.created_at));
+        createMetaRow(meta, 'Updated', formatDate(run.updated_at));
+        card.appendChild(meta);
+
+        return card;
+      };
+
+      const renderRuns = runs => {
+        runsListEl.innerHTML = '';
+        if (!runs.length) {
+          runsListEl.innerHTML = '<p class="hint">No runs found in the database yet.</p>';
+          return;
+        }
+        runs.slice(0, MAX_RUN_CARDS).forEach(run => {
+          runsListEl.appendChild(buildRunCard(run));
+        });
+      };
+
+      const renderStories = stories => {
+        storiesListEl.innerHTML = '';
+        if (!stories.length) {
+          storiesListEl.innerHTML = '<p class="hint">No stories tracked yet.</p>';
+          return;
+        }
+        stories.slice(0, MAX_STORIES).forEach(story => {
+          const card = document.createElement('article');
+          card.className = 'story-card';
+
+          const heading = document.createElement('h3');
+          heading.textContent = story.title || story.story_id || 'Untitled story';
+          card.appendChild(heading);
+
+          const meta = document.createElement('p');
+          meta.className = 'story-meta';
+          const idLabel = story.story_id || story.id || 'unknown id';
+          meta.textContent = `${idLabel} · ${story.status || 'pending'} · ${formatDate(story.updated_at)}`;
+          card.appendChild(meta);
+
+          if (story.description) {
+            const desc = document.createElement('p');
+            desc.textContent = story.description;
+            card.appendChild(desc);
+          }
+
+          if (story.acceptance_criteria) {
+            const acceptance = document.createElement('p');
+            const label = document.createElement('strong');
+            label.textContent = 'Acceptance:';
+            acceptance.append(label, document.createTextNode(` ${story.acceptance_criteria}`));
+            card.appendChild(acceptance);
+          }
+
+          storiesListEl.appendChild(card);
+        });
+      };
+
+      const renderStepStatus = statusRows => {
+        stepStatusListEl.innerHTML = '';
+        if (!statusRows.length) {
+          stepStatusListEl.innerHTML = '<li class="hint">No step records yet.</li>';
+          return;
+        }
+        const sorted = statusRows
+          .map(row => ({ status: row.status || 'unknown', count: numberFromDb(row.count) }))
+          .sort((a, b) => b.count - a.count);
+        sorted.forEach(({ status, count }) => {
+          const item = document.createElement('li');
+          const left = document.createElement('span');
+          left.style.display = 'flex';
+          left.style.alignItems = 'center';
+
+          const pill = document.createElement('span');
+          pill.className = `status-pill status-pill--${status}`;
+          left.append(pill, document.createTextNode(status));
+
+          const number = document.createElement('strong');
+          number.textContent = String(count);
+
+          item.append(left, number);
+          stepStatusListEl.appendChild(item);
+        });
+      };
+
+      const renderRecentSteps = steps => {
+        recentStepsListEl.innerHTML = '';
+        if (!steps.length) {
+          recentStepsListEl.innerHTML = '<li class="hint">No recent step activity.</li>';
+          return;
+        }
+        steps.slice(0, MAX_RECENT_STEPS).forEach(step => {
+          const item = document.createElement('li');
+          item.className = 'recent-step';
+
+          const top = document.createElement('div');
+          top.className = 'recent-step__top';
+          const status = document.createElement('span');
+          status.className = 'recent-step__status';
+          status.textContent = step.status || 'waiting';
+          const agent = document.createElement('span');
+          agent.textContent = step.agent_id || 'unknown agent';
+          top.append(status, agent);
+
+          const meta = document.createElement('p');
+          meta.className = 'recent-step__meta';
+          const runToken = step.run_id ? step.run_id.slice(0, 8) : '—';
+          const stepLabel = step.step_index != null ? `#${step.step_index}` : step.step_id || '—';
+          const runLabelStrong = document.createElement('strong');
+          runLabelStrong.textContent = 'Run:';
+          const stepLabelStrong = document.createElement('strong');
+          stepLabelStrong.textContent = 'Step:';
+          meta.append(runLabelStrong, document.createTextNode(` ${runToken} · `), stepLabelStrong, document.createTextNode(` ${stepLabel}`));
+
+          const time = document.createElement('p');
+          time.className = 'recent-step__time';
+          time.textContent = formatDate(step.updated_at);
+
+          item.append(top, meta, time);
+          recentStepsListEl.appendChild(item);
+        });
+      };
+
+      const renderSummary = ({ totalRuns, activeRuns, totalSteps, totalStories, displayRuns, stories, aggregatedStatuses }) => {
+        totalRunsEl.textContent = String(totalRuns);
+        runningRunsEl.textContent = `${activeRuns} running`;
+        stepsCountEl.textContent = String(totalSteps);
+        storiesCountEl.textContent = String(totalStories);
+        runsHintEl.textContent = `Loaded ${Math.min(displayRuns.length, MAX_RUN_CARDS)} runs.`;
+        runningHintEl.textContent = activeRuns ? `${activeRuns} still running` : 'No active runs right now.';
+        stepsCardHintEl.textContent = aggregatedStatuses ? `Top status: ${aggregatedStatuses[0]?.status || 'none'}` : 'Waiting for step data.';
+        storiesCardHintEl.textContent = `Showing ${Math.min(stories.length, MAX_STORIES)} stories.`;
+        stepSectionHintEl.textContent = `${aggregatedStatuses?.length ? aggregatedStatuses.length : 0} unique statuses.`;
+        storySectionHintEl.textContent = `Updated ${formatDate(new Date().toISOString())}`;
+      };
+
+      const getQueryResult = (db, query) => {
+        const result = db.exec(query);
+        if (!result || !result.length) return [];
+        const { columns, values } = result[0];
+        return values.map(row => {
+          const entry = {};
+          columns.forEach((column, index) => {
+            entry[column] = row[index];
+          });
+          return entry;
+        });
+      };
+
+      const refreshData = async () => {
+        let db;
+        setStatusMessage('Reading Antfarm database…', 'info');
+        refreshButton.disabled = true;
+        try {
+          const SQL = await (initSqlPromise ?? (initSqlPromise = initSqlJs({ locateFile: file => `${SQL_JS_BASE}/${file}` })));
+          const response = await fetch(DATABASE_PATH);
+          if (!response.ok) {
+            throw new Error(`Unable to fetch database (${response.status} ${response.statusText})`);
+          }
+          const buffer = await response.arrayBuffer();
+          db = new SQL.Database(new Uint8Array(buffer));
+
+          const latestRuns = getQueryResult(db, `
+            SELECT id, workflow_id, task, status, created_at, updated_at, run_number
+            FROM runs
+            ORDER BY updated_at DESC
+            LIMIT ${MAX_RUN_CARDS}
+          `);
+
+          const recentSteps = getQueryResult(db, `
+            SELECT run_id, step_id, agent_id, step_index, status, updated_at
+            FROM steps
+            ORDER BY updated_at DESC
+            LIMIT ${MAX_RECENT_STEPS}
+          `);
+
+          const latestStories = getQueryResult(db, `
+            SELECT story_id, title, status, description, acceptance_criteria, updated_at
+            FROM stories
+            ORDER BY updated_at DESC
+            LIMIT ${MAX_STORIES}
+          `);
+
+          const runStatusRows = getQueryResult(db, `
+            SELECT status, COUNT(*) AS count
+            FROM runs
+            GROUP BY status
+          `);
+
+          const stepStatusRows = getQueryResult(db, `
+            SELECT status, COUNT(*) AS count
+            FROM steps
+            GROUP BY status
+          `);
+
+          const totalRunsCount = getQueryResult(db, 'SELECT COUNT(*) AS total FROM runs;')[0];
+          const totalStepsCount = getQueryResult(db, 'SELECT COUNT(*) AS total FROM steps;')[0];
+          const totalStoriesCount = getQueryResult(db, 'SELECT COUNT(*) AS total FROM stories;')[0];
+
+          renderRuns(latestRuns);
+          renderStories(latestStories);
+          renderStepStatus(stepStatusRows);
+          renderRecentSteps(recentSteps);
+
+          renderSummary({
+            totalRuns: numberFromDb(totalRunsCount?.total),
+            activeRuns: numberFromDb(runStatusRows.find(row => row.status === 'running')?.count ?? 0),
+            totalSteps: numberFromDb(totalStepsCount?.total),
+            totalStories: numberFromDb(totalStoriesCount?.total),
+            displayRuns: latestRuns,
+            stories: latestStories,
+            aggregatedStatuses: stepStatusRows
+              .map(row => ({ status: row.status || 'unknown', count: numberFromDb(row.count) }))
+              .sort((a, b) => b.count - a.count)
+          });
+
+          lastRefreshedEl.textContent = `Refreshed ${formatDate(new Date().toISOString())}`;
+          setStatusMessage('Database loaded successfully.', 'success');
+        } catch (error) {
+          console.error(error);
+          setStatusMessage(error instanceof Error ? error.message : String(error), 'error');
+        } finally {
+          if (db) {
+            db.close();
+          }
+          refreshButton.disabled = false;
+        }
+      };
+
+      document.addEventListener('DOMContentLoaded', () => {
+        refreshButton.addEventListener('click', refreshData);
+        refreshData();
+      });
+    </script>
+  </body>
+</html>
