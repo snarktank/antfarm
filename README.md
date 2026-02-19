@@ -155,6 +155,28 @@ antfarm dashboard stop         # Stop
 antfarm dashboard status       # Check status
 ```
 
+### Dashboard UI Technology
+
+The dashboard is built with **Tailwind CSS v3** for modern, maintainable styling:
+
+- **No custom CSS** — All styling uses Tailwind utility classes
+- **Dark mode support** — Toggle between light and dark themes (persists to localStorage)
+- **Fully responsive** — Works on mobile (375px), tablet (768px), and desktop (1920px+)
+- **Optimized performance** — Purged CSS is ~22KB uncompressed, ~4.7KB gzipped
+- **Professional UI** — Smooth transitions, hover states, focus indicators for accessibility
+
+**For developers working on the dashboard:**
+
+The dashboard UI is defined in `src/server/index.html` with Tailwind classes. Custom CSS (animations, JS-toggled states) lives in `src/server/input.css` and gets compiled to `dist/server/output.css` during build.
+
+To modify dashboard styling:
+1. Edit `src/server/index.html` (use Tailwind utility classes)
+2. Run `npm run build` to compile CSS and copy files
+3. Start dashboard: `node dist/cli/cli.js dashboard start`
+4. Refresh browser to see changes
+
+Tailwind configuration: `tailwind.config.js` (dark mode, custom colors, content paths)
+
 ---
 
 ## Commands

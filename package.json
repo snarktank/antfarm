@@ -10,8 +10,10 @@
     "antfarm": "dist/cli/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp src/server/index.html dist/server/index.html && chmod +x dist/cli/cli.js && node scripts/inject-version.js",
-    "start": "node dist/cli/cli.js"
+    "build:css": "npx tailwindcss -i ./src/server/input.css -o ./dist/server/output.css --minify",
+    "build": "npm run build:css && tsc -p tsconfig.json && cp src/server/index.html dist/server/index.html && cp src/server/tailwind-test.html dist/server/tailwind-test.html && chmod +x dist/cli/cli.js && node scripts/inject-version.js",
+    "start": "node dist/cli/cli.js",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "json5": "^2.2.3",
@@ -19,6 +21,9 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.1",
+    "autoprefixer": "^10.4.24",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3"
   }
 }

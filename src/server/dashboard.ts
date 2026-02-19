@@ -137,6 +137,17 @@ export function startDashboard(port = 3333): http.Server {
       }
     }
 
+    // Serve CSS
+    if (p === "/output.css") {
+      const cssPath = path.join(__dirname, "output.css");
+      const srcCssPath = path.resolve(__dirname, "..", "..", "src", "server", "output.css");
+      const resolvedCss = fs.existsSync(cssPath) ? cssPath : srcCssPath;
+      if (fs.existsSync(resolvedCss)) {
+        res.writeHead(200, { "Content-Type": "text/css", "Cache-Control": "public, max-age=31536000" });
+        return res.end(fs.readFileSync(resolvedCss, "utf-8"));
+      }
+    }
+
     // Serve frontend
     serveHTML(res);
   });

@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  /* JavaScript-toggled state classes */
+  .overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  .story-open {
+    display: block !important;
+  }
+  
+  .story-chevron-open {
+    transform: rotate(90deg);
+  }
+  
+  .step-open {
+    display: block !important;
+  }
+  
+  .step-chevron-open {
+    transform: rotate(90deg);
+  }
+  
+  .medic-panel.open {
+    display: flex;
+  }
+  
+  /* Medic status indicator dots - applied via JavaScript classList */
+  .healthy {
+    background: #4ade80;
+    box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+    animation: pulse 2s infinite;
+  }
+  
+  .warning {
+    background: #fbbf24;
+    box-shadow: 0 0 6px rgba(251, 191, 36, 0.5);
+  }
+  
+  .critical {
+    background: #f87171;
+    box-shadow: 0 0 6px rgba(248, 113, 113, 0.5);
+    animation: pulse 1s infinite;
+  }
+  
+  .unknown {
+    background: #9ca3af;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+}
+
+@layer base {
+  /* Select dropdown options - browser limitation, hardcoded values */
+  select option {
+    background: #5a6b32;
+    color: #fff;
+  }
+  
+  /* Dark theme select options */
+  [data-theme="dark"] select option {
+    background: #3a4228;
+    color: #fff;
+  }
+  
+  select:focus {
+    border-color: #8ECFC0;
+  }
+  
+  /* Focus visible for better keyboard navigation */
+  :focus-visible {
+    outline: 2px solid #D4E8A0;
+    outline-offset: 2px;
+  }
+  
+  /* Smooth transitions for interactive elements */
+  button, select, [role="button"] {
+    transition-duration: 200ms;
+  }
+}
