@@ -154,17 +154,8 @@ select:focus{border-color:#8ECFC0}
 .unknown{background:#9ca3af}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
-.medic-panel{position:fixed;top:60px;right:16px;width:340px;max-height:500px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px var(--shadow-heavy);z-index:50;overflow:hidden;display:none;flex-direction:column}
+/* Medic panel migrated to Tailwind classes */
 .medic-panel.open{display:flex}
-.medic-panel-header{padding:14px 16px;border-bottom:1px solid var(--border-light);font-size:14px;font-weight:600;color:var(--text-primary);display:flex;align-items:center;gap:8px}
-.medic-panel-body{padding:12px 16px;overflow-y:auto;flex:1}
-.medic-stat{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;color:var(--text-secondary);border-bottom:1px solid var(--border-light)}
-.medic-stat:last-child{border-bottom:none}
-.medic-stat-value{font-weight:600;color:var(--text-primary)}
-.medic-check-row{padding:8px 0;border-bottom:1px solid var(--border-light);font-size:11px;line-height:1.5}
-.medic-check-row:last-child{border-bottom:none}
-.medic-check-time{color:var(--text-secondary);font-family:'Geist Mono',monospace}
-.medic-check-summary{color:var(--text-primary);margin-left:8px}
 </style>
 </head>
 <body>
@@ -179,9 +170,9 @@ select:focus{border-color:#8ECFC0}
   <span class="text-xs ml-auto" style="color:rgba(255,255,255,.6)" id="refresh-note">Auto-refresh: 30s</span>
 </header>
 <div class="flex flex-col md:flex-row gap-4 p-6 overflow-x-auto" style="min-height:calc(100vh - 65px)" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
-<div class="medic-panel" id="medic-panel">
-  <div class="medic-panel-header">Workflow Medic</div>
-  <div class="medic-panel-body" id="medic-panel-body">Loading...</div>
+<div class="fixed top-[60px] right-4 w-[340px] max-h-[500px] rounded-[10px] border z-[50] overflow-hidden hidden flex-col medic-panel" id="medic-panel" style="background:var(--bg-surface);border-color:var(--border);box-shadow:0 8px 32px var(--shadow-heavy)">
+  <div class="px-4 py-3.5 border-b text-sm font-semibold flex items-center gap-2" style="border-color:var(--border-light);color:var(--text-primary)">Workflow Medic</div>
+  <div class="px-4 py-3 overflow-y-auto flex-1" id="medic-panel-body">Loading...</div>
 </div>
 <div class="fixed inset-0 z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-150 overlay" id="overlay" style="background:var(--overlay)" onclick="if(event.target===this)closePanel()">
   <div class="relative w-[90%] max-w-[640px] max-h-[85vh] overflow-y-auto p-6 rounded-xl border" style="background:var(--bg-surface);border-color:var(--border);box-shadow:0 8px 32px var(--shadow-heavy)" id="panel"></div>
@@ -525,35 +516,36 @@ async function loadMedicData() {
     ]);
 
     let html = '';
-    html += '<div style="margin-bottom:12px">';
+    html += '<div class="mb-3">';
     if (status.lastCheck) {
       const ageMin = Math.round((Date.now() - parseTS(status.lastCheck.checkedAt).getTime()) / 60000);
-      html += `<div class="medic-stat"><span>Last check</span><span class="medic-stat-value">${ageMin}m ago</span></div>`;
-      html += `<div class="medic-stat"><span>Result</span><span class="medic-stat-value">${esc(status.lastCheck.summary)}</span></div>`;
+      html += `<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Last check</span><span class="font-semibold" style="color:var(--text-primary)">${ageMin}m ago</span></div>`;
+      html += `<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Result</span><span class="font-semibold" style="color:var(--text-primary)">${esc(status.lastCheck.summary)}</span></div>`;
     } else {
-      html += '<div class="medic-stat"><span>Last check</span><span class="medic-stat-value">Never</span></div>';
+      html += '<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Last check</span><span class="font-semibold" style="color:var(--text-primary)">Never</span></div>';
     }
-    html += `<div class="medic-stat"><span>Checks (24h)</span><span class="medic-stat-value">${status.recentChecks}</span></div>`;
-    html += `<div class="medic-stat"><span>Issues found (24h)</span><span class="medic-stat-value">${status.recentIssues}</span></div>`;
-    html += `<div class="medic-stat"><span>Auto-fixed (24h)</span><span class="medic-stat-value">${status.recentActions}</span></div>`;
+    html += `<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Checks (24h)</span><span class="font-semibold" style="color:var(--text-primary)">${status.recentChecks}</span></div>`;
+    html += `<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Issues found (24h)</span><span class="font-semibold" style="color:var(--text-primary)">${status.recentIssues}</span></div>`;
+    html += `<div class="flex justify-between py-1.5 text-xs" style="color:var(--text-secondary)"><span>Auto-fixed (24h)</span><span class="font-semibold" style="color:var(--text-primary)">${status.recentActions}</span></div>`;
     html += '</div>';
 
     if (checks.length > 0) {
-      html += '<div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:8px">Recent Checks</div>';
+      html += '<div class="text-xs font-semibold mb-2" style="color:var(--text-primary)">Recent Checks</div>';
       for (const c of checks) {
         const t = parseTS(c.checkedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
         const icon = c.issuesFound === 0 ? '·' : c.actionsTaken > 0 ? '~' : '!';
         const color = c.issuesFound === 0 ? 'var(--text-secondary)' : c.actionsTaken >= c.issuesFound ? 'var(--accent-teal)' : 'var(--accent-orange)';
-        html += `<div class="medic-check-row">
-          <span class="medic-check-time">${t}</span>
-          <span class="medic-check-summary" style="color:${color}">${icon} ${esc(c.summary)}</span>
+        const borderClass = checks.indexOf(c) === checks.length - 1 ? '' : 'border-b';
+        html += `<div class="py-2 text-[11px] leading-normal ${borderClass}" style="border-color:var(--border-light)">
+          <span class="font-mono" style="color:var(--text-secondary)">${t}</span>
+          <span class="ml-2" style="color:${color}">${icon} ${esc(c.summary)}</span>
         </div>`;
       }
     }
 
-    body.innerHTML = html || '<div style="color:var(--text-secondary);font-size:12px;padding:8px 0">No medic data yet. Run <code>antfarm medic install</code> to enable.</div>';
+    body.innerHTML = html || '<div class="text-xs py-2" style="color:var(--text-secondary)">No medic data yet. Run <code>antfarm medic install</code> to enable.</div>';
   } catch {
-    body.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;padding:8px 0">Could not load medic data.</div>';
+    body.innerHTML = '<div class="text-xs py-2" style="color:var(--text-secondary)">Could not load medic data.</div>';
   }
 }
 
