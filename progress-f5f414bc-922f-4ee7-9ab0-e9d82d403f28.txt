@@ -9,6 +9,7 @@ Started: 2026-02-20 00:24 CST
 - Structured planner payloads in step output are parsed as multi-line `KEY_JSON:` blocks up to the next `KEY:` boundary (see `collectJsonBlock` in `src/installer/step-ops.ts`).
 - Service-layer domain errors in installer flows should be deterministic via typed error codes (e.g., `ScopeFreezeError.code`) so retry/verify logic can assert behavior without fragile message matching.
 - Loop-scope policy enforcement should run in both claim-time (`claimStep`) and continuation-time (`checkLoopContinuation`) paths to avoid silent out-of-scope progression between iterations.
+- CLI machine-readable commands in this repo should prefer line-oriented `key=value` output and typed error codes on stderr for script-safe parsing.
 
 ---
 
@@ -57,4 +58,14 @@ Started: 2026-02-20 00:24 CST
 - Added tests in `tests/frozen-scope-story-enforcement.test.ts` to verify out-of-scope blocking, in-scope pass-through, and continuation-path enforcement.
 - Files changed: `src/installer/step-ops.ts`, `src/installer/events.ts`, `tests/frozen-scope-story-enforcement.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
 - **Learnings:** frozen-scope policy needs dual-path enforcement (claim + continuation) because loop steps can re-enter pending between iterations.
+---
+## 2026-02-20 01:14 CST - US-005: Add CLI commands to inspect and control execution scope freeze
+- Extended CLI usage and routing in `src/cli/cli.ts` with:
+  - `antfarm workflow scope <run-id>` for inspecting run scope state
+  - `antfarm workflow scope-freeze <run-id>` for freezing run scope
+- Added script-friendly line output (`key=value`) for both commands, including required scope fields (`scope_status`, `scope_version`, `scope_frozen_at`) and emitted scope items for inspect.
+- Wired deterministic CLI error handling for scope operations by surfacing `ScopeFreezeError.code` on stderr and exiting non-zero on failures.
+- Added tests in `tests/cli-scope-commands.test.ts` to validate help text, inspect output fields, freeze success path, and freeze failure exit-code behavior.
+- Files changed: `src/cli/cli.ts`, `tests/cli-scope-commands.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** CLI scope commands should expose typed backend error codes directly for robust shell-level automation checks.
 ---
