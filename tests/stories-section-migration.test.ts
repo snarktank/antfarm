@@ -196,7 +196,7 @@ describe('Stories Section Migration (US-009)', () => {
     });
 
     it('updates migration comment to include stories section', () => {
-      assert.ok(html.includes('stories section migrated to Tailwind classes'), 'Should mention stories in migration comment');
+      assert.ok(html.includes('stories section, and activity section migrated to Tailwind classes'), 'Should mention stories and activity in migration comment');
     });
   });
 

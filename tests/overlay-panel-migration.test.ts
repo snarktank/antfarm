@@ -153,7 +153,7 @@ describe('US-006: Overlay and Panel Container Migration', () => {
     });
 
     it('should have migration comment (updated in US-008)', () => {
-      assert.match(html, /\/\* Overlay, panel container, panel header, close button, step rows, and stories section migrated to Tailwind classes \*\//);
+      assert.match(html, /\/\* Overlay, panel container, panel header, close button, step rows, stories section, and activity section migrated to Tailwind classes \*\//);
     });
   });
 

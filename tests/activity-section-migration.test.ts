@@ -1,0 +1,529 @@
+import { describe, it } from "node:test";
+import { strict as assert } from "node:assert/strict";
+import { readFileSync, existsSync } from "node:fs";
+import path from "node:path";
+
+const projectRoot = path.resolve(import.meta.dirname, "..");
+const indexHtmlPath = path.join(projectRoot, "src", "server", "index.html");
+const distHtmlPath = path.join(projectRoot, "dist", "server", "index.html");
+
+describe("Activity Section Migration", () => {
+  const html = readFileSync(indexHtmlPath, "utf-8");
+
+  describe("Activity Section Container", () => {
+    it("should have mt-6 class for top margin", () => {
+      assert.match(html, /<div class="mt-6 border-t pt-5"/);
+    });
+
+    it("should have border-t class for top border", () => {
+      assert.match(html, /<div class="mt-6 border-t pt-5"/);
+    });
+
+    it("should have pt-5 class for top padding", () => {
+      assert.match(html, /<div class="mt-6 border-t pt-5"/);
+    });
+
+    it("should preserve border-color CSS variable", () => {
+      assert.match(
+        html,
+        /<div class="mt-6 border-t pt-5" style="border-color:var\(--border\)"/
+      );
+    });
+
+    it("should not have inline margin-top style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('margin-top:24px'));
+    });
+
+    it("should not have inline padding-top style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('padding-top:20px'));
+    });
+  });
+
+  describe("Activity Heading (h3)", () => {
+    it("should have text-[15px] class for font size", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /<h3 class="text-\[15px\] font-semibold mb-3"/);
+    });
+
+    it("should have font-semibold class for font weight", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /<h3 class="text-\[15px\] font-semibold mb-3"/);
+    });
+
+    it("should have mb-3 class for bottom margin", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /<h3 class="text-\[15px\] font-semibold mb-3"/);
+    });
+
+    it("should preserve color CSS variable", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /<h3 class="text-\[15px\] font-semibold mb-3" style="color:var\(--text-primary\)">Activity<\/h3>/
+      );
+    });
+
+    it("should not have inline font-size style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('font-size:15px'));
+    });
+
+    it("should not have inline font-weight style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('font-weight:600'));
+    });
+
+    it("should not have inline margin-bottom style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('margin-bottom:12px'));
+    });
+  });
+
+  describe("Events Container", () => {
+    it("should have max-h-[300px] class for max height", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /<div class="max-h-\[300px\] overflow-y-auto">/);
+    });
+
+    it("should have overflow-y-auto class for scrolling", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /<div class="max-h-\[300px\] overflow-y-auto">/);
+    });
+
+    it("should not have inline max-height style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('max-height:300px'));
+    });
+
+    it("should not have inline overflow-y style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('overflow-y:auto'));
+    });
+  });
+
+  describe("Event Row Structure", () => {
+    it("should have flex class for display flex", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+    });
+
+    it("should have gap-3 class for gap", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+    });
+
+    it("should have py-1 class for vertical padding", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+    });
+
+    it("should have text-xs class for font size", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+    });
+
+    it("should have leading-normal class for line height", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+    });
+
+    it("should have border-b class for border bottom", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
+    });
+
+    it("should preserve border-color CSS variable", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /style="border-color:var\(--border-light\)"/
+      );
+    });
+
+    it("should not have inline display:flex style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('display:flex'));
+    });
+
+    it("should not have inline gap style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('gap:12px'));
+    });
+
+    it("should not have inline padding style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('padding:4px 0'));
+    });
+
+    it("should not have inline font-size style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('font-size:12px'));
+    });
+
+    it("should not have inline line-height style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('line-height:1.5'));
+    });
+  });
+
+  describe("Timestamp Span", () => {
+    it("should have font-mono class for monospace font", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /<span class="font-mono shrink-0 min-w-\[44px\]"/
+      );
+    });
+
+    it("should have shrink-0 class to prevent shrinking", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /<span class="font-mono shrink-0 min-w-\[44px\]"/
+      );
+    });
+
+    it("should have min-w-[44px] class for minimum width", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /<span class="font-mono shrink-0 min-w-\[44px\]"/
+      );
+    });
+
+    it("should preserve text-secondary color CSS variable", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /<span class="font-mono shrink-0 min-w-\[44px\]" style="color:var\(--text-secondary\)">\${time}<\/span>/
+      );
+    });
+
+    it("should not have inline font-family style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      const timestampMatch = loadActivityMatch[0].match(
+        /<span[^>]*>\${time}<\/span>/
+      );
+      assert.ok(timestampMatch);
+      assert.ok(!timestampMatch[0].includes("font-family:'Geist Mono',monospace"));
+    });
+
+    it("should not have inline flex-shrink style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      const timestampMatch = loadActivityMatch[0].match(
+        /<span[^>]*>\${time}<\/span>/
+      );
+      assert.ok(timestampMatch);
+      assert.ok(!timestampMatch[0].includes('flex-shrink:0'));
+    });
+
+    it("should not have inline min-width style", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      const timestampMatch = loadActivityMatch[0].match(
+        /<span[^>]*>\${time}<\/span>/
+      );
+      assert.ok(timestampMatch);
+      assert.ok(!timestampMatch[0].includes('min-width:44px'));
+    });
+  });
+
+  describe("Agent Span", () => {
+    it("should have font-mono class for monospace font", () => {
+      const loadActivityMatch = html.match(
+        /const agentSpan = agent[\s\S]*?;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /<span class="font-mono shrink-0"/
+      );
+    });
+
+    it("should have shrink-0 class to prevent shrinking", () => {
+      const loadActivityMatch = html.match(
+        /const agentSpan = agent[\s\S]*?;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /<span class="font-mono shrink-0"/
+      );
+    });
+
+    it("should preserve accent-teal color CSS variable", () => {
+      const loadActivityMatch = html.match(
+        /const agentSpan = agent[\s\S]*?;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /<span class="font-mono shrink-0" style="color:var\(--accent-teal\)">/
+      );
+    });
+
+    it("should not have inline font-family style", () => {
+      const loadActivityMatch = html.match(
+        /const agentSpan = agent[\s\S]*?;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes("font-family:'Geist Mono',monospace"));
+    });
+
+    it("should not have inline flex-shrink style", () => {
+      const loadActivityMatch = html.match(
+        /const agentSpan = agent[\s\S]*?;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('flex-shrink:0'));
+    });
+  });
+
+  describe("Description Span", () => {
+    it("should preserve text-primary color CSS variable", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.match(
+        loadActivityMatch[0],
+        /<span style="color:var\(--text-primary\)">\${esc\(desc\)}<\/span>/
+      );
+    });
+
+    it("should not have additional inline styles", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      const descMatch = loadActivityMatch[0].match(
+        /<span style="color:var\(--text-primary\)">\${esc\(desc\)}<\/span>/
+      );
+      assert.ok(descMatch);
+      // Should only have color style, no other inline styles
+      const styleAttr = descMatch[0].match(/style="([^"]*)"/);
+      assert.ok(styleAttr);
+      assert.equal(styleAttr[1], "color:var(--text-primary)");
+    });
+  });
+
+  describe("CSS Removal", () => {
+    it("should not have old inline styles in activity container", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('margin-top:24px'));
+      assert.ok(!loadActivityMatch[0].includes('padding-top:20px'));
+    });
+
+    it("should not have old inline styles in heading", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('font-size:15px'));
+      assert.ok(!loadActivityMatch[0].includes('font-weight:600'));
+      assert.ok(!loadActivityMatch[0].includes('margin-bottom:12px'));
+    });
+
+    it("should not have old inline styles in events container", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('max-height:300px'));
+      assert.ok(!loadActivityMatch[0].includes('overflow-y:auto'));
+    });
+
+    it("should not have old inline styles in event rows", () => {
+      const loadActivityMatch = html.match(
+        /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
+      );
+      assert.ok(loadActivityMatch);
+      assert.ok(!loadActivityMatch[0].includes('display:flex'));
+      assert.ok(!loadActivityMatch[0].includes('gap:12px'));
+      assert.ok(!loadActivityMatch[0].includes('padding:4px 0'));
+      assert.ok(!loadActivityMatch[0].includes('font-size:12px'));
+      assert.ok(!loadActivityMatch[0].includes('line-height:1.5'));
+    });
+
+    it("should have updated migration comment", () => {
+      assert.match(
+        html,
+        /\/\* Overlay, panel container, panel header, close button, step rows, stories section, and activity section migrated to Tailwind classes \*\//
+      );
+    });
+  });
+
+  describe("Functional Preservation", () => {
+    it("should preserve loadActivity function", () => {
+      assert.match(html, /async function loadActivity\(runId\) {/);
+    });
+
+    it("should preserve fetchJSON call for events", () => {
+      assert.match(
+        html,
+        /const events = await fetchJSON\(`\/api\/runs\/\${runId}\/events`\);/
+      );
+    });
+
+    it("should preserve empty state handling", () => {
+      assert.ok(html.includes("if (!events || events.length === 0) { panel.innerHTML = ''; return; }"));
+    });
+
+    it("should preserve event mapping logic", () => {
+      assert.ok(html.includes("const rows = events.map(evt => {"));
+    });
+
+    it("should preserve time formatting", () => {
+      assert.ok(html.includes("const time = t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});"));
+    });
+
+    it("should preserve agent ID extraction", () => {
+      assert.ok(html.includes("const agent = evt.agentId ? evt.agentId.split('/').pop() : '';"));
+    });
+
+    it("should preserve formatEventDesc call", () => {
+      assert.ok(html.includes("const desc = formatEventDesc(evt);"));
+    });
+
+    it("should preserve escape function calls", () => {
+      assert.ok(html.includes("${esc(agent)}"));
+      assert.ok(html.includes("${esc(desc)}"));
+    });
+
+    it("should preserve activity-panel element ID", () => {
+      assert.match(html, /id="activity-panel"/);
+    });
+  });
+
+  describe("Build Output", () => {
+    it("should have dist HTML file after build", () => {
+      assert.ok(existsSync(distHtmlPath), "dist/server/index.html should exist");
+    });
+
+    it("should have migrated activity section in dist HTML", () => {
+      if (existsSync(distHtmlPath)) {
+        const distHtml = readFileSync(distHtmlPath, "utf-8");
+        assert.ok(distHtml.includes('class="mt-6 border-t pt-5"'));
+        assert.ok(distHtml.includes('class="text-[15px] font-semibold mb-3"'));
+        assert.ok(distHtml.includes('class="max-h-[300px] overflow-y-auto"'));
+      }
+    });
+  });
+
+  describe("Responsive Design", () => {
+    it("should use proper spacing classes for mobile", () => {
+      assert.ok(html.includes("gap-3")); // 12px gap
+      assert.ok(html.includes("py-1")); // 4px vertical padding
+    });
+
+    it("should use proper text size for mobile readability", () => {
+      assert.ok(html.includes("text-xs")); // 12px font size
+      assert.ok(html.includes("text-[15px]")); // 15px heading
+    });
+
+    it("should use overflow-y-auto for scrolling on small screens", () => {
+      assert.ok(html.includes("overflow-y-auto"));
+      assert.ok(html.includes("max-h-[300px]"));
+    });
+  });
+});
