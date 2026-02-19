@@ -11,6 +11,7 @@ Started: 2026-02-20 00:24 CST
 - Loop-scope policy enforcement should run in both claim-time (`claimStep`) and continuation-time (`checkLoopContinuation`) paths to avoid silent out-of-scope progression between iterations.
 - CLI machine-readable commands in this repo should prefer line-oriented `key=value` output and typed error codes on stderr for script-safe parsing.
 - Human-facing event rendering in `antfarm logs` should use a centralized event→label map in `src/cli/cli.ts` to keep labels stable across new event types.
+- Dashboard API evolution should be additive: extend run-detail payloads with new fields (e.g., nested `scope` plus flat compatibility fields) without altering existing keys consumed by current UI.
 
 ---
 
@@ -76,4 +77,18 @@ Started: 2026-02-20 00:24 CST
 - Added coverage in `tests/cli-status-logs-scope-visibility.test.ts` for both status visibility and log label rendering.
 - Files changed: `src/installer/status.ts`, `src/cli/cli.ts`, `tests/cli-status-logs-scope-visibility.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
 - **Learnings:** extending status output is safest when preserving existing line structure and appending new fields, so existing parsing/tests remain stable.
+---
+## 2026-02-20 01:33 CST - US-007: Add dashboard backend endpoint for scope freeze details
+- Extended run-detail payload in `src/server/dashboard.ts` to include scope API contract data:
+  - `scope` object with `status`, `version`, `frozen_at`, `items`, and `violation_count`
+  - backward-compatible additive flat fields `scope_items` and `scope_violation_count`
+- Implemented scope violation summary derivation for dashboard payloads:
+  - primary source: `scope.violation` events for the run
+  - fallback source: failed step/story outputs containing scope-related errors
+- Added dashboard API coverage in `tests/dashboard-scope-api.test.ts` validating:
+  - required scope metadata and item list
+  - violation count
+  - preservation of existing run detail fields (`id`, `workflow_id`, `task`, `steps`, etc.)
+- Files changed: `src/server/dashboard.ts`, `tests/dashboard-scope-api.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** dashboard run-detail response changes should be additive (new nested/flat fields) to keep existing consumers stable while enabling richer UI contracts.
 ---

@@ -48,12 +48,49 @@ function getRuns(workflowId?: string): Array<RunInfo & { steps: StepInfo[] }> {
   });
 }
 
-function getRunById(id: string): (RunInfo & { steps: StepInfo[] }) | null {
+type ScopeItem = {
+  item_type: string;
+  item_value: string;
+};
+
+function getScopeViolationCount(runId: string): number {
+  const eventViolations = getRunEvents(runId).filter((evt) => evt.event === "scope.violation").length;
+  if (eventViolations > 0) return eventViolations;
+
+  const db = getDb();
+  const storyViolations = db.prepare(
+    "SELECT COUNT(*) AS c FROM stories WHERE run_id = ? AND status = 'failed' AND LOWER(COALESCE(output, '')) LIKE '%scope%'"
+  ).get(runId) as { c: number };
+  const stepViolations = db.prepare(
+    "SELECT COUNT(*) AS c FROM steps WHERE run_id = ? AND status = 'failed' AND LOWER(COALESCE(output, '')) LIKE '%scope%'"
+  ).get(runId) as { c: number };
+
+  return Number(storyViolations.c ?? 0) + Number(stepViolations.c ?? 0);
+}
+
+function getRunById(id: string): (RunInfo & { steps: StepInfo[]; scope: { status: string; version: number; frozen_at: string | null; items: ScopeItem[]; violation_count: number; }; scope_items: ScopeItem[]; scope_violation_count: number; }) | null {
   const db = getDb();
   const run = db.prepare("SELECT * FROM runs WHERE id = ?").get(id) as RunInfo | undefined;
   if (!run) return null;
   const steps = db.prepare("SELECT * FROM steps WHERE run_id = ? ORDER BY step_index ASC").all(run.id) as StepInfo[];
-  return { ...run, steps };
+  const scopeItems = db.prepare(
+    "SELECT item_type, item_value FROM run_scope_items WHERE run_id = ? AND scope_version = ? ORDER BY item_type ASC, item_value ASC"
+  ).all(run.id, run.scope_version) as ScopeItem[];
+  const scopeViolationCount = getScopeViolationCount(run.id);
+
+  return {
+    ...run,
+    steps,
+    scope: {
+      status: run.scope_status,
+      version: run.scope_version,
+      frozen_at: run.scope_frozen_at,
+      items: scopeItems,
+      violation_count: scopeViolationCount,
+    },
+    scope_items: scopeItems,
+    scope_violation_count: scopeViolationCount,
+  };
 }
 
 function json(res: http.ServerResponse, data: unknown, status = 200) {
