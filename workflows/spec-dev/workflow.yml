@@ -1,0 +1,389 @@
+id: spec-dev
+name: Spec-Driven Development
+version: 1
+description: |
+  Full spec-driven development pipeline inspired by Ralph Specum.
+  Research → Requirements → Design → Tasks → Implement → Verify.
+  Uses specialized agents for each phase. POC-first execution with
+  quality checkpoints. Implement phase loops over user stories.
+
+polling:
+  model: claude-cli/opus-4.6
+  timeoutSeconds: 300
+
+agents:
+  - id: researcher
+    name: Research Analyst
+    role: analysis
+    description: Explores codebase, searches web, analyzes feasibility. Produces research.md.
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+
+  - id: product-manager
+    name: Product Manager
+    role: analysis
+    description: Translates goals into user stories and requirements. Produces requirements.md.
+    workspace:
+      baseDir: agents/product-manager
+      files:
+        AGENTS.md: agents/product-manager/AGENTS.md
+
+  - id: architect
+    name: Architect
+    role: analysis
+    description: Designs system architecture and component boundaries. Produces design.md.
+    workspace:
+      baseDir: agents/architect
+      files:
+        AGENTS.md: agents/architect/AGENTS.md
+
+  - id: task-planner
+    name: Task Planner
+    role: analysis
+    description: Breaks design into executable tasks with POC-first approach. Produces tasks.md and STORIES_JSON.
+    workspace:
+      baseDir: agents/task-planner
+      files:
+        AGENTS.md: agents/task-planner/AGENTS.md
+
+  - id: developer
+    name: Developer
+    role: coding
+    description: Implements one user story at a time. Commits after each story.
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+
+  - id: qa-engineer
+    name: QA Engineer
+    role: verification
+    description: Verifies each story meets acceptance criteria. Independent verification.
+    workspace:
+      baseDir: agents/qa-engineer
+      files:
+        AGENTS.md: agents/qa-engineer/AGENTS.md
+
+steps:
+  - id: research
+    agent: researcher
+    input: |
+      Research the following feature/task thoroughly before implementation.
+
+      GOAL:
+      {{task}}
+
+      REPO: {{repo}}
+
+      Instructions:
+      1. Explore the codebase to understand current architecture, patterns, and conventions
+      2. Search the web for best practices, libraries, and approaches relevant to this goal
+      3. Identify existing code that will be affected or can be reused
+      4. Assess feasibility and flag any risks or unknowns
+      5. Find quality commands (lint, test, build) in the project
+      6. Save your findings to {{spec_dir}}/research.md
+
+      Output Format — reply with:
+      STATUS: done
+      SPEC_DIR: {{spec_dir}}
+      QUALITY_CMDS: |
+        build: <command or "none found">
+        test: <command or "none found">
+        lint: <command or "none found">
+      KEY_FILES: |
+        - file1.ts (reason)
+        - file2.ts (reason)
+      RISKS: |
+        - risk 1
+        - risk 2
+      RESEARCH_SUMMARY: |
+        <2-3 sentence summary of findings>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: requirements
+    agent: product-manager
+    input: |
+      Create structured requirements for the following goal.
+
+      GOAL:
+      {{task}}
+
+      REPO: {{repo}}
+      SPEC_DIR: {{spec_dir}}
+
+      RESEARCH SUMMARY:
+      {{research_summary}}
+
+      KEY FILES:
+      {{key_files}}
+
+      RISKS:
+      {{risks}}
+
+      Instructions:
+      1. Read {{spec_dir}}/research.md for full context
+      2. Define user stories (US-N format) with acceptance criteria (AC-N.M)
+      3. Define functional requirements (FR-N) and non-functional (NFR-N)
+      4. Identify out-of-scope items explicitly
+      5. Set measurable success criteria
+      6. Save to {{spec_dir}}/requirements.md
+
+      User Story Format:
+      ### US-1: [Title]
+      **As a** [user type]
+      **I want to** [action]
+      **So that** [benefit]
+      **Acceptance Criteria:**
+      - [ ] AC-1.1: [Testable criterion]
+      - [ ] AC-1.2: [Testable criterion]
+
+      Output Format — reply with:
+      STATUS: done
+      USER_STORIES_COUNT: <number>
+      FR_COUNT: <number>
+      NFR_COUNT: <number>
+      REQUIREMENTS_SUMMARY: |
+        <2-3 sentence summary>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: design
+    agent: architect
+    input: |
+      Create a technical design for the following requirements.
+
+      GOAL:
+      {{task}}
+
+      REPO: {{repo}}
+      SPEC_DIR: {{spec_dir}}
+
+      REQUIREMENTS SUMMARY:
+      {{requirements_summary}}
+
+      QUALITY COMMANDS:
+      {{quality_cmds}}
+
+      KEY FILES:
+      {{key_files}}
+
+      Instructions:
+      1. Read {{spec_dir}}/research.md and {{spec_dir}}/requirements.md
+      2. Explore the codebase to understand existing patterns and conventions
+      3. Design architecture with clear component boundaries
+      4. Document technical decisions and trade-offs
+      5. Define interfaces and data flow
+      6. Plan error handling and edge cases
+      7. Define test strategy
+      8. Save to {{spec_dir}}/design.md
+
+      Design Structure:
+      - Overview (2-3 sentences)
+      - Components (purpose, responsibilities, interfaces)
+      - Data Flow
+      - Technical Decisions (decision | options | chosen | rationale)
+      - File Structure (new/modified files)
+      - Error Handling
+      - Test Strategy
+      - Existing Patterns to Follow
+
+      Output Format — reply with:
+      STATUS: done
+      COMPONENTS_COUNT: <number>
+      NEW_FILES: |
+        - path/to/new/file.ts
+      MODIFIED_FILES: |
+        - path/to/existing/file.ts
+      DESIGN_SUMMARY: |
+        <2-3 sentence summary>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: plan-tasks
+    agent: task-planner
+    input: |
+      Break down the design into executable tasks using a POC-first approach.
+
+      GOAL:
+      {{task}}
+
+      REPO: {{repo}}
+      SPEC_DIR: {{spec_dir}}
+
+      DESIGN SUMMARY:
+      {{design_summary}}
+
+      QUALITY COMMANDS:
+      {{quality_cmds}}
+
+      NEW FILES:
+      {{new_files}}
+
+      MODIFIED FILES:
+      {{modified_files}}
+
+      Instructions:
+      1. Read {{spec_dir}}/research.md, {{spec_dir}}/requirements.md, and {{spec_dir}}/design.md
+      2. Break the work into user stories following POC-first phases:
+         - Phase 1: Make It Work (core functionality, skip tests, accept shortcuts)
+         - Phase 2: Refactoring (clean up, follow patterns)
+         - Phase 3: Testing (unit, integration, e2e)
+         - Phase 4: Quality Gates (lint, typecheck, build)
+      3. Each story should be independently implementable and verifiable
+      4. Insert [VERIFY] checkpoints every 2-3 stories
+      5. Save to {{spec_dir}}/tasks.md
+
+      CRITICAL: You MUST output STORIES_JSON with the stories for the implementation loop.
+      Each story must have: id, title, description, acceptanceCriteria (array of strings).
+
+      Output Format — reply with:
+      STATUS: done
+      TOTAL_STORIES: <number>
+      STORIES_JSON: [
+        {
+          "id": "story-001",
+          "title": "Core implementation",
+          "description": "Implement the basic functionality as described in design",
+          "acceptanceCriteria": ["Feature works end-to-end", "No regressions"]
+        },
+        {
+          "id": "story-002",
+          "title": "Refactor and clean up",
+          "description": "Apply project patterns and conventions",
+          "acceptanceCriteria": ["Code follows project patterns", "No dead code"]
+        }
+      ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: implement
+    agent: developer
+    type: loop
+    loop:
+      over: stories
+      completion: all_done
+      fresh_session: true
+      verify_each: true
+      verify_step: verify
+    input: |
+      Implement the following user story. You are working on ONE story in a fresh session.
+
+      GOAL (overall):
+      {{task}}
+
+      REPO: {{repo}}
+      SPEC_DIR: {{spec_dir}}
+
+      QUALITY COMMANDS:
+      {{quality_cmds}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      COMPLETED STORIES:
+      {{completed_stories}}
+
+      STORIES REMAINING: {{stories_remaining}}
+
+      VERIFY FEEDBACK (if retrying after failed verification):
+      {{verify_feedback}}
+
+      Instructions:
+      1. Read {{spec_dir}}/design.md to understand the architecture
+      2. Read {{spec_dir}}/tasks.md for detailed task steps
+      3. Implement this story only — do NOT implement other stories
+      4. Follow existing codebase patterns and conventions
+      5. Run quality commands to verify your work:
+         {{quality_cmds}}
+      6. Commit your changes with a descriptive message
+
+      IMPORTANT:
+      - Only modify files relevant to THIS story
+      - If quality commands fail, fix the issues before completing
+      - Do NOT skip tests if the story includes them
+
+      Reply with:
+      STATUS: done
+      CHANGES: |
+        - what you implemented
+      FILES_CHANGED: |
+        - file paths modified
+      TESTS: |
+        - what tests you wrote (or "N/A" if not a testing story)
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify
+    agent: qa-engineer
+    input: |
+      Verify the implementation of the current story meets acceptance criteria.
+
+      GOAL (overall):
+      {{task}}
+
+      REPO: {{repo}}
+      SPEC_DIR: {{spec_dir}}
+
+      QUALITY COMMANDS:
+      {{quality_cmds}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      IMPLEMENTATION CHANGES:
+      {{changes}}
+
+      FILES CHANGED:
+      {{files_changed}}
+
+      Instructions:
+      1. Read {{spec_dir}}/requirements.md for acceptance criteria
+      2. Check that the acceptance criteria for this story are met
+      3. Run quality commands:
+         {{quality_cmds}}
+      4. Verify no regressions in existing functionality
+      5. Check for common issues: hardcoded values, missing error handling, security concerns
+
+      Verification Checklist:
+      - [ ] Acceptance criteria met
+      - [ ] Quality commands pass (build, test, lint)
+      - [ ] No regressions
+      - [ ] Code follows project conventions
+      - [ ] No security concerns
+
+      Reply with:
+      STATUS: done
+      QUALITY: <high|medium|low>
+      AC_MET: <all|partial|none>
+      ISSUES: |
+        - any issues found (or "none")
+      VERDICT: <approved|needs-revision>
+
+      If needs-revision, explain exactly what needs to be fixed.
+      If major issues found, reply:
+      STATUS: retry
+      ISSUES: |
+        - what needs to be fixed
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: implement
+      max_retries: 1
+      on_exhausted:
+        escalate_to: human
+
+context:
+  repo: /home/motobot/.openclaw/workspace
+  spec_dir: /home/motobot/claw-projects/specs

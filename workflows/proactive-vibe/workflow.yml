@@ -1,0 +1,270 @@
+# Proactive Vibe Coding Machine — autonomous nightly improvement workflow
+# Triggered by proactive-scan.sh at 11 PM. Scanner selects an improvement,
+# planner decomposes into stories, developer implements, verifier checks,
+# reporter summarizes and notifies.
+id: proactive-vibe
+name: Proactive Vibe Coding Machine
+version: 1
+description: |
+  Autonomous nightly workflow that detects and implements improvements.
+  Reads work orders from proactive-scan.sh, implements ≤5 stories,
+  creates a feature branch (never touches main), and reports results.
+
+polling:
+  model: sonnet-4.5
+  timeoutSeconds: 120
+
+context:
+  repo: /home/motobot/.openclaw/workspace
+  max_stories: 5
+  max_budget_usd: 3.00
+  branch_prefix: proactive
+
+agents:
+  - id: scanner
+    name: Scanner
+    role: analysis
+    description: Validates work order feasibility against actual codebase state.
+    workspace:
+      baseDir: agents/scanner
+      files:
+        AGENTS.md: agents/scanner/AGENTS.md
+
+  - id: planner
+    name: Planner
+    role: analysis
+    description: Decomposes validated improvement into small user stories.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+
+  - id: developer
+    name: Developer
+    role: coding
+    description: Implements stories with tests, commits to feature branch.
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+
+  - id: verifier
+    name: Verifier
+    role: verification
+    description: Checks that each story was properly implemented.
+    workspace:
+      baseDir: agents/verifier
+      files:
+        AGENTS.md: ../../agents/shared/verifier/AGENTS.md
+        SOUL.md: ../../agents/shared/verifier/SOUL.md
+        IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
+
+  - id: reporter
+    name: Reporter
+    role: analysis
+    description: Summarizes results and notifies the user.
+    workspace:
+      baseDir: agents/reporter
+      files:
+        AGENTS.md: agents/reporter/AGENTS.md
+
+steps:
+  - id: scan
+    agent: scanner
+    input: |
+      Validate the following work order and confirm the improvement is feasible.
+
+      WORK ORDER:
+      {{task}}
+
+      REPO: {{repo}}
+
+      Instructions:
+      1. Read the work order carefully — it describes an improvement detected by the nightly scanner
+      2. Explore the codebase to confirm the improvement is feasible
+      3. Check that the files/systems mentioned actually exist
+      4. Assess complexity — can this be done in ≤5 small stories?
+      5. Identify any risks or blockers
+      6. If feasible, refine the task description for the planner
+
+      SAFETY RULES (CRITICAL):
+      - NEVER modify: openclaw.json, systemd service files, crontab, scripts in backups-claw/
+      - NEVER push to main branch
+      - NEVER modify running services or restart the gateway
+      - Only work on code in the workspace repo
+
+      If FEASIBLE, reply with:
+      STATUS: done
+      FEASIBLE: yes
+      REFINED_TASK: <refined description of what to implement>
+      SCOPE: <brief scope description>
+      RISK: <low/medium/high>
+      FILES: <key files that will be touched>
+
+      If NOT feasible, reply with:
+      STATUS: not_feasible
+      FEASIBLE: no
+      REASON: <why it's not feasible>
+    expects: "FEASIBLE: yes"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
+
+  - id: plan
+    agent: planner
+    input: |
+      Decompose the following improvement into small user stories.
+
+      TASK:
+      {{refined_task}}
+
+      SCOPE: {{scope}}
+      FILES: {{files}}
+      REPO: {{repo}}
+
+      CONSTRAINTS:
+      - Maximum {{max_stories}} stories (keep it small — this is a nightly autonomous run)
+      - Each story must fit in ONE developer session
+      - Every acceptance criterion must be mechanically verifiable
+      - Include "relevant tests pass" in every story
+      - Branch name: {{branch_prefix}}/{{run_id}}-<short-topic>
+
+      SAFETY RULES:
+      - NEVER include stories that modify: openclaw.json, systemd files, crontab, backups-claw/
+      - All work stays on the feature branch
+
+      Reply with:
+      STATUS: done
+      REPO: {{repo}}
+      BRANCH: <branch name>
+      STORIES_JSON: [ ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: implement
+    agent: developer
+    type: loop
+    loop:
+      over: stories
+      completion: all_done
+      fresh_session: true
+      verify_each: true
+      verify_step: verify
+    input: |
+      Implement the following user story. You are working on ONE story in a fresh session.
+      This is part of an AUTONOMOUS nightly improvement run — no human is watching.
+
+      TASK (overall):
+      {{refined_task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      COMPLETED STORIES:
+      {{completed_stories}}
+
+      STORIES REMAINING: {{stories_remaining}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions:
+      1. Read progress-{{run_id}}.txt if it exists
+      2. cd to repo, checkout branch, pull latest
+      3. Implement this story only
+      4. Write or update tests as needed
+      5. Run tests to confirm they pass
+      6. Commit: proactive: {{current_story_id}} - {{current_story_title}}
+      7. Append to progress-{{run_id}}.txt
+
+      SAFETY RULES:
+      - NEVER modify: openclaw.json, systemd files, crontab, backups-claw/
+      - NEVER push to remote — the reporter handles that
+      - NEVER restart services
+
+      Reply with:
+      STATUS: done
+      CHANGES: what you implemented
+      TESTS: what tests you wrote or updated
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify
+    agent: verifier
+    input: |
+      Verify the developer's work on this story.
+
+      TASK (overall):
+      {{refined_task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Check:
+      1. Code exists (not just TODOs or placeholders)
+      2. Each acceptance criterion for the story is met
+      3. Tests exist and pass
+      4. No obvious incomplete work
+      5. No safety violations (no changes to openclaw.json, systemd, crontab, backups-claw/)
+
+      Reply with:
+      STATUS: done
+      VERIFIED: What you confirmed
+
+      Or if incomplete:
+      STATUS: retry
+      ISSUES:
+      - What's missing or incomplete
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: implement
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: report
+    agent: reporter
+    input: |
+      Summarize the results of this autonomous nightly run.
+
+      TASK: {{refined_task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+      VERIFIED: {{verified}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions:
+      1. Read the progress log and changes
+      2. Create a concise summary of what was accomplished
+      3. Note any issues or incomplete work
+      4. The notification will be sent automatically — just output the summary
+
+      Reply with:
+      STATUS: done
+      SUMMARY: <concise summary of what was done tonight>
+      BRANCH: {{branch}}
+      STORIES_COMPLETED: <number>
+      STORIES_FAILED: <number>
+    expects: "STATUS: done"
+    on_fail:
+      escalate_to: human

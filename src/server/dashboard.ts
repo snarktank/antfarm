@@ -72,7 +72,9 @@ function serveHTML(res: http.ServerResponse) {
 export function startDashboard(port = 3333): http.Server {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
-    const p = url.pathname;
+    // Strip /antfarm prefix so Tailscale reverse-proxy works
+    const raw = url.pathname;
+    const p = raw.startsWith("/antfarm") ? raw.slice("/antfarm".length) || "/" : raw;
 
     if (p === "/api/workflows") {
       return json(res, loadWorkflows());

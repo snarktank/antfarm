@@ -550,12 +550,12 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
 
   // Try by UUID first, then fall back to step_id name (for backwards compat with old claim format)
   let step = db.prepare(
-    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
+    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id, expects FROM steps WHERE id = ?"
+  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null; expects: string } | undefined;
 
   if (!step) {
     step = db.prepare(
-      "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id FROM steps WHERE step_id = ? AND status = 'running' LIMIT 1"
+      "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id, expects FROM steps WHERE step_id = ? AND status = 'running' LIMIT 1"
     ).get(stepId) as typeof step;
   }
 
@@ -575,6 +575,14 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   // Guard: don't process completions for failed runs
   const runCheck = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
   if (runCheck?.status === "failed") {
+    return { advanced: false, runCompleted: false };
+  }
+
+  // Expects gate: if step has an expects pattern and the output doesn't contain it,
+  // treat as failure and delegate to failStep() for retry/escalation logic.
+  if (step.expects && !output.includes(step.expects)) {
+    logger.info(`Step output does not match expects pattern "${step.expects}", treating as failure`, { runId: step.run_id, stepId: step.step_id });
+    failStep(step.id, `Output did not match expected pattern "${step.expects}". Output: ${output.slice(0, 500)}`);
     return { advanced: false, runCompleted: false };
   }
 

@@ -1,0 +1,148 @@
+# Research workflow — 3 agents with cross-verification
+# Researcher gathers raw data, Synthesizer structures it, Reviewer verifies quality
+id: research
+name: Research Workflow
+version: 1
+description: |
+  Deep research pipeline. Researcher explores the topic using web search and codebase analysis.
+  Synthesizer structures findings into a comprehensive document.
+  Reviewer verifies sources, identifies gaps, and ensures quality.
+
+polling:
+  model: claude-cli/sonnet-4.5
+  timeoutSeconds: 300
+
+agents:
+  - id: researcher
+    name: Researcher
+    role: analysis
+    description: Explores topics using web search and codebase analysis. Gathers raw findings.
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: agents/researcher/AGENTS.md
+
+  - id: synthesizer
+    name: Synthesizer
+    role: analysis
+    description: Structures raw research into a comprehensive, well-organized document.
+    workspace:
+      baseDir: agents/synthesizer
+      files:
+        AGENTS.md: agents/synthesizer/AGENTS.md
+
+  - id: reviewer
+    name: Reviewer
+    role: verification
+    description: Verifies research quality, checks sources, identifies gaps.
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: agents/reviewer/AGENTS.md
+
+steps:
+  - id: gather
+    agent: researcher
+    input: |
+      Research the following topic thoroughly.
+
+      TOPIC:
+      {{task}}
+
+      Instructions:
+      1. Use web search (Brave Search preferred) to find authoritative sources
+      2. Search for at least 10 distinct sources
+      3. For each source, extract key facts, data points, and claims
+      4. Look for competing perspectives and trade-offs
+      5. If relevant to the codebase, explore local files too
+      6. Focus on CURRENT information (2025-2026)
+
+      Reply with:
+      STATUS: done
+      SOURCES_COUNT: <number>
+      RAW_FINDINGS: |
+        ## Source 1: [title](url)
+        - Key finding 1
+        - Key finding 2
+
+        ## Source 2: [title](url)
+        - Key finding 1
+        ...
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: synthesize
+    agent: synthesizer
+    input: |
+      Structure the following raw research into a comprehensive document.
+
+      TOPIC:
+      {{task}}
+
+      RAW FINDINGS:
+      {{raw_findings}}
+
+      SOURCES COUNT: {{sources_count}}
+
+      Instructions:
+      1. Create an Executive Summary (3-5 sentences)
+      2. Organize findings into logical sections with headers
+      3. Include comparison tables where relevant
+      4. Add a Strengths section
+      5. Add a Weaknesses/Risks section
+      6. Add actionable Recommendations
+      7. Include a numbered Sources section at the end
+      8. Write in Spanish for narrative, English for technical terms
+      9. Save the document to /home/motobot/claw-projects/research/<topic-slug>.md
+
+      Reply with:
+      STATUS: done
+      OUTPUT_FILE: /path/to/saved/file
+      SECTIONS: <number of sections>
+      WORD_COUNT: <approximate word count>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: review
+    agent: reviewer
+    input: |
+      Review the research document for quality and completeness.
+
+      TOPIC:
+      {{task}}
+
+      OUTPUT FILE:
+      {{output_file}}
+
+      SOURCES COUNT: {{sources_count}}
+
+      Review criteria:
+      1. Are claims backed by sources? Flag unsourced claims.
+      2. Are sources real and accessible? Spot-check 3 URLs.
+      3. Is the analysis balanced (strengths AND weaknesses)?
+      4. Are recommendations actionable and specific?
+      5. Are there obvious gaps in coverage?
+      6. Is the document well-structured and readable?
+
+      Reply with:
+      STATUS: done
+      QUALITY: <high|medium|low>
+      VERIFIED_SOURCES: <number you spot-checked>
+      GAPS: |
+        - Any gaps found
+      VERDICT: <approved|needs-revision>
+
+      Or if major issues:
+      STATUS: retry
+      ISSUES:
+      - What needs to be fixed
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: synthesize
+      max_retries: 1
+      on_exhausted:
+        escalate_to: human

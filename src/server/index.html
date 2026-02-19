@@ -197,7 +197,7 @@ select:focus{outline:none;border-color:#8ECFC0}
 </div>
 
 <script>
-const API = '';
+const API = location.pathname.startsWith('/antfarm') ? '/antfarm' : '';
 let workflows = [];
 let currentWf = null;
 
