@@ -12,15 +12,15 @@
 <body class="min-h-screen bg-bg-page dark:bg-dark-bg-page text-text-primary dark:text-dark-text-primary">
 <header class="flex flex-wrap items-center gap-4 px-6 py-3 border-b-2 bg-header-bg dark:bg-dark-header-bg border-header-border dark:border-dark-header-border">
   <h1 class="text-xl font-semibold text-white tracking-normal"><span class="text-accent-highlight dark:text-dark-accent-highlight">antfarm</span> dashboard</h1>
-  <select id="wf-select" class="rounded-md px-3 py-1.5 text-sm text-white cursor-pointer border focus:outline-none transition-colors bg-header-select-bg dark:bg-dark-header-select-bg border-header-select-border dark:border-dark-header-select-border"><option value="">Loading...</option></select>
-  <button class="border border-white/20 rounded-md text-white cursor-pointer px-2 py-1 text-base leading-none transition-colors hover:border-white/50 bg-transparent" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
-  <div class="flex items-center gap-1.5 text-xs text-white/85 cursor-pointer px-2.5 py-1 border border-white/15 rounded-md bg-transparent transition-all hover:border-white/40 hover:bg-white/5" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
+  <select id="wf-select" class="rounded-md px-3 py-1.5 text-sm text-white cursor-pointer border focus:outline-none focus:ring-2 focus:ring-accent-highlight focus:ring-offset-2 transition-colors bg-header-select-bg dark:bg-dark-header-select-bg border-header-select-border dark:border-dark-header-select-border" aria-label="Select workflow"><option value="">Loading...</option></select>
+  <button class="border border-white/20 rounded-md text-white cursor-pointer px-2 py-1 text-base leading-none transition-colors hover:border-white/50 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 bg-transparent" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
+  <div class="flex items-center gap-1.5 text-xs text-white/85 cursor-pointer px-2.5 py-1 border border-white/15 rounded-md bg-transparent transition-all hover:border-white/40 hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2" id="medic-badge" onclick="toggleMedicPanel()" onkeydown="if(event.key==='Enter'||event.key===' ')toggleMedicPanel()" tabindex="0" role="button" aria-label="Open medic panel" title="Medic watchdog status">
     <span class="w-2 h-2 rounded-full shrink-0" id="medic-dot"></span>
     <span id="medic-label">Medic</span>
   </div>
   <span class="text-xs ml-auto" style="color:rgba(255,255,255,.6)" id="refresh-note">Auto-refresh: 30s</span>
 </header>
-<div class="flex flex-col md:flex-row gap-4 p-6 overflow-x-auto" style="min-height:calc(100vh - 65px)" id="board"><div class="empty m-auto text-text-secondary dark:text-dark-text-secondary text-xs text-center py-6 px-2">Select a workflow</div></div>
+<div class="flex flex-col md:flex-row gap-4 p-6 overflow-x-auto" style="min-height:calc(100vh - 65px)" id="board"><div class="empty m-auto text-text-secondary dark:text-dark-text-secondary text-sm text-center py-8 px-4 max-w-md"><div class="text-3xl mb-2">📋</div><div class="font-medium mb-1">No Workflow Selected</div><div class="text-xs">Choose a workflow from the dropdown above to view runs</div></div></div>
 <div class="fixed top-[60px] right-4 w-[340px] max-h-[500px] rounded-[10px] border z-[50] overflow-hidden hidden flex-col medic-panel bg-bg-surface dark:bg-dark-bg-surface border-border-default dark:border-dark-border-default shadow-heavy dark:shadow-dark-heavy" id="medic-panel">
   <div class="px-4 py-3.5 border-b text-sm font-semibold flex items-center gap-2 border-border-light dark:border-dark-border-light text-text-primary dark:text-dark-text-primary">Workflow Medic</div>
   <div class="px-4 py-3 overflow-y-auto flex-1" id="medic-panel-body">Loading...</div>
@@ -95,7 +95,7 @@ async function loadWorkflows() {
 function selectWorkflow(id) {
   currentWf = workflows.find(w => w.id === id) || null;
   if (currentWf) loadRuns();
-  else document.getElementById('board').innerHTML = '<div class="m-auto text-text-secondary dark:text-dark-text-secondary text-xs text-center py-6 px-2">Select a workflow</div>';
+  else document.getElementById('board').innerHTML = '<div class="m-auto text-text-secondary dark:text-dark-text-secondary text-sm text-center py-8 px-4 max-w-md"><div class="text-3xl mb-2">📋</div><div class="font-medium mb-1">No Workflow Selected</div><div class="text-xs">Choose a workflow from the dropdown above to view runs</div></div>';
 }
 
 async function loadRuns() {
