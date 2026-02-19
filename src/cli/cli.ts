@@ -66,6 +66,8 @@ function formatEventLabel(evt: AntfarmEvent): string {
     "story.retry": "Story retry",
     "story.failed": "Story failed",
     "pipeline.advanced": "Pipeline advanced",
+    "scope.frozen": "Scope frozen",
+    "scope.violation": "Scope violation",
   };
   return labels[evt.event] ?? evt.event;
 }
@@ -547,6 +549,7 @@ async function main() {
       `Workflow: ${run.workflow_id}`,
       `Task: ${run.task.slice(0, 120)}${run.task.length > 120 ? "..." : ""}`,
       `Status: ${run.status}`,
+      `Scope: ${run.scope_status} (v${run.scope_version})${run.scope_frozen_at ? ` at ${run.scope_frozen_at}` : ""}`,
       `Created: ${run.created_at}`,
       `Updated: ${run.updated_at}`,
       "",

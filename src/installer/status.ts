@@ -9,6 +9,9 @@ export type RunInfo = {
   task: string;
   status: string;
   context: string;
+  scope_status: string;
+  scope_version: number;
+  scope_frozen_at: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -10,6 +10,7 @@ Started: 2026-02-20 00:24 CST
 - Service-layer domain errors in installer flows should be deterministic via typed error codes (e.g., `ScopeFreezeError.code`) so retry/verify logic can assert behavior without fragile message matching.
 - Loop-scope policy enforcement should run in both claim-time (`claimStep`) and continuation-time (`checkLoopContinuation`) paths to avoid silent out-of-scope progression between iterations.
 - CLI machine-readable commands in this repo should prefer line-oriented `key=value` output and typed error codes on stderr for script-safe parsing.
+- Human-facing event rendering in `antfarm logs` should use a centralized event→label map in `src/cli/cli.ts` to keep labels stable across new event types.
 
 ---
 
@@ -68,4 +69,11 @@ Started: 2026-02-20 00:24 CST
 - Added tests in `tests/cli-scope-commands.test.ts` to validate help text, inspect output fields, freeze success path, and freeze failure exit-code behavior.
 - Files changed: `src/cli/cli.ts`, `tests/cli-scope-commands.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
 - **Learnings:** CLI scope commands should expose typed backend error codes directly for robust shell-level automation checks.
+---
+## 2026-02-20 01:24 CST - US-006: Expose scope freeze state in workflow status and event logs
+- Extended workflow status model/output to surface run scope state inline (`Scope: <status> (v<version>) [at timestamp]`) for run observers.
+- Added stable CLI event labels for `scope.frozen` and `scope.violation` in `antfarm logs` rendering.
+- Added coverage in `tests/cli-status-logs-scope-visibility.test.ts` for both status visibility and log label rendering.
+- Files changed: `src/installer/status.ts`, `src/cli/cli.ts`, `tests/cli-status-logs-scope-visibility.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** extending status output is safest when preserving existing line structure and appending new fields, so existing parsing/tests remain stable.
 ---
