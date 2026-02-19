@@ -269,7 +269,7 @@ describe('US-007: Panel Header and Close Button Migration', () => {
     });
 
     it('should add migration comment for panel header', () => {
-      assert.match(html, /\/\* Overlay, panel container, panel header, and close button migrated to Tailwind classes \*\//);
+      assert.match(html, /\/\* Overlay, panel container, panel header, close button, and step rows migrated to Tailwind classes \*\//);
     });
   });
 
@@ -307,8 +307,8 @@ describe('US-007: Panel Header and Close Button Migration', () => {
       assert.match(html, /Updated: \$\{updated\}/);
     });
 
-    it('should preserve steps-list div', () => {
-      assert.match(html, /<div class="steps-list">\$\{stepsHTML\}<\/div>/);
+    it('should have steps container with Tailwind classes', () => {
+      assert.match(html, /<div class="flex flex-col gap-2">\$\{stepsHTML\}<\/div>/);
     });
 
     it('should preserve stories-panel div', () => {

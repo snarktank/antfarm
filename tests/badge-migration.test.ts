@@ -89,17 +89,17 @@ describe('Badge Migration - Tailwind CSS', () => {
     });
 
     it('step badge uses Tailwind classes from badgeInfo', () => {
-      const stepBadgeMatch = srcHTML.match(/<div class="step-status"><span class="\$\{badgeInfo\.classes\}"/);
+      const stepBadgeMatch = srcHTML.match(/<div class="text-\[11px\] uppercase font-semibold"><span class="\$\{badgeInfo\.classes\}"/);
       assert(stepBadgeMatch, 'Step badge should use badgeInfo.classes');
     });
 
     it('step badge uses inline styles from badgeInfo', () => {
-      const stepBadgeMatch = srcHTML.match(/<div class="step-status"><span class="\$\{badgeInfo\.classes\}" style="\$\{badgeInfo\.style\}"/);
+      const stepBadgeMatch = srcHTML.match(/<div class="text-\[11px\] uppercase font-semibold"><span class="\$\{badgeInfo\.classes\}" style="\$\{badgeInfo\.style\}"/);
       assert(stepBadgeMatch, 'Step badge should use badgeInfo.style');
     });
 
     it('step badge displays step status', () => {
-      const stepBadgeMatch = srcHTML.match(/<div class="step-status"><span class="\$\{badgeInfo\.classes\}" style="\$\{badgeInfo\.style\}">\$\{st\}<\/span>/);
+      const stepBadgeMatch = srcHTML.match(/<div class="text-\[11px\] uppercase font-semibold"><span class="\$\{badgeInfo\.classes\}" style="\$\{badgeInfo\.style\}">\$\{st\}<\/span>/);
       assert(stepBadgeMatch, 'Step badge should display step status text');
     });
   });
@@ -133,7 +133,7 @@ describe('Badge Migration - Tailwind CSS', () => {
     it('story badge uses Tailwind classes from badgeInfo', () => {
       const storiesSection = srcHTML.match(/stories\.map\(\(s, i\) => \{[\s\S]*?\}\)\.join/);
       assert(storiesSection, 'Should have stories rendering section');
-      assert(storiesSection[0].match(/<div class="step-status"><span class="\$\{badgeInfo\.classes\}"/), 'Story badge should use badgeInfo.classes');
+      assert(storiesSection[0].match(/<div class="text-\[11px\] uppercase font-semibold"><span class="\$\{badgeInfo\.classes\}"/), 'Story badge should use badgeInfo.classes');
     });
 
     it('story badge uses inline styles from badgeInfo', () => {

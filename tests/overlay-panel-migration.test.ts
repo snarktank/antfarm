@@ -152,8 +152,8 @@ describe('US-006: Overlay and Panel Container Migration', () => {
       assert.match(html, /\.overlay\.open\{opacity:1;pointer-events:auto\}/);
     });
 
-    it('should have migration comment (updated in US-007)', () => {
-      assert.match(html, /\/\* Overlay, panel container, panel header, and close button migrated to Tailwind classes \*\//);
+    it('should have migration comment (updated in US-008)', () => {
+      assert.match(html, /\/\* Overlay, panel container, panel header, close button, and step rows migrated to Tailwind classes \*\//);
     });
   });
 

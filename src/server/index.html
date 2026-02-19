@@ -132,21 +132,8 @@ select:focus{border-color:#8ECFC0}
 /* Card styling migrated to Tailwind classes */
 
 /* ── Overlay / Panel ───────────────────────────────────────────── */
-/* Overlay, panel container, panel header, and close button migrated to Tailwind classes */
+/* Overlay, panel container, panel header, close button, and step rows migrated to Tailwind classes */
 .overlay.open{opacity:1;pointer-events:auto}
-
-/* ── Steps ─────────────────────────────────────────────────────── */
-.steps-list{display:flex;flex-direction:column;gap:8px}
-.step-row{display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-surface-alt);border:1px solid var(--border);border-radius:6px}
-.step-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.step-icon.done{background:var(--accent-green-subtle);color:var(--accent-green)}
-.step-icon.running{background:var(--accent-teal-subtle);color:var(--accent-teal)}
-.step-icon.pending{background:var(--accent-muted);color:var(--text-secondary)}
-.step-icon.waiting{background:var(--accent-muted);color:var(--text-secondary)}
-.step-icon.failed,.step-icon.error{background:var(--accent-orange-subtle);color:var(--accent-orange)}
-.step-name{font-size:13px;font-weight:500;color:var(--text-primary);flex:1}
-.step-agent{font-size:11px;color:var(--text-secondary);font-family:'Geist Mono',monospace}
-.step-status{font-size:11px;text-transform:uppercase;font-weight:600}
 
 /* ── Badges ────────────────────────────────────────────────────── */
 /* Badge styling migrated to Tailwind classes */
@@ -225,6 +212,20 @@ function getBadgeClasses(status) {
     classes: baseClasses,
     style: `background:${colors.bg};color:${colors.color}`
   };
+}
+
+// Step icon helper - returns inline styles for step icon status colors
+function getStepIconStyles(status) {
+  const statusMap = {
+    'done': { bg: 'var(--accent-green-subtle)', color: 'var(--accent-green)' },
+    'running': { bg: 'var(--accent-teal-subtle)', color: 'var(--accent-teal)' },
+    'pending': { bg: 'var(--accent-muted)', color: 'var(--text-secondary)' },
+    'waiting': { bg: 'var(--accent-muted)', color: 'var(--text-secondary)' },
+    'failed': { bg: 'var(--accent-orange-subtle)', color: 'var(--accent-orange)' },
+    'error': { bg: 'var(--accent-orange-subtle)', color: 'var(--accent-orange)' }
+  };
+  const colors = statusMap[status] || statusMap['pending'];
+  return `background:${colors.bg};color:${colors.color}`;
 }
 
 async function fetchJSON(url) {
@@ -321,18 +322,19 @@ async function openRun(id) {
     const st = s.status || 'waiting';
     const icon = stepIcons[st] || '○';
     const badgeInfo = getBadgeClasses(st);
+    const iconStyles = getStepIconStyles(st);
     const hasOutput = !!s.output;
     const toggleAttr = hasOutput ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" style="cursor:pointer"` : '';
-    return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
-        <div class="step-icon ${st}">${icon}</div>
-        <div class="step-name" style="flex:1">${s.step_id}</div>
-        <div class="step-agent">${s.agent_id || ''}</div>
-        <div class="step-status"><span class="${badgeInfo.classes}" style="${badgeInfo.style}">${st}</span></div>
-        ${hasOutput ? '<span class="step-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
+    return `<div class="flex flex-col overflow-hidden rounded-md border p-3" style="background:var(--bg-surface-alt);border-color:var(--border)" ${toggleAttr}>
+      <div class="flex items-center gap-3">
+        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0" style="${iconStyles}">${icon}</div>
+        <div class="text-[13px] font-medium flex-1" style="color:var(--text-primary)">${s.step_id}</div>
+        <div class="text-[11px] font-mono" style="color:var(--text-secondary)">${s.agent_id || ''}</div>
+        <div class="text-[11px] uppercase font-semibold"><span class="${badgeInfo.classes}" style="${badgeInfo.style}">${st}</span></div>
+        ${hasOutput ? '<span class="step-chevron inline-block text-[10px] transition-transform duration-150" style="color:var(--text-secondary)">▶</span>' : ''}
       </div>
-      ${hasOutput ? `<div class="step-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6">
-        <details style="margin-top:4px" onclick="event.stopPropagation()"><summary style="font-size:11px;color:var(--text-secondary);cursor:pointer;font-weight:500">Output</summary><pre style="margin-top:6px;padding:8px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto">${esc(s.output)}</pre></details>
+      ${hasOutput ? `<div class="step-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed" style="color:var(--text-tertiary)">
+        <details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer" style="color:var(--text-secondary)">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto" style="background:var(--bg-code);border-color:var(--border)">${esc(s.output)}</pre></details>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -346,7 +348,7 @@ async function openRun(id) {
       <span class="flex items-center gap-1">Created: ${created}</span>
       <span class="flex items-center gap-1">Updated: ${updated}</span>
     </div>
-    <div class="steps-list">${stepsHTML}</div>
+    <div class="flex flex-col gap-2">${stepsHTML}</div>
     <div id="stories-panel"></div>
     <div id="activity-panel"></div>
   `;
@@ -428,22 +430,23 @@ async function loadStories(runId) {
           const st = s.status || 'pending';
           const icon = stepIcons[st] || '○';
           const badgeInfo = getBadgeClasses(st);
+          const iconStyles = getStepIconStyles(st);
           let ac = [];
           try { ac = JSON.parse(s.acceptance_criteria || '[]'); } catch { ac = [s.acceptance_criteria]; }
           const retryInfo = s.retry_count > 0 ? ` <span style="color:var(--accent-orange);font-size:10px">(retry ${s.retry_count})</span>` : '';
           const hasDetails = s.description || ac.length > 0 || s.output;
           const toggleAttr = hasDetails ? `onclick="this.querySelector('.story-details').classList.toggle('story-open');this.querySelector('.story-chevron').classList.toggle('story-chevron-open')" style="cursor:pointer"` : '';
-          return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
-            <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
-              <div class="step-icon ${st}">${icon}</div>
-              <div class="step-name" style="flex:1">${s.story_id}: ${s.title}${retryInfo}</div>
-              <div class="step-status"><span class="${badgeInfo.classes}" style="${badgeInfo.style}">${st}</span></div>
-              ${hasDetails ? '<span class="story-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
+          return `<div class="flex flex-col overflow-hidden rounded-md border p-3" style="background:var(--bg-surface-alt);border-color:var(--border)" ${toggleAttr}>
+            <div class="flex items-center gap-3">
+              <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0" style="${iconStyles}">${icon}</div>
+              <div class="text-[13px] font-medium flex-1" style="color:var(--text-primary)">${s.story_id}: ${s.title}${retryInfo}</div>
+              <div class="text-[11px] uppercase font-semibold"><span class="${badgeInfo.classes}" style="${badgeInfo.style}">${st}</span></div>
+              ${hasDetails ? '<span class="story-chevron inline-block text-[10px] transition-transform duration-150" style="color:var(--text-secondary)">▶</span>' : ''}
             </div>
-            ${hasDetails ? `<div class="story-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6">
+            ${hasDetails ? `<div class="story-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed" style="color:var(--text-tertiary)">
               ${s.description ? `<div style="margin-bottom:8px">${esc(s.description)}</div>` : ''}
               ${ac.length > 0 ? `<div style="margin-bottom:8px"><div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--accent-green);margin-bottom:4px">Acceptance Criteria</div>${ac.map(c => `<label style="display:flex;align-items:flex-start;gap:6px;margin-bottom:3px;cursor:default"><span style="color:var(${st==='done'?'--accent-green':'--border'});flex-shrink:0">${st==='done'?'☑':'☐'}</span><span>${esc(c)}</span></label>`).join('')}</div>` : ''}
-              ${s.output ? `<details style="margin-top:4px" onclick="event.stopPropagation()"><summary style="font-size:11px;color:var(--text-secondary);cursor:pointer;font-weight:500">Output</summary><pre style="margin-top:6px;padding:8px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto">${esc(s.output)}</pre></details>` : ''}
+              ${s.output ? `<details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer" style="color:var(--text-secondary)">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto" style="background:var(--bg-code);border-color:var(--border)">${esc(s.output)}</pre></details>` : ''}
             </div>` : ''}
           </div>`;
         }).join('')}
