@@ -132,7 +132,7 @@ select:focus{border-color:#8ECFC0}
 /* Card styling migrated to Tailwind classes */
 
 /* ── Overlay / Panel ───────────────────────────────────────────── */
-/* Overlay, panel container, panel header, close button, and step rows migrated to Tailwind classes */
+/* Overlay, panel container, panel header, close button, step rows, and stories section migrated to Tailwind classes */
 .overlay.open{opacity:1;pointer-events:auto}
 
 /* ── Badges ────────────────────────────────────────────────────── */
@@ -417,15 +417,15 @@ async function loadStories(runId) {
   const done = stories.filter(s => s.status === 'done').length;
   const pct = Math.round((done / stories.length) * 100);
   panel.innerHTML = `
-    <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h3 style="font-size:15px;font-weight:600;color:var(--text-primary)">Stories</h3>
-        <span style="font-size:13px;font-weight:600;color:var(--accent-green)">${done} / ${stories.length} done</span>
+    <div class="mt-6 border-t pt-5" style="border-color:var(--border)">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-[15px] font-semibold" style="color:var(--text-primary)">Stories</h3>
+        <span class="text-[13px] font-semibold" style="color:var(--accent-green)">${done} / ${stories.length} done</span>
       </div>
-      <div style="background:var(--accent-muted);border-radius:4px;height:8px;margin-bottom:16px;overflow:hidden">
-        <div style="background:var(--accent-green);height:100%;width:${pct}%;border-radius:4px;transition:width .3s"></div>
+      <div class="rounded h-2 mb-4 overflow-hidden" style="background:var(--accent-muted)">
+        <div class="h-full rounded transition-[width] duration-300" style="background:var(--accent-green);width:${pct}%"></div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="flex flex-col gap-1.5">
         ${stories.map((s, i) => {
           const st = s.status || 'pending';
           const icon = stepIcons[st] || '○';
@@ -433,7 +433,7 @@ async function loadStories(runId) {
           const iconStyles = getStepIconStyles(st);
           let ac = [];
           try { ac = JSON.parse(s.acceptance_criteria || '[]'); } catch { ac = [s.acceptance_criteria]; }
-          const retryInfo = s.retry_count > 0 ? ` <span style="color:var(--accent-orange);font-size:10px">(retry ${s.retry_count})</span>` : '';
+          const retryInfo = s.retry_count > 0 ? ` <span class="text-[10px]" style="color:var(--accent-orange)">(retry ${s.retry_count})</span>` : '';
           const hasDetails = s.description || ac.length > 0 || s.output;
           const toggleAttr = hasDetails ? `onclick="this.querySelector('.story-details').classList.toggle('story-open');this.querySelector('.story-chevron').classList.toggle('story-chevron-open')" style="cursor:pointer"` : '';
           return `<div class="flex flex-col overflow-hidden rounded-md border p-3" style="background:var(--bg-surface-alt);border-color:var(--border)" ${toggleAttr}>
@@ -444,8 +444,8 @@ async function loadStories(runId) {
               ${hasDetails ? '<span class="story-chevron inline-block text-[10px] transition-transform duration-150" style="color:var(--text-secondary)">▶</span>' : ''}
             </div>
             ${hasDetails ? `<div class="story-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed" style="color:var(--text-tertiary)">
-              ${s.description ? `<div style="margin-bottom:8px">${esc(s.description)}</div>` : ''}
-              ${ac.length > 0 ? `<div style="margin-bottom:8px"><div style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;color:var(--accent-green);margin-bottom:4px">Acceptance Criteria</div>${ac.map(c => `<label style="display:flex;align-items:flex-start;gap:6px;margin-bottom:3px;cursor:default"><span style="color:var(${st==='done'?'--accent-green':'--border'});flex-shrink:0">${st==='done'?'☑':'☐'}</span><span>${esc(c)}</span></label>`).join('')}</div>` : ''}
+              ${s.description ? `<div class="mb-2">${esc(s.description)}</div>` : ''}
+              ${ac.length > 0 ? `<div class="mb-2"><div class="font-semibold text-[11px] uppercase tracking-wide mb-1" style="color:var(--accent-green)">Acceptance Criteria</div>${ac.map(c => `<label class="flex items-start gap-1.5 mb-0.5 cursor-default"><span class="shrink-0" style="color:var(${st==='done'?'--accent-green':'--border'})">${st==='done'?'☑':'☐'}</span><span>${esc(c)}</span></label>`).join('')}</div>` : ''}
               ${s.output ? `<details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer" style="color:var(--text-secondary)">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto" style="background:var(--bg-code);border-color:var(--border)">${esc(s.output)}</pre></details>` : ''}
             </div>` : ''}
           </div>`;

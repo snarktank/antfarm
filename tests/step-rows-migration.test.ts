@@ -248,7 +248,7 @@ describe('Step Rows Migration (US-008)', () => {
 
     it('should update migration comment', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      assert.ok(html.includes('step rows migrated to Tailwind'), 'migration comment should mention step rows');
+      assert.ok(html.includes('step rows, and stories section migrated to Tailwind'), 'migration comment should mention step rows and stories section');
     });
   });
 

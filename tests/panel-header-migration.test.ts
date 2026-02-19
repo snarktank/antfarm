@@ -269,7 +269,7 @@ describe('US-007: Panel Header and Close Button Migration', () => {
     });
 
     it('should add migration comment for panel header', () => {
-      assert.match(html, /\/\* Overlay, panel container, panel header, close button, and step rows migrated to Tailwind classes \*\//);
+      assert.match(html, /\/\* Overlay, panel container, panel header, close button, step rows, and stories section migrated to Tailwind classes \*\//);
     });
   });
 
