@@ -13,8 +13,8 @@ AGENT_ID="${2:?Usage: poll-agent.sh <workflow-id> <agent-id> [work-model]}"
 WORK_MODEL="${3:-claude-opus-4-6}"
 FULL_AGENT_ID="${WORKFLOW_ID}-${AGENT_ID}"
 
-ANTFARM_CLI="node /home/motobot/.openclaw/workspace/antfarm/dist/cli/cli.js"
-CLAUDE_CLI="/home/motobot/.local/bin/claude"
+ANTFARM_CLI="node ${HOME}/.openclaw/workspace/antfarm/dist/cli/cli.js"
+CLAUDE_CLI="${HOME}/.local/bin/claude"
 LOG_DIR="/tmp/antfarm"
 LOCK_FILE="/tmp/antfarm-poll-${FULL_AGENT_ID}.lock"
 
@@ -95,12 +95,12 @@ STATUS: done
 CHANGES: what you did
 TESTS: what tests you ran
 ANTFARM_EOF
-cat /tmp/antfarm-step-output.txt | node /home/motobot/.openclaw/workspace/antfarm/dist/cli/cli.js step complete "<stepId>"
+cat /tmp/antfarm-step-output.txt | node ~/.openclaw/workspace/antfarm/dist/cli/cli.js step complete "<stepId>"
 ```
 
 If the work FAILED:
 ```
-node /home/motobot/.openclaw/workspace/antfarm/dist/cli/cli.js step fail "<stepId>" "description of what went wrong"
+node ~/.openclaw/workspace/antfarm/dist/cli/cli.js step fail "<stepId>" "description of what went wrong"
 ```
 
 RULES:

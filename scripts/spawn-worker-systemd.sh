@@ -14,7 +14,7 @@ LOG_FILE="${3:?Missing log-file argument}"
 STEP_ID="${4:?Missing step-id argument}"
 AGENT_ID="${5:?Missing agent-id argument}"
 
-CLAUDE_CLI="${CLAUDE_CLI:-/home/motobot/.local/bin/claude}"
+CLAUDE_CLI="${CLAUDE_CLI:-${HOME}/.local/bin/claude}"
 SLICE_NAME="antfarm-worker.slice"
 
 # Read the work prompt

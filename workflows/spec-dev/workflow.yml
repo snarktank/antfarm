@@ -385,5 +385,5 @@ steps:
         escalate_to: human
 
 context:
-  repo: /home/motobot/.openclaw/workspace
-  spec_dir: /home/motobot/claw-projects/specs
+  repo: ~/.openclaw/workspace
+  spec_dir: ~/claw-projects/specs

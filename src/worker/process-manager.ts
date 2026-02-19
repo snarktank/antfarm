@@ -39,7 +39,8 @@ function resolveSpawnScript(): string {
  * Resolve the claude CLI path.
  */
 function resolveClaudeCli(): string {
-  return process.env.CLAUDE_CLI ?? "/home/motobot/.local/bin/claude";
+  const home = process.env.HOME ?? "/home/user";
+  return process.env.CLAUDE_CLI ?? `${home}/.local/bin/claude`;
 }
 
 /**

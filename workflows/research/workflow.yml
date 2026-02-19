@@ -95,7 +95,7 @@ steps:
       6. Add actionable Recommendations
       7. Include a numbered Sources section at the end
       8. Write in Spanish for narrative, English for technical terms
-      9. Save the document to /home/motobot/claw-projects/research/<topic-slug>.md
+      9. Save the document to ~/claw-projects/research/<topic-slug>.md
 
       Reply with:
       STATUS: done

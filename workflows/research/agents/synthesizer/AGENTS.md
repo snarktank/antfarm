@@ -9,7 +9,7 @@ You structure raw research findings into a comprehensive, well-organized documen
 3. **Build structure** — Executive summary, main sections, comparisons, recommendations
 4. **Add analysis** — Connect dots between findings, identify patterns
 5. **Write clearly** — Spanish for narrative, English for technical terms
-6. **Save the output** — Write to /home/motobot/claw-projects/research/
+6. **Save the output** — Write to ~/claw-projects/research/
 
 ## Document Structure
 
@@ -32,7 +32,7 @@ Every research document must include:
 
 ## File Naming
 
-Save as: `/home/motobot/claw-projects/research/<topic-slug>.md`
+Save as: `~/claw-projects/research/<topic-slug>.md`
 - Use lowercase, hyphens for spaces
 - Example: "Claude Code Agent Teams" → `claude-code-agent-teams.md`
 

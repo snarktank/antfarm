@@ -14,13 +14,15 @@ OPENROUTER_MODEL="${3:-openrouter/deepseek/deepseek-v3.2}"
 PROJECT_DIR="${4:-}"
 FULL_AGENT_ID="${WORKFLOW_ID}-${AGENT_ID}"
 
-ANTFARM_CLI="node /home/motobot/.openclaw/workspace/antfarm/dist/cli/cli.js"
-AIDER_CLI="/home/motobot/.local/bin/aider"
+ANTFARM_CLI="node ${HOME}/.openclaw/workspace/antfarm/dist/cli/cli.js"
+AIDER_CLI="${HOME}/.local/bin/aider"
 LOG_DIR="/tmp/antfarm"
 LOCK_FILE="/tmp/antfarm-poll-${FULL_AGENT_ID}.lock"
 
-# OpenRouter API key from openclaw config
-export OPENROUTER_API_KEY="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"
+# OpenRouter API key from .env file (NEVER hardcode)
+ENV_FILE="${HOME}/backups-claw/.env"
+[ -f "$ENV_FILE" ] && set -a && . "$ENV_FILE" && set +a
+export OPENROUTER_API_KEY="${OPENROUTER_API_KEY:?Missing OPENROUTER_API_KEY in .env}"
 
 mkdir -p "$LOG_DIR"
 

@@ -15,7 +15,7 @@ polling:
   timeoutSeconds: 120
 
 context:
-  repo: /home/motobot/.openclaw/workspace
+  repo: ~/.openclaw/workspace
   max_stories: 5
   max_budget_usd: 3.00
   branch_prefix: proactive
