@@ -129,12 +129,7 @@ select:focus{border-color:#8ECFC0}
 /* Board layout migrated to Tailwind classes */
 
 /* ── Cards ─────────────────────────────────────────────────────── */
-.card{background:var(--bg-surface-alt);border:1px solid var(--border);border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
-.card:hover{border-color:var(--accent-orange);box-shadow:0 2px 8px var(--accent-orange-subtle)}
-.card-title{font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.card-meta{font-size:11px;color:var(--text-secondary);display:flex;justify-content:space-between;align-items:center}
-.card.done{border-left:3px solid var(--accent-green)}
-.card.failed,.card.error{border-left:3px solid var(--accent-orange)}
+/* Card styling migrated to Tailwind classes */
 
 /* ── Overlay / Panel ───────────────────────────────────────────── */
 .overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s}
@@ -286,13 +281,13 @@ function renderBoard(wf, runs) {
       : cards.map(run => {
           const isDone = run.status === 'done';
           const isFailed = run.status === 'failed' || run.status === 'error';
-          const cls = isDone ? 'done' : isFailed ? 'failed' : '';
           const badge = `badge-${run.status}`;
           const time = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || "" : '';
           const title = run.task.length > 60 ? run.task.slice(0, 57) + '…' : run.task;
-          return `<div class="card ${cls}" onclick="openRun('${run.id}')">
-            <div class="card-title" title="${run.task.replace(/"/g, '&quot;')}">${title}</div>
-            <div class="card-meta">
+          const borderLeft = isDone ? 'border-l-[3px] border-l-[var(--accent-green)]' : isFailed ? 'border-l-[3px] border-l-[var(--accent-orange)]' : '';
+          return `<div class="rounded-md border p-3 cursor-pointer transition-all duration-150 hover:shadow-lg ${borderLeft}" style="background:var(--bg-surface-alt);border-color:var(--border)" onclick="openRun('${run.id}')" onmouseenter="this.style.borderColor='var(--accent-orange)'" onmouseleave="this.style.borderColor='var(--border)'">
+            <div class="text-[13px] font-medium mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap" style="color:var(--text-primary)" title="${run.task.replace(/"/g, '&quot;')}">${title}</div>
+            <div class="text-[11px] flex justify-between items-center" style="color:var(--text-secondary)">
               <span class="badge ${badge}">${run.status}</span>
               <span>${time}</span>
             </div>

@@ -337,8 +337,9 @@ describe("Board Layout Migration - US-003", () => {
 
     it("card rendering is preserved", () => {
       assert.ok(
-        html.includes('<div class="card ${cls}" onclick="openRun'),
-        "Card rendering logic should be preserved"
+        html.includes('<div class="rounded-md border p-3 cursor-pointer') &&
+        html.includes('onclick="openRun'),
+        "Card rendering logic should be preserved with Tailwind classes"
       );
     });
   });
