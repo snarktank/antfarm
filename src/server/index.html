@@ -124,7 +124,7 @@ function renderBoard(wf, runs) {
   board.innerHTML = wf.steps.map(step => {
     const cards = columns[step.id];
     const cardHTML = cards.length === 0
-      ? '<div class="text-text-secondary dark:text-dark-text-secondary text-xs text-center py-6 px-2">No runs</div>'
+      ? '<div class="text-text-secondary dark:text-dark-text-secondary text-xs text-center py-8 px-4"><div class="text-2xl mb-2 opacity-50">∅</div><div>No runs in this stage</div></div>'
       : cards.map(run => {
           const isDone = run.status === 'done';
           const isFailed = run.status === 'failed' || run.status === 'error';
@@ -132,7 +132,7 @@ function renderBoard(wf, runs) {
           const time = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || "" : '';
           const title = run.task.length > 60 ? run.task.slice(0, 57) + '…' : run.task;
           const borderLeft = isDone ? 'border-l-[3px] border-l-accent-green dark:border-l-dark-accent-green' : isFailed ? 'border-l-[3px] border-l-accent-orange dark:border-l-dark-accent-orange' : '';
-          return `<div class="rounded-md border p-3 cursor-pointer transition-all duration-150 hover:shadow-lg bg-bg-surface-alt dark:bg-dark-bg-surface-alt border-border-default dark:border-dark-border-default ${borderLeft}" onclick="openRun('${run.id}')" onmouseenter="this.style.borderColor='var(--accent-orange)'" onmouseleave="this.classList.remove('border-accent-orange');this.classList.remove('dark:border-dark-accent-orange')">
+          return `<div class="rounded-md border p-3 cursor-pointer transition-all duration-200 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent-highlight focus:ring-offset-2 bg-bg-surface-alt dark:bg-dark-bg-surface-alt border-border-default dark:border-dark-border-default ${borderLeft}" onclick="openRun('${run.id}')" onkeydown="if(event.key==='Enter')openRun('${run.id}')" tabindex="0" role="button" aria-label="Open run: ${run.task.replace(/"/g, '&quot;')}" onmouseenter="this.style.borderColor='var(--accent-orange)'" onmouseleave="this.classList.remove('border-accent-orange');this.classList.remove('dark:border-dark-accent-orange')">
             <div class="text-[13px] font-medium mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-text-primary dark:text-dark-text-primary" title="${run.task.replace(/"/g, '&quot;')}">${title}</div>
             <div class="text-[11px] flex justify-between items-center text-text-secondary dark:text-dark-text-secondary">
               <span class="${badgeInfo.classes}" style="${badgeInfo.style}">${run.status}</span>
