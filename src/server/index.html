@@ -132,9 +132,8 @@ select:focus{border-color:#8ECFC0}
 /* Card styling migrated to Tailwind classes */
 
 /* ── Overlay / Panel ───────────────────────────────────────────── */
-.overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--overlay);z-index:100;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .15s}
+/* Overlay and panel container migrated to Tailwind classes */
 .overlay.open{opacity:1;pointer-events:auto}
-.panel{background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;width:90%;max-width:640px;max-height:85vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 32px var(--shadow-heavy)}
 .panel-close{position:absolute;top:12px;right:16px;background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px}
 .panel-close:hover{color:var(--text-primary);background:var(--bg-column-header)}
 .panel h2{font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:4px;padding-right:40px}
@@ -205,8 +204,8 @@ select:focus{border-color:#8ECFC0}
   <div class="medic-panel-header">Workflow Medic</div>
   <div class="medic-panel-body" id="medic-panel-body">Loading...</div>
 </div>
-<div class="overlay" id="overlay" onclick="if(event.target===this)closePanel()">
-  <div class="panel" id="panel"></div>
+<div class="fixed inset-0 z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-150 overlay" id="overlay" style="background:var(--overlay)" onclick="if(event.target===this)closePanel()">
+  <div class="relative w-[90%] max-w-[640px] max-h-[85vh] overflow-y-auto p-6 rounded-xl border" style="background:var(--bg-surface);border-color:var(--border);box-shadow:0 8px 32px var(--shadow-heavy)" id="panel"></div>
 </div>
 
 <script>
