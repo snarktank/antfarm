@@ -126,11 +126,7 @@ select:focus{border-color:#8ECFC0}
 .medic-badge:hover{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.05)}
 
 /* ── Board ─────────────────────────────────────────────────────── */
-.board{display:flex;gap:16px;padding:24px;overflow-x:auto;min-height:calc(100vh - 65px)}
-.column{min-width:240px;flex:1;background:var(--bg-surface);border:none;border-radius:8px;display:flex;flex-direction:column;box-shadow:0 2px 8px var(--shadow)}
-.column-header{padding:12px 16px;border-bottom:1px solid var(--border-light);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--accent-green);background:var(--bg-column-header);border-radius:8px 8px 0 0}
-.column-header .count{background:var(--accent-green);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:8px}
-.cards{padding:8px;flex:1;display:flex;flex-direction:column;gap:8px;overflow-y:auto}
+/* Board layout migrated to Tailwind classes */
 
 /* ── Cards ─────────────────────────────────────────────────────── */
 .card{background:var(--bg-surface-alt);border:1px solid var(--border);border-radius:6px;padding:12px;cursor:pointer;transition:border-color .15s,box-shadow .15s}
@@ -176,7 +172,6 @@ select:focus{border-color:#8ECFC0}
 /* ── Misc ──────────────────────────────────────────────────────── */
 .empty{color:var(--text-secondary);font-size:12px;text-align:center;padding:24px 8px}
 .refresh-note{color:rgba(255,255,255,.6);font-size:11px;margin-left:auto}
-@media(max-width:768px){.board{flex-direction:column}.column{min-width:unset}}
 .story-open{display:block!important}
 .story-chevron-open{transform:rotate(90deg)}
 .step-open{display:block!important}
@@ -216,7 +211,7 @@ select:focus{border-color:#8ECFC0}
   </div>
   <span class="text-xs ml-auto" style="color:rgba(255,255,255,.6)" id="refresh-note">Auto-refresh: 30s</span>
 </header>
-<div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
+<div class="flex flex-col md:flex-row gap-4 p-6 overflow-x-auto" style="min-height:calc(100vh - 65px)" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
 <div class="medic-panel" id="medic-panel">
   <div class="medic-panel-header">Workflow Medic</div>
   <div class="medic-panel-body" id="medic-panel-body">Loading...</div>
@@ -303,9 +298,9 @@ function renderBoard(wf, runs) {
             </div>
           </div>`;
         }).join('');
-    return `<div class="column">
-      <div class="column-header">${step.id}<span class="count">${cards.length}</span></div>
-      <div class="cards">${cardHTML}</div>
+    return `<div class="min-w-[240px] flex-1 rounded-lg flex flex-col" style="background:var(--bg-surface);box-shadow:0 2px 8px var(--shadow)">
+      <div class="px-4 py-3 border-b text-xs font-semibold uppercase tracking-wider rounded-t-lg" style="color:var(--accent-green);background:var(--bg-column-header);border-color:var(--border-light)">${step.id}<span class="inline-block text-white rounded-full px-2 py-0.5 text-[11px] ml-2" style="background:var(--accent-green)">${cards.length}</span></div>
+      <div class="p-2 flex-1 flex flex-col gap-2 overflow-y-auto">${cardHTML}</div>
     </div>`;
   }).join('');
 }
