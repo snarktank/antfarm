@@ -122,9 +122,10 @@ describe("US-002: Header and navigation migration", () => {
         indexHTML.includes('id="medic-badge"'),
         "should have medic badge with id"
       );
+      // US-012: medic-badge migrated to Tailwind classes
       assert.ok(
-        indexHTML.includes('class="medic-badge'),
-        "should have medic-badge class"
+        !indexHTML.includes('class="medic-badge'),
+        "should not have old medic-badge CSS class"
       );
       assert.ok(
         indexHTML.includes("flex"),
@@ -193,9 +194,10 @@ describe("US-002: Header and navigation migration", () => {
         !indexHTML.includes(".theme-toggle:hover"),
         "theme-toggle hover should be migrated to Tailwind"
       );
+      // Medic badge migrated to Tailwind hover classes (US-012)
       assert.ok(
-        indexHTML.includes(".medic-badge:hover"),
-        "should keep medic-badge hover state"
+        !indexHTML.includes(".medic-badge:hover"),
+        "medic-badge hover should be migrated to Tailwind"
       );
     });
   });

@@ -11,98 +11,106 @@ describe('US-012: Medic badge indicator migration', () => {
   const srcHtml = readFileSync(srcPath, 'utf-8');
 
   describe('Medic badge structure', () => {
+    // Extract medic-badge element for attribute-order-independent testing
+    const badgeMatch = srcHtml.match(/<div[^>]*id="medic-badge"[^>]*>/);
+    const badgeElement = badgeMatch ? badgeMatch[0] : '';
+
     it('should have flex layout with Tailwind classes', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*flex[^"]*"/);
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*items-center[^"]*"/);
+      assert.ok(badgeElement.includes('id="medic-badge"'), 'should have id');
+      assert.match(badgeElement, /class="[^"]*flex[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*items-center[^"]*"/);
     });
 
     it('should have gap spacing', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*gap-1\.5[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*gap-1\.5[^"]*"/);
     });
 
     it('should have text size class', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*text-xs[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*text-xs[^"]*"/);
     });
 
     it('should have text color with opacity', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*text-white\/85[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*text-white\/85[^"]*"/);
     });
 
     it('should have cursor pointer', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*cursor-pointer[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*cursor-pointer[^"]*"/);
     });
 
     it('should have padding classes', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*px-2\.5[^"]*"/);
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*py-1[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*px-2\.5[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*py-1[^"]*"/);
     });
 
     it('should have border with color and opacity', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*border[^"]*"/);
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*border-white\/15[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*border[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*border-white\/15[^"]*"/);
     });
 
     it('should have rounded corners', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*rounded-md[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*rounded-md[^"]*"/);
     });
 
     it('should have transparent background', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*bg-transparent[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*bg-transparent[^"]*"/);
     });
 
     it('should have transition-all class', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*transition-all[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*transition-all[^"]*"/);
     });
 
     it('should have hover border color effect', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*hover:border-white\/40[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*hover:border-white\/40[^"]*"/);
     });
 
     it('should have hover background effect', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*hover:bg-white\/5[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*hover:bg-white\/5[^"]*"/);
     });
 
     it('should not have .medic-badge CSS class', () => {
-      assert.doesNotMatch(srcHtml, /id="medic-badge"[^>]*class="[^"]*medic-badge[^"]*"/);
+      assert.doesNotMatch(badgeElement, /class="[^"]*medic-badge[^"]*"/);
     });
 
     it('should not have inline styles', () => {
-      const badgeMatch = srcHtml.match(/<div[^>]*id="medic-badge"[^>]*>/);
-      assert.ok(badgeMatch, 'medic-badge element should exist');
-      assert.doesNotMatch(badgeMatch[0], /style=/);
+      assert.ok(badgeElement, 'medic-badge element should exist');
+      assert.doesNotMatch(badgeElement, /style=/);
     });
 
     it('should preserve onclick handler', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*onclick="toggleMedicPanel\(\)"/);
+      assert.match(badgeElement, /onclick="toggleMedicPanel\(\)"/);
     });
 
     it('should preserve title attribute', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*title="Medic watchdog status"/);
+      assert.match(badgeElement, /title="Medic watchdog status"/);
     });
   });
 
   describe('Medic dot structure', () => {
+    // Extract medic-dot element for attribute-order-independent testing
+    const dotMatch = srcHtml.match(/<span[^>]*id="medic-dot"[^>]*>/);
+    const dotElement = dotMatch ? dotMatch[0] : '';
+
     it('should have w-2 h-2 sizing classes (8px)', () => {
-      assert.match(srcHtml, /id="medic-dot"[^>]*class="[^"]*w-2[^"]*"/);
-      assert.match(srcHtml, /id="medic-dot"[^>]*class="[^"]*h-2[^"]*"/);
+      assert.ok(dotElement.includes('id="medic-dot"'), 'should have id');
+      assert.match(dotElement, /class="[^"]*w-2[^"]*"/);
+      assert.match(dotElement, /class="[^"]*h-2[^"]*"/);
     });
 
     it('should have rounded-full class', () => {
-      assert.match(srcHtml, /id="medic-dot"[^>]*class="[^"]*rounded-full[^"]*"/);
+      assert.match(dotElement, /class="[^"]*rounded-full[^"]*"/);
     });
 
     it('should have shrink-0 class', () => {
-      assert.match(srcHtml, /id="medic-dot"[^>]*class="[^"]*shrink-0[^"]*"/);
+      assert.match(dotElement, /class="[^"]*shrink-0[^"]*"/);
     });
 
     it('should not have .medic-dot CSS class in HTML', () => {
-      assert.doesNotMatch(srcHtml, /id="medic-dot"[^>]*class="[^"]*medic-dot[^"]*"/);
+      assert.doesNotMatch(dotElement, /class="[^"]*medic-dot[^"]*"/);
     });
 
     it('should not have inline styles', () => {
-      const dotMatch = srcHtml.match(/<span[^>]*id="medic-dot"[^>]*>/);
-      assert.ok(dotMatch, 'medic-dot element should exist');
-      assert.doesNotMatch(dotMatch[0], /style=/);
+      assert.ok(dotElement, 'medic-dot element should exist');
+      assert.doesNotMatch(dotElement, /style=/);
     });
   });
 
@@ -234,40 +242,52 @@ describe('US-012: Medic badge indicator migration', () => {
 
     it('should have medic badge with Tailwind classes in dist', () => {
       const distHtml = readFileSync(distPath, 'utf-8');
-      assert.match(distHtml, /id="medic-badge"[^>]*class="[^"]*flex items-center[^"]*"/);
-      assert.match(distHtml, /id="medic-badge"[^>]*class="[^"]*hover:border-white\/40[^"]*"/);
+      const distBadgeMatch = distHtml.match(/<div[^>]*id="medic-badge"[^>]*>/);
+      const distBadgeElement = distBadgeMatch ? distBadgeMatch[0] : '';
+      assert.match(distBadgeElement, /class="[^"]*flex[^"]*"/);
+      assert.match(distBadgeElement, /class="[^"]*items-center[^"]*"/);
+      assert.match(distBadgeElement, /class="[^"]*hover:border-white\/40[^"]*"/);
     });
   });
 
   describe('Responsive design', () => {
+    const badgeMatch = srcHtml.match(/<div[^>]*id="medic-badge"[^>]*>/);
+    const badgeElement = badgeMatch ? badgeMatch[0] : '';
+    const dotMatch = srcHtml.match(/<span[^>]*id="medic-dot"[^>]*>/);
+    const dotElement = dotMatch ? dotMatch[0] : '';
+
     it('should maintain flex layout for badge', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*flex[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*flex[^"]*"/);
     });
 
     it('should have proper spacing with gap-1.5', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*gap-1\.5[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*gap-1\.5[^"]*"/);
     });
 
     it('should maintain dot size at 8px (w-2 h-2)', () => {
-      assert.match(srcHtml, /id="medic-dot"[^>]*class="[^"]*w-2 h-2[^"]*"/);
+      assert.match(dotElement, /class="[^"]*w-2[^"]*"/);
+      assert.match(dotElement, /class="[^"]*h-2[^"]*"/);
     });
   });
 
   describe('Hover effects', () => {
+    const badgeMatch = srcHtml.match(/<div[^>]*id="medic-badge"[^>]*>/);
+    const badgeElement = badgeMatch ? badgeMatch[0] : '';
+
     it('should have hover transition', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*transition-all[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*transition-all[^"]*"/);
     });
 
     it('should have hover border color change', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*hover:border-white\/40[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*hover:border-white\/40[^"]*"/);
     });
 
     it('should have hover background change', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*hover:bg-white\/5[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*hover:bg-white\/5[^"]*"/);
     });
 
     it('should have cursor pointer for click affordance', () => {
-      assert.match(srcHtml, /id="medic-badge"[^>]*class="[^"]*cursor-pointer[^"]*"/);
+      assert.match(badgeElement, /class="[^"]*cursor-pointer[^"]*"/);
     });
   });
 
