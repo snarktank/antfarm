@@ -1,0 +1,22 @@
+# Progress Log
+Run: f5f414bc-922f-4ee7-9ab0-e9d82d403f28
+Task: platform-v1.1-freeze-exec-scope-clarification | 目标: 完成平台 v1.1 冻结执行范围的技术方案构建 | 基于已有产出继续优化
+Started: 2026-02-20 00:24 CST
+
+## Codebase Patterns
+- `src/db.ts` uses in-place idempotent migrations: create base tables with `CREATE TABLE IF NOT EXISTS`, then add newly introduced columns by probing `PRAGMA table_info(...)` and applying guarded `ALTER TABLE ... ADD COLUMN`.
+- DB migration tests should isolate `os.homedir()` by setting `process.env.HOME` and importing `dist/db.js` dynamically with a cache-busting query string.
+
+---
+
+## 2026-02-20 00:24 CST - US-001: Add execution-scope freeze metadata to database schema
+- Implemented `runs` schema extensions in `src/db.ts` for scope freeze lifecycle fields: `scope_status`, `scope_frozen_at`, and `scope_version`.
+- Added new `run_scope_items` table in migration, keyed by `(run_id, scope_version, item_type, item_value)` to store normalized scope snapshot entries per run/version.
+- Added backward-compatible ALTER migration path for existing databases so missing scope columns are added safely without impacting existing data.
+- Added `tests/db-scope-freeze-migration.test.ts` covering:
+  - fresh DB migration creates new scope-freeze columns and `run_scope_items`
+  - legacy DB migration adds columns and preserves existing `runs` data
+  - migration idempotency check via repeated open
+- Files changed: `src/db.ts`, `tests/db-scope-freeze-migration.test.ts`
+- **Learnings:** using per-test temporary HOME + dynamic module import is a reliable way to test DB migration behavior tied to `os.homedir()` constants.
+---
