@@ -8,42 +8,42 @@ const htmlPath = resolve(projectRoot, 'src/server/index.html');
 const distPath = resolve(projectRoot, 'dist/server/index.html');
 
 describe('Step Rows Migration (US-008)', () => {
-  describe('getStepIconStyles helper function', () => {
-    it('should define getStepIconStyles function', () => {
+  describe('getStepIconClasses helper function', () => {
+    it('should define getStepIconClasses function', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      assert.ok(html.includes('function getStepIconStyles(status)'), 'getStepIconStyles function should be defined');
+      assert.ok(html.includes('function getStepIconClasses(status)'), 'getStepIconClasses function should be defined');
     });
 
-    it('should return styles for done status', () => {
+    it('should return Tailwind classes for done status with dark mode', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      const funcMatch = html.match(/function getStepIconStyles\(status\)\s*\{[^}]+\}/s);
-      assert.ok(funcMatch, 'getStepIconStyles function should exist');
+      const funcMatch = html.match(/function getStepIconClasses\(status\)\s*\{[\s\S]*?\n\}/);
+      assert.ok(funcMatch, 'getStepIconClasses function should exist');
       assert.ok(funcMatch[0].includes("'done'"), 'should have done status mapping');
-      assert.ok(funcMatch[0].includes('--accent-green'), 'should use green accent for done');
+      assert.ok(funcMatch[0].includes('bg-accent-green-subtle dark:bg-dark-accent-green-subtle'), 'should use Tailwind green classes for done with dark mode');
     });
 
-    it('should return styles for running status', () => {
+    it('should return Tailwind classes for running status with dark mode', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      const funcMatch = html.match(/function getStepIconStyles\(status\)\s*\{[\s\S]*?\n\}/);
-      assert.ok(funcMatch, 'getStepIconStyles function should exist');
+      const funcMatch = html.match(/function getStepIconClasses\(status\)\s*\{[\s\S]*?\n\}/);
+      assert.ok(funcMatch, 'getStepIconClasses function should exist');
       assert.ok(funcMatch[0].includes("'running'"), 'should have running status mapping');
-      assert.ok(funcMatch[0].includes('--accent-teal'), 'should use teal accent for running');
+      assert.ok(funcMatch[0].includes('bg-accent-teal-subtle dark:bg-dark-accent-teal-subtle'), 'should use Tailwind teal classes for running with dark mode');
     });
 
-    it('should return styles for pending/waiting status', () => {
+    it('should return Tailwind classes for pending/waiting status with dark mode', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      const funcMatch = html.match(/function getStepIconStyles\(status\)\s*\{[\s\S]*?\n\}/);
+      const funcMatch = html.match(/function getStepIconClasses\(status\)\s*\{[\s\S]*?\n\}/);
       assert.ok(funcMatch[0].includes("'pending'"), 'should have pending status mapping');
       assert.ok(funcMatch[0].includes("'waiting'"), 'should have waiting status mapping');
-      assert.ok(funcMatch[0].includes('--accent-muted'), 'should use muted accent for pending/waiting');
+      assert.ok(funcMatch[0].includes('bg-accent-muted dark:bg-dark-accent-muted'), 'should use Tailwind muted classes for pending/waiting with dark mode');
     });
 
-    it('should return styles for failed/error status', () => {
+    it('should return Tailwind classes for failed/error status with dark mode', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      const funcMatch = html.match(/function getStepIconStyles\(status\)\s*\{[\s\S]*?\n\}/);
+      const funcMatch = html.match(/function getStepIconClasses\(status\)\s*\{[\s\S]*?\n\}/);
       assert.ok(funcMatch[0].includes("'failed'"), 'should have failed status mapping');
       assert.ok(funcMatch[0].includes("'error'"), 'should have error status mapping');
-      assert.ok(funcMatch[0].includes('--accent-orange'), 'should use orange accent for failed/error');
+      assert.ok(funcMatch[0].includes('bg-accent-orange-subtle dark:bg-dark-accent-orange-subtle'), 'should use Tailwind orange classes for failed/error with dark mode');
     });
   });
 
@@ -68,11 +68,11 @@ describe('Step Rows Migration (US-008)', () => {
       assert.ok(stepsSection[0].includes('class="flex flex-col overflow-hidden rounded-md border p-3"'), 'step row should use Tailwind flex classes');
     });
 
-    it('should use CSS variables for background and border', () => {
+    it('should use Tailwind classes for background and border with dark mode', () => {
       const html = readFileSync(htmlPath, 'utf-8');
       const stepsSection = html.match(/const stepsHTML = \(run\.steps.*?\)\.join\(''\);/s);
-      assert.ok(stepsSection[0].includes('background:var(--bg-surface-alt)'), 'should use CSS variable for background');
-      assert.ok(stepsSection[0].includes('border-color:var(--border)'), 'should use CSS variable for border');
+      assert.ok(stepsSection[0].includes('bg-bg-surface-alt dark:bg-dark-bg-surface-alt'), 'should use Tailwind classes for background with dark mode');
+      assert.ok(stepsSection[0].includes('border-border-default dark:border-dark-border-default'), 'should use Tailwind classes for border with dark mode');
     });
 
     it('should have inner flex container with proper spacing', () => {
@@ -81,11 +81,11 @@ describe('Step Rows Migration (US-008)', () => {
       assert.ok(stepsSection[0].includes('class="flex items-center gap-3"'), 'inner container should use flex with gap');
     });
 
-    it('should call getStepIconStyles for icon styling', () => {
+    it('should call getStepIconClasses for icon styling', () => {
       const html = readFileSync(htmlPath, 'utf-8');
       const stepsSection = html.match(/const stepsHTML = \(run\.steps.*?\)\.join\(''\);/s);
-      assert.ok(stepsSection[0].includes('const iconStyles = getStepIconStyles(st)'), 'should call getStepIconStyles');
-      assert.ok(stepsSection[0].includes('style="${iconStyles}"'), 'should apply iconStyles to icon element');
+      assert.ok(stepsSection[0].includes('const iconClasses = getStepIconClasses(st)'), 'should call getStepIconClasses');
+      assert.ok(stepsSection[0].includes('${iconClasses}'), 'should apply iconClasses to icon element');
     });
   });
 
@@ -119,15 +119,15 @@ describe('Step Rows Migration (US-008)', () => {
     it('should use Tailwind classes for step name', () => {
       const html = readFileSync(htmlPath, 'utf-8');
       const stepsSection = html.match(/const stepsHTML = \(run\.steps.*?\)\.join\(''\);/s);
-      assert.ok(stepsSection[0].includes('class="text-[13px] font-medium flex-1"'), 'step name should use Tailwind classes');
-      assert.ok(stepsSection[0].includes('color:var(--text-primary)'), 'step name should use CSS variable for color');
+      assert.ok(stepsSection[0].includes('text-[13px] font-medium flex-1'), 'step name should use Tailwind classes');
+      assert.ok(stepsSection[0].includes('text-text-primary dark:text-dark-text-primary'), 'step name should use Tailwind color classes with dark mode');
     });
 
     it('should use Tailwind classes for step agent', () => {
       const html = readFileSync(htmlPath, 'utf-8');
       const stepsSection = html.match(/const stepsHTML = \(run\.steps.*?\)\.join\(''\);/s);
-      assert.ok(stepsSection[0].includes('class="text-[11px] font-mono"'), 'step agent should use Tailwind classes');
-      assert.ok(stepsSection[0].includes('color:var(--text-secondary)'), 'step agent should use CSS variable for color');
+      assert.ok(stepsSection[0].includes('text-[11px] font-mono'), 'step agent should use Tailwind classes');
+      assert.ok(stepsSection[0].includes('text-text-secondary dark:text-dark-text-secondary'), 'step agent should use Tailwind color classes with dark mode');
     });
 
     it('should use Tailwind classes for step status', () => {
@@ -204,11 +204,11 @@ describe('Step Rows Migration (US-008)', () => {
       assert.ok(storiesSection[0].includes('class="flex flex-col overflow-hidden rounded-md border p-3"'), 'story row should use Tailwind flex classes');
     });
 
-    it('should call getStepIconStyles for story icons', () => {
+    it('should call getStepIconClasses for story icons', () => {
       const html = readFileSync(htmlPath, 'utf-8');
       const storiesSection = html.match(/\$\{stories\.map\(\(s, i\).*?\)\.join\(''\)\}/s);
-      assert.ok(storiesSection[0].includes('const iconStyles = getStepIconStyles(st)'), 'should call getStepIconStyles for stories');
-      assert.ok(storiesSection[0].includes('style="${iconStyles}"'), 'should apply iconStyles to story icon element');
+      assert.ok(storiesSection[0].includes('const iconClasses = getStepIconClasses(st)'), 'should call getStepIconClasses for stories');
+      assert.ok(storiesSection[0].includes('${iconClasses}'), 'should apply iconClasses to story icon element');
     });
 
     it('should use same icon classes for stories as steps', () => {

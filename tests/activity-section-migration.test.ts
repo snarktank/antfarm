@@ -12,21 +12,21 @@ describe("Activity Section Migration", () => {
 
   describe("Activity Section Container", () => {
     it("should have mt-6 class for top margin", () => {
-      assert.match(html, /<div class="mt-6 border-t pt-5"/);
+      assert.match(html, /class="mt-6 border-t pt-5 border-border-default dark:border-dark-border-default"/);
     });
 
     it("should have border-t class for top border", () => {
-      assert.match(html, /<div class="mt-6 border-t pt-5"/);
+      assert.match(html, /class="mt-6 border-t pt-5 border-border-default dark:border-dark-border-default"/);
     });
 
     it("should have pt-5 class for top padding", () => {
-      assert.match(html, /<div class="mt-6 border-t pt-5"/);
+      assert.match(html, /class="mt-6 border-t pt-5 border-border-default dark:border-dark-border-default"/);
     });
 
-    it("should preserve border-color CSS variable", () => {
+    it("should have Tailwind border color classes", () => {
       assert.match(
         html,
-        /<div class="mt-6 border-t pt-5" style="border-color:var\(--border\)"/
+        /border-border-default dark:border-dark-border-default/
       );
     });
 
@@ -72,14 +72,14 @@ describe("Activity Section Migration", () => {
       assert.match(loadActivityMatch[0], /<h3 class="text-\[15px\] font-semibold mb-3"/);
     });
 
-    it("should preserve color CSS variable", () => {
+    it("should have Tailwind text color classes", () => {
       const loadActivityMatch = html.match(
         /async function loadActivity[\s\S]*?panel\.innerHTML = `[\s\S]*?`;[\s\S]*?}/
       );
       assert.ok(loadActivityMatch);
       assert.match(
         loadActivityMatch[0],
-        /<h3 class="text-\[15px\] font-semibold mb-3" style="color:var\(--text-primary\)">Activity<\/h3>/
+        /text-text-primary dark:text-dark-text-primary/
       );
     });
 
@@ -191,14 +191,14 @@ describe("Activity Section Migration", () => {
       assert.match(loadActivityMatch[0], /return `<div class="flex gap-3 py-1 text-xs leading-normal border-b"/);
     });
 
-    it("should preserve border-color CSS variable", () => {
+    it("should have Tailwind border color classes", () => {
       const loadActivityMatch = html.match(
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
       assert.match(
         loadActivityMatch[0],
-        /style="border-color:var\(--border-light\)"/
+        /border-border-light dark:border-dark-border-light/
       );
     });
 
@@ -277,14 +277,14 @@ describe("Activity Section Migration", () => {
       );
     });
 
-    it("should preserve text-secondary color CSS variable", () => {
+    it("should have Tailwind text color classes", () => {
       const loadActivityMatch = html.match(
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
       assert.match(
         loadActivityMatch[0],
-        /<span class="font-mono shrink-0 min-w-\[44px\]" style="color:var\(--text-secondary\)">\${time}<\/span>/
+        /text-text-secondary dark:text-dark-text-secondary/
       );
     });
 
@@ -348,14 +348,14 @@ describe("Activity Section Migration", () => {
       );
     });
 
-    it("should preserve accent-teal color CSS variable", () => {
+    it("should have Tailwind accent color classes", () => {
       const loadActivityMatch = html.match(
         /const agentSpan = agent[\s\S]*?;/
       );
       assert.ok(loadActivityMatch);
       assert.match(
         loadActivityMatch[0],
-        /<span class="font-mono shrink-0" style="color:var\(--accent-teal\)">/
+        /text-accent-teal dark:text-dark-accent-teal/
       );
     });
 
@@ -388,19 +388,18 @@ describe("Activity Section Migration", () => {
       );
     });
 
-    it("should not have additional inline styles", () => {
+    it("should not have inline style attribute", () => {
       const loadActivityMatch = html.match(
         /async function loadActivity[\s\S]*?return `<div[\s\S]*?<\/div>`;/
       );
       assert.ok(loadActivityMatch);
       const descMatch = loadActivityMatch[0].match(
-        /<span style="color:var\(--text-primary\)">\${esc\(desc\)}<\/span>/
+        /<span[^>]*>\${esc\(desc\)}<\/span>/
       );
       assert.ok(descMatch);
-      // Should only have color style, no other inline styles
-      const styleAttr = descMatch[0].match(/style="([^"]*)"/);
-      assert.ok(styleAttr);
-      assert.equal(styleAttr[1], "color:var(--text-primary)");
+      // Should not have inline style attribute, only class
+      assert.match(descMatch[0], /class="/);
+      assert.ok(!descMatch[0].includes('style='));
     });
   });
 
@@ -503,9 +502,9 @@ describe("Activity Section Migration", () => {
     it("should have migrated activity section in dist HTML", () => {
       if (existsSync(distHtmlPath)) {
         const distHtml = readFileSync(distHtmlPath, "utf-8");
-        assert.ok(distHtml.includes('class="mt-6 border-t pt-5"'));
-        assert.ok(distHtml.includes('class="text-[15px] font-semibold mb-3"'));
-        assert.ok(distHtml.includes('class="max-h-[300px] overflow-y-auto"'));
+        assert.ok(distHtml.includes('mt-6 border-t pt-5 border-border-default dark:border-dark-border-default'));
+        assert.ok(distHtml.includes('text-[15px] font-semibold mb-3'));
+        assert.ok(distHtml.includes('max-h-[300px] overflow-y-auto'));
       }
     });
   });

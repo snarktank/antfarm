@@ -18,9 +18,12 @@ describe("Tailwind CSS Initialization", () => {
   it("tailwind.config.js has dark mode configured as 'class'", () => {
     const configPath = path.join(PROJECT_ROOT, "tailwind.config.js");
     const content = readFileSync(configPath, "utf-8");
+    // Dark mode can be either 'class' or an array including 'class'
+    const hasClassMode = content.includes("darkMode: 'class'") || 
+                         (content.includes("darkMode:") && content.includes("'class'"));
     assert.ok(
-      content.includes("darkMode: 'class'"),
-      "tailwind.config.js should have darkMode: 'class'"
+      hasClassMode,
+      "tailwind.config.js should have darkMode: 'class' or include 'class' in array"
     );
   });
 
