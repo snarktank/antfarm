@@ -10,6 +10,7 @@
 
 import { describe, it, mock, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { loadWorkflowSpec } from "../dist/installer/workflow-spec.js";
 
 describe("cron payload includes polling model (regression #121)", () => {
   let capturedJobs: any[];
@@ -160,5 +161,41 @@ describe("cron payload includes polling model (regression #121)", () => {
 
     assert.equal(capturedJobs[0].payload.timeoutSeconds, 120,
       "cron payload should include timeoutSeconds from workflow polling config");
+  });
+
+  it("feature-dev planner cron uses MiniMax-M2.5 and avoids unknown-model errors", async () => {
+    const { setupAgentCrons } = await import("../dist/installer/agent-cron.js");
+    const workflow = await loadWorkflowSpec("workflows/feature-dev");
+
+    capturedJobs = [];
+    globalThis.fetch = mock.fn(async (_url: any, opts: any) => {
+      const body = JSON.parse(opts.body);
+      const job = body.args?.job;
+      if (job) capturedJobs.push(job);
+
+      const isPlannerJob = job?.name === "antfarm/feature-dev/planner";
+      if (isPlannerJob && job?.payload?.model !== "MiniMax-M2.5") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: false, error: "unknown-model: expected MiniMax-M2.5" }),
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, result: { id: `job-${capturedJobs.length}` } }),
+      };
+    }) as any;
+
+    await assert.doesNotReject(async () => setupAgentCrons(workflow));
+
+    const plannerJob = capturedJobs.find((job) => job.name === "antfarm/feature-dev/planner");
+    assert.ok(plannerJob, "should create planner cron job for feature-dev workflow");
+    assert.equal(plannerJob.payload.model, "MiniMax-M2.5");
+
+    const payloadText = JSON.stringify(capturedJobs);
+    assert.ok(!payloadText.includes("unknown-model"), "setup flow should not emit unknown-model errors");
   });
 });
