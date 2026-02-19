@@ -122,7 +122,7 @@ select option{background:var(--header-select-bg);color:#fff}
 select:focus{border-color:#8ECFC0}
 
 /* ── Theme toggle & Medic badge hover states ────────────────────── */
-.theme-toggle:hover{border-color:rgba(255,255,255,.5)}
+/* Theme toggle migrated to Tailwind classes */
 .medic-badge:hover{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.05)}
 
 /* ── Board ─────────────────────────────────────────────────────── */
@@ -173,7 +173,7 @@ select:focus{border-color:#8ECFC0}
 <header class="flex flex-wrap items-center gap-4 px-6 py-3 border-b-2" style="background:var(--header-bg);border-color:var(--header-border)">
   <h1 class="text-xl font-semibold text-white tracking-normal"><span style="color:var(--accent-highlight)">antfarm</span> dashboard</h1>
   <select id="wf-select" class="rounded-md px-3 py-1.5 text-sm text-white cursor-pointer border focus:outline-none transition-colors" style="background:var(--header-select-bg);border-color:var(--header-select-border)"><option value="">Loading...</option></select>
-  <button class="theme-toggle border rounded-md text-white cursor-pointer px-2 py-1 text-base leading-none transition-colors hover:border-opacity-50" style="background:none;border-color:rgba(255,255,255,.2)" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
+  <button class="border border-white/20 rounded-md text-white cursor-pointer px-2 py-1 text-base leading-none transition-colors hover:border-white/50 bg-transparent" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
   <div class="medic-badge flex items-center gap-1.5 text-xs cursor-pointer px-2.5 py-1 border rounded-md transition-colors" style="color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.15);background:transparent" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
     <span class="medic-dot unknown" id="medic-dot"></span>
     <span id="medic-label">Medic</span>

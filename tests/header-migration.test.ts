@@ -104,10 +104,6 @@ describe("US-002: Header and navigation migration", () => {
         "should have theme toggle with id"
       );
       assert.ok(
-        indexHTML.includes('class="theme-toggle'),
-        "should have theme-toggle class"
-      );
-      assert.ok(
         indexHTML.includes("<button"),
         "theme toggle should be a button"
       );
@@ -192,10 +188,10 @@ describe("US-002: Header and navigation migration", () => {
     });
 
     it("should have minimal CSS for hover states only", () => {
-      // We keep hover states in CSS since Tailwind hover classes require more complex setup
+      // Theme toggle migrated to Tailwind hover classes (US-011)
       assert.ok(
-        indexHTML.includes(".theme-toggle:hover"),
-        "should keep theme-toggle hover state"
+        !indexHTML.includes(".theme-toggle:hover"),
+        "theme-toggle hover should be migrated to Tailwind"
       );
       assert.ok(
         indexHTML.includes(".medic-badge:hover"),
