@@ -31,7 +31,12 @@ After running `git-pr create`:
 ```
 STATUS: done
 PR: https://github.com/org/repo/pull/123
+PR_NUMBER: 123
 ```
+
+Extract the PR number from the `git-pr create` output (e.g., "Created PR #123: ..." or
+"Existing PR #123: ...") and include it as `PR_NUMBER`. This lets downstream agents
+use the number directly without parsing URLs.
 
 ## What NOT To Do
 

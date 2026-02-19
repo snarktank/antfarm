@@ -338,6 +338,7 @@ steps:
       Review the pull request.
 
       PR: {{pr}}
+      PR_NUMBER: {{pr_number}}
       TASK: {{task}}
       CHANGES: {{changes}}
 
@@ -350,11 +351,11 @@ steps:
       - Test coverage
       - Follows project conventions
 
-      Use: git-pr view, git-pr diff to read the PR.
+      Use: git-pr view {{pr_number}}, git-pr diff {{pr_number}} to read the PR.
 
       IMPORTANT: Post your review to the PR using provider-agnostic commands:
-      - If approving: git-pr review <number> --approve --body "your review summary"
-      - If requesting changes: git-pr review <number> --request-changes --body "your feedback"
+      - If approving: git-pr review {{pr_number}} --approve --body "your review summary"
+      - If requesting changes: git-pr review {{pr_number}} --request-changes --body "your feedback"
 
       ## Visual Review (Frontend Changes)
       Has frontend changes: {{has_frontend_changes}}

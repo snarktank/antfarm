@@ -160,7 +160,7 @@ async function main() {
       console.log(`Reinstalling ${workflows.length} workflow(s)...`);
       for (const workflowId of workflows) {
         try {
-          await installWorkflow({ workflowId });
+          await installWorkflow({ workflowId, overwriteFiles: true });
           console.log(`  ✓ ${workflowId}`);
         } catch (err) {
           console.log(`  ✗ ${workflowId}: ${err instanceof Error ? err.message : String(err)}`);

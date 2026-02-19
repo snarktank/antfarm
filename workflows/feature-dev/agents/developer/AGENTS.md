@@ -52,10 +52,21 @@ Before EVERY commit, verify:
 
 ## Creating PRs
 
-When creating the PR:
-- Clear title that summarizes the change
-- Description explaining what you did and why
-- Note what was tested
+**Always use `git-pr`, never `gh pr create` directly.**
+
+`git-pr` is a provider-agnostic wrapper in `~/.openclaw/workspace/scripts/git-pr`. It auto-detects GitHub vs Gitea from the remote URL and uses the right tool (gh for GitHub, REST API for Gitea). `gh pr create` fails non-interactively against Gitea.
+
+```bash
+git-pr create --title "..." --description "..." --head <branch> --base main
+```
+
+If a PR already exists for the branch, `git-pr` returns the existing URL -- treat that as success.
+
+When viewing or reviewing PRs:
+- `git-pr view <number>` -- view PR details
+- `git-pr diff <number>` -- view diff
+- `git-pr review <number> --approve --body "..."` -- approve
+- `git-pr review <number> --request-changes --body "..."` -- request changes
 
 ## Output Format
 

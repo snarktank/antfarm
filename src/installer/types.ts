@@ -11,7 +11,7 @@ export type WorkflowAgentFiles = {
  * - coding:        Full read/write/exec for implementation (developer, fixer, setup)
  * - verification:  Read + exec but NO write — independent verification integrity (verifier)
  * - testing:       Read + exec + browser/web for E2E testing, NO write (tester)
- * - pr:            Read + exec only — just runs `gh pr create` (pr)
+ * - pr:            Read + exec only — just runs `git-pr create` (pr)
  * - scanning:      Read + exec + web search for CVE lookups, NO write (scanner)
  */
 export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning";
