@@ -114,10 +114,10 @@
 
 /* ── Base ──────────────────────────────────────────────────────── */
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg-page);color:var(--text-primary);min-height:100vh}
+/* Body styling migrated to Tailwind classes with dark: variants */
 
 /* Header styling moved to Tailwind classes in HTML */
-
+/* Select option styling - uses CSS variables for dynamic dropdown rendering */
 select option{background:var(--header-select-bg);color:#fff}
 select:focus{border-color:#8ECFC0}
 
@@ -138,7 +138,7 @@ select:focus{border-color:#8ECFC0}
 /* Badge styling migrated to Tailwind classes */
 
 /* ── Misc ──────────────────────────────────────────────────────── */
-.empty{color:var(--text-secondary);font-size:12px;text-align:center;padding:24px 8px}
+/* .empty class migrated to Tailwind classes with dark: variants */
 .refresh-note{color:rgba(255,255,255,.6);font-size:11px;margin-left:auto}
 .story-open{display:block!important}
 .story-chevron-open{transform:rotate(90deg)}
@@ -158,10 +158,10 @@ select:focus{border-color:#8ECFC0}
 .medic-panel.open{display:flex}
 </style>
 </head>
-<body>
-<header class="flex flex-wrap items-center gap-4 px-6 py-3 border-b-2" style="background:var(--header-bg);border-color:var(--header-border)">
-  <h1 class="text-xl font-semibold text-white tracking-normal"><span style="color:var(--accent-highlight)">antfarm</span> dashboard</h1>
-  <select id="wf-select" class="rounded-md px-3 py-1.5 text-sm text-white cursor-pointer border focus:outline-none transition-colors" style="background:var(--header-select-bg);border-color:var(--header-select-border)"><option value="">Loading...</option></select>
+<body class="min-h-screen bg-bg-page dark:bg-dark-bg-page text-text-primary dark:text-dark-text-primary">
+<header class="flex flex-wrap items-center gap-4 px-6 py-3 border-b-2 bg-header-bg dark:bg-dark-header-bg border-header-border dark:border-dark-header-border">
+  <h1 class="text-xl font-semibold text-white tracking-normal"><span class="text-accent-highlight dark:text-dark-accent-highlight">antfarm</span> dashboard</h1>
+  <select id="wf-select" class="rounded-md px-3 py-1.5 text-sm text-white cursor-pointer border focus:outline-none transition-colors bg-header-select-bg dark:bg-dark-header-select-bg border-header-select-border dark:border-dark-header-select-border"><option value="">Loading...</option></select>
   <button class="border border-white/20 rounded-md text-white cursor-pointer px-2 py-1 text-base leading-none transition-colors hover:border-white/50 bg-transparent" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
   <div class="flex items-center gap-1.5 text-xs text-white/85 cursor-pointer px-2.5 py-1 border border-white/15 rounded-md bg-transparent transition-all hover:border-white/40 hover:bg-white/5" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
     <span class="w-2 h-2 rounded-full shrink-0" id="medic-dot"></span>
@@ -169,13 +169,13 @@ select:focus{border-color:#8ECFC0}
   </div>
   <span class="text-xs ml-auto" style="color:rgba(255,255,255,.6)" id="refresh-note">Auto-refresh: 30s</span>
 </header>
-<div class="flex flex-col md:flex-row gap-4 p-6 overflow-x-auto" style="min-height:calc(100vh - 65px)" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
-<div class="fixed top-[60px] right-4 w-[340px] max-h-[500px] rounded-[10px] border z-[50] overflow-hidden hidden flex-col medic-panel" id="medic-panel" style="background:var(--bg-surface);border-color:var(--border);box-shadow:0 8px 32px var(--shadow-heavy)">
-  <div class="px-4 py-3.5 border-b text-sm font-semibold flex items-center gap-2" style="border-color:var(--border-light);color:var(--text-primary)">Workflow Medic</div>
+<div class="flex flex-col md:flex-row gap-4 p-6 overflow-x-auto" style="min-height:calc(100vh - 65px)" id="board"><div class="empty m-auto text-text-secondary dark:text-dark-text-secondary text-xs text-center py-6 px-2">Select a workflow</div></div>
+<div class="fixed top-[60px] right-4 w-[340px] max-h-[500px] rounded-[10px] border z-[50] overflow-hidden hidden flex-col medic-panel bg-bg-surface dark:bg-dark-bg-surface border-border-default dark:border-dark-border-default shadow-heavy dark:shadow-dark-heavy" id="medic-panel">
+  <div class="px-4 py-3.5 border-b text-sm font-semibold flex items-center gap-2 border-border-light dark:border-dark-border-light text-text-primary dark:text-dark-text-primary">Workflow Medic</div>
   <div class="px-4 py-3 overflow-y-auto flex-1" id="medic-panel-body">Loading...</div>
 </div>
-<div class="fixed inset-0 z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-150 overlay" id="overlay" style="background:var(--overlay)" onclick="if(event.target===this)closePanel()">
-  <div class="relative w-[90%] max-w-[640px] max-h-[85vh] overflow-y-auto p-6 rounded-xl border" style="background:var(--bg-surface);border-color:var(--border);box-shadow:0 8px 32px var(--shadow-heavy)" id="panel"></div>
+<div class="fixed inset-0 z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-150 overlay bg-overlay dark:bg-dark-overlay" id="overlay" onclick="if(event.target===this)closePanel()">
+  <div class="relative w-[90%] max-w-[640px] max-h-[85vh] overflow-y-auto p-6 rounded-xl border bg-bg-surface dark:bg-dark-bg-surface border-border-default dark:border-dark-border-default shadow-heavy dark:shadow-dark-heavy" id="panel"></div>
 </div>
 
 <script>
@@ -183,38 +183,37 @@ const API = '';
 let workflows = [];
 let currentWf = null;
 
-// Badge helper - returns Tailwind classes and inline styles for status badges
+// Badge helper - returns Tailwind classes for status badges with dark mode support
 function getBadgeClasses(status) {
   const baseClasses = 'text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase';
   const statusMap = {
-    'running': { bg: 'var(--accent-teal-subtle)', color: 'var(--accent-teal)' },
-    'done': { bg: 'var(--accent-green-subtle)', color: 'var(--accent-green)' },
-    'completed': { bg: 'var(--accent-green-subtle)', color: 'var(--accent-green)' },
-    'failed': { bg: 'var(--accent-orange-subtle)', color: 'var(--accent-orange)' },
-    'error': { bg: 'var(--accent-orange-subtle)', color: 'var(--accent-orange)' },
-    'waiting': { bg: 'var(--accent-muted)', color: 'var(--text-secondary)' },
-    'pending': { bg: 'var(--accent-muted)', color: 'var(--text-secondary)' },
-    'blocked': { bg: 'var(--accent-orange-faint)', color: 'var(--accent-orange)' }
+    'running': 'bg-accent-teal-subtle dark:bg-dark-accent-teal-subtle text-accent-teal dark:text-dark-accent-teal',
+    'done': 'bg-accent-green-subtle dark:bg-dark-accent-green-subtle text-accent-green dark:text-dark-accent-green',
+    'completed': 'bg-accent-green-subtle dark:bg-dark-accent-green-subtle text-accent-green dark:text-dark-accent-green',
+    'failed': 'bg-accent-orange-subtle dark:bg-dark-accent-orange-subtle text-accent-orange dark:text-dark-accent-orange',
+    'error': 'bg-accent-orange-subtle dark:bg-dark-accent-orange-subtle text-accent-orange dark:text-dark-accent-orange',
+    'waiting': 'bg-accent-muted dark:bg-dark-accent-muted text-text-secondary dark:text-dark-text-secondary',
+    'pending': 'bg-accent-muted dark:bg-dark-accent-muted text-text-secondary dark:text-dark-text-secondary',
+    'blocked': 'bg-accent-orange-faint-light dark:bg-accent-orange-faint-dark text-accent-orange dark:text-dark-accent-orange'
   };
-  const colors = statusMap[status] || statusMap['pending'];
+  const statusClasses = statusMap[status] || statusMap['pending'];
   return {
-    classes: baseClasses,
-    style: `background:${colors.bg};color:${colors.color}`
+    classes: `${baseClasses} ${statusClasses}`,
+    style: '' // No inline styles needed with Tailwind
   };
 }
 
-// Step icon helper - returns inline styles for step icon status colors
-function getStepIconStyles(status) {
+// Step icon helper - returns Tailwind classes for step icon status colors with dark mode support
+function getStepIconClasses(status) {
   const statusMap = {
-    'done': { bg: 'var(--accent-green-subtle)', color: 'var(--accent-green)' },
-    'running': { bg: 'var(--accent-teal-subtle)', color: 'var(--accent-teal)' },
-    'pending': { bg: 'var(--accent-muted)', color: 'var(--text-secondary)' },
-    'waiting': { bg: 'var(--accent-muted)', color: 'var(--text-secondary)' },
-    'failed': { bg: 'var(--accent-orange-subtle)', color: 'var(--accent-orange)' },
-    'error': { bg: 'var(--accent-orange-subtle)', color: 'var(--accent-orange)' }
+    'done': 'bg-accent-green-subtle dark:bg-dark-accent-green-subtle text-accent-green dark:text-dark-accent-green',
+    'running': 'bg-accent-teal-subtle dark:bg-dark-accent-teal-subtle text-accent-teal dark:text-dark-accent-teal',
+    'pending': 'bg-accent-muted dark:bg-dark-accent-muted text-text-secondary dark:text-dark-text-secondary',
+    'waiting': 'bg-accent-muted dark:bg-dark-accent-muted text-text-secondary dark:text-dark-text-secondary',
+    'failed': 'bg-accent-orange-subtle dark:bg-dark-accent-orange-subtle text-accent-orange dark:text-dark-accent-orange',
+    'error': 'bg-accent-orange-subtle dark:bg-dark-accent-orange-subtle text-accent-orange dark:text-dark-accent-orange'
   };
-  const colors = statusMap[status] || statusMap['pending'];
-  return `background:${colors.bg};color:${colors.color}`;
+  return statusMap[status] || statusMap['pending'];
 }
 
 async function fetchJSON(url) {
@@ -245,7 +244,7 @@ async function loadWorkflows() {
 function selectWorkflow(id) {
   currentWf = workflows.find(w => w.id === id) || null;
   if (currentWf) loadRuns();
-  else document.getElementById('board').innerHTML = '<div class="empty" style="margin:auto">Select a workflow</div>';
+  else document.getElementById('board').innerHTML = '<div class="m-auto text-text-secondary dark:text-dark-text-secondary text-xs text-center py-6 px-2">Select a workflow</div>';
 }
 
 async function loadRuns() {
@@ -274,24 +273,24 @@ function renderBoard(wf, runs) {
   board.innerHTML = wf.steps.map(step => {
     const cards = columns[step.id];
     const cardHTML = cards.length === 0
-      ? '<div class="empty">No runs</div>'
+      ? '<div class="text-text-secondary dark:text-dark-text-secondary text-xs text-center py-6 px-2">No runs</div>'
       : cards.map(run => {
           const isDone = run.status === 'done';
           const isFailed = run.status === 'failed' || run.status === 'error';
           const badgeInfo = getBadgeClasses(run.status);
           const time = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || "" : '';
           const title = run.task.length > 60 ? run.task.slice(0, 57) + '…' : run.task;
-          const borderLeft = isDone ? 'border-l-[3px] border-l-[var(--accent-green)]' : isFailed ? 'border-l-[3px] border-l-[var(--accent-orange)]' : '';
-          return `<div class="rounded-md border p-3 cursor-pointer transition-all duration-150 hover:shadow-lg ${borderLeft}" style="background:var(--bg-surface-alt);border-color:var(--border)" onclick="openRun('${run.id}')" onmouseenter="this.style.borderColor='var(--accent-orange)'" onmouseleave="this.style.borderColor='var(--border)'">
-            <div class="text-[13px] font-medium mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap" style="color:var(--text-primary)" title="${run.task.replace(/"/g, '&quot;')}">${title}</div>
-            <div class="text-[11px] flex justify-between items-center" style="color:var(--text-secondary)">
+          const borderLeft = isDone ? 'border-l-[3px] border-l-accent-green dark:border-l-dark-accent-green' : isFailed ? 'border-l-[3px] border-l-accent-orange dark:border-l-dark-accent-orange' : '';
+          return `<div class="rounded-md border p-3 cursor-pointer transition-all duration-150 hover:shadow-lg bg-bg-surface-alt dark:bg-dark-bg-surface-alt border-border-default dark:border-dark-border-default ${borderLeft}" onclick="openRun('${run.id}')" onmouseenter="this.style.borderColor='var(--accent-orange)'" onmouseleave="this.classList.remove('border-accent-orange');this.classList.remove('dark:border-dark-accent-orange')">
+            <div class="text-[13px] font-medium mb-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-text-primary dark:text-dark-text-primary" title="${run.task.replace(/"/g, '&quot;')}">${title}</div>
+            <div class="text-[11px] flex justify-between items-center text-text-secondary dark:text-dark-text-secondary">
               <span class="${badgeInfo.classes}" style="${badgeInfo.style}">${run.status}</span>
               <span>${time}</span>
             </div>
           </div>`;
         }).join('');
-    return `<div class="min-w-[240px] flex-1 rounded-lg flex flex-col" style="background:var(--bg-surface);box-shadow:0 2px 8px var(--shadow)">
-      <div class="px-4 py-3 border-b text-xs font-semibold uppercase tracking-wider rounded-t-lg" style="color:var(--accent-green);background:var(--bg-column-header);border-color:var(--border-light)">${step.id}<span class="inline-block text-white rounded-full px-2 py-0.5 text-[11px] ml-2" style="background:var(--accent-green)">${cards.length}</span></div>
+    return `<div class="min-w-[240px] flex-1 rounded-lg flex flex-col bg-bg-surface dark:bg-dark-bg-surface shadow-light dark:shadow-dark-light">
+      <div class="px-4 py-3 border-b text-xs font-semibold uppercase tracking-wider rounded-t-lg text-accent-green dark:text-dark-accent-green bg-bg-column-header dark:bg-dark-bg-column-header border-border-light dark:border-dark-border-light">${step.id}<span class="inline-block text-white rounded-full px-2 py-0.5 text-[11px] ml-2 bg-accent-green dark:bg-dark-accent-green">${cards.length}</span></div>
       <div class="p-2 flex-1 flex flex-col gap-2 overflow-y-auto">${cardHTML}</div>
     </div>`;
   }).join('');
@@ -311,29 +310,29 @@ async function openRun(id) {
     const st = s.status || 'waiting';
     const icon = stepIcons[st] || '○';
     const badgeInfo = getBadgeClasses(st);
-    const iconStyles = getStepIconStyles(st);
+    const iconClasses = getStepIconClasses(st);
     const hasOutput = !!s.output;
     const toggleAttr = hasOutput ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" style="cursor:pointer"` : '';
-    return `<div class="flex flex-col overflow-hidden rounded-md border p-3" style="background:var(--bg-surface-alt);border-color:var(--border)" ${toggleAttr}>
+    return `<div class="flex flex-col overflow-hidden rounded-md border p-3 bg-bg-surface-alt dark:bg-dark-bg-surface-alt border-border-default dark:border-dark-border-default" ${toggleAttr}>
       <div class="flex items-center gap-3">
-        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0" style="${iconStyles}">${icon}</div>
-        <div class="text-[13px] font-medium flex-1" style="color:var(--text-primary)">${s.step_id}</div>
-        <div class="text-[11px] font-mono" style="color:var(--text-secondary)">${s.agent_id || ''}</div>
-        <div class="text-[11px] uppercase font-semibold"><span class="${badgeInfo.classes}" style="${badgeInfo.style}">${st}</span></div>
-        ${hasOutput ? '<span class="step-chevron inline-block text-[10px] transition-transform duration-150" style="color:var(--text-secondary)">▶</span>' : ''}
+        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${iconClasses}">${icon}</div>
+        <div class="text-[13px] font-medium flex-1 text-text-primary dark:text-dark-text-primary">${s.step_id}</div>
+        <div class="text-[11px] font-mono text-text-secondary dark:text-dark-text-secondary">${s.agent_id || ''}</div>
+        <div class="text-[11px] uppercase font-semibold"><span class="${badgeInfo.classes}">${st}</span></div>
+        ${hasOutput ? '<span class="step-chevron inline-block text-[10px] transition-transform duration-150 text-text-secondary dark:text-dark-text-secondary">▶</span>' : ''}
       </div>
-      ${hasOutput ? `<div class="step-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed" style="color:var(--text-tertiary)">
-        <details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer" style="color:var(--text-secondary)">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto" style="background:var(--bg-code);border-color:var(--border)">${esc(s.output)}</pre></details>
+      ${hasOutput ? `<div class="step-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed text-text-tertiary dark:text-dark-text-tertiary">
+        <details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer text-text-secondary dark:text-dark-text-secondary">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto bg-bg-code dark:bg-dark-bg-code border-border-default dark:border-dark-border-default">${esc(s.output)}</pre></details>
       </div>` : ''}
     </div>`;
   }).join('');
   const runBadgeInfo = getBadgeClasses(run.status);
   panel.innerHTML = `
-    <button class="absolute top-3 right-4 bg-transparent border-none text-xl cursor-pointer px-2 py-1 rounded hover:bg-opacity-100 transition-colors" style="color:var(--text-secondary)" onmouseenter="this.style.color='var(--text-primary)';this.style.background='var(--bg-column-header)'" onmouseleave="this.style.color='var(--text-secondary)';this.style.background='transparent'" onclick="closePanel()">✕</button>
-    <h2 class="text-base font-semibold mb-1 pr-10" style="color:var(--text-primary)">${run.workflow_id}</h2>
-    <div class="text-[13px] mb-4 whitespace-pre-wrap break-words max-h-[120px] overflow-y-auto leading-normal" style="color:var(--text-secondary)">${esc(run.task)}</div>
-    <div class="flex gap-3 mb-5 text-xs flex-wrap" style="color:var(--text-secondary)">
-      <span class="flex items-center gap-1"><span class="${runBadgeInfo.classes}" style="${runBadgeInfo.style}">${run.status}</span></span>
+    <button class="absolute top-3 right-4 bg-transparent border-none text-xl cursor-pointer px-2 py-1 rounded transition-colors text-text-secondary dark:text-dark-text-secondary hover:text-text-primary hover:dark:text-dark-text-primary hover:bg-bg-column-header hover:dark:bg-dark-bg-column-header" onclick="closePanel()">✕</button>
+    <h2 class="text-base font-semibold mb-1 pr-10 text-text-primary dark:text-dark-text-primary">${run.workflow_id}</h2>
+    <div class="text-[13px] mb-4 whitespace-pre-wrap break-words max-h-[120px] overflow-y-auto leading-normal text-text-secondary dark:text-dark-text-secondary">${esc(run.task)}</div>
+    <div class="flex gap-3 mb-5 text-xs flex-wrap text-text-secondary dark:text-dark-text-secondary">
+      <span class="flex items-center gap-1"><span class="${runBadgeInfo.classes}">${run.status}</span></span>
       <span class="flex items-center gap-1">Created: ${created}</span>
       <span class="flex items-center gap-1">Updated: ${updated}</span>
     </div>
@@ -378,17 +377,17 @@ async function loadActivity(runId) {
     const agent = evt.agentId ? evt.agentId.split('/').pop() : '';
     const desc = formatEventDesc(evt);
     const agentSpan = agent
-      ? `<span class="font-mono shrink-0" style="color:var(--accent-teal)">${esc(agent)}</span>`
+      ? `<span class="font-mono shrink-0 text-accent-teal dark:text-dark-accent-teal">${esc(agent)}</span>`
       : '';
-    return `<div class="flex gap-3 py-1 text-xs leading-normal border-b" style="border-color:var(--border-light)">
-      <span class="font-mono shrink-0 min-w-[44px]" style="color:var(--text-secondary)">${time}</span>
+    return `<div class="flex gap-3 py-1 text-xs leading-normal border-b border-border-light dark:border-dark-border-light">
+      <span class="font-mono shrink-0 min-w-[44px] text-text-secondary dark:text-dark-text-secondary">${time}</span>
       ${agentSpan}
-      <span style="color:var(--text-primary)">${esc(desc)}</span>
+      <span class="text-text-primary dark:text-dark-text-primary">${esc(desc)}</span>
     </div>`;
   }).join('');
   panel.innerHTML = `
-    <div class="mt-6 border-t pt-5" style="border-color:var(--border)">
-      <h3 class="text-[15px] font-semibold mb-3" style="color:var(--text-primary)">Activity</h3>
+    <div class="mt-6 border-t pt-5 border-border-default dark:border-dark-border-default">
+      <h3 class="text-[15px] font-semibold mb-3 text-text-primary dark:text-dark-text-primary">Activity</h3>
       <div class="max-h-[300px] overflow-y-auto">${rows}</div>
     </div>
   `;
@@ -406,36 +405,37 @@ async function loadStories(runId) {
   const done = stories.filter(s => s.status === 'done').length;
   const pct = Math.round((done / stories.length) * 100);
   panel.innerHTML = `
-    <div class="mt-6 border-t pt-5" style="border-color:var(--border)">
+    <div class="mt-6 border-t pt-5 border-border-default dark:border-dark-border-default">
       <div class="flex items-center justify-between mb-3">
-        <h3 class="text-[15px] font-semibold" style="color:var(--text-primary)">Stories</h3>
-        <span class="text-[13px] font-semibold" style="color:var(--accent-green)">${done} / ${stories.length} done</span>
+        <h3 class="text-[15px] font-semibold text-text-primary dark:text-dark-text-primary">Stories</h3>
+        <span class="text-[13px] font-semibold text-accent-green dark:text-dark-accent-green">${done} / ${stories.length} done</span>
       </div>
-      <div class="rounded h-2 mb-4 overflow-hidden" style="background:var(--accent-muted)">
-        <div class="h-full rounded transition-[width] duration-300" style="background:var(--accent-green);width:${pct}%"></div>
+      <div class="rounded h-2 mb-4 overflow-hidden bg-accent-muted dark:bg-dark-accent-muted">
+        <div class="h-full rounded transition-[width] duration-300 bg-accent-green dark:bg-dark-accent-green" style="width:${pct}%"></div>
       </div>
       <div class="flex flex-col gap-1.5">
         ${stories.map((s, i) => {
           const st = s.status || 'pending';
           const icon = stepIcons[st] || '○';
           const badgeInfo = getBadgeClasses(st);
-          const iconStyles = getStepIconStyles(st);
+          const iconClasses = getStepIconClasses(st);
           let ac = [];
           try { ac = JSON.parse(s.acceptance_criteria || '[]'); } catch { ac = [s.acceptance_criteria]; }
-          const retryInfo = s.retry_count > 0 ? ` <span class="text-[10px]" style="color:var(--accent-orange)">(retry ${s.retry_count})</span>` : '';
+          const retryInfo = s.retry_count > 0 ? ` <span class="text-[10px] text-accent-orange dark:text-dark-accent-orange">(retry ${s.retry_count})</span>` : '';
           const hasDetails = s.description || ac.length > 0 || s.output;
           const toggleAttr = hasDetails ? `onclick="this.querySelector('.story-details').classList.toggle('story-open');this.querySelector('.story-chevron').classList.toggle('story-chevron-open')" style="cursor:pointer"` : '';
-          return `<div class="flex flex-col overflow-hidden rounded-md border p-3" style="background:var(--bg-surface-alt);border-color:var(--border)" ${toggleAttr}>
+          const checkColor = st === 'done' ? 'text-accent-green dark:text-dark-accent-green' : 'text-border-default dark:text-dark-border-default';
+          return `<div class="flex flex-col overflow-hidden rounded-md border p-3 bg-bg-surface-alt dark:bg-dark-bg-surface-alt border-border-default dark:border-dark-border-default" ${toggleAttr}>
             <div class="flex items-center gap-3">
-              <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0" style="${iconStyles}">${icon}</div>
-              <div class="text-[13px] font-medium flex-1" style="color:var(--text-primary)">${s.story_id}: ${s.title}${retryInfo}</div>
-              <div class="text-[11px] uppercase font-semibold"><span class="${badgeInfo.classes}" style="${badgeInfo.style}">${st}</span></div>
-              ${hasDetails ? '<span class="story-chevron inline-block text-[10px] transition-transform duration-150" style="color:var(--text-secondary)">▶</span>' : ''}
+              <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${iconClasses}">${icon}</div>
+              <div class="text-[13px] font-medium flex-1 text-text-primary dark:text-dark-text-primary">${s.story_id}: ${s.title}${retryInfo}</div>
+              <div class="text-[11px] uppercase font-semibold"><span class="${badgeInfo.classes}">${st}</span></div>
+              ${hasDetails ? '<span class="story-chevron inline-block text-[10px] transition-transform duration-150 text-text-secondary dark:text-dark-text-secondary">▶</span>' : ''}
             </div>
-            ${hasDetails ? `<div class="story-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed" style="color:var(--text-tertiary)">
+            ${hasDetails ? `<div class="story-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed text-text-tertiary dark:text-dark-text-tertiary">
               ${s.description ? `<div class="mb-2">${esc(s.description)}</div>` : ''}
-              ${ac.length > 0 ? `<div class="mb-2"><div class="font-semibold text-[11px] uppercase tracking-wide mb-1" style="color:var(--accent-green)">Acceptance Criteria</div>${ac.map(c => `<label class="flex items-start gap-1.5 mb-0.5 cursor-default"><span class="shrink-0" style="color:var(${st==='done'?'--accent-green':'--border'})">${st==='done'?'☑':'☐'}</span><span>${esc(c)}</span></label>`).join('')}</div>` : ''}
-              ${s.output ? `<details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer" style="color:var(--text-secondary)">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto" style="background:var(--bg-code);border-color:var(--border)">${esc(s.output)}</pre></details>` : ''}
+              ${ac.length > 0 ? `<div class="mb-2"><div class="font-semibold text-[11px] uppercase tracking-wide mb-1 text-accent-green dark:text-dark-accent-green">Acceptance Criteria</div>${ac.map(c => `<label class="flex items-start gap-1.5 mb-0.5 cursor-default"><span class="shrink-0 ${checkColor}">${st==='done'?'☑':'☐'}</span><span>${esc(c)}</span></label>`).join('')}</div>` : ''}
+              ${s.output ? `<details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer text-text-secondary dark:text-dark-text-secondary">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto bg-bg-code dark:bg-dark-bg-code border-border-default dark:border-dark-border-default">${esc(s.output)}</pre></details>` : ''}
             </div>` : ''}
           </div>`;
         }).join('')}
@@ -519,33 +519,33 @@ async function loadMedicData() {
     html += '<div class="mb-3">';
     if (status.lastCheck) {
       const ageMin = Math.round((Date.now() - parseTS(status.lastCheck.checkedAt).getTime()) / 60000);
-      html += `<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Last check</span><span class="font-semibold" style="color:var(--text-primary)">${ageMin}m ago</span></div>`;
-      html += `<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Result</span><span class="font-semibold" style="color:var(--text-primary)">${esc(status.lastCheck.summary)}</span></div>`;
+      html += `<div class="flex justify-between py-1.5 text-xs border-b text-text-secondary dark:text-dark-text-secondary border-border-light dark:border-dark-border-light"><span>Last check</span><span class="font-semibold text-text-primary dark:text-dark-text-primary">${ageMin}m ago</span></div>`;
+      html += `<div class="flex justify-between py-1.5 text-xs border-b text-text-secondary dark:text-dark-text-secondary border-border-light dark:border-dark-border-light"><span>Result</span><span class="font-semibold text-text-primary dark:text-dark-text-primary">${esc(status.lastCheck.summary)}</span></div>`;
     } else {
-      html += '<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Last check</span><span class="font-semibold" style="color:var(--text-primary)">Never</span></div>';
+      html += '<div class="flex justify-between py-1.5 text-xs border-b text-text-secondary dark:text-dark-text-secondary border-border-light dark:border-dark-border-light"><span>Last check</span><span class="font-semibold text-text-primary dark:text-dark-text-primary">Never</span></div>';
     }
-    html += `<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Checks (24h)</span><span class="font-semibold" style="color:var(--text-primary)">${status.recentChecks}</span></div>`;
-    html += `<div class="flex justify-between py-1.5 text-xs border-b" style="color:var(--text-secondary);border-color:var(--border-light)"><span>Issues found (24h)</span><span class="font-semibold" style="color:var(--text-primary)">${status.recentIssues}</span></div>`;
-    html += `<div class="flex justify-between py-1.5 text-xs" style="color:var(--text-secondary)"><span>Auto-fixed (24h)</span><span class="font-semibold" style="color:var(--text-primary)">${status.recentActions}</span></div>`;
+    html += `<div class="flex justify-between py-1.5 text-xs border-b text-text-secondary dark:text-dark-text-secondary border-border-light dark:border-dark-border-light"><span>Checks (24h)</span><span class="font-semibold text-text-primary dark:text-dark-text-primary">${status.recentChecks}</span></div>`;
+    html += `<div class="flex justify-between py-1.5 text-xs border-b text-text-secondary dark:text-dark-text-secondary border-border-light dark:border-dark-border-light"><span>Issues found (24h)</span><span class="font-semibold text-text-primary dark:text-dark-text-primary">${status.recentIssues}</span></div>`;
+    html += `<div class="flex justify-between py-1.5 text-xs text-text-secondary dark:text-dark-text-secondary"><span>Auto-fixed (24h)</span><span class="font-semibold text-text-primary dark:text-dark-text-primary">${status.recentActions}</span></div>`;
     html += '</div>';
 
     if (checks.length > 0) {
-      html += '<div class="text-xs font-semibold mb-2" style="color:var(--text-primary)">Recent Checks</div>';
+      html += '<div class="text-xs font-semibold mb-2 text-text-primary dark:text-dark-text-primary">Recent Checks</div>';
       for (const c of checks) {
         const t = parseTS(c.checkedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
         const icon = c.issuesFound === 0 ? '·' : c.actionsTaken > 0 ? '~' : '!';
-        const color = c.issuesFound === 0 ? 'var(--text-secondary)' : c.actionsTaken >= c.issuesFound ? 'var(--accent-teal)' : 'var(--accent-orange)';
-        const borderClass = checks.indexOf(c) === checks.length - 1 ? '' : 'border-b';
-        html += `<div class="py-2 text-[11px] leading-normal ${borderClass}" style="border-color:var(--border-light)">
-          <span class="font-mono" style="color:var(--text-secondary)">${t}</span>
-          <span class="ml-2" style="color:${color}">${icon} ${esc(c.summary)}</span>
+        const colorClass = c.issuesFound === 0 ? 'text-text-secondary dark:text-dark-text-secondary' : c.actionsTaken >= c.issuesFound ? 'text-accent-teal dark:text-dark-accent-teal' : 'text-accent-orange dark:text-dark-accent-orange';
+        const borderClass = checks.indexOf(c) === checks.length - 1 ? '' : 'border-b border-border-light dark:border-dark-border-light';
+        html += `<div class="py-2 text-[11px] leading-normal ${borderClass}">
+          <span class="font-mono text-text-secondary dark:text-dark-text-secondary">${t}</span>
+          <span class="ml-2 ${colorClass}">${icon} ${esc(c.summary)}</span>
         </div>`;
       }
     }
 
-    body.innerHTML = html || '<div class="text-xs py-2" style="color:var(--text-secondary)">No medic data yet. Run <code>antfarm medic install</code> to enable.</div>';
+    body.innerHTML = html || '<div class="text-xs py-2 text-text-secondary dark:text-dark-text-secondary">No medic data yet. Run <code>antfarm medic install</code> to enable.</div>';
   } catch {
-    body.innerHTML = '<div class="text-xs py-2" style="color:var(--text-secondary)">Could not load medic data.</div>';
+    body.innerHTML = '<div class="text-xs py-2 text-text-secondary dark:text-dark-text-secondary">Could not load medic data.</div>';
   }
 }
 
