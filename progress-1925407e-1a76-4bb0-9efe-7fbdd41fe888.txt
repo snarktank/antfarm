@@ -1,0 +1,1 @@
+fix-002: Fixed TypeScript type checking in ws component - Added typecheck script to package.json that properly executes tsc with --noEmit flag

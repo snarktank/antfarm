@@ -1,8 +1,22 @@
-node_modules/
-dist/
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+.nyc_output
+
+# production
+/build
+/dist
+/out
+
+# misc
 .DS_Store
-*.db
-*.sqlite
-*.sqlite3
-progress.txt
-progress*.txt
+.env
+*.log
+*.key
+*.pem
+*.der
+*.p12
