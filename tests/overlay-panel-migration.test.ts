@@ -64,7 +64,8 @@ describe('US-006: Overlay and Panel Container Migration', () => {
     });
 
     it('should use duration-150 for transition timing', () => {
-      assert.match(html, /class="[^"]*duration-150[^"]*"[^>]*id="overlay"/);
+      // Updated in US-018 to use duration-200 for consistent 200-300ms transitions
+      assert.match(html, /class="[^"]*duration-200[^"]*"[^>]*id="overlay"/);
     });
 
     it('should use Tailwind classes for background with dark mode', () => {
@@ -230,7 +231,8 @@ describe('US-006: Overlay and Panel Container Migration', () => {
     });
 
     it('should use duration-150 matching old .15s timing', () => {
-      assert.match(html, /duration-150/);
+      // Updated in US-018 to use duration-200 for consistent 200-300ms transitions
+      assert.match(html, /duration-200/);
     });
 
     it('should start with opacity-0 (hidden)', () => {

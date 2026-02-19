@@ -48,11 +48,13 @@ describe("Card component migration", () => {
     });
 
     it("should use Tailwind cursor-pointer class for card", () => {
-      assert.match(srcHTML, /cursor-pointer transition-all duration-150/);
+      // Updated in US-018 to use duration-200 for consistent 200-300ms transitions
+      assert.match(srcHTML, /cursor-pointer transition-all duration-200/);
     });
 
     it("should use Tailwind transition-all duration-150 for card transitions", () => {
-      assert.match(srcHTML, /transition-all duration-150 hover:shadow-lg/);
+      // Updated in US-018 to use duration-200 for consistent 200-300ms transitions
+      assert.match(srcHTML, /transition-all duration-200 hover:shadow-lg/);
     });
 
     it("should use Tailwind hover:shadow-lg for card hover effect", () => {

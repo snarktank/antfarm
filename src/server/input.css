@@ -73,4 +73,15 @@
   select:focus {
     border-color: #8ECFC0;
   }
+  
+  /* Focus visible for better keyboard navigation */
+  :focus-visible {
+    outline: 2px solid #D4E8A0;
+    outline-offset: 2px;
+  }
+  
+  /* Smooth transitions for interactive elements */
+  button, select, [role="button"] {
+    transition-duration: 200ms;
+  }
 }

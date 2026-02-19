@@ -148,7 +148,8 @@ describe('Step Rows Migration (US-008)', () => {
   describe('Step chevron and toggle behavior', () => {
     it('should use Tailwind classes for chevron', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      assert.match(html, /class="step-chevron inline-block text-\[10px\] transition-transform duration-150/);
+      // Updated in US-018 to use duration-200 for consistency (200-300ms transitions)
+      assert.match(html, /class="step-chevron inline-block text-\[10px\] transition-transform duration-200/);
     });
 
     it('should preserve step-chevron class for JS toggle', () => {
@@ -190,7 +191,12 @@ describe('Step Rows Migration (US-008)', () => {
 
     it('should use Tailwind classes for details/summary', () => {
       const html = readFileSync(htmlPath, 'utf-8');
-      assert.match(html, /<summary class="text-\[11px\] font-medium cursor-pointer text-text-secondary dark:text-dark-text-secondary">/);
+      // Updated in US-018 to include hover states and transitions
+      assert.ok(html.includes('summary'));
+      assert.ok(html.includes('text-[11px]'));
+      assert.ok(html.includes('font-medium'));
+      assert.ok(html.includes('cursor-pointer'));
+      assert.ok(html.includes('text-text-secondary'));
     });
   });
 

@@ -25,7 +25,7 @@
   <div class="px-4 py-3.5 border-b text-sm font-semibold flex items-center gap-2 border-border-light dark:border-dark-border-light text-text-primary dark:text-dark-text-primary">Workflow Medic</div>
   <div class="px-4 py-3 overflow-y-auto flex-1" id="medic-panel-body">Loading...</div>
 </div>
-<div class="fixed inset-0 z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-150 overlay bg-overlay dark:bg-dark-overlay" id="overlay" onclick="if(event.target===this)closePanel()">
+<div class="fixed inset-0 z-[100] flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200 overlay bg-overlay dark:bg-dark-overlay" id="overlay" onclick="if(event.target===this)closePanel()">
   <div class="relative w-[90%] max-w-[640px] max-h-[85vh] overflow-y-auto p-6 rounded-xl border bg-bg-surface dark:bg-dark-bg-surface border-border-default dark:border-dark-border-default shadow-heavy dark:shadow-dark-heavy" id="panel"></div>
 </div>
 
@@ -73,22 +73,26 @@ async function fetchJSON(url) {
 }
 
 async function loadWorkflows() {
-  workflows = await fetchJSON('/api/workflows');
   const sel = document.getElementById('wf-select');
-  sel.innerHTML = '<option value="">— select workflow —</option>' +
-    workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
-  if (workflows.length === 1) {
-    sel.value = workflows[0].id;
-    selectWorkflow(workflows[0].id);
-  } else if (workflows.length > 1) {
-    // Auto-select workflow with active runs
-    try {
-      for (const w of workflows) {
-        const runs = await fetchJSON(`/api/runs?workflow=${w.id}`);
-        const active = runs.find(r => r.status === 'running' || r.status === 'pending');
-        if (active) { sel.value = w.id; selectWorkflow(w.id); break; }
-      }
-    } catch {}
+  try {
+    workflows = await fetchJSON('/api/workflows');
+    sel.innerHTML = '<option value="">— select workflow —</option>' +
+      workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+    if (workflows.length === 1) {
+      sel.value = workflows[0].id;
+      selectWorkflow(workflows[0].id);
+    } else if (workflows.length > 1) {
+      // Auto-select workflow with active runs
+      try {
+        for (const w of workflows) {
+          const runs = await fetchJSON(`/api/runs?workflow=${w.id}`);
+          const active = runs.find(r => r.status === 'running' || r.status === 'pending');
+          if (active) { sel.value = w.id; selectWorkflow(w.id); break; }
+        }
+      } catch {}
+    }
+  } catch (err) {
+    sel.innerHTML = '<option value="">Error loading workflows</option>';
   }
 }
 
@@ -163,23 +167,23 @@ async function openRun(id) {
     const badgeInfo = getBadgeClasses(st);
     const iconClasses = getStepIconClasses(st);
     const hasOutput = !!s.output;
-    const toggleAttr = hasOutput ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" style="cursor:pointer"` : '';
-    return `<div class="flex flex-col overflow-hidden rounded-md border p-3 bg-bg-surface-alt dark:bg-dark-bg-surface-alt border-border-default dark:border-dark-border-default" ${toggleAttr}>
+    const toggleAttr = hasOutput ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')}" tabindex="0" role="button" aria-label="Toggle step details for ${s.step_id}" style="cursor:pointer"` : '';
+    return `<div class="flex flex-col overflow-hidden rounded-md border p-3 ${hasOutput ? 'focus:outline-none focus:ring-2 focus:ring-accent-highlight focus:ring-offset-2' : ''} bg-bg-surface-alt dark:bg-dark-bg-surface-alt border-border-default dark:border-dark-border-default" ${toggleAttr}>
       <div class="flex items-center gap-3">
         <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${iconClasses}">${icon}</div>
         <div class="text-[13px] font-medium flex-1 text-text-primary dark:text-dark-text-primary">${s.step_id}</div>
         <div class="text-[11px] font-mono text-text-secondary dark:text-dark-text-secondary">${s.agent_id || ''}</div>
         <div class="text-[11px] uppercase font-semibold"><span class="${badgeInfo.classes}">${st}</span></div>
-        ${hasOutput ? '<span class="step-chevron inline-block text-[10px] transition-transform duration-150 text-text-secondary dark:text-dark-text-secondary">▶</span>' : ''}
+        ${hasOutput ? '<span class="step-chevron inline-block text-[10px] transition-transform duration-200 text-text-secondary dark:text-dark-text-secondary">▶</span>' : ''}
       </div>
       ${hasOutput ? `<div class="step-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed text-text-tertiary dark:text-dark-text-tertiary">
-        <details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer text-text-secondary dark:text-dark-text-secondary">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto bg-bg-code dark:bg-dark-bg-code border-border-default dark:border-dark-border-default">${esc(s.output)}</pre></details>
+        <details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer text-text-secondary dark:text-dark-text-secondary hover:text-text-primary hover:dark:text-dark-text-primary transition-colors duration-200">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto bg-bg-code dark:bg-dark-bg-code border-border-default dark:border-dark-border-default">${esc(s.output)}</pre></details>
       </div>` : ''}
     </div>`;
   }).join('');
   const runBadgeInfo = getBadgeClasses(run.status);
   panel.innerHTML = `
-    <button class="absolute top-3 right-4 bg-transparent border-none text-xl cursor-pointer px-2 py-1 rounded transition-colors text-text-secondary dark:text-dark-text-secondary hover:text-text-primary hover:dark:text-dark-text-primary hover:bg-bg-column-header hover:dark:bg-dark-bg-column-header" onclick="closePanel()">✕</button>
+    <button class="absolute top-3 right-4 bg-transparent border-none text-xl cursor-pointer px-2 py-1 rounded transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-accent-highlight focus:ring-offset-2 text-text-secondary dark:text-dark-text-secondary hover:text-text-primary hover:dark:text-dark-text-primary hover:bg-bg-column-header hover:dark:bg-dark-bg-column-header" onclick="closePanel()" aria-label="Close panel">✕</button>
     <h2 class="text-base font-semibold mb-1 pr-10 text-text-primary dark:text-dark-text-primary">${run.workflow_id}</h2>
     <div class="text-[13px] mb-4 whitespace-pre-wrap break-words max-h-[120px] overflow-y-auto leading-normal text-text-secondary dark:text-dark-text-secondary">${esc(run.task)}</div>
     <div class="flex gap-3 mb-5 text-xs flex-wrap text-text-secondary dark:text-dark-text-secondary">
@@ -274,19 +278,19 @@ async function loadStories(runId) {
           try { ac = JSON.parse(s.acceptance_criteria || '[]'); } catch { ac = [s.acceptance_criteria]; }
           const retryInfo = s.retry_count > 0 ? ` <span class="text-[10px] text-accent-orange dark:text-dark-accent-orange">(retry ${s.retry_count})</span>` : '';
           const hasDetails = s.description || ac.length > 0 || s.output;
-          const toggleAttr = hasDetails ? `onclick="this.querySelector('.story-details').classList.toggle('story-open');this.querySelector('.story-chevron').classList.toggle('story-chevron-open')" style="cursor:pointer"` : '';
+          const toggleAttr = hasDetails ? `onclick="this.querySelector('.story-details').classList.toggle('story-open');this.querySelector('.story-chevron').classList.toggle('story-chevron-open')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.querySelector('.story-details').classList.toggle('story-open');this.querySelector('.story-chevron').classList.toggle('story-chevron-open')}" tabindex="0" role="button" aria-label="Toggle story details for ${s.story_id}" style="cursor:pointer"` : '';
           const checkColor = st === 'done' ? 'text-accent-green dark:text-dark-accent-green' : 'text-border-default dark:text-dark-border-default';
-          return `<div class="flex flex-col overflow-hidden rounded-md border p-3 bg-bg-surface-alt dark:bg-dark-bg-surface-alt border-border-default dark:border-dark-border-default" ${toggleAttr}>
+          return `<div class="flex flex-col overflow-hidden rounded-md border p-3 ${hasDetails ? 'focus:outline-none focus:ring-2 focus:ring-accent-highlight focus:ring-offset-2' : ''} bg-bg-surface-alt dark:bg-dark-bg-surface-alt border-border-default dark:border-dark-border-default" ${toggleAttr}>
             <div class="flex items-center gap-3">
               <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 ${iconClasses}">${icon}</div>
               <div class="text-[13px] font-medium flex-1 text-text-primary dark:text-dark-text-primary">${s.story_id}: ${s.title}${retryInfo}</div>
               <div class="text-[11px] uppercase font-semibold"><span class="${badgeInfo.classes}">${st}</span></div>
-              ${hasDetails ? '<span class="story-chevron inline-block text-[10px] transition-transform duration-150 text-text-secondary dark:text-dark-text-secondary">▶</span>' : ''}
+              ${hasDetails ? '<span class="story-chevron inline-block text-[10px] transition-transform duration-200 text-text-secondary dark:text-dark-text-secondary">▶</span>' : ''}
             </div>
             ${hasDetails ? `<div class="story-details hidden pt-0 pl-9 pb-0 pr-3 text-xs leading-relaxed text-text-tertiary dark:text-dark-text-tertiary">
               ${s.description ? `<div class="mb-2">${esc(s.description)}</div>` : ''}
               ${ac.length > 0 ? `<div class="mb-2"><div class="font-semibold text-[11px] uppercase tracking-wide mb-1 text-accent-green dark:text-dark-accent-green">Acceptance Criteria</div>${ac.map(c => `<label class="flex items-start gap-1.5 mb-0.5 cursor-default"><span class="shrink-0 ${checkColor}">${st==='done'?'☑':'☐'}</span><span>${esc(c)}</span></label>`).join('')}</div>` : ''}
-              ${s.output ? `<details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer text-text-secondary dark:text-dark-text-secondary">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto bg-bg-code dark:bg-dark-bg-code border-border-default dark:border-dark-border-default">${esc(s.output)}</pre></details>` : ''}
+              ${s.output ? `<details class="mt-1" onclick="event.stopPropagation()"><summary class="text-[11px] font-medium cursor-pointer text-text-secondary dark:text-dark-text-secondary hover:text-text-primary hover:dark:text-dark-text-primary transition-colors duration-200">Output</summary><pre class="mt-1.5 p-2 rounded border text-[11px] font-mono whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto bg-bg-code dark:bg-dark-bg-code border-border-default dark:border-dark-border-default">${esc(s.output)}</pre></details>` : ''}
             </div>` : ''}
           </div>`;
         }).join('')}
@@ -394,9 +398,9 @@ async function loadMedicData() {
       }
     }
 
-    body.innerHTML = html || '<div class="text-xs py-2 text-text-secondary dark:text-dark-text-secondary">No medic data yet. Run <code>antfarm medic install</code> to enable.</div>';
+    body.innerHTML = html || '<div class="text-xs py-4 text-center text-text-secondary dark:text-dark-text-secondary"><div class="text-2xl mb-2 opacity-50">🏥</div><div class="font-medium mb-1">Medic Not Active</div><div class="text-[11px]">Run <code class="px-1.5 py-0.5 rounded bg-bg-code dark:bg-dark-bg-code">antfarm medic install</code> to enable health monitoring</div></div>';
   } catch {
-    body.innerHTML = '<div class="text-xs py-2 text-text-secondary dark:text-dark-text-secondary">Could not load medic data.</div>';
+    body.innerHTML = '<div class="text-xs py-4 text-center text-text-secondary dark:text-dark-text-secondary"><div class="text-2xl mb-2">⚠️</div><div class="font-medium mb-1">Connection Error</div><div class="text-[11px]">Could not load medic data</div></div>';
   }
 }
 

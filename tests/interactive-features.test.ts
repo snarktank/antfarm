@@ -54,7 +54,8 @@ describe('US-017: Interactive Features', () => {
     });
 
     it('should display empty state when no workflow selected', () => {
-      assert.ok(srcHtml.includes('Select a workflow'));
+      // Updated in US-018 with improved empty state messaging
+      assert.ok(srcHtml.includes('No Workflow Selected'));
     });
   });
 

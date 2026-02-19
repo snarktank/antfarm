@@ -319,9 +319,10 @@ describe("Board Layout Migration - US-003", () => {
     });
 
     it("empty state message is preserved with Tailwind classes", () => {
+      // Updated in US-018 with improved empty state messaging
       assert.ok(
         html.includes('m-auto text-text-secondary dark:text-dark-text-secondary') &&
-        html.includes('Select a workflow'),
+        html.includes('No Workflow Selected'),
         "Empty state message should use Tailwind classes"
       );
     });
