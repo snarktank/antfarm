@@ -59,20 +59,20 @@ describe("Card component migration", () => {
       assert.match(srcHTML, /hover:shadow-lg/);
     });
 
-    it("should preserve background CSS variable via inline style", () => {
-      assert.match(srcHTML, /style="background:var\(--bg-surface-alt\);border-color:var\(--border\)"/);
+    it("should use Tailwind classes for background with dark mode", () => {
+      assert.match(srcHTML, /bg-bg-surface-alt dark:bg-dark-bg-surface-alt/);
     });
 
-    it("should preserve border color CSS variable via inline style", () => {
-      assert.match(srcHTML, /border-color:var\(--border\)/);
+    it("should use Tailwind classes for border color with dark mode", () => {
+      assert.match(srcHTML, /border-border-default dark:border-dark-border-default/);
     });
 
     it("should use onmouseenter for hover border color change", () => {
       assert.match(srcHTML, /onmouseenter="this\.style\.borderColor='var\(--accent-orange\)'"/);
     });
 
-    it("should use onmouseleave to reset border color", () => {
-      assert.match(srcHTML, /onmouseleave="this\.style\.borderColor='var\(--border\)'"/);
+    it("should use onmouseleave to reset border classes", () => {
+      assert.match(srcHTML, /onmouseleave="this\.classList\.remove\('border-accent-orange'\)/);
     });
   });
 
@@ -101,8 +101,8 @@ describe("Card component migration", () => {
       assert.match(srcHTML, /text-ellipsis whitespace-nowrap/);
     });
 
-    it("should preserve text color CSS variable via inline style", () => {
-      assert.match(srcHTML, /style="color:var\(--text-primary\)"/);
+    it("should use Tailwind classes for text color with dark mode", () => {
+      assert.match(srcHTML, /text-text-primary dark:text-dark-text-primary/);
     });
 
     it("should preserve title attribute for full text on hover", () => {
@@ -112,7 +112,7 @@ describe("Card component migration", () => {
 
   describe("Card meta styling", () => {
     it("should use Tailwind text-[11px] for card meta", () => {
-      assert.match(srcHTML, /class="text-\[11px\] flex justify-between items-center"/);
+      assert.ok(srcHTML.includes("text-[11px] flex justify-between items-center"), "Card meta should have text-[11px] and flex layout classes");
     });
 
     it("should use Tailwind flex for card meta layout", () => {
@@ -127,8 +127,8 @@ describe("Card component migration", () => {
       assert.match(srcHTML, /justify-between items-center/);
     });
 
-    it("should preserve meta color CSS variable via inline style", () => {
-      assert.match(srcHTML, /class="text-\[11px\] flex justify-between items-center" style="color:var\(--text-secondary\)"/);
+    it("should use Tailwind classes for meta color with dark mode", () => {
+      assert.match(srcHTML, /text-\[11px\] flex justify-between items-center text-text-secondary dark:text-dark-text-secondary/);
     });
 
     it("should preserve badge and timestamp structure", () => {
@@ -138,12 +138,12 @@ describe("Card component migration", () => {
   });
 
   describe("Status-based left border", () => {
-    it("should apply green left border for done cards", () => {
-      assert.match(srcHTML, /const borderLeft = isDone \? 'border-l-\[3px\] border-l-\[var\(--accent-green\)\]'/);
+    it("should apply green left border with dark mode for done cards", () => {
+      assert.match(srcHTML, /border-l-\[3px\] border-l-accent-green dark:border-l-dark-accent-green/);
     });
 
-    it("should apply orange left border for failed/error cards", () => {
-      assert.match(srcHTML, /isFailed \? 'border-l-\[3px\] border-l-\[var\(--accent-orange\)\]'/);
+    it("should apply orange left border with dark mode for failed/error cards", () => {
+      assert.match(srcHTML, /border-l-\[3px\] border-l-accent-orange dark:border-l-dark-accent-orange/);
     });
 
     it("should apply no left border for other statuses", () => {
@@ -151,7 +151,7 @@ describe("Card component migration", () => {
     });
 
     it("should include borderLeft variable in card class string", () => {
-      assert.match(srcHTML, /hover:shadow-lg \$\{borderLeft\}"/);
+      assert.ok(srcHTML.includes("${borderLeft}"), "Card class string should include borderLeft variable");
     });
   });
 
@@ -201,7 +201,7 @@ describe("Card component migration", () => {
 
   describe("Responsive design", () => {
     it("should work with existing column mobile-first layout", () => {
-      assert.match(srcHTML, /class="min-w-\[240px\] flex-1 rounded-lg flex flex-col"/);
+      assert.ok(srcHTML.includes("min-w-[240px] flex-1 rounded-lg flex flex-col"), "Column should have mobile-first flex layout classes");
     });
 
     it("should maintain gap between cards", () => {

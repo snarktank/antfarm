@@ -87,17 +87,17 @@ describe("Board Layout Migration - US-003", () => {
       );
     });
 
-    it("column uses CSS variables for background", () => {
+    it("column uses Tailwind classes for background with dark mode", () => {
       assert.ok(
-        html.includes("background:var(--bg-surface)"),
-        "Column should use CSS variable for background"
+        html.includes("bg-bg-surface dark:bg-dark-bg-surface"),
+        "Column should use Tailwind classes for background"
       );
     });
 
-    it("column uses CSS variables for box-shadow", () => {
+    it("column uses Tailwind classes for box-shadow with dark mode", () => {
       assert.ok(
-        html.includes("box-shadow:0 2px 8px var(--shadow)"),
-        "Column should use CSS variable for shadow"
+        html.includes("shadow-light dark:shadow-dark-light"),
+        "Column should use Tailwind classes for shadow"
       );
     });
   });
@@ -152,17 +152,24 @@ describe("Board Layout Migration - US-003", () => {
       );
     });
 
-    it("column header uses CSS variables for color", () => {
+    it("column header uses Tailwind classes for color with dark mode", () => {
       assert.ok(
-        html.includes("color:var(--accent-green)"),
-        "Column header should use CSS variable for text color"
+        html.includes("text-accent-green dark:text-dark-accent-green"),
+        "Column header should use Tailwind classes for text color"
       );
     });
 
-    it("column header uses CSS variables for background", () => {
+    it("column header uses Tailwind classes for background with dark mode", () => {
       assert.ok(
-        html.includes("background:var(--bg-column-header)"),
-        "Column header should use CSS variable for background"
+        html.includes("bg-bg-column-header dark:bg-dark-bg-column-header"),
+        "Column header should use Tailwind classes for background"
+      );
+    });
+
+    it("column header uses Tailwind classes for border with dark mode", () => {
+      assert.ok(
+        html.includes("border-border-light dark:border-dark-border-light"),
+        "Column header should use Tailwind classes for border"
       );
     });
   });
@@ -210,10 +217,10 @@ describe("Board Layout Migration - US-003", () => {
       );
     });
 
-    it("count badge uses CSS variable for background", () => {
+    it("count badge uses Tailwind classes for background with dark mode", () => {
       assert.ok(
-        html.includes("background:var(--accent-green)"),
-        "Count badge should use CSS variable for background"
+        html.includes("bg-accent-green dark:bg-dark-accent-green"),
+        "Count badge should use Tailwind classes for background"
       );
     });
   });
@@ -314,10 +321,11 @@ describe("Board Layout Migration - US-003", () => {
       );
     });
 
-    it("empty state message is preserved", () => {
+    it("empty state message is preserved with Tailwind classes", () => {
       assert.ok(
-        html.includes('<div class="empty" style="margin:auto">Select a workflow</div>'),
-        "Empty state message should be preserved"
+        html.includes('m-auto text-text-secondary dark:text-dark-text-secondary') &&
+        html.includes('Select a workflow'),
+        "Empty state message should use Tailwind classes"
       );
     });
 

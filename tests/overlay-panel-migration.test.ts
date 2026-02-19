@@ -66,11 +66,11 @@ describe('US-006: Overlay and Panel Container Migration', () => {
       assert.match(html, /class="[^"]*duration-150[^"]*"[^>]*id="overlay"/);
     });
 
-    it('should preserve CSS variable for background color', () => {
-      // Check for overlay element with background CSS variable (attribute order may vary)
+    it('should use Tailwind classes for background with dark mode', () => {
+      // Check for overlay element with Tailwind background classes (attribute order may vary)
       const overlayMatch = html.match(/<div[^>]*id="overlay"[^>]*>/);
       assert.ok(overlayMatch, 'Overlay element should exist');
-      assert.ok(overlayMatch[0].includes('background:var(--overlay)'), 'Overlay should have background CSS variable');
+      assert.ok(overlayMatch[0].includes('bg-overlay dark:bg-dark-overlay'), 'Overlay should use Tailwind background classes');
     });
 
     it('should preserve onclick handler for closePanel', () => {
@@ -119,23 +119,23 @@ describe('US-006: Overlay and Panel Container Migration', () => {
       assert.match(html, /class="[^"]*border[^"]*"[^>]*id="panel"/);
     });
 
-    it('should preserve CSS variable for background color', () => {
-      // Check for panel element with background CSS variable (attribute order may vary)
+    it('should use Tailwind classes for background with dark mode', () => {
+      // Check for panel element with Tailwind background classes (attribute order may vary)
       const panelMatch = html.match(/<div[^>]*id="panel"[^>]*>/);
       assert.ok(panelMatch, 'Panel element should exist');
-      assert.ok(panelMatch[0].includes('background:var(--bg-surface)'), 'Panel should have background CSS variable');
+      assert.ok(panelMatch[0].includes('bg-bg-surface dark:bg-dark-bg-surface'), 'Panel should use Tailwind background classes');
     });
 
-    it('should preserve CSS variable for border color', () => {
+    it('should use Tailwind classes for border color with dark mode', () => {
       const panelMatch = html.match(/<div[^>]*id="panel"[^>]*>/);
       assert.ok(panelMatch, 'Panel element should exist');
-      assert.ok(panelMatch[0].includes('border-color:var(--border)'), 'Panel should have border-color CSS variable');
+      assert.ok(panelMatch[0].includes('border-border-default dark:border-dark-border-default'), 'Panel should use Tailwind border classes');
     });
 
-    it('should preserve custom box-shadow via inline style', () => {
+    it('should use Tailwind classes for shadow with dark mode', () => {
       const panelMatch = html.match(/<div[^>]*id="panel"[^>]*>/);
       assert.ok(panelMatch, 'Panel element should exist');
-      assert.ok(panelMatch[0].includes('box-shadow:0 8px 32px var(--shadow-heavy)'), 'Panel should have box-shadow CSS variable');
+      assert.ok(panelMatch[0].includes('shadow-heavy dark:shadow-dark-heavy'), 'Panel should use Tailwind shadow classes');
     });
   });
 

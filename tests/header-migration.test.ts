@@ -35,23 +35,17 @@ describe("US-002: Header and navigation migration", () => {
       );
     });
 
-    it("should have header background using CSS variables (not hardcoded)", () => {
-      const headerMatch = indexHTML.match(
-        /<header[^>]*style="[^"]*background:var\(--header-bg\)/
-      );
+    it("should have header background using Tailwind dark mode classes", () => {
       assert.ok(
-        headerMatch,
-        "header should use var(--header-bg) for theming"
+        indexHTML.includes("bg-header-bg dark:bg-dark-header-bg"),
+        "header should use Tailwind classes for background with dark mode"
       );
     });
 
-    it("should have border color using CSS variables", () => {
-      const headerMatch = indexHTML.match(
-        /<header[^>]*style="[^"]*border-color:var\(--header-border\)/
-      );
+    it("should have border color using Tailwind dark mode classes", () => {
       assert.ok(
-        headerMatch,
-        "header should use var(--header-border) for theming"
+        indexHTML.includes("border-header-border dark:border-dark-header-border"),
+        "header should use Tailwind classes for border with dark mode"
       );
     });
 

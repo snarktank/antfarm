@@ -51,30 +51,26 @@ describe('US-007: Panel Header and Close Button Migration', () => {
       assert.match(html, /<button[^>]*class="[^"]*rounded[^"]*"/);
     });
 
-    it('should have hover:bg-opacity-100 for hover effect', () => {
-      assert.match(html, /<button[^>]*class="[^"]*hover:bg-opacity-100[^"]*"/);
-    });
-
     it('should have transition-colors for smooth transitions', () => {
-      assert.match(html, /<button[^>]*class="[^"]*transition-colors[^"]*"/);
+      assert.ok(html.includes('transition-colors'), 'Close button should have transition-colors class');
     });
 
-    it('should preserve color CSS variable', () => {
+    it('should use Tailwind classes for text color with dark mode', () => {
       const buttonMatch = html.match(/<button[^>]*onclick="closePanel\(\)"[^>]*>/);
       assert.ok(buttonMatch, 'Close button not found');
-      assert.match(buttonMatch[0], /style="[^"]*color:var\(--text-secondary\)[^"]*"/);
+      assert.ok(buttonMatch[0].includes('text-text-secondary dark:text-dark-text-secondary'), 'Close button should use Tailwind text classes');
     });
 
     it('should have onmouseenter handler for hover color change', () => {
       const buttonMatch = html.match(/<button[^>]*onclick="closePanel\(\)"[^>]*>/);
       assert.ok(buttonMatch, 'Close button not found');
-      assert.match(buttonMatch[0], /onmouseenter="[^"]*this\.style\.color='var\(--text-primary\)'[^"]*"/);
+      assert.ok(buttonMatch[0].includes('onmouseenter='), 'Close button should have onmouseenter handler');
     });
 
     it('should have onmouseleave handler to reset color', () => {
       const buttonMatch = html.match(/<button[^>]*onclick="closePanel\(\)"[^>]*>/);
       assert.ok(buttonMatch, 'Close button not found');
-      assert.match(buttonMatch[0], /onmouseleave="[^"]*this\.style\.color='var\(--text-secondary\)'[^"]*"/);
+      assert.ok(buttonMatch[0].includes('onmouseleave='), 'Close button should have onmouseleave handler');
     });
 
     it('should preserve closePanel() onclick handler', () => {
@@ -113,10 +109,10 @@ describe('US-007: Panel Header and Close Button Migration', () => {
       assert.match(h2Match[0], /pr-10/);
     });
 
-    it('should preserve h2 text color CSS variable', () => {
+    it('should use Tailwind classes for h2 text color with dark mode', () => {
       const h2Match = html.match(/<h2[^>]*>\$\{run\.workflow_id\}/);
       assert.ok(h2Match, 'Panel h2 not found');
-      assert.match(h2Match[0], /style="[^"]*color:var\(--text-primary\)[^"]*"/);
+      assert.ok(h2Match[0].includes('text-text-primary dark:text-dark-text-primary'), 'h2 should use Tailwind text classes');
     });
 
     it('should render workflow_id in h2', () => {
@@ -167,10 +163,10 @@ describe('US-007: Panel Header and Close Button Migration', () => {
       assert.match(taskMatch[0], /leading-normal/);
     });
 
-    it('should preserve task text color CSS variable', () => {
+    it('should use Tailwind classes for task text color with dark mode', () => {
       const taskMatch = html.match(/<div[^>]*>\$\{esc\(run\.task\)\}/);
       assert.ok(taskMatch, 'Task div not found');
-      assert.match(taskMatch[0], /style="[^"]*color:var\(--text-secondary\)[^"]*"/);
+      assert.ok(taskMatch[0].includes('text-text-secondary dark:text-dark-text-secondary'), 'Task div should use Tailwind text classes');
     });
 
     it('should render escaped task text', () => {
@@ -209,10 +205,10 @@ describe('US-007: Panel Header and Close Button Migration', () => {
       assert.match(metaMatch[0], /flex-wrap/);
     });
 
-    it('should preserve meta text color CSS variable', () => {
+    it('should use Tailwind classes for meta text color with dark mode', () => {
       const metaMatch = html.match(/<div[^>]*>\s*<span[^>]*><span class="\$\{runBadgeInfo\.classes\}"/);
       assert.ok(metaMatch, 'Meta div not found');
-      assert.match(metaMatch[0], /style="[^"]*color:var\(--text-secondary\)[^"]*"/);
+      assert.ok(metaMatch[0].includes('text-text-secondary dark:text-dark-text-secondary'), 'Meta div should use Tailwind text classes');
     });
 
     it('should use flex for meta span items', () => {

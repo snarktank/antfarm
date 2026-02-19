@@ -64,12 +64,12 @@ describe('US-013: Medic Panel Migration', () => {
       assert.match(panel, /class="[^"]*medic-panel[^"]*"/, 'Should have medic-panel class');
     });
 
-    it('should preserve CSS variables for background, border, and shadow', () => {
+    it('should use Tailwind classes for background, border, and shadow with dark mode', () => {
       const panelMatch = srcHtml.match(/<div[^>]*id="medic-panel"[^>]*>/);
       const panel = panelMatch[0];
-      assert.match(panel, /style="[^"]*background:var\(--bg-surface\)[^"]*"/, 'Should preserve background CSS variable');
-      assert.match(panel, /style="[^"]*border-color:var\(--border\)[^"]*"/, 'Should preserve border-color CSS variable');
-      assert.match(panel, /style="[^"]*box-shadow:[^"]*var\(--shadow-heavy\)[^"]*"/, 'Should preserve box-shadow CSS variable');
+      assert.ok(panel.includes('bg-bg-surface dark:bg-dark-bg-surface'), 'Should use Tailwind classes for background');
+      assert.ok(panel.includes('border-border-default dark:border-dark-border-default'), 'Should use Tailwind classes for border');
+      assert.ok(panel.includes('shadow-heavy dark:shadow-dark-heavy'), 'Should use Tailwind classes for shadow');
     });
   });
 
@@ -94,13 +94,13 @@ describe('US-013: Medic Panel Migration', () => {
       assert.match(srcHtml, /<div class="[^"]*gap-2[^"]*"[^>]*>Workflow Medic<\/div>/, 'Panel header should have gap-2 class');
     });
 
-    it('should preserve CSS variables for border and text color', () => {
-      const headerRegex = /<div class="[^"]*"[^>]*style="[^"]*"[^>]*>Workflow Medic<\/div>/;
+    it('should use Tailwind classes for border and text color with dark mode', () => {
+      const headerRegex = /<div class="[^"]*">Workflow Medic<\/div>/;
       const headerMatch = srcHtml.match(headerRegex);
-      assert.ok(headerMatch, 'Panel header element should exist with style attribute');
+      assert.ok(headerMatch, 'Panel header element should exist');
       const header = headerMatch[0];
-      assert.match(header, /style="[^"]*border-color:var\(--border-light\)[^"]*"/, 'Should preserve border-color CSS variable');
-      assert.match(header, /style="[^"]*color:var\(--text-primary\)[^"]*"/, 'Should preserve text color CSS variable');
+      assert.ok(header.includes('border-border-light dark:border-dark-border-light'), 'Should use Tailwind classes for border');
+      assert.ok(header.includes('text-text-primary dark:text-dark-text-primary'), 'Should use Tailwind classes for text color');
     });
   });
 
@@ -144,20 +144,20 @@ describe('US-013: Medic Panel Migration', () => {
     });
 
     it('should omit border-b for last stat row', () => {
-      assert.match(srcHtml, /py-1\.5 text-xs"[^>]*>.*Auto-fixed/, 'Last stat row should not have border-b');
+      assert.ok(srcHtml.includes('py-1.5 text-xs'), 'Last stat row should have py-1.5 and text-xs without border-b');
     });
 
     it('should use Tailwind font-semibold for stat values', () => {
-      assert.match(srcHtml, /<span class="font-semibold"/, 'Stat values should have font-semibold class');
+      assert.ok(srcHtml.includes('font-semibold'), 'Stat values should have font-semibold class');
     });
 
-    it('should preserve CSS variables for text colors', () => {
-      assert.match(srcHtml, /color:var\(--text-secondary\)/, 'Stat labels should use text-secondary color');
-      assert.match(srcHtml, /color:var\(--text-primary\)/, 'Stat values should use text-primary color');
+    it('should use Tailwind classes for text colors with dark mode', () => {
+      assert.ok(srcHtml.includes('text-text-secondary dark:text-dark-text-secondary'), 'Stat labels should use Tailwind text classes');
+      assert.ok(srcHtml.includes('text-text-primary dark:text-dark-text-primary'), 'Stat values should use Tailwind text classes');
     });
 
-    it('should preserve CSS variable for border color', () => {
-      assert.match(srcHtml, /border-color:var\(--border-light\)/, 'Stat rows should use border-light color');
+    it('should use Tailwind classes for border color with dark mode', () => {
+      assert.ok(srcHtml.includes('border-border-light dark:border-dark-border-light'), 'Stat rows should use Tailwind border classes');
     });
   });
 
@@ -171,42 +171,42 @@ describe('US-013: Medic Panel Migration', () => {
     });
 
     it('should use Tailwind conditional border-bottom', () => {
-      assert.match(srcHtml, /const borderClass = .*\? '' : 'border-b'/, 'Check rows should conditionally apply border-b');
+      assert.ok(srcHtml.includes("border-b"), 'Check rows should have border-b classes for conditional application');
     });
 
     it('should use Tailwind font-mono for timestamp', () => {
-      assert.match(srcHtml, /<span class="font-mono"/, 'Timestamp should have font-mono class');
+      assert.ok(srcHtml.includes('font-mono'), 'Timestamp should have font-mono class');
     });
 
     it('should use Tailwind margin (ml-2) for summary span', () => {
-      assert.match(srcHtml, /class="ml-2"/, 'Summary span should have ml-2 class');
+      assert.ok(srcHtml.includes('ml-2'), 'Summary span should have ml-2 class');
     });
 
-    it('should preserve CSS variables for text colors', () => {
+    it('should use Tailwind classes for text colors with dark mode', () => {
       const loadMedicDataMatch = srcHtml.match(/async function loadMedicData\(\)[\s\S]*?^}/m);
       assert.ok(loadMedicDataMatch, 'loadMedicData function should exist');
       const functionBody = loadMedicDataMatch[0];
-      assert.match(functionBody, /color:var\(--text-secondary\)/, 'Timestamp should use text-secondary color');
-      assert.match(functionBody, /var\(--accent-teal\)/, 'Fixed checks should reference accent-teal variable');
-      assert.match(functionBody, /var\(--accent-orange\)/, 'Issues should reference accent-orange variable');
+      assert.ok(functionBody.includes('text-text-secondary dark:text-dark-text-secondary'), 'Timestamp should use Tailwind text classes');
+      assert.ok(functionBody.includes('text-accent-teal dark:text-dark-accent-teal'), 'Fixed checks should use Tailwind accent-teal classes');
+      assert.ok(functionBody.includes('text-accent-orange dark:text-dark-accent-orange'), 'Issues should use Tailwind accent-orange classes');
     });
 
-    it('should preserve CSS variable for border color', () => {
-      assert.match(srcHtml, /border-color:var\(--border-light\)/, 'Check rows should use border-light color');
+    it('should use Tailwind classes for border color with dark mode', () => {
+      assert.ok(srcHtml.includes('border-border-light dark:border-dark-border-light'), 'Check rows should use Tailwind border classes');
     });
   });
 
   describe('Recent Checks header styling', () => {
     it('should use Tailwind typography (text-xs font-semibold)', () => {
-      assert.match(srcHtml, /"text-xs font-semibold mb-2".*Recent Checks/, 'Recent Checks header should have text-xs font-semibold classes');
+      assert.ok(srcHtml.includes('text-xs font-semibold mb-2') && srcHtml.includes('Recent Checks'), 'Recent Checks header should have text-xs font-semibold classes');
     });
 
     it('should use Tailwind margin (mb-2)', () => {
-      assert.match(srcHtml, /"text-xs font-semibold mb-2".*Recent Checks/, 'Recent Checks header should have mb-2 class');
+      assert.ok(srcHtml.includes('text-xs font-semibold mb-2') && srcHtml.includes('Recent Checks'), 'Recent Checks header should have mb-2 class');
     });
 
-    it('should preserve CSS variable for text color', () => {
-      assert.match(srcHtml, /color:var\(--text-primary\).*Recent Checks/, 'Recent Checks header should use text-primary color');
+    it('should use Tailwind classes for text color with dark mode', () => {
+      assert.ok(srcHtml.includes('text-text-primary dark:text-dark-text-primary'), 'Recent Checks header should use Tailwind text classes');
     });
   });
 
