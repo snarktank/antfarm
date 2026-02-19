@@ -121,9 +121,8 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:
 select option{background:var(--header-select-bg);color:#fff}
 select:focus{border-color:#8ECFC0}
 
-/* ── Theme toggle & Medic badge hover states ────────────────────── */
-/* Theme toggle migrated to Tailwind classes */
-.medic-badge:hover{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.05)}
+/* ── Theme toggle & Medic badge ───────────────────────────────────── */
+/* Theme toggle and medic badge migrated to Tailwind classes */
 
 /* ── Board ─────────────────────────────────────────────────────── */
 /* Board layout migrated to Tailwind classes */
@@ -146,14 +145,13 @@ select:focus{border-color:#8ECFC0}
 .step-open{display:block!important}
 .step-chevron-open{transform:rotate(90deg)}
 
-/* ── Medic indicator ───────────────────────────────────────────── */
-.medic-badge{display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,.85);cursor:pointer;padding:4px 10px;border:1px solid rgba(255,255,255,.15);border-radius:6px;background:transparent;transition:border-color .15s,background .15s}
-.medic-badge:hover{border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.05)}
-.medic-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.medic-dot.healthy{background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.5);animation:pulse 2s infinite}
-.medic-dot.warning{background:#fbbf24;box-shadow:0 0 6px rgba(251,191,36,.5)}
-.medic-dot.critical{background:#f87171;box-shadow:0 0 6px rgba(248,113,113,.5);animation:pulse 1s infinite}
-.medic-dot.unknown{background:#9ca3af}
+/* ── Medic indicator status dots ──────────────────────────────────── */
+/* Medic badge and dot base styling migrated to Tailwind classes */
+/* Status-specific styles applied via JavaScript classList */
+.healthy{background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.5);animation:pulse 2s infinite}
+.warning{background:#fbbf24;box-shadow:0 0 6px rgba(251,191,36,.5)}
+.critical{background:#f87171;box-shadow:0 0 6px rgba(248,113,113,.5);animation:pulse 1s infinite}
+.unknown{background:#9ca3af}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
 .medic-panel{position:fixed;top:60px;right:16px;width:340px;max-height:500px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 32px var(--shadow-heavy);z-index:50;overflow:hidden;display:none;flex-direction:column}
@@ -174,8 +172,8 @@ select:focus{border-color:#8ECFC0}
   <h1 class="text-xl font-semibold text-white tracking-normal"><span style="color:var(--accent-highlight)">antfarm</span> dashboard</h1>
   <select id="wf-select" class="rounded-md px-3 py-1.5 text-sm text-white cursor-pointer border focus:outline-none transition-colors" style="background:var(--header-select-bg);border-color:var(--header-select-border)"><option value="">Loading...</option></select>
   <button class="border border-white/20 rounded-md text-white cursor-pointer px-2 py-1 text-base leading-none transition-colors hover:border-white/50 bg-transparent" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">☀️</button>
-  <div class="medic-badge flex items-center gap-1.5 text-xs cursor-pointer px-2.5 py-1 border rounded-md transition-colors" style="color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.15);background:transparent" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
-    <span class="medic-dot unknown" id="medic-dot"></span>
+  <div class="flex items-center gap-1.5 text-xs text-white/85 cursor-pointer px-2.5 py-1 border border-white/15 rounded-md bg-transparent transition-all hover:border-white/40 hover:bg-white/5" id="medic-badge" onclick="toggleMedicPanel()" title="Medic watchdog status">
+    <span class="w-2 h-2 rounded-full shrink-0" id="medic-dot"></span>
     <span id="medic-label">Medic</span>
   </div>
   <span class="text-xs ml-auto" style="color:rgba(255,255,255,.6)" id="refresh-note">Auto-refresh: 30s</span>
@@ -484,8 +482,11 @@ async function loadMedicStatus() {
     const dot = document.getElementById('medic-dot');
     const label = document.getElementById('medic-label');
 
+    // Remove all status classes
+    dot.classList.remove('unknown', 'healthy', 'warning', 'critical');
+
     if (!status.installed || !status.lastCheck) {
-      dot.className = 'medic-dot unknown';
+      dot.classList.add('unknown');
       label.textContent = 'Medic';
       return;
     }
@@ -495,20 +496,22 @@ async function loadMedicStatus() {
     const isStale = ageMin > 10;
 
     if (hasIssues && status.lastCheck.actionsTaken < status.lastCheck.issuesFound) {
-      dot.className = 'medic-dot critical';
+      dot.classList.add('critical');
       label.textContent = `${status.lastCheck.issuesFound} issue(s)`;
     } else if (isStale) {
-      dot.className = 'medic-dot warning';
+      dot.classList.add('warning');
       label.textContent = `${ageMin}m ago`;
     } else if (hasIssues) {
-      dot.className = 'medic-dot warning';
+      dot.classList.add('warning');
       label.textContent = `${status.lastCheck.issuesFound} fixed`;
     } else {
-      dot.className = 'medic-dot healthy';
+      dot.classList.add('healthy');
       label.textContent = `${ageMin}m ago`;
     }
   } catch {
-    document.getElementById('medic-dot').className = 'medic-dot unknown';
+    const dot = document.getElementById('medic-dot');
+    dot.classList.remove('unknown', 'healthy', 'warning', 'critical');
+    dot.classList.add('unknown');
     document.getElementById('medic-label').textContent = 'Medic';
   }
 }

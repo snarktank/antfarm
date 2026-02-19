@@ -109,12 +109,12 @@ describe('Theme Toggle Button Migration (US-011)', () => {
       assert.ok(!html.includes('.theme-toggle:hover'), '.theme-toggle:hover CSS rule should be removed');
     });
 
-    it('should have migration comment for theme toggle', () => {
-      assert.ok(html.includes('/* Theme toggle migrated to Tailwind classes */'), 'Should have migration comment');
+    it('should have migration comment for theme toggle and medic badge', () => {
+      assert.ok(html.includes('/* Theme toggle and medic badge migrated to Tailwind classes */'), 'Should have migration comment');
     });
 
-    it('should preserve .medic-badge:hover CSS rule', () => {
-      assert.ok(html.includes('.medic-badge:hover'), '.medic-badge:hover CSS rule should be preserved');
+    it('should have removed .medic-badge:hover CSS rule (migrated in US-012)', () => {
+      assert.ok(!html.includes('.medic-badge:hover'), '.medic-badge:hover CSS rule should be removed (migrated to Tailwind)');
     });
   });
 
