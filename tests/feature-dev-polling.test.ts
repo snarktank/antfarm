@@ -18,10 +18,10 @@ const WORKFLOW_DIR = path.resolve(
 );
 
 describe("feature-dev workflow polling config", () => {
-  it("has a polling section with model and timeoutSeconds", async () => {
+  it("has a polling section with MiniMax-M2.5 and 120s timeout", async () => {
     const spec = await loadWorkflowSpec(WORKFLOW_DIR);
     assert.ok(spec.polling, "polling config should exist");
-    assert.equal(spec.polling.model, "default");
+    assert.equal(spec.polling.model, "MiniMax-M2.5");
     assert.equal(spec.polling.timeoutSeconds, 120);
   });
 
