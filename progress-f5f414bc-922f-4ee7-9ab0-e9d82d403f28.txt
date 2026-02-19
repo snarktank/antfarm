@@ -12,6 +12,7 @@ Started: 2026-02-20 00:24 CST
 - CLI machine-readable commands in this repo should prefer line-oriented `key=value` output and typed error codes on stderr for script-safe parsing.
 - Human-facing event rendering in `antfarm logs` should use a centralized event→label map in `src/cli/cli.ts` to keep labels stable across new event types.
 - Dashboard API evolution should be additive: extend run-detail payloads with new fields (e.g., nested `scope` plus flat compatibility fields) without altering existing keys consumed by current UI.
+- Dashboard run-detail modal sections are rendered by inline helper functions in `src/server/index.html` (e.g., `renderScopePanel(run)`), which are straightforward to validate with template-string assertions in node tests.
 
 ---
 
@@ -91,4 +92,17 @@ Started: 2026-02-20 00:24 CST
   - preservation of existing run detail fields (`id`, `workflow_id`, `task`, `steps`, etc.)
 - Files changed: `src/server/dashboard.ts`, `tests/dashboard-scope-api.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
 - **Learnings:** dashboard run-detail response changes should be additive (new nested/flat fields) to keep existing consumers stable while enabling richer UI contracts.
+---
+## 2026-02-20 01:42 CST - US-008: Render scope freeze panel in dashboard run detail view
+- Updated dashboard run-detail frontend modal (`src/server/index.html`) to render an **Execution Scope** panel with:
+  - scope status badge (`draft`/`frozen`/fallback)
+  - frozen timestamp row
+  - violation count row
+  - scope item list rendered from `scope.items` / compatibility fallback fields
+  - deterministic empty-state text when no scope items exist (`No frozen scope is available for this run.`)
+- Added scope-status badge mapping helper to keep visual state deterministic for draft/frozen values.
+- Added tests in `tests/dashboard-scope-panel-rendering.test.ts` to verify scope panel template wiring, required metadata labels, empty-state copy, and status→badge mapping snippets.
+- Re-ran dashboard API scope contract test to ensure run-detail scope payload compatibility remains intact.
+- Files changed: `src/server/index.html`, `tests/dashboard-scope-panel-rendering.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** The dashboard modal can safely evolve via additive inline render helpers while preserving existing stories/activity panels and API payload compatibility.
 ---
