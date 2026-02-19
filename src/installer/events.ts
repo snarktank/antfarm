@@ -12,7 +12,8 @@ export type EventType =
   | "step.pending" | "step.running" | "step.done" | "step.failed" | "step.timeout"
   | "story.started" | "story.done" | "story.verified" | "story.retry" | "story.failed"
   | "pipeline.advanced"
-  | "scope.frozen";
+  | "scope.frozen"
+  | "scope.violation";
 
 export interface AntfarmEvent {
   ts: string;
