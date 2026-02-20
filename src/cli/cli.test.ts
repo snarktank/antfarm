@@ -1,12 +1,48 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { execSync, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runWorkflow } from "../installer/run.js";
+import { getWorkflowStatus } from "../installer/status.js";
+import { getDb } from "../db.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const cliPath = join(__dirname, "..", "..", "dist", "cli", "cli.js");
+
+describe("workflow run smoke test", () => {
+  it("creates a feature-dev workflow run and persists it", async () => {
+    const taskTitle = `Smoke test run creation ${Date.now()}`;
+    const run = await runWorkflow({ workflowId: "feature-dev", taskTitle });
+
+    try {
+      assert.match(run.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      assert.equal(typeof run.runNumber, "number");
+      assert.ok(run.runNumber > 0);
+      assert.equal(run.workflowId, "feature-dev");
+      assert.equal(run.task, taskTitle);
+      assert.equal(run.status, "running");
+
+      const status = getWorkflowStatus(run.id);
+      assert.equal(status.status, "ok");
+      if (status.status !== "ok") assert.fail("Expected run to exist in database");
+
+      assert.equal(status.run.id, run.id);
+      assert.equal(status.run.run_number, run.runNumber);
+      assert.equal(status.run.workflow_id, "feature-dev");
+      assert.equal(status.run.task, taskTitle);
+      assert.equal(status.run.status, "running");
+      assert.ok(new Date(status.run.created_at).toString() !== "Invalid Date");
+      assert.ok(status.run.created_at.length > 0);
+    } finally {
+      const db = getDb();
+      db.prepare("DELETE FROM stories WHERE run_id = ?").run(run.id);
+      db.prepare("DELETE FROM steps WHERE run_id = ?").run(run.id);
+      db.prepare("DELETE FROM runs WHERE id = ?").run(run.id);
+    }
+  });
+});
 
 describe("workflow stop CLI", () => {
   it("help text includes 'workflow stop' command", () => {
