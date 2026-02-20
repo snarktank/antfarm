@@ -275,7 +275,7 @@ async function main() {
     if (action === "install") {
       const result = await installMedicCron();
       if (result.ok) {
-        console.log("Medic watchdog installed (checks every 5 minutes).");
+        console.log("Medic watchdog installed (checks every 15 minutes).");
       } else {
         console.error(`Failed to install medic: ${result.error}`);
         process.exit(1);

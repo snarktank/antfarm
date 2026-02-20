@@ -6,8 +6,8 @@ import { resolveAntfarmCli } from "../installer/paths.js";
 import { readOpenClawConfig, writeOpenClawConfig } from "../installer/openclaw-config.js";
 
 const MEDIC_CRON_NAME = "antfarm/medic";
-const MEDIC_EVERY_MS = 5 * 60 * 1000; // 5 minutes
-const MEDIC_MODEL = "default";
+const MEDIC_EVERY_MS = 15 * 60 * 1000; // 15 minutes
+const MEDIC_MODEL = "google-gemini-cli/gemini-3-flash-preview";
 const MEDIC_TIMEOUT_SECONDS = 120;
 
 function buildMedicPrompt(): string {

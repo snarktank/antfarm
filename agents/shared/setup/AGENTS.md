@@ -42,5 +42,7 @@ BASELINE: build passes / tests pass (or describe what failed)
 - Don't write application code or fix bugs
 - Don't modify existing source files — only read and run commands
 - Don't skip the baseline — downstream agents need to know the starting state
+- **NEVER run `gh repo edit --default-branch`** — do NOT change the repository's default branch under any circumstances
+- Your feature branch is just a branch, not the default. Use `git push -u origin <branch>` to push, nothing more
 
 **Exception:** You DO create `.gitignore` and `.env.example` if they're missing — this is project hygiene, not application code.

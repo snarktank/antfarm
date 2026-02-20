@@ -21,7 +21,7 @@ describe("feature-dev workflow polling config", () => {
   it("has a polling section with model and timeoutSeconds", async () => {
     const spec = await loadWorkflowSpec(WORKFLOW_DIR);
     assert.ok(spec.polling, "polling config should exist");
-    assert.equal(spec.polling.model, "default");
+    assert.equal(spec.polling.model, "google-gemini-cli/gemini-3-flash-preview");
     assert.equal(spec.polling.timeoutSeconds, 120);
   });
 
@@ -48,6 +48,7 @@ describe("feature-dev workflow polling config", () => {
       "verify",
       "test",
       "pr",
+      "greptile-remediate",
       "review",
     ]);
   });

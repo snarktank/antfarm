@@ -44,6 +44,12 @@ Before EVERY commit, verify:
 4. If you need env vars, use `.env.example` with placeholder values — never real credentials
 5. If a sensitive file is staged, `git reset HEAD <file>` before committing
 
+## Branch Safety
+
+- **NEVER run `gh repo edit --default-branch`** — do NOT change the repository's default branch
+- Your feature branch is just a branch. Push with `git push -u origin <branch>`, nothing more
+- Do NOT run `gh repo edit` for any reason
+
 ## Commits
 
 - One logical change per commit when possible

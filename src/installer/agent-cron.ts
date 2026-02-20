@@ -88,7 +88,7 @@ The workflow cannot advance until you report. Your session ending without report
 }
 
 const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
-const DEFAULT_POLLING_MODEL = "default";
+const DEFAULT_POLLING_MODEL = "google-gemini-cli/gemini-3-flash-preview";
 
 export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;

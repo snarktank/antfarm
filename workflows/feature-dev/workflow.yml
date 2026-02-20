@@ -10,7 +10,7 @@ description: |
   Then integration/E2E testing, PR creation, and code review.
 
 polling:
-  model: default
+  model: google-gemini-cli/gemini-3-flash-preview
   timeoutSeconds: 120
 
 agents:
@@ -18,8 +18,19 @@ agents:
     name: Planner
     role: analysis
     description: Decomposes tasks into ordered user stories.
+    model: anthropic/claude-opus-4-6
     workspace:
       baseDir: agents/planner
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: agents/planner/AGENTS.md
         SOUL.md: agents/planner/SOUL.md
@@ -29,8 +40,19 @@ agents:
     name: Setup
     role: coding
     description: Prepares environment, creates branch, establishes baseline.
+    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/setup
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: ../../agents/shared/setup/AGENTS.md
         SOUL.md: ../../agents/shared/setup/SOUL.md
@@ -40,8 +62,19 @@ agents:
     name: Developer
     role: coding
     description: Implements features, writes tests, creates PRs.
+    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/developer
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: agents/developer/AGENTS.md
         SOUL.md: agents/developer/SOUL.md
@@ -51,10 +84,19 @@ agents:
     name: Verifier
     role: verification
     description: Quick sanity check - did developer actually do the work?
+    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/verifier
       skills:
         - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: ../../agents/shared/verifier/AGENTS.md
         SOUL.md: ../../agents/shared/verifier/SOUL.md
@@ -64,8 +106,19 @@ agents:
     name: Tester
     role: testing
     description: Integration and E2E testing after all stories are implemented.
+    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/tester
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: agents/tester/AGENTS.md
         SOUL.md: agents/tester/SOUL.md
@@ -75,10 +128,19 @@ agents:
     name: Reviewer
     role: analysis
     description: Reviews PRs, requests changes or approves.
+    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/reviewer
       skills:
         - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: agents/reviewer/AGENTS.md
         SOUL.md: agents/reviewer/SOUL.md
@@ -123,6 +185,8 @@ steps:
 
       REPO: {{repo}}
       BRANCH: {{branch}}
+
+      IMPORTANT: Do NOT change the repository's default branch. NEVER run `gh repo edit` or `gh repo edit --default-branch`. Only create and push the feature branch.
 
       Instructions:
       1. cd into the repo
@@ -321,10 +385,48 @@ steps:
 
       Use: gh pr create
 
+      After creating the PR:
+      1. Get the PR number from the output
+      2. Trigger Greptile review by posting a comment:
+         gh pr comment <number> --body "@greptile"
+      3. Include the PR URL in your output
+
       Reply with:
       STATUS: done
       PR: URL to the pull request
+      PR_NUMBER: <number>
     expects: "STATUS: done"
+    on_fail:
+      escalate_to: human
+
+  - id: greptile-remediate
+    agent: developer
+    input: |
+      Address Greptile's PR review feedback.
+
+      TASK: {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      PR: {{pr}}
+      PR_NUMBER: {{pr_number}}
+
+      Instructions:
+      1. Wait ~360 seconds for Greptile to post its review
+      2. Read PR comments: gh pr view {{pr_number}} --comments
+      3. If Greptile posted actionable feedback:
+         a. cd into the repo and check out the branch
+         b. Address each piece of actionable feedback
+         c. Commit: fix: address greptile review feedback
+         d. Push to the branch
+      4. If no Greptile feedback after waiting, or no actionable items, that's fine — skip
+
+      IMPORTANT: Do NOT change the repository's default branch. NEVER run `gh repo edit`.
+
+      Reply with:
+      STATUS: done
+      FIXES: What you fixed (or "no actionable feedback from Greptile")
+    expects: "STATUS: done"
+    max_retries: 1
     on_fail:
       escalate_to: human
 

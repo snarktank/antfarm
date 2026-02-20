@@ -9,7 +9,7 @@ description: |
   PR agent creates the pull request.
 
 polling:
-  model: default
+  model: google-gemini-cli/gemini-3-flash-preview
   timeoutSeconds: 120
 
 agents:
@@ -17,8 +17,19 @@ agents:
     name: Triager
     role: analysis
     description: Analyzes bug reports, reproduces issues, classifies severity.
+    model: anthropic/claude-opus-4-6
     workspace:
       baseDir: agents/triager
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: agents/triager/AGENTS.md
         SOUL.md: agents/triager/SOUL.md
@@ -28,8 +39,19 @@ agents:
     name: Investigator
     role: analysis
     description: Traces bugs to root cause and proposes fix approach.
+    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/investigator
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: agents/investigator/AGENTS.md
         SOUL.md: agents/investigator/SOUL.md
@@ -39,8 +61,19 @@ agents:
     name: Setup
     role: coding
     description: Creates bugfix branch and establishes baseline.
+    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/setup
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: ../../agents/shared/setup/AGENTS.md
         SOUL.md: ../../agents/shared/setup/SOUL.md
@@ -50,8 +83,19 @@ agents:
     name: Fixer
     role: coding
     description: Implements the fix and writes regression tests.
+    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/fixer
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: agents/fixer/AGENTS.md
         SOUL.md: agents/fixer/SOUL.md
@@ -61,8 +105,19 @@ agents:
     name: Verifier
     role: verification
     description: Verifies the fix and regression test correctness.
+    model: openai-codex/gpt-5.3-codex
     workspace:
       baseDir: agents/verifier
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: ../../agents/shared/verifier/AGENTS.md
         SOUL.md: ../../agents/shared/verifier/SOUL.md
@@ -72,8 +127,19 @@ agents:
     name: PR Creator
     role: pr
     description: Creates a pull request with bug fix details.
+    model: anthropic/claude-opus-4-6
     workspace:
       baseDir: agents/pr
+      skills:
+        - agent-browser
+        - brainstorming
+        - building-components
+        - context7
+        - convex
+        - next-best-practices
+        - ui-ux-pro-max
+        - vercel-react-best-practices
+        - web-design-guidelines
       files:
         AGENTS.md: ../../agents/shared/pr/AGENTS.md
         SOUL.md: ../../agents/shared/pr/SOUL.md

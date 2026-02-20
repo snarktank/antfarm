@@ -5,7 +5,7 @@ import { readOpenClawConfig } from "./openclaw-config.js";
 const WORKFLOW_BLOCK_START = "<!-- antfarm:workflows -->";
 const WORKFLOW_BLOCK_END = "<!-- /antfarm:workflows -->";
 
-const CLI = "node ~/.openclaw/workspace/antfarm/dist/cli/cli.js";
+const CLI = "node ~/Projects/antfarm/dist/cli/cli.js";
 
 const TOOLS_BLOCK = `${WORKFLOW_BLOCK_START}
 # Antfarm Workflows
