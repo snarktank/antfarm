@@ -5,6 +5,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runWorkflow } from "../installer/run.js";
 import { getWorkflowStatus } from "../installer/status.js";
+import { loadWorkflowSpec } from "../installer/workflow-spec.js";
+import { resolveWorkflowDir } from "../installer/paths.js";
 import { getDb } from "../db.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,8 +14,9 @@ const __dirname = dirname(__filename);
 const cliPath = join(__dirname, "..", "..", "dist", "cli", "cli.js");
 
 describe("workflow run smoke test", () => {
-  it("creates a feature-dev workflow run and persists it", async () => {
+  it("creates a feature-dev workflow run and enqueues steps with correct initial status", async () => {
     const taskTitle = `Smoke test run creation ${Date.now()}`;
+    const workflow = await loadWorkflowSpec(resolveWorkflowDir("feature-dev"));
     const run = await runWorkflow({ workflowId: "feature-dev", taskTitle });
 
     try {
@@ -35,6 +38,53 @@ describe("workflow run smoke test", () => {
       assert.equal(status.run.status, "running");
       assert.ok(new Date(status.run.created_at).toString() !== "Invalid Date");
       assert.ok(status.run.created_at.length > 0);
+
+      const db = getDb();
+      const steps = db.prepare(
+        `SELECT step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config
+         FROM steps
+         WHERE run_id = ?
+         ORDER BY step_index ASC`
+      ).all(run.id) as Array<{
+        step_id: string;
+        agent_id: string;
+        step_index: number;
+        input_template: string;
+        expects: string;
+        status: string;
+        max_retries: number;
+        type: string;
+        loop_config: string | null;
+      }>;
+
+      assert.equal(steps.length, workflow.steps.length);
+      assert.equal(steps[0]?.step_index, 0);
+      assert.equal(steps[0]?.status, "pending");
+
+      for (let i = 1; i < steps.length; i++) {
+        assert.equal(steps[i].status, "waiting");
+      }
+
+      for (let i = 0; i < steps.length; i++) {
+        const row = steps[i];
+        const specStep = workflow.steps[i];
+
+        assert.equal(row.step_index, i);
+        assert.equal(row.step_id, specStep.id);
+        assert.equal(row.agent_id, `${workflow.id}_${specStep.agent}`);
+        assert.ok(row.input_template.trim().length > 0);
+        assert.ok(row.expects.trim().length > 0);
+        assert.equal(row.input_template, specStep.input);
+        assert.equal(row.expects, specStep.expects);
+
+        const expectedType = specStep.type ?? "single";
+        const expectedMaxRetries = specStep.max_retries ?? specStep.on_fail?.max_retries ?? 2;
+        const expectedLoopConfig = specStep.loop ? JSON.stringify(specStep.loop) : null;
+
+        assert.equal(row.type, expectedType);
+        assert.equal(row.max_retries, expectedMaxRetries);
+        assert.equal(row.loop_config, expectedLoopConfig);
+      }
     } finally {
       const db = getDb();
       db.prepare("DELETE FROM stories WHERE run_id = ?").run(run.id);
