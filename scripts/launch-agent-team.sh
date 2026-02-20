@@ -29,16 +29,16 @@ TOKEN=$(python3 -c "import json; d=json.load(open('$HOME/.openclaw/agents/main/a
 # Agent teams DB
 DB_FILE="$HOME/.openclaw/antfarm/agent-teams.json"
 
-# Create/update DB entry
+# Create/update DB entry (pass vars as argv to prevent shell injection)
 python3 -c "
-import json, os, datetime
-db_file = '$DB_FILE'
+import json, os, datetime, sys
+db_file, run_id, task, repo, model, status_file = sys.argv[1:7]
 runs = json.load(open(db_file)) if os.path.exists(db_file) else []
 runs.append({
-    'id': '$RUN_ID',
-    'task': '''$TASK''',
-    'repo': '$REPO',
-    'model': '$MODEL',
+    'id': run_id,
+    'task': task,
+    'repo': repo,
+    'model': model,
     'status': 'submitted',
     'pipeline': [],
     'currentAgent': None,
@@ -46,11 +46,11 @@ runs.append({
     'updatedAt': datetime.datetime.now().isoformat(),
     'output': None,
     'pid': None,
-    'statusFile': '$STATUS_FILE'
+    'statusFile': status_file
 })
 json.dump(runs, open(db_file, 'w'), indent=2)
-print('Run $RUN_ID created')
-"
+print(f'Run {run_id} created')
+" "$DB_FILE" "$RUN_ID" "$TASK" "$REPO" "$MODEL" "$STATUS_FILE"
 
 # Initialize per-run status file
 cat > "$REPO/$STATUS_FILE" << 'STATUSEOF'
@@ -108,28 +108,27 @@ cd "$REPO"
 CLAUDE_CODE_OAUTH_TOKEN="$TOKEN" claude -p --agent orchestrator --model "$MODEL" --dangerously-skip-permissions --output-format json "$PROMPT" 2>&1 | tee "$LOG_FILE" &
 PID=$!
 
-# Update DB with PID
+# Update DB with PID (pass vars as argv to prevent shell injection)
 python3 -c "
-import json
-db_file = '$DB_FILE'
+import json, sys
+db_file, run_id, pid = sys.argv[1], sys.argv[2], int(sys.argv[3])
 runs = json.load(open(db_file))
 for r in runs:
-    if r['id'] == '$RUN_ID':
-        r['pid'] = $PID
+    if r['id'] == run_id:
+        r['pid'] = pid
         r['status'] = 'analyzing'
         break
 json.dump(runs, open(db_file, 'w'), indent=2)
-"
+" "$DB_FILE" "$RUN_ID" "$PID"
 
 # Background sync: reads per-run status file → updates agent-teams.json every 5s
 (
   while kill -0 $PID 2>/dev/null; do
     sleep 5
     python3 -c "
-import json, os, re, datetime
-sf = os.path.join('$REPO', '$STATUS_FILE')
-db_file = '$DB_FILE'
-run_id = '$RUN_ID'
+import json, os, re, datetime, sys
+repo, status_file, db_file, run_id = sys.argv[1:5]
+sf = os.path.join(repo, status_file)
 if not os.path.exists(sf): exit()
 content = open(sf).read()
 # Parse headers
@@ -156,8 +155,9 @@ try:
             r['updatedAt'] = datetime.datetime.now().isoformat()
             break
     json.dump(runs, open(db_file, 'w'), indent=2)
-except: pass
-" 2>/dev/null
+except Exception as e:
+    print(f'Sync error: {e}', file=sys.stderr)
+" "$REPO" "$STATUS_FILE" "$DB_FILE" "$RUN_ID" 2>/dev/null
   done
 ) &
 SYNC_PID=$!
@@ -176,13 +176,11 @@ echo "  kill $PID  # to stop"
 EXIT_CODE=0
 wait $PID 2>/dev/null || EXIT_CODE=$?
 
-# Parse real token counts from --output-format json output
+# Parse real token counts from --output-format json output (pass vars as argv)
 python3 -c "
-import json, os, datetime
+import json, os, datetime, sys
 
-log_file = '$LOG_FILE'
-db_file = '$DB_FILE'
-run_id = '$RUN_ID'
+log_file, db_file, run_id = sys.argv[1:4]
 
 token_real = None
 
@@ -236,22 +234,20 @@ if token_real:
         print(f'Token write warning: {e}')
 else:
     print('Token capture: no usage data found in output')
-"
+" "$LOG_FILE" "$DB_FILE" "$RUN_ID"
 
 rm -f "$LOG_FILE"
 
-# Update final status
+# Update final status (pass vars as argv to prevent shell injection)
 python3 -c "
-import json, datetime
-db_file = '$DB_FILE'
+import json, datetime, os, sys
+db_file, run_id, exit_code, repo, status_file = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4], sys.argv[5]
 runs = json.load(open(db_file))
 for r in runs:
-    if r['id'] == '$RUN_ID':
+    if r['id'] == run_id:
         r['updatedAt'] = datetime.datetime.now().isoformat()
-        if $EXIT_CODE == 0:
-            # Check status file for final state
-            import os
-            sf = os.path.join('$REPO', '$STATUS_FILE')
+        if exit_code == 0:
+            sf = os.path.join(repo, status_file)
             if os.path.exists(sf):
                 content = open(sf).read()
                 if 'Task Complete' in content: r['status'] = 'complete'
@@ -263,6 +259,6 @@ for r in runs:
             r['status'] = 'failed'
         break
 json.dump(runs, open(db_file, 'w'), indent=2)
-"
+" "$DB_FILE" "$RUN_ID" "$EXIT_CODE" "$REPO" "$STATUS_FILE"
 
 echo "Run $RUN_ID finished (exit code: $EXIT_CODE)"
