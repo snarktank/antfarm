@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runWorkflow } from "../installer/run.js";
-import { getWorkflowStatus } from "../installer/status.js";
+import { getWorkflowStatus, listRuns } from "../installer/status.js";
 import { loadWorkflowSpec } from "../installer/workflow-spec.js";
 import { resolveWorkflowDir } from "../installer/paths.js";
 import { getDb } from "../db.js";
@@ -85,6 +85,30 @@ describe("workflow run smoke test", () => {
         assert.equal(row.max_retries, expectedMaxRetries);
         assert.equal(row.loop_config, expectedLoopConfig);
       }
+
+      const statusByRunNumber = getWorkflowStatus(String(run.runNumber));
+      assert.equal(statusByRunNumber.status, "ok");
+      if (statusByRunNumber.status !== "ok") assert.fail("Expected run lookup by run number to succeed");
+      assert.equal(statusByRunNumber.run.task, taskTitle);
+      assert.equal(statusByRunNumber.run.workflow_id, "feature-dev");
+      assert.equal(statusByRunNumber.run.status, "running");
+      assert.equal(statusByRunNumber.steps.length, workflow.steps.length);
+      assert.equal(statusByRunNumber.steps[0]?.status, "pending");
+
+      const statusByTaskSubstring = getWorkflowStatus(taskTitle.slice(0, 20));
+      assert.equal(statusByTaskSubstring.status, "ok");
+      if (statusByTaskSubstring.status !== "ok") assert.fail("Expected run lookup by task substring to succeed");
+      assert.equal(statusByTaskSubstring.run.id, run.id);
+
+      const missingStatus = getWorkflowStatus("999999999");
+      assert.equal(missingStatus.status, "not_found");
+
+      const runs = listRuns();
+      const createdRun = runs.find((r) => r.id === run.id);
+      assert.ok(createdRun, "Created run should appear in listRuns results");
+      assert.equal(createdRun?.task, taskTitle);
+      assert.equal(createdRun?.workflow_id, "feature-dev");
+      assert.equal(createdRun?.status, "running");
     } finally {
       const db = getDb();
       db.prepare("DELETE FROM stories WHERE run_id = ?").run(run.id);
