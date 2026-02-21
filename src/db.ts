@@ -3,20 +3,27 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
-const DB_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
-const DB_PATH = path.join(DB_DIR, "antfarm.db");
-
 let _db: DatabaseSync | null = null;
 let _dbOpenedAt = 0;
+let _dbPath: string | null = null;
 const DB_MAX_AGE_MS = 5000;
+
+function resolveDbPath(): string {
+  const env = process.env.ANTFARM_DB_PATH?.trim();
+  if (env) return env;
+  return path.join(os.homedir(), ".openclaw", "antfarm", "antfarm.db");
+}
 
 export function getDb(): DatabaseSync {
   const now = Date.now();
-  if (_db && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
+  const dbPath = resolveDbPath();
+  if (_db && _dbPath === dbPath && (now - _dbOpenedAt) < DB_MAX_AGE_MS) return _db;
   if (_db) { try { _db.close(); } catch {} }
 
-  fs.mkdirSync(DB_DIR, { recursive: true });
-  _db = new DatabaseSync(DB_PATH);
+  const dbDir = path.dirname(dbPath);
+  fs.mkdirSync(dbDir, { recursive: true });
+  _db = new DatabaseSync(dbPath);
+  _dbPath = dbPath;
   _dbOpenedAt = now;
   _db.exec("PRAGMA journal_mode=WAL");
   _db.exec("PRAGMA foreign_keys=ON");
@@ -67,7 +74,31 @@ function migrate(db: DatabaseSync): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS step_dispatches (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL REFERENCES runs(id),
+      step_uuid TEXT NOT NULL REFERENCES steps(id),
+      step_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      dispatch_generation INTEGER NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      dispatch_attempt INTEGER NOT NULL DEFAULT 1,
+      dispatch_status TEXT NOT NULL,
+      child_session_key TEXT,
+      last_error TEXT,
+      next_retry_at TEXT,
+      claimed_at TEXT,
+      spawned_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
+
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_step_dispatches_unique_gen ON step_dispatches(run_id, step_uuid, dispatch_generation)");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_step_dispatches_idempotency ON step_dispatches(idempotency_key)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_step_dispatches_retry ON step_dispatches(dispatch_status, next_retry_at)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_step_dispatches_step ON step_dispatches(run_id, step_uuid)");
 
   // Add columns to steps table for backwards compat
   const cols = db.prepare("PRAGMA table_info(steps)").all() as Array<{ name: string }>;
@@ -84,6 +115,9 @@ function migrate(db: DatabaseSync): void {
   }
   if (!colNames.has("abandoned_count")) {
     db.exec("ALTER TABLE steps ADD COLUMN abandoned_count INTEGER DEFAULT 0");
+  }
+  if (!colNames.has("dispatch_generation")) {
+    db.exec("ALTER TABLE steps ADD COLUMN dispatch_generation INTEGER NOT NULL DEFAULT 0");
   }
 
   // Add columns to runs table for backwards compat
@@ -110,5 +144,5 @@ export function nextRunNumber(): number {
 }
 
 export function getDbPath(): string {
-  return DB_PATH;
+  return resolveDbPath();
 }

@@ -1,6 +1,7 @@
 import { getDb } from "../db.js";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
+import { markRunDispatchesCancelled } from "./step-dispatch.js";
 
 export type RunInfo = {
   id: string;
@@ -119,6 +120,7 @@ export async function stopWorkflow(query: string): Promise<StopWorkflowResult> {
     "UPDATE steps SET status = 'failed', output = 'Cancelled by user', updated_at = datetime('now') WHERE run_id = ? AND status IN ('waiting', 'pending', 'running')"
   ).run(run.id);
   const cancelledSteps = Number(result.changes);
+  markRunDispatchesCancelled(run.id);
 
   // Clean up cron jobs if no other active runs
   await teardownWorkflowCronsIfIdle(run.workflow_id);

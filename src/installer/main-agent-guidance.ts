@@ -19,7 +19,7 @@ Commands:
 - Status: \`${CLI} workflow status "<task title>"\`
 - Logs: \`${CLI} logs\`
 
-Workflows are self-advancing via per-agent cron jobs. No manual orchestration needed.
+Workflows are self-advancing via event-driven handoff (when enabled) plus per-agent cron fallback. No manual orchestration needed.
 ${WORKFLOW_BLOCK_END}
 `;
 
@@ -33,7 +33,7 @@ Agent cron jobs are created automatically during install.
 ## Running Workflows
 - Start: \`${CLI} workflow run <workflow-id> "<task>"\`
 - Status: \`${CLI} workflow status "<task title>"\`
-- Workflows self-advance via agent cron jobs polling SQLite for pending steps.
+- Workflows self-advance via event-driven handoff (\`handoff.mode\`) with cron polling as fallback.
 ${WORKFLOW_BLOCK_END}
 `;
 

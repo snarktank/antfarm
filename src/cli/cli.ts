@@ -60,6 +60,10 @@ function formatEventLabel(evt: AntfarmEvent): string {
     "step.done": "Step completed",
     "step.failed": "Step failed",
     "step.timeout": "Step timed out",
+    "step.dispatched": "Step dispatched",
+    "step.dispatch_failed": "Step dispatch failed",
+    "step.requeued": "Step requeued",
+    "step.duplicate_suppressed": "Step duplicate suppressed",
     "story.started": "Story started",
     "story.done": "Story done",
     "story.verified": "Story verified",
@@ -584,7 +588,7 @@ async function main() {
       if (lc.verifyEach && lc.verifyStep === failedStep.step_id) {
         // Reset the loop step (developer) to pending so it re-claims the story and populates context
         db.prepare(
-          "UPDATE steps SET status = 'pending', current_story_id = NULL, retry_count = 0, updated_at = datetime('now') WHERE id = ?"
+          "UPDATE steps SET status = 'pending', current_story_id = NULL, retry_count = 0, dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?"
         ).run(loopStep.id);
         // Reset verify step to waiting (fires after developer completes)
         db.prepare(
@@ -604,10 +608,12 @@ async function main() {
         const { loadWorkflowSpec } = await import("../installer/workflow-spec.js");
         const { resolveWorkflowDir } = await import("../installer/paths.js");
         const { ensureWorkflowCrons } = await import("../installer/agent-cron.js");
+        const { dispatchNextPendingStep } = await import("../installer/step-dispatch.js");
         try {
           const workflowDir = resolveWorkflowDir(run.workflow_id);
           const workflow = await loadWorkflowSpec(workflowDir);
           await ensureWorkflowCrons(workflow);
+          await dispatchNextPendingStep(run.id, "resume");
         } catch (err) {
           process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
         }
@@ -619,7 +625,7 @@ async function main() {
 
     // Reset step to pending
     db.prepare(
-      "UPDATE steps SET status = 'pending', current_story_id = NULL, retry_count = 0, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', current_story_id = NULL, retry_count = 0, dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?"
     ).run(failedStep.id);
 
     // Reset run to running
@@ -631,10 +637,12 @@ async function main() {
     const { loadWorkflowSpec } = await import("../installer/workflow-spec.js");
     const { resolveWorkflowDir } = await import("../installer/paths.js");
     const { ensureWorkflowCrons } = await import("../installer/agent-cron.js");
+    const { dispatchNextPendingStep } = await import("../installer/step-dispatch.js");
     try {
       const workflowDir = resolveWorkflowDir(run.workflow_id);
       const workflow = await loadWorkflowSpec(workflowDir);
       await ensureWorkflowCrons(workflow);
+      await dispatchNextPendingStep(run.id, "resume");
     } catch (err) {
       process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
     }

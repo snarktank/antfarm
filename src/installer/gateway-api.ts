@@ -357,3 +357,102 @@ export async function deleteAgentCronJobs(namePrefix: string): Promise<void> {
     }
   }
 }
+
+export async function spawnSession(params: {
+  task: string;
+  agentId?: string;
+  model?: string;
+  label?: string;
+  runTimeoutSeconds?: number;
+}): Promise<{ ok: boolean; childSessionKey?: string; runId?: string; error?: string }> {
+  if (spawnSessionOverride) {
+    return spawnSessionOverride(params);
+  }
+  const gateway = await getGatewayConfig();
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (gateway.secret) headers["Authorization"] = `Bearer ${gateway.secret}`;
+
+    const args: Record<string, unknown> = { task: params.task };
+    if (params.agentId) args.agentId = params.agentId;
+    if (params.model) args.model = params.model;
+    if (params.label) args.label = params.label;
+    if (params.runTimeoutSeconds && params.runTimeoutSeconds > 0) {
+      args.runTimeoutSeconds = params.runTimeoutSeconds;
+    }
+
+    const response = await fetch(`${gateway.url}/tools/invoke`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        tool: "sessions_spawn",
+        args,
+        sessionKey: "agent:main:main",
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return { ok: false, error: `Gateway returned ${response.status}: ${text}` };
+    }
+
+    const result = await response.json();
+    if (!result.ok) {
+      return { ok: false, error: result.error?.message ?? "Unknown sessions_spawn error" };
+    }
+
+    const directKey =
+      result.result?.childSessionKey ??
+      result.result?.sessionKey ??
+      result.childSessionKey ??
+      result.sessionKey;
+    const directRunId = result.result?.runId ?? result.runId;
+    if (directKey || directRunId) {
+      return { ok: true, childSessionKey: directKey, runId: directRunId };
+    }
+
+    const contentText = result.result?.content?.[0]?.text;
+    if (typeof contentText === "string" && contentText.trim()) {
+      try {
+        const parsed = JSON.parse(contentText);
+        return {
+          ok: true,
+          childSessionKey: parsed.childSessionKey ?? parsed.sessionKey,
+          runId: parsed.runId,
+        };
+      } catch {
+        // Non-JSON text response; accepted without structured session fields.
+      }
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: `sessions_spawn request failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+let spawnSessionOverride: ((
+  params: {
+    task: string;
+    agentId?: string;
+    model?: string;
+    label?: string;
+    runTimeoutSeconds?: number;
+  }
+) => Promise<{ ok: boolean; childSessionKey?: string; runId?: string; error?: string }>) | null = null;
+
+export function setSpawnSessionOverrideForTests(
+  fn: ((
+    params: {
+      task: string;
+      agentId?: string;
+      model?: string;
+      label?: string;
+      runTimeoutSeconds?: number;
+    }
+  ) => Promise<{ ok: boolean; childSessionKey?: string; runId?: string; error?: string }>) | null
+): void {
+  spawnSessionOverride = fn;
+}

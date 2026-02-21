@@ -5,6 +5,7 @@ import { getDb, nextRunNumber } from "../db.js";
 import { logger } from "../lib/logger.js";
 import { ensureWorkflowCrons } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
+import { dispatchNextPendingStep } from "./step-dispatch.js";
 
 export async function runWorkflow(params: {
   workflowId: string;
@@ -32,7 +33,7 @@ export async function runWorkflow(params: {
     insertRun.run(runId, runNumber, workflow.id, params.taskTitle, JSON.stringify(initialContext), notifyUrl, now, now);
 
     const insertStep = db.prepare(
-      "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, dispatch_generation, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     for (let i = 0; i < workflow.steps.length; i++) {
@@ -40,10 +41,11 @@ export async function runWorkflow(params: {
       const stepUuid = crypto.randomUUID();
       const agentId = `${workflow.id}_${step.agent}`;
       const status = i === 0 ? "pending" : "waiting";
+      const dispatchGeneration = i === 0 ? 1 : 0;
       const maxRetries = step.max_retries ?? step.on_fail?.max_retries ?? 2;
       const stepType = step.type ?? "single";
       const loopConfig = step.loop ? JSON.stringify(step.loop) : null;
-      insertStep.run(stepUuid, runId, step.id, agentId, i, step.input, step.expects, status, maxRetries, stepType, loopConfig, now, now);
+      insertStep.run(stepUuid, runId, step.id, agentId, i, step.input, step.expects, status, maxRetries, stepType, loopConfig, dispatchGeneration, now, now);
     }
 
     db.exec("COMMIT");
@@ -64,6 +66,17 @@ export async function runWorkflow(params: {
   }
 
   emitEvent({ ts: new Date().toISOString(), event: "run.started", runId, workflowId: workflow.id });
+
+  if (workflow.handoff?.mode === "event" || workflow.handoff?.mode === "hybrid") {
+    try {
+      await dispatchNextPendingStep(runId, "run_start");
+    } catch (err) {
+      logger.warn(`Initial dispatch failed: ${err instanceof Error ? err.message : String(err)}`, {
+        workflowId: workflow.id,
+        runId,
+      });
+    }
+  }
 
   logger.info(`Run started: "${params.taskTitle}"`, {
     workflowId: workflow.id,

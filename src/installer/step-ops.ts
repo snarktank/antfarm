@@ -65,6 +65,14 @@ function scheduleRunCronTeardown(runId: string): void {
   }
 }
 
+function triggerImmediateDispatch(runId: string, source: string): void {
+  void import("./step-dispatch.js")
+    .then((m) => m.dispatchNextPendingStep(runId, source))
+    .catch((err) => {
+      logger.debug(`Immediate dispatch skipped: ${String(err)}`, { runId });
+    });
+}
+
 function getWorkflowId(runId: string): string | undefined {
   try {
     const db = getDb();
@@ -294,9 +302,10 @@ export function cleanupAbandonedSteps(): void {
           scheduleRunCronTeardown(step.run_id);
         } else {
           db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
-          db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(step.id);
+          db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?").run(step.id);
           emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: `Story ${story.story_id} abandoned — reset to pending (story retry ${newRetry})` });
           logger.info(`Abandoned step reset to pending (story retry ${newRetry})`, { runId: step.run_id, stepId: step.step_id });
+          triggerImmediateDispatch(step.run_id, "abandoned_story_reset");
         }
         continue;
       }
@@ -320,9 +329,10 @@ export function cleanupAbandonedSteps(): void {
     } else {
       // Reset to pending for retry — do NOT increment retry_count (abandonment != explicit failure)
       db.prepare(
-        "UPDATE steps SET status = 'pending', abandoned_count = ?, updated_at = datetime('now') WHERE id = ?"
+        "UPDATE steps SET status = 'pending', abandoned_count = ?, dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?"
       ).run(newAbandonCount, step.id);
       emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.step_id, detail: `Reset to pending (abandon ${newAbandonCount}/${MAX_ABANDON_RESETS})` });
+      triggerImmediateDispatch(step.run_id, "abandoned_step_reset");
     }
   }
 
@@ -395,19 +405,35 @@ export function peekStep(agentId: string): PeekResult {
     `SELECT COUNT(*) as cnt FROM steps s
      JOIN runs r ON r.id = s.run_id
      WHERE s.agent_id = ? AND s.status IN ('pending', 'waiting')
-       AND r.status = 'running'`
+       AND r.status = 'running'
+       AND (
+         s.status = 'waiting'
+         OR NOT EXISTS (
+           SELECT 1 FROM step_dispatches d
+           WHERE d.run_id = s.run_id
+             AND d.step_uuid = s.id
+             AND d.dispatch_generation = s.dispatch_generation
+             AND d.dispatch_status IN ('claimed', 'spawned', 'retrying')
+         )
+       )`
   ).get(agentId) as { cnt: number };
   return row.cnt > 0 ? "HAS_WORK" : "NO_WORK";
 }
 
 // ── Claim ───────────────────────────────────────────────────────────
 
-interface ClaimResult {
+export interface ClaimResult {
   found: boolean;
   stepId?: string;
   runId?: string;
   resolvedInput?: string;
 }
+
+type ClaimOptions = {
+  skipCleanup?: boolean;
+  specificStepId?: string;
+  allowDispatchedClaim?: boolean;
+};
 
 /**
  * Throttle cleanupAbandonedSteps: run at most once every 5 minutes.
@@ -419,22 +445,62 @@ const CLEANUP_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
  * Find and claim a pending step for an agent, returning the resolved input.
  */
 export function claimStep(agentId: string): ClaimResult {
+  return claimStepInternal(agentId, {
+    skipCleanup: false,
+    allowDispatchedClaim: false,
+  });
+}
+
+export function claimStepById(stepId: string, opts?: { skipCleanup?: boolean; allowDispatchedClaim?: boolean }): ClaimResult {
+  const db = getDb();
+  const step = db.prepare("SELECT agent_id FROM steps WHERE id = ?").get(stepId) as { agent_id: string } | undefined;
+  if (!step) return { found: false };
+  return claimStepInternal(step.agent_id, {
+    skipCleanup: opts?.skipCleanup ?? true,
+    specificStepId: stepId,
+    allowDispatchedClaim: opts?.allowDispatchedClaim ?? true,
+  });
+}
+
+function claimStepInternal(agentId: string, options: ClaimOptions): ClaimResult {
   // Throttle cleanup: run at most once every 5 minutes across all agents
   const now = Date.now();
-  if (now - lastCleanupTime >= CLEANUP_THROTTLE_MS) {
+  if (!options.skipCleanup && now - lastCleanupTime >= CLEANUP_THROTTLE_MS) {
     cleanupAbandonedSteps();
+    // Reconciler pass for immediate-dispatch retries/stale claims.
+    void import("./step-dispatch.js")
+      .then((m) => m.reconcileDispatches().catch(() => {}))
+      .catch(() => {});
     lastCleanupTime = now;
   }
   const db = getDb();
 
-  const step = db.prepare(
-    `SELECT s.id, s.step_id, s.run_id, s.input_template, s.type, s.loop_config
-     FROM steps s
-     JOIN runs r ON r.id = s.run_id
-     WHERE s.agent_id = ? AND s.status = 'pending'
-       AND r.status NOT IN ('failed', 'cancelled')
-     LIMIT 1`
-  ).get(agentId) as { id: string; step_id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
+  const selectQuery = options.allowDispatchedClaim
+    ? `SELECT s.id, s.step_id, s.run_id, s.input_template, s.type, s.loop_config
+       FROM steps s
+       JOIN runs r ON r.id = s.run_id
+       WHERE s.agent_id = ? AND s.status = 'pending'
+         AND r.status NOT IN ('failed', 'cancelled')
+         ${options.specificStepId ? "AND s.id = ?" : ""}
+       LIMIT 1`
+    : `SELECT s.id, s.step_id, s.run_id, s.input_template, s.type, s.loop_config
+       FROM steps s
+       JOIN runs r ON r.id = s.run_id
+       WHERE s.agent_id = ? AND s.status = 'pending'
+         AND r.status NOT IN ('failed', 'cancelled')
+         ${options.specificStepId ? "AND s.id = ?" : ""}
+         AND NOT EXISTS (
+           SELECT 1 FROM step_dispatches d
+           WHERE d.run_id = s.run_id
+             AND d.step_uuid = s.id
+             AND d.dispatch_generation = s.dispatch_generation
+             AND d.dispatch_status IN ('claimed', 'spawned', 'retrying')
+         )
+       LIMIT 1`;
+
+  const step = (options.specificStepId
+    ? db.prepare(selectQuery).get(agentId, options.specificStepId)
+    : db.prepare(selectQuery).get(agentId)) as { id: string; step_id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
 
   if (!step) return { found: false };
 
@@ -495,12 +561,21 @@ export function claimStep(agentId: string): ClaimResult {
       }
 
       // Claim the story
-      db.prepare(
-        "UPDATE stories SET status = 'running', updated_at = datetime('now') WHERE id = ?"
+      const claimStory = db.prepare(
+        "UPDATE stories SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
       ).run(nextStory.id);
-      db.prepare(
-        "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now') WHERE id = ?"
+      if (Number(claimStory.changes) === 0) {
+        return { found: false };
+      }
+      const claimStepStatus = db.prepare(
+        "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
       ).run(nextStory.id, step.id);
+      if (Number(claimStepStatus.changes) === 0) {
+        db.prepare(
+          "UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE id = ? AND status = 'running'"
+        ).run(nextStory.id);
+        return { found: false };
+      }
 
       const wfId = getWorkflowId(step.run_id);
       emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: wfId, stepId: step.step_id, agentId: agentId });
@@ -545,9 +620,12 @@ export function claimStep(agentId: string): ClaimResult {
   }
 
   // Single step: existing logic
-  db.prepare(
+  const claimResult = db.prepare(
     "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
   ).run(step.id);
+  if (Number(claimResult.changes) === 0) {
+    return { found: false };
+  }
   emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.step_id, agentId: agentId });
   logger.info(`Step claimed by ${agentId}`, { runId: step.run_id, stepId: step.step_id });
 
@@ -633,12 +711,13 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
 
       if (verifyStep) {
         db.prepare(
-          "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+          "UPDATE steps SET status = 'pending', dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?"
         ).run(verifyStep.id);
         // Loop step stays 'running'
         db.prepare(
           "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ?"
         ).run(step.id);
+        triggerImmediateDispatch(step.run_id, "verify_each");
         return { advanced: false, runCompleted: false };
       }
     }
@@ -724,7 +803,8 @@ function handleVerifyEachCompletion(
     }
 
     // Set loop step back to pending for retry
-    db.prepare("UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
+    db.prepare("UPDATE steps SET status = 'pending', dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?").run(loopStepId);
+    triggerImmediateDispatch(verifyStep.run_id, "verify_retry");
     return { advanced: false, runCompleted: false };
   }
 
@@ -737,7 +817,8 @@ function handleVerifyEachCompletion(
   } catch (err) {
     logger.error(`checkLoopContinuation failed, recovering: ${String(err)}`, { runId: verifyStep.run_id });
     // Ensure loop step is at least pending so cron can retry
-    db.prepare("UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?").run(loopStepId);
+    db.prepare("UPDATE steps SET status = 'pending', dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?").run(loopStepId);
+    triggerImmediateDispatch(verifyStep.run_id, "loop_recover");
     return { advanced: false, runCompleted: false };
   }
 }
@@ -761,8 +842,9 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
     }
     // More stories — loop step back to pending
     db.prepare(
-      "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?"
     ).run(loopStepId);
+    triggerImmediateDispatch(runId, "loop_continue");
     return { advanced: false, runCompleted: false };
   }
 
@@ -832,10 +914,11 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
   const wfId = getWorkflowId(runId);
   if (next) {
     db.prepare(
-      "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?"
     ).run(next.id);
     emitEvent({ ts: new Date().toISOString(), event: "pipeline.advanced", runId, workflowId: wfId, stepId: next.step_id });
     emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId, workflowId: wfId, stepId: next.step_id });
+    triggerImmediateDispatch(runId, "pipeline_advanced");
     return { advanced: true, runCompleted: false };
   } else {
     db.prepare(
@@ -911,7 +994,8 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
 
       // Retry the story
       db.prepare("UPDATE stories SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?").run(newRetry, story.id);
-      db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(stepId);
+      db.prepare("UPDATE steps SET status = 'pending', current_story_id = NULL, dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?").run(stepId);
+      triggerImmediateDispatch(step.run_id, "story_retry");
       return { retrying: true, runFailed: false };
     }
   }
@@ -933,8 +1017,9 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     return { retrying: false, runFailed: true };
   } else {
     db.prepare(
-      "UPDATE steps SET status = 'pending', retry_count = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', retry_count = ?, dispatch_generation = dispatch_generation + 1, updated_at = datetime('now') WHERE id = ?"
     ).run(newRetryCount, stepId);
+    triggerImmediateDispatch(step.run_id, "step_retry");
     return { retrying: true, runFailed: false };
   }
 }

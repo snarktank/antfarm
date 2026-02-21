@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import type { LoopConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
+import type { HandoffConfig, LoopConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
 
 export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
   const filePath = path.join(workflowDir, "workflow.yml");
@@ -22,6 +22,9 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
   if (parsed.polling) {
     validatePollingConfig(parsed.polling, workflowDir);
   }
+  if (parsed.handoff) {
+    validateHandoffConfig(parsed.handoff, workflowDir);
+  }
   validateAgents(parsed.agents, workflowDir);
   // Parse type/loop from raw YAML before validation
   for (const step of parsed.steps) {
@@ -40,6 +43,18 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
 function validatePollingConfig(polling: PollingConfig, workflowDir: string) {
   if (polling.timeoutSeconds !== undefined && polling.timeoutSeconds <= 0) {
     throw new Error(`workflow.yml polling.timeoutSeconds must be positive in ${workflowDir}`);
+  }
+}
+
+function validateHandoffConfig(handoff: HandoffConfig, workflowDir: string) {
+  if (handoff.mode !== undefined && !["polling", "event", "hybrid"].includes(handoff.mode)) {
+    throw new Error(`workflow.yml handoff.mode must be one of polling|event|hybrid in ${workflowDir}`);
+  }
+  if (handoff.maxDispatchRetries !== undefined && handoff.maxDispatchRetries <= 0) {
+    throw new Error(`workflow.yml handoff.maxDispatchRetries must be positive in ${workflowDir}`);
+  }
+  if (handoff.retryBaseMs !== undefined && handoff.retryBaseMs <= 0) {
+    throw new Error(`workflow.yml handoff.retryBaseMs must be positive in ${workflowDir}`);
   }
 }
 

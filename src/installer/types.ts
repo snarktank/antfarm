@@ -32,6 +32,14 @@ export type PollingConfig = {
   timeoutSeconds?: number;
 };
 
+export type HandoffMode = "polling" | "event" | "hybrid";
+
+export type HandoffConfig = {
+  mode?: HandoffMode;
+  maxDispatchRetries?: number;
+  retryBaseMs?: number;
+};
+
 export type WorkflowStepFailure = {
   retry_step?: string;
   max_retries?: number;
@@ -77,6 +85,7 @@ export type WorkflowSpec = {
   name?: string;
   version?: number;
   polling?: PollingConfig;
+  handoff?: HandoffConfig;
   agents: WorkflowAgent[];
   steps: WorkflowStep[];
   context?: Record<string, string>;
