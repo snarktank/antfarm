@@ -319,11 +319,19 @@ async function loadWorkflows() {
   const sel = document.getElementById('wf-select');
   sel.innerHTML = '<option value="">— select workflow —</option>' +
     workflows.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+  const preferred = workflows.find(w => w.id === 'feature-dev');
+  if (preferred) {
+    sel.value = preferred.id;
+    selectWorkflow(preferred.id);
+    return;
+  }
   if (workflows.length === 1) {
     sel.value = workflows[0].id;
     selectWorkflow(workflows[0].id);
-  } else if (workflows.length > 1) {
-    // Auto-select workflow with active runs
+    return;
+  }
+  if (workflows.length > 1) {
+    // Fallback auto-select workflow with active runs.
     try {
       for (const w of workflows) {
         const runs = await fetchJSON(`/api/runs?workflow=${w.id}`);
