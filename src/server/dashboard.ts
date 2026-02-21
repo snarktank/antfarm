@@ -7,10 +7,24 @@ import { resolveBundledWorkflowsDir } from "../installer/paths.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
-import { getRunEvents } from "../installer/events.js";
+import { getEventsFilePath, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const EVENTS_FILE = getEventsFilePath();
+const EVENT_STREAM_POLL_MS = 750;
+const EVENT_STREAM_HEARTBEAT_MS = 15_000;
+
+interface SseClient {
+  res: http.ServerResponse;
+  workflowId?: string;
+}
+
+const sseClients = new Set<SseClient>();
+let eventPollTimer: NodeJS.Timeout | null = null;
+let eventHeartbeatTimer: NodeJS.Timeout | null = null;
+let eventOffset = 0;
+let eventRemainder = "";
 
 interface WorkflowDef {
   id: string;
@@ -70,6 +84,115 @@ function serveHTML(res: http.ServerResponse) {
   res.end(fs.readFileSync(filePath, "utf-8"));
 }
 
+function matchesWorkflow(client: SseClient, evt: AntfarmEvent): boolean {
+  if (!client.workflowId) return true;
+  if (!evt.workflowId) return true;
+  return evt.workflowId === client.workflowId;
+}
+
+function broadcastEvent(evt: AntfarmEvent): void {
+  const payload = `data: ${JSON.stringify(evt)}\n\n`;
+  for (const client of sseClients) {
+    if (!matchesWorkflow(client, evt)) continue;
+    try {
+      client.res.write(payload);
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}
+
+function consumeNewEventLines(): void {
+  try {
+    if (!fs.existsSync(EVENTS_FILE)) return;
+    const stat = fs.statSync(EVENTS_FILE);
+    if (stat.size < eventOffset) {
+      // File rotated/truncated: restart from beginning.
+      eventOffset = 0;
+      eventRemainder = "";
+    }
+    if (stat.size === eventOffset) return;
+
+    const bytes = stat.size - eventOffset;
+    const fd = fs.openSync(EVENTS_FILE, "r");
+    try {
+      const buf = Buffer.alloc(bytes);
+      fs.readSync(fd, buf, 0, bytes, eventOffset);
+      eventOffset = stat.size;
+      const text = eventRemainder + buf.toString("utf-8");
+      const lines = text.split("\n");
+      eventRemainder = lines.pop() ?? "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          broadcastEvent(JSON.parse(trimmed) as AntfarmEvent);
+        } catch {
+          // ignore malformed line
+        }
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch {
+    // best-effort
+  }
+}
+
+function ensureEventStreamingLoop(): void {
+  if (eventPollTimer && eventHeartbeatTimer) return;
+  try {
+    eventOffset = fs.existsSync(EVENTS_FILE) ? fs.statSync(EVENTS_FILE).size : 0;
+  } catch {
+    eventOffset = 0;
+  }
+  eventRemainder = "";
+
+  eventPollTimer = setInterval(consumeNewEventLines, EVENT_STREAM_POLL_MS);
+  eventHeartbeatTimer = setInterval(() => {
+    for (const client of sseClients) {
+      try {
+        client.res.write(": keepalive\n\n");
+      } catch {
+        sseClients.delete(client);
+      }
+    }
+  }, EVENT_STREAM_HEARTBEAT_MS);
+}
+
+function maybeStopEventStreamingLoop(): void {
+  if (sseClients.size > 0) return;
+  if (eventPollTimer) {
+    clearInterval(eventPollTimer);
+    eventPollTimer = null;
+  }
+  if (eventHeartbeatTimer) {
+    clearInterval(eventHeartbeatTimer);
+    eventHeartbeatTimer = null;
+  }
+}
+
+function handleEventStream(req: http.IncomingMessage, res: http.ServerResponse, workflowId?: string): void {
+  const client: SseClient = { res, workflowId };
+  sseClients.add(client);
+  ensureEventStreamingLoop();
+
+  req.socket.setTimeout(0);
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+    "Access-Control-Allow-Origin": "*",
+  });
+  res.write(`retry: 2000\n\n`);
+
+  req.on("close", () => {
+    sseClients.delete(client);
+    maybeStopEventStreamingLoop();
+  });
+}
+
 export function startDashboard(port = 3333): http.Server {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
@@ -77,6 +200,11 @@ export function startDashboard(port = 3333): http.Server {
 
     if (p === "/api/workflows") {
       return json(res, loadWorkflows());
+    }
+
+    if (p === "/api/events/stream") {
+      const workflowId = url.searchParams.get("workflow") ?? undefined;
+      return handleEventStream(req, res, workflowId);
     }
 
     const eventsMatch = p.match(/^\/api\/runs\/([^/]+)\/events$/);

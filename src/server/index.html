@@ -215,7 +215,7 @@ select:focus{outline:none;border-color:#8ECFC0}
     <span class="medic-dot unknown" id="medic-dot"></span>
     <span id="medic-label">Medic</span>
   </div>
-  <span class="refresh-note" id="refresh-note">Auto-refresh: 30s</span>
+  <span class="refresh-note" id="refresh-note">Live updates: connecting...</span>
 </header>
 <div class="board" id="board"><div class="empty" style="margin:auto">Select a workflow</div></div>
 <div class="medic-panel" id="medic-panel">
@@ -230,6 +230,84 @@ select:focus{outline:none;border-color:#8ECFC0}
 const API = '';
 let workflows = [];
 let currentWf = null;
+let selectedRunId = null;
+let runsReloadTimer = null;
+let runPanelReloadTimer = null;
+let eventStream = null;
+let fallbackPollTimer = null;
+const FALLBACK_POLL_MS = 5000;
+
+function setRefreshNote(text) {
+  document.getElementById('refresh-note').textContent = text;
+}
+
+function stopFallbackPolling() {
+  if (!fallbackPollTimer) return;
+  clearInterval(fallbackPollTimer);
+  fallbackPollTimer = null;
+}
+
+function startFallbackPolling() {
+  if (fallbackPollTimer) return;
+  setRefreshNote('Live updates: reconnecting (fallback poll 5s)');
+  fallbackPollTimer = setInterval(() => {
+    if (currentWf) loadRuns();
+    if (selectedRunId && document.getElementById('overlay').classList.contains('open')) {
+      loadActivity(selectedRunId);
+    }
+  }, FALLBACK_POLL_MS);
+}
+
+function scheduleRunsReload() {
+  if (!currentWf || runsReloadTimer) return;
+  runsReloadTimer = setTimeout(() => {
+    runsReloadTimer = null;
+    loadRuns();
+  }, 200);
+}
+
+function scheduleOpenRunReload() {
+  if (!selectedRunId || runPanelReloadTimer) return;
+  runPanelReloadTimer = setTimeout(() => {
+    runPanelReloadTimer = null;
+    if (selectedRunId && document.getElementById('overlay').classList.contains('open')) {
+      renderRunPanel(selectedRunId);
+      loadActivity(selectedRunId);
+    }
+  }, 250);
+}
+
+function connectEventStream() {
+  if (!window.EventSource) {
+    setRefreshNote('Live updates unavailable (browser); polling 5s');
+    startFallbackPolling();
+    return;
+  }
+
+  if (eventStream) eventStream.close();
+  const streamUrl = currentWf
+    ? `/api/events/stream?workflow=${encodeURIComponent(currentWf.id)}`
+    : '/api/events/stream';
+  setRefreshNote('Live updates: connecting...');
+  eventStream = new EventSource(streamUrl);
+
+  eventStream.onopen = () => {
+    stopFallbackPolling();
+    setRefreshNote('Live updates: connected');
+  };
+
+  eventStream.onmessage = (msg) => {
+    let evt = null;
+    try { evt = JSON.parse(msg.data); } catch { return; }
+    if (!evt || typeof evt !== 'object') return;
+    scheduleRunsReload();
+    if (selectedRunId && evt.runId === selectedRunId) scheduleOpenRunReload();
+  };
+
+  eventStream.onerror = () => {
+    startFallbackPolling();
+  };
+}
 
 async function fetchJSON(url) {
   const r = await fetch(API + url);
@@ -258,8 +336,12 @@ async function loadWorkflows() {
 
 function selectWorkflow(id) {
   currentWf = workflows.find(w => w.id === id) || null;
-  if (currentWf) loadRuns();
-  else document.getElementById('board').innerHTML = '<div class="empty" style="margin:auto">Select a workflow</div>';
+  connectEventStream();
+  if (currentWf) {
+    loadRuns();
+  } else {
+    document.getElementById('board').innerHTML = '<div class="empty" style="margin:auto">Select a workflow</div>';
+  }
 }
 
 async function loadRuns() {
@@ -316,7 +398,7 @@ function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g
 // Normalize SQLite datetime('now') format (no T/Z) to proper ISO 8601 UTC
 function parseTS(ts) { if (!ts) return null; if (!ts.endsWith('Z') && !ts.includes('+')) ts = ts.replace(' ', 'T') + 'Z'; return new Date(ts); }
 
-async function openRun(id) {
+async function renderRunPanel(id) {
   const run = await fetchJSON(`/api/runs/${id}`);
   const panel = document.getElementById('panel');
   const created = run.created_at ? parseTS(run.created_at)?.toLocaleString() || "" : '';
@@ -352,9 +434,14 @@ async function openRun(id) {
     <div id="stories-panel"></div>
     <div id="activity-panel"></div>
   `;
-  document.getElementById('overlay').classList.add('open');
   loadStories(id);
   loadActivity(id);
+}
+
+async function openRun(id) {
+  selectedRunId = id;
+  await renderRunPanel(id);
+  document.getElementById('overlay').classList.add('open');
 }
 
 function formatEventDesc(evt) {
@@ -406,6 +493,7 @@ async function loadActivity(runId) {
 }
 
 function closePanel() {
+  selectedRunId = null;
   document.getElementById('overlay').classList.remove('open');
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
@@ -455,7 +543,7 @@ async function loadStories(runId) {
 
 document.getElementById('wf-select').addEventListener('change', e => selectWorkflow(e.target.value));
 loadWorkflows();
-setInterval(() => { if (currentWf) loadRuns(); }, 30000);
+connectEventStream();
 
 // ── Medic ───────────────────────────────────────────────────────
 let medicPanelOpen = false;

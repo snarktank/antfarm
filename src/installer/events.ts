@@ -3,9 +3,17 @@ import path from "node:path";
 import os from "node:os";
 import { getDb } from "../db.js";
 
-const EVENTS_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
-const EVENTS_FILE = path.join(EVENTS_DIR, "events.jsonl");
+const DEFAULT_EVENTS_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
+const DEFAULT_EVENTS_FILE = path.join(DEFAULT_EVENTS_DIR, "events.jsonl");
 const MAX_EVENTS_SIZE = 10 * 1024 * 1024; // 10MB
+
+export function getEventsFilePath(): string {
+  const envPath = process.env.ANTFARM_EVENTS_FILE?.trim();
+  return envPath ? path.resolve(envPath) : DEFAULT_EVENTS_FILE;
+}
+
+const EVENTS_FILE = getEventsFilePath();
+const EVENTS_DIR = path.dirname(EVENTS_FILE);
 
 export type EventType =
   | "run.started" | "run.completed" | "run.failed"
