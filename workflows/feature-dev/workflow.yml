@@ -10,7 +10,7 @@ description: |
   Then integration/E2E testing, PR creation, and code review.
 
 polling:
-  model: default
+  model: openai-codex/gpt-5.3-codex
   timeoutSeconds: 120
 
 agents:
