@@ -72,7 +72,12 @@ function fireWebhook(evt: AntfarmEvent): void {
       headers["Authorization"] = decodeURIComponent(url.slice(hashIdx + 6));
       url = url.slice(0, hashIdx);
     }
-    fetch(url, {
+    // Only allow webhooks to HTTP(S) URLs. This prevents unexpected schemes like
+    // file:, data:, or other protocol handlers from being used.
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return;
+
+    fetch(parsed.toString(), {
       method: "POST",
       headers,
       body: JSON.stringify(evt),

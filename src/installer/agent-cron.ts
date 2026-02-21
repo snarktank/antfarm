@@ -4,7 +4,6 @@ import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
-const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
 
 function buildAgentPrompt(workflowId: string, agentId: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
@@ -127,9 +126,10 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
   // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
   const everyMs = (workflow as any).cron?.interval_ms ?? DEFAULT_EVERY_MS;
 
-  // Resolve polling model: per-agent > workflow-level > default
-  const workflowPollingModel = workflow.polling?.model ?? DEFAULT_POLLING_MODEL;
-  const workflowPollingTimeout = workflow.polling?.timeoutSeconds ?? DEFAULT_POLLING_TIMEOUT_SECONDS;
+  // One-phase execution: each cron run claims and executes work directly.
+  // This avoids nested sessions_spawn dependency and keeps pipeline progressing
+  // even when sub-agent spawning is unavailable.
+  const workflowModel = workflow.polling?.model ?? DEFAULT_POLLING_MODEL;
 
   for (let i = 0; i < agents.length; i++) {
     const agent = agents[i];
@@ -137,18 +137,16 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const cronName = `antfarm/${workflow.id}/${agent.id}`;
     const agentId = `${workflow.id}_${agent.id}`;
 
-    // Two-phase: Phase 1 uses cheap polling model + minimal prompt
-    const pollingModel = agent.pollingModel ?? workflowPollingModel;
-    const workModel = agent.model; // Phase 2 model (passed to sessions_spawn via prompt)
-    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
-    const timeoutSeconds = workflowPollingTimeout;
+    const model = agent.model ?? agent.pollingModel ?? workflowModel;
+    const prompt = buildPollingPrompt(workflow.id, agent.id, agent.model ?? agent.pollingModel ?? workflowModel);
+    const timeoutSeconds = workflow.polling?.timeoutSeconds ?? DEFAULT_POLLING_TIMEOUT_SECONDS;
 
     const result = await createAgentCronJob({
       name: cronName,
       schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
       agentId,
-      payload: { kind: "agentTurn", message: prompt, model: pollingModel, timeoutSeconds },
+      payload: { kind: "agentTurn", message: prompt, model, timeoutSeconds },
       delivery: { mode: "none" },
       enabled: true,
     });

@@ -123,7 +123,7 @@ export async function createAgentCronJob(job: {
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   // --- Try HTTP first ---
   const httpResult = await createAgentCronJobHTTP(job);
-  if (httpResult !== null) return httpResult;
+  if (httpResult?.ok) return httpResult;
 
   // --- Fallback to CLI ---
   try {
@@ -215,8 +215,9 @@ async function createAgentCronJobHTTP(job: {
  * Preflight check: verify cron is accessible (HTTP or CLI).
  */
 export async function checkCronToolAvailable(): Promise<{ ok: boolean; error?: string }> {
-  // Try HTTP
+  // Try HTTP first, but allow CLI fallback on any non-success.
   const gateway = await getGatewayConfig();
+  let httpError: string | undefined;
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (gateway.secret) headers["Authorization"] = `Bearer ${gateway.secret}`;
@@ -224,15 +225,13 @@ export async function checkCronToolAvailable(): Promise<{ ok: boolean; error?: s
     const response = await fetch(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "list" } }),
+      body: JSON.stringify({ tool: "cron", args: { action: "list" }, sessionKey: "agent:main:main" }),
     });
 
     if (response.ok) return { ok: true };
-
-    // Non-404 errors are real failures
     if (response.status !== 404) {
       const text = await response.text();
-      return { ok: false, error: `Gateway returned ${response.status}: ${text}` };
+      httpError = `Gateway returned ${response.status}: ${text}`;
     }
   } catch {
     // network error — fall through to CLI check
@@ -245,7 +244,9 @@ export async function checkCronToolAvailable(): Promise<{ ok: boolean; error?: s
   } catch {
     return {
       ok: false,
-      error: `Cannot access cron: neither the /tools/invoke HTTP endpoint nor the openclaw CLI are available. ${UPDATE_HINT}`,
+      error:
+        httpError ??
+        `Cannot access cron: neither the /tools/invoke HTTP endpoint nor the openclaw CLI are available. ${UPDATE_HINT}`,
     };
   }
 }
@@ -253,7 +254,7 @@ export async function checkCronToolAvailable(): Promise<{ ok: boolean; error?: s
 export async function listCronJobs(): Promise<{ ok: boolean; jobs?: Array<{ id: string; name: string }>; error?: string }> {
   // --- Try HTTP first ---
   const httpResult = await listCronJobsHTTP();
-  if (httpResult !== null) return httpResult;
+  if (httpResult?.ok) return httpResult;
 
   // --- CLI fallback ---
   try {
@@ -310,7 +311,7 @@ async function listCronJobsHTTP(): Promise<{ ok: boolean; jobs?: Array<{ id: str
 export async function deleteCronJob(jobId: string): Promise<{ ok: boolean; error?: string }> {
   // --- Try HTTP first ---
   const httpResult = await deleteCronJobHTTP(jobId);
-  if (httpResult !== null) return httpResult;
+  if (httpResult?.ok) return httpResult;
 
   // --- CLI fallback ---
   try {
