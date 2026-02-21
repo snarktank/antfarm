@@ -112,6 +112,7 @@ If JSON is returned, parse it to extract stepId, runId, and input fields.
 Then call sessions_spawn with these parameters:
 - agentId: "${fullAgentId}"
 - model: "${model}"
+- thinking: "high"
 - task: The full work prompt below, followed by "\\n\\nCLAIMED STEP JSON:\\n" and the exact JSON output from step claim.
 
 Full work prompt to include in the spawned task:
