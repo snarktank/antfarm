@@ -9,7 +9,7 @@ description: |
   PR agent creates the pull request.
 
 polling:
-  model: default
+  model: sonnet
   timeoutSeconds: 120
 
 agents:

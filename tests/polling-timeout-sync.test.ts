@@ -39,15 +39,15 @@ describe("polling timeout sync across all workflows", () => {
       );
     });
 
-    it(`${name} workflow polling.model is set to 'default' (OpenClaw resolves model)`, async () => {
+    it(`${name} workflow polling.model is set to 'sonnet'`, async () => {
       const dir = path.join(WORKFLOWS_DIR, name);
       const spec = await loadWorkflowSpec(dir);
 
       assert.ok(spec.polling, `${name} should have a polling config`);
       assert.equal(
         spec.polling.model,
-        "default",
-        `${name} polling model should be "default" to let OpenClaw resolve the model, got: ${spec.polling.model}`
+        "sonnet",
+        `${name} polling model should be "sonnet", got: ${spec.polling.model}`
       );
     });
   }

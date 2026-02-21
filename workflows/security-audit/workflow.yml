@@ -9,7 +9,7 @@ description: |
   Verifier confirms each fix. Tester runs final integration validation. PR agent creates the pull request.
 
 polling:
-  model: default
+  model: sonnet
   timeoutSeconds: 120
 
 agents:
