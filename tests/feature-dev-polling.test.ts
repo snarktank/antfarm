@@ -25,6 +25,12 @@ describe("feature-dev workflow polling config", () => {
     assert.equal(spec.polling.timeoutSeconds, 120);
   });
 
+  it("enables hybrid handoff mode", async () => {
+    const spec = await loadWorkflowSpec(WORKFLOW_DIR);
+    assert.ok(spec.handoff, "handoff config should exist");
+    assert.equal(spec.handoff.mode, "hybrid");
+  });
+
   it("still has all expected agents", async () => {
     const spec = await loadWorkflowSpec(WORKFLOW_DIR);
     const ids = spec.agents.map((a) => a.id);

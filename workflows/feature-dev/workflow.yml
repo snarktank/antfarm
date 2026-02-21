@@ -13,6 +13,9 @@ polling:
   model: sonnet
   timeoutSeconds: 120
 
+handoff:
+  mode: hybrid
+
 agents:
   - id: planner
     name: Planner

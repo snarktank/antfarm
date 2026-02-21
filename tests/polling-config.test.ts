@@ -90,6 +90,54 @@ steps:
     expects: "CHANGES"
 `;
 
+const WORKFLOW_WITH_HANDOFF = `
+id: test-handoff
+name: Test Handoff Config
+version: 1
+
+handoff:
+  mode: hybrid
+  maxDispatchRetries: 7
+  retryBaseMs: 500
+
+agents:
+  - id: developer
+    name: Developer Agent
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+
+steps:
+  - id: implement
+    agent: developer
+    input: "Do the work"
+    expects: "CHANGES"
+`;
+
+const WORKFLOW_INVALID_HANDOFF_MODE = `
+id: test-bad-handoff
+name: Test Bad Handoff
+version: 1
+
+handoff:
+  mode: fast
+
+agents:
+  - id: developer
+    name: Developer Agent
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+
+steps:
+  - id: implement
+    agent: developer
+    input: "Do the work"
+    expects: "CHANGES"
+`;
+
 describe("polling config", () => {
   let tmpDir: string;
 
@@ -145,6 +193,29 @@ describe("polling config", () => {
     await assert.rejects(
       () => loadWorkflowSpec(dir),
       /polling\.timeoutSeconds must be positive/
+    );
+  });
+
+  it("parses handoff config", async () => {
+    const dir = path.join(tmpDir, "with-handoff");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, "workflow.yml"), WORKFLOW_WITH_HANDOFF);
+
+    const spec = await loadWorkflowSpec(dir);
+    assert.ok(spec.handoff, "handoff config should exist");
+    assert.equal(spec.handoff.mode, "hybrid");
+    assert.equal(spec.handoff.maxDispatchRetries, 7);
+    assert.equal(spec.handoff.retryBaseMs, 500);
+  });
+
+  it("rejects invalid handoff.mode", async () => {
+    const dir = path.join(tmpDir, "bad-handoff");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, "workflow.yml"), WORKFLOW_INVALID_HANDOFF_MODE);
+
+    await assert.rejects(
+      () => loadWorkflowSpec(dir),
+      /handoff\.mode must be one of polling\|event\|hybrid/
     );
   });
 });

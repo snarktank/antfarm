@@ -86,8 +86,22 @@ steps:
 | `name` | yes | Human-readable name |
 | `version` | yes | Integer version number |
 | `description` | yes | What the workflow does |
+| `handoff` | no | Step handoff mode (`polling`, `event`, or `hybrid`) |
 | `agents` | yes | List of agent definitions |
 | `steps` | yes | Ordered list of pipeline steps |
+
+### Handoff Mode
+
+Use `handoff.mode` to control how next steps are dispatched after a step completes:
+
+```yaml
+handoff:
+  mode: hybrid
+```
+
+- `polling` (default): cron pollers claim pending work.
+- `event`: step completion triggers immediate dispatch (pollers still run as reconciler fallback).
+- `hybrid`: immediate dispatch + polling fallback.
 
 ### Agent Definition
 

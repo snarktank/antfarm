@@ -63,7 +63,7 @@ triage → investigate → setup → fix → verify → PR
 
 1. **Define** — Agents and steps in YAML. Each agent gets a persona, workspace, and strict acceptance criteria. No ambiguity about who does what.
 2. **Install** — One command provisions everything: agent workspaces, cron polling, subagent permissions. No Docker, no queues, no external services.
-3. **Run** — Agents poll for work independently. Claim a step, do the work, pass context to the next agent. SQLite tracks state. Cron keeps it moving.
+3. **Run** — By default, agents poll for work. Workflows can opt into event-driven handoff (`handoff.mode: event|hybrid`) so step completion immediately dispatches the next step, with polling retained as fallback.
 
 ### Minimal by design
 
