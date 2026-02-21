@@ -57,7 +57,16 @@ function getRunById(id: string): (RunInfo & { steps: StepInfo[] }) | null {
 }
 
 function json(res: http.ServerResponse, data: unknown, status = 200) {
-  res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+  // Dashboard is intended to be same-origin. Avoid wildcard CORS and add basic hardening headers.
+  res.writeHead(status, {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+    "Cross-Origin-Resource-Policy": "same-origin",
+  });
   res.end(JSON.stringify(data));
 }
 
@@ -66,7 +75,29 @@ function serveHTML(res: http.ServerResponse) {
   // In dist, index.html won't exist—serve from src
   const srcHtmlPath = path.resolve(__dirname, "..", "..", "src", "server", "index.html");
   const filePath = fs.existsSync(htmlPath) ? htmlPath : srcHtmlPath;
-  res.writeHead(200, { "Content-Type": "text/html" });
+
+  // Basic hardening. CSP keeps inline styles/scripts (dashboard is a single file),
+  // but still blocks framing and most external sources.
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+    "Cross-Origin-Resource-Policy": "same-origin",
+    "Content-Security-Policy": [
+      "default-src 'self'",
+      "base-uri 'none'",
+      "frame-ancestors 'none'",
+      "img-src 'self' data:",
+      "connect-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+    ].join("; "),
+  });
+
   res.end(fs.readFileSync(filePath, "utf-8"));
 }
 
@@ -121,7 +152,12 @@ export function startDashboard(port = 3333): http.Server {
       const srcFontPath = path.resolve(__dirname, "..", "..", "src", "..", "assets", "fonts", fontName);
       const resolvedFont = fs.existsSync(fontPath) ? fontPath : srcFontPath;
       if (fs.existsSync(resolvedFont)) {
-        res.writeHead(200, { "Content-Type": "font/woff2", "Cache-Control": "public, max-age=31536000", "Access-Control-Allow-Origin": "*" });
+        res.writeHead(200, {
+          "Content-Type": "font/woff2",
+          "Cache-Control": "public, max-age=31536000",
+          "X-Content-Type-Options": "nosniff",
+          "Cross-Origin-Resource-Policy": "same-origin",
+        });
         return res.end(fs.readFileSync(resolvedFont));
       }
     }
@@ -132,7 +168,12 @@ export function startDashboard(port = 3333): http.Server {
       const srcLogoPath = path.resolve(__dirname, "..", "..", "src", "..", "assets", "logo.jpeg");
       const resolvedLogo = fs.existsSync(logoPath) ? logoPath : srcLogoPath;
       if (fs.existsSync(resolvedLogo)) {
-        res.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=86400" });
+        res.writeHead(200, {
+          "Content-Type": "image/jpeg",
+          "Cache-Control": "public, max-age=86400",
+          "X-Content-Type-Options": "nosniff",
+          "Cross-Origin-Resource-Policy": "same-origin",
+        });
         return res.end(fs.readFileSync(resolvedLogo));
       }
     }
@@ -141,7 +182,9 @@ export function startDashboard(port = 3333): http.Server {
     serveHTML(res);
   });
 
-  server.listen(port, () => {
+  const host = process.env.ANTFARM_DASHBOARD_HOST ?? "127.0.0.1";
+
+  server.listen(port, host, () => {
     console.log(`Antfarm Dashboard: http://localhost:${port}`);
   });
 
