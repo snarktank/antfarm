@@ -656,10 +656,20 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
+    "SELECT id, run_id, step_id, step_index, status, type, loop_config, current_story_id FROM steps WHERE id = ?"
+  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; status: string; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
+
+  // Idempotency guard: only a currently running step can be completed.
+  // Duplicate completions for already-done/failed/waiting steps must be no-ops.
+  if (step.status !== "running") {
+    logger.debug(`Ignoring completeStep for non-running step (${step.status})`, {
+      runId: step.run_id,
+      stepId: step.step_id,
+    });
+    return { advanced: false, runCompleted: false };
+  }
 
   // Guard: don't process completions for failed runs
   const runCheck = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
