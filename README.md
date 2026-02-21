@@ -192,6 +192,7 @@ antfarm dashboard status       # Check status
 - Node.js >= 22
 - [OpenClaw](https://github.com/openclaw/openclaw) **v2026.2.9+** running on the host
   - Antfarm uses cron jobs for workflow orchestration. Older OpenClaw versions may not expose the cron tool via `/tools/invoke`. Antfarm will automatically fall back to the `openclaw` CLI, but keeping OpenClaw up to date is recommended: `npm update -g openclaw`
+  - Event handoff uses `sessions_spawn`. OpenClaw blocks this on `/tools/invoke` by default unless `openclaw.json` includes `gateway.tools.allow` containing `"sessions_spawn"` (Antfarm sets this during install). If needed, restart gateway after install: `openclaw gateway restart`.
 - `gh` CLI for PR creation steps
 
 ---

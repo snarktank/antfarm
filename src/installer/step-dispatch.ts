@@ -103,9 +103,11 @@ async function spawnForDispatch(dispatch: DispatchRow, workflowId: string): Prom
 
   const spawnResult = await spawnSession({
     task,
-    agentId: dispatch.agent_id,
     model,
     label: `${workflowId}:${dispatch.step_id}`,
+    // Use the target agent's own main session as the requester, so sessions_spawn
+    // does not require cross-agent allowlist entries for agentId.
+    sessionKey: `agent:${dispatch.agent_id}:main`,
   });
   if (!spawnResult.ok) {
     return { ok: false, error: spawnResult.error ?? "sessions_spawn failed" };

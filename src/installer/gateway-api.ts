@@ -364,6 +364,7 @@ export async function spawnSession(params: {
   model?: string;
   label?: string;
   runTimeoutSeconds?: number;
+  sessionKey?: string;
 }): Promise<{ ok: boolean; childSessionKey?: string; runId?: string; error?: string }> {
   if (spawnSessionOverride) {
     return spawnSessionOverride(params);
@@ -387,12 +388,20 @@ export async function spawnSession(params: {
       body: JSON.stringify({
         tool: "sessions_spawn",
         args,
-        sessionKey: "agent:main:main",
+        sessionKey: params.sessionKey ?? "agent:main:main",
       }),
     });
 
     if (!response.ok) {
       const text = await response.text();
+      if (response.status === 404 && text.includes("Tool not available: sessions_spawn")) {
+        return {
+          ok: false,
+          error:
+            "sessions_spawn is blocked on /tools/invoke (gateway.tools default denylist). " +
+            "Allow it via openclaw.json: gateway.tools.allow includes \"sessions_spawn\".",
+        };
+      }
       return { ok: false, error: `Gateway returned ${response.status}: ${text}` };
     }
 
@@ -401,20 +410,66 @@ export async function spawnSession(params: {
       return { ok: false, error: result.error?.message ?? "Unknown sessions_spawn error" };
     }
 
+    const details = result.result?.details && typeof result.result.details === "object"
+      ? result.result.details
+      : undefined;
+    const detailsStatus = typeof details?.status === "string" ? details.status : undefined;
+    const detailsError = typeof details?.error === "string" ? details.error : undefined;
+    const detailsKey = typeof details?.childSessionKey === "string"
+      ? details.childSessionKey
+      : (typeof details?.sessionKey === "string" ? details.sessionKey : undefined);
+    const detailsRunId = typeof details?.runId === "string" ? details.runId : undefined;
+
+    if (detailsStatus && detailsStatus !== "accepted" && detailsStatus !== "ok") {
+      return {
+        ok: false,
+        error: detailsError ?? `sessions_spawn returned status ${detailsStatus}`,
+      };
+    }
+    if (detailsStatus === "accepted" || detailsStatus === "ok") {
+      return {
+        ok: true,
+        childSessionKey: detailsKey,
+        runId: detailsRunId,
+      };
+    }
+
     const directKey =
       result.result?.childSessionKey ??
       result.result?.sessionKey ??
       result.childSessionKey ??
       result.sessionKey;
     const directRunId = result.result?.runId ?? result.runId;
-    if (directKey || directRunId) {
-      return { ok: true, childSessionKey: directKey, runId: directRunId };
+    const directStatus = result.result?.status ?? result.status;
+    const directError = result.result?.error ?? result.error;
+    if (typeof directStatus === "string" && directStatus !== "accepted" && directStatus !== "ok") {
+      return {
+        ok: false,
+        error: typeof directError === "string"
+          ? directError
+          : `sessions_spawn returned status ${directStatus}`,
+      };
+    }
+    if (directKey || directRunId || (typeof directStatus === "string" && (directStatus === "accepted" || directStatus === "ok"))) {
+      return {
+        ok: true,
+        childSessionKey: typeof directKey === "string" ? directKey : undefined,
+        runId: typeof directRunId === "string" ? directRunId : undefined,
+      };
     }
 
     const contentText = result.result?.content?.[0]?.text;
     if (typeof contentText === "string" && contentText.trim()) {
       try {
         const parsed = JSON.parse(contentText);
+        const parsedStatus = typeof parsed.status === "string" ? parsed.status : undefined;
+        const parsedError = typeof parsed.error === "string" ? parsed.error : undefined;
+        if (parsedStatus && parsedStatus !== "accepted" && parsedStatus !== "ok") {
+          return {
+            ok: false,
+            error: parsedError ?? `sessions_spawn returned status ${parsedStatus}`,
+          };
+        }
         return {
           ok: true,
           childSessionKey: parsed.childSessionKey ?? parsed.sessionKey,
@@ -440,6 +495,7 @@ let spawnSessionOverride: ((
     model?: string;
     label?: string;
     runTimeoutSeconds?: number;
+    sessionKey?: string;
   }
 ) => Promise<{ ok: boolean; childSessionKey?: string; runId?: string; error?: string }>) | null = null;
 
@@ -451,6 +507,7 @@ export function setSpawnSessionOverrideForTests(
       model?: string;
       label?: string;
       runTimeoutSeconds?: number;
+      sessionKey?: string;
     }
   ) => Promise<{ ok: boolean; childSessionKey?: string; runId?: string; error?: string }>) | null
 ): void {

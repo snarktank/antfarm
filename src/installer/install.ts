@@ -206,6 +206,18 @@ function ensureSessionMaintenance(config: OpenClawConfig): void {
   }
 }
 
+export function ensureGatewayToolsAllow(config: OpenClawConfig): void {
+  if (!config.gateway) config.gateway = {};
+  if (!config.gateway.tools) config.gateway.tools = {};
+  const allow = Array.isArray(config.gateway.tools.allow)
+    ? config.gateway.tools.allow.filter((tool): tool is string => typeof tool === "string")
+    : [];
+  if (!allow.includes("sessions_spawn")) {
+    allow.push("sessions_spawn");
+  }
+  config.gateway.tools.allow = allow;
+}
+
 function upsertAgent(
   list: Array<Record<string, unknown>>,
   agent: { id: string; name?: string; model?: string; timeoutSeconds?: number; workspaceDir: string; agentDir: string; role: AgentRole },
@@ -248,6 +260,7 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
   const { path: configPath, config } = await readOpenClawConfig();
   ensureCronSessionRetention(config);
   ensureSessionMaintenance(config);
+  ensureGatewayToolsAllow(config);
   const list = ensureAgentList(config);
   ensureMainAgentInList(list, config);
   for (const agent of provisioned) {
