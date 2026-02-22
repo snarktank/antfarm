@@ -17,3 +17,4 @@ coverage/
 *.secret
 __pycache__/
 *.pyc
+*.bak
