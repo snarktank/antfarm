@@ -81,4 +81,58 @@ describe("CLI Help Command", () => {
     assert.ok(result.stdout.includes("Get started:"), "Help should include 'Get started:' section");
     assert.ok(result.stdout.includes("Monitor workflow:"), "Help should include 'Monitor workflow:' section");
   });
+
+  it("help output should include Quick Start section", () => {
+    const result = runCli(["help"]);
+    assert.ok(result.stdout.includes("QUICK START:"), "Help should include 'QUICK START:' section");
+  });
+
+  it("Quick Start section should appear before COMMANDS section", () => {
+    const result = runCli(["help"]);
+    const quickStartIndex = result.stdout.indexOf("QUICK START:");
+    const commandsIndex = result.stdout.indexOf("COMMANDS:");
+    assert.ok(quickStartIndex >= 0, "Quick Start section should exist");
+    assert.ok(commandsIndex >= 0, "Commands section should exist");
+    assert.ok(quickStartIndex < commandsIndex, "Quick Start should appear before Commands");
+  });
+
+  it("Quick Start should show install example", () => {
+    const result = runCli(["help"]);
+    const quickStartSection = result.stdout.substring(
+      result.stdout.indexOf("QUICK START:"),
+      result.stdout.indexOf("USAGE:")
+    );
+    assert.ok(quickStartSection.includes("antfarm install"), "Quick Start should show install command");
+    assert.ok(quickStartSection.includes("Install bundled workflows"), "Quick Start should describe install");
+  });
+
+  it("Quick Start should mention workflow list command", () => {
+    const result = runCli(["help"]);
+    const quickStartSection = result.stdout.substring(
+      result.stdout.indexOf("QUICK START:"),
+      result.stdout.indexOf("USAGE:")
+    );
+    assert.ok(quickStartSection.includes("antfarm workflow list"), "Quick Start should show workflow list command");
+    assert.ok(quickStartSection.includes("See available workflows"), "Quick Start should describe workflow list");
+  });
+
+  it("Quick Start should show workflow run example", () => {
+    const result = runCli(["help"]);
+    const quickStartSection = result.stdout.substring(
+      result.stdout.indexOf("QUICK START:"),
+      result.stdout.indexOf("USAGE:")
+    );
+    assert.ok(quickStartSection.includes("antfarm workflow run"), "Quick Start should show workflow run command");
+    assert.ok(quickStartSection.includes("Start your first workflow"), "Quick Start should describe workflow run");
+  });
+
+  it("Quick Start should mention dashboard command", () => {
+    const result = runCli(["help"]);
+    const quickStartSection = result.stdout.substring(
+      result.stdout.indexOf("QUICK START:"),
+      result.stdout.indexOf("USAGE:")
+    );
+    assert.ok(quickStartSection.includes("antfarm dashboard"), "Quick Start should show dashboard command");
+    assert.ok(quickStartSection.includes("Monitor progress"), "Quick Start should describe dashboard");
+  });
 });

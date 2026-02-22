@@ -241,6 +241,14 @@ const commands: Record<string, CommandHelp> = {
  */
 export function printHelp(): void {
   process.stdout.write("Antfarm - Autonomous workflow orchestration\n\n");
+  
+  // Quick Start section
+  process.stdout.write("QUICK START:\n");
+  process.stdout.write("  antfarm install                    # Install bundled workflows\n");
+  process.stdout.write("  antfarm workflow list              # See available workflows\n");
+  process.stdout.write("  antfarm workflow run <name> \"...\"  # Start your first workflow\n");
+  process.stdout.write("  antfarm dashboard                  # Monitor progress\n\n");
+  
   process.stdout.write("USAGE:\n");
   process.stdout.write("  antfarm <command> [options]\n\n");
   process.stdout.write("COMMANDS:\n\n");
