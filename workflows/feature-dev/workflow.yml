@@ -186,7 +186,7 @@ steps:
       5. Run typecheck / build
       6. Run tests to confirm they pass
       7. Commit: feat: {{current_story_id}} - {{current_story_title}}
-      8. Append to progress-{{run_id}}.txt
+      8. Update progress-{{run_id}}.txt using the `write` tool (full overwrite, NOT `edit`) — read current contents first, then write the complete file with your new entry appended. Using `write` avoids edit-loop failures on large files with duplicate patterns.
       9. Update Codebase Patterns if you found reusable patterns
 
       Reply with:

@@ -24,7 +24,7 @@ If the output says "All clear", reply HEARTBEAT_OK and stop.
 If issues were found, summarize what was detected and what actions were taken.
 If there are critical unremediated issues, use sessions_send to alert the main session:
 \`\`\`
-sessions_send(sessionKey: "agent:main:main", message: "🚑 Antfarm Medic Alert: <summary of critical issues>")
+sessions_send(sessionKey: "agent:atlas:main", message: "🚑 Antfarm Medic Alert: <summary of critical issues>")
 \`\`\`
 
 Do NOT attempt to fix issues yourself beyond what the medic check already handles.`;
