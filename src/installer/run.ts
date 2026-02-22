@@ -7,10 +7,9 @@ import { ensureWorkflowCrons } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 
 function extractProjectKey(taskTitle: string): string | null {
-  const m = taskTitle.match(/(?:^|\n)\s*REPO:\s*(.+)$/im);
+  const m = taskTitle.match(/REPO:\s*([^\s\n]+)/i);
   if (!m) return null;
-  const firstToken = m[1].trim().split(/\s+/)[0] ?? "";
-  const normalized = firstToken.replace(/[.,;]+$/g, "").trim().toLowerCase();
+  const normalized = (m[1] ?? "").replace(/[.,;]+$/g, "").trim().toLowerCase();
   return normalized || null;
 }
 
