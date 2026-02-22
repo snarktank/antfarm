@@ -286,7 +286,7 @@ async function main() {
         output = Buffer.concat(chunks).toString("utf-8").trim();
       }
       const result = completeStep(target, output);
-      process.stdout.write(JSON.stringify(result) + "\n");
+      process.stdout.write(JSON.stringify({ ok: true, stepCompleted: true, ...result }) + "\n");
       return;
     }
     if (action === "fail") {
