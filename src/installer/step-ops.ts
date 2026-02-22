@@ -281,6 +281,41 @@ function cleanupAbandonedSteps(): void {
 
 // ── Claim ───────────────────────────────────────────────────────────
 
+function isStepClaimableSequentially(runId: string, stepDbId: string): boolean {
+  const db = getDb();
+  const allSteps = db.prepare(
+    "SELECT id, step_id, step_index, status, type, loop_config FROM steps WHERE run_id = ? ORDER BY step_index ASC"
+  ).all(runId) as Array<{ id: string; step_id: string; step_index: number; status: string; type: string; loop_config: string | null }>;
+
+  const current = allSteps.find((s) => s.id === stepDbId);
+  if (!current) return false;
+
+  const previousSteps = allSteps.filter((s) => s.step_index < current.step_index);
+
+  for (const prev of previousSteps) {
+    if (prev.status === "done") continue;
+
+    // verify_each exception: verify step is allowed while its loop step remains running.
+    let isVerifyEachException = false;
+    if (prev.type === "loop" && prev.status === "running" && prev.loop_config) {
+      try {
+        const lc = JSON.parse(prev.loop_config) as LoopConfig;
+        if (lc.verifyEach && lc.verifyStep === current.step_id) {
+          isVerifyEachException = true;
+        }
+      } catch {
+        // ignore malformed loop_config and treat as not claimable
+      }
+    }
+
+    if (!isVerifyEachException) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 interface ClaimResult {
   found: boolean;
   stepId?: string;
@@ -296,14 +331,16 @@ export function claimStep(agentId: string): ClaimResult {
   cleanupAbandonedSteps();
   const db = getDb();
 
-  const step = db.prepare(
-    `SELECT s.id, s.run_id, s.input_template, s.type, s.loop_config
+  const pendingSteps = db.prepare(
+    `SELECT s.id, s.run_id, s.step_id, s.step_index, s.input_template, s.type, s.loop_config
      FROM steps s
      JOIN runs r ON r.id = s.run_id
      WHERE s.agent_id = ? AND s.status = 'pending'
        AND r.status NOT IN ('failed', 'cancelled')
-     LIMIT 1`
-  ).get(agentId) as { id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
+     ORDER BY s.created_at ASC, s.step_index ASC`
+  ).all(agentId) as Array<{ id: string; run_id: string; step_id: string; step_index: number; input_template: string; type: string; loop_config: string | null }>;
+
+  const step = pendingSteps.find((candidate) => isStepClaimableSequentially(candidate.run_id, candidate.id));
 
   if (!step) return { found: false };
 
@@ -342,9 +379,15 @@ export function claimStep(agentId: string): ClaimResult {
       db.prepare(
         "UPDATE stories SET status = 'running', updated_at = datetime('now') WHERE id = ?"
       ).run(nextStory.id);
-      db.prepare(
-        "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now') WHERE id = ?"
+      const claimLoop = db.prepare(
+        "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
       ).run(nextStory.id, step.id);
+
+      if ((claimLoop as { changes?: number }).changes !== 1) {
+        // Lost a race while claiming this loop step; return story to pending and skip.
+        db.prepare("UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE id = ? AND status = 'running'").run(nextStory.id);
+        return { found: false };
+      }
 
       const wfId = getWorkflowId(step.run_id);
       emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: wfId, stepId: step.id, agentId: agentId });
@@ -389,9 +432,12 @@ export function claimStep(agentId: string): ClaimResult {
   }
 
   // Single step: existing logic
-  db.prepare(
+  const claimSingle = db.prepare(
     "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
   ).run(step.id);
+  if ((claimSingle as { changes?: number }).changes !== 1) {
+    return { found: false };
+  }
   emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.id, agentId: agentId });
   logger.info(`Step claimed by ${agentId}`, { runId: step.run_id, stepId: step.id });
 
@@ -639,35 +685,45 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
   }
 
   const next = db.prepare(
-    "SELECT id FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
-  ).get(runId) as { id: string } | undefined;
-
-  const incomplete = db.prepare(
-    "SELECT id FROM steps WHERE run_id = ? AND status IN ('failed', 'pending', 'running') LIMIT 1"
-  ).get(runId) as { id: string } | undefined;
-
-  if (!next && incomplete) {
-    return { advanced: false, runCompleted: false };
-  }
+    "SELECT id, step_index FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
+  ).get(runId) as { id: string; step_index: number } | undefined;
 
   const wfId = getWorkflowId(runId);
   if (next) {
+    // Strict gating: do not advance if any earlier step is not done.
+    const earlierNotDone = db.prepare(
+      "SELECT id FROM steps WHERE run_id = ? AND step_index < ? AND status != 'done' LIMIT 1"
+    ).get(runId, next.step_index) as { id: string } | undefined;
+
+    if (earlierNotDone) {
+      return { advanced: false, runCompleted: false };
+    }
+
     db.prepare(
-      "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+      "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ? AND status = 'waiting'"
     ).run(next.id);
     emitEvent({ ts: new Date().toISOString(), event: "pipeline.advanced", runId, workflowId: wfId, stepId: next.id });
     emitEvent({ ts: new Date().toISOString(), event: "step.pending", runId, workflowId: wfId, stepId: next.id });
     return { advanced: true, runCompleted: false };
-  } else {
-    db.prepare(
-      "UPDATE runs SET status = 'completed', updated_at = datetime('now') WHERE id = ?"
-    ).run(runId);
-    emitEvent({ ts: new Date().toISOString(), event: "run.completed", runId, workflowId: wfId });
-    logger.info("Run completed", { runId, workflowId: wfId });
-    archiveRunProgress(runId);
-    scheduleRunCronTeardown(runId);
-    return { advanced: false, runCompleted: true };
   }
+
+  // No waiting step left: only complete run if all steps are done.
+  const remaining = db.prepare(
+    "SELECT id FROM steps WHERE run_id = ? AND status != 'done' LIMIT 1"
+  ).get(runId) as { id: string } | undefined;
+
+  if (remaining) {
+    return { advanced: false, runCompleted: false };
+  }
+
+  db.prepare(
+    "UPDATE runs SET status = 'completed', updated_at = datetime('now') WHERE id = ?"
+  ).run(runId);
+  emitEvent({ ts: new Date().toISOString(), event: "run.completed", runId, workflowId: wfId });
+  logger.info("Run completed", { runId, workflowId: wfId });
+  archiveRunProgress(runId);
+  scheduleRunCronTeardown(runId);
+  return { advanced: false, runCompleted: true };
 }
 
 // ── Fail ────────────────────────────────────────────────────────────
