@@ -368,9 +368,31 @@ export function cleanupAbandonedSteps(): void {
  */
 export function computeHasFrontendChanges(repo: string, branch: string): string {
   try {
-    const output = execFileSync("git", ["diff", "--name-only", `main..${branch}`], {
+    const hasRef = (ref: string): boolean => {
+      try {
+        execFileSync("git", ["rev-parse", "--verify", "--quiet", ref], {
+          cwd: repo,
+          stdio: ["ignore", "ignore", "ignore"],
+          timeout: 5_000,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    let baseRef: string | null = null;
+    if (hasRef("main")) baseRef = "main";
+    else if (hasRef("master")) baseRef = "master";
+    else if (hasRef("origin/main")) baseRef = "origin/main";
+    else if (hasRef("origin/master")) baseRef = "origin/master";
+
+    if (!baseRef) return "false";
+
+    const output = execFileSync("git", ["diff", "--name-only", `${baseRef}..${branch}`], {
       cwd: repo,
       encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
       timeout: 10_000,
     });
     const files = output.trim().split("\n").filter(f => f.length > 0);
