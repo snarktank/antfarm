@@ -11,13 +11,16 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && cp src/server/index.html dist/server/index.html && chmod +x dist/cli/cli.js && node scripts/inject-version.js",
-    "start": "node dist/cli/cli.js"
+    "start": "node dist/cli/cli.js",
+    "figma:parse": "figma connect parse",
+    "figma:publish": "figma connect publish"
   },
   "dependencies": {
     "json5": "^2.2.3",
     "yaml": "^2.4.5"
   },
   "devDependencies": {
+    "@figma/code-connect": "^1.4.1",
     "@types/node": "^25.2.1",
     "typescript": "^5.9.3"
   }
