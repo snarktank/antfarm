@@ -21,7 +21,7 @@ import { getWorkflowStatus, listRuns } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
-import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
+import { getRecentEvents, getRunEvents, emitEvent, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
@@ -96,7 +96,7 @@ function printUsage() {
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
       "antfarm workflow runs                List all workflow runs",
       "antfarm workflow reliability [N]     Reliability metrics for last N runs (default 200)",
-      "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
+      "antfarm workflow resume <run-id> [--notify-url URL]  Resume a failed run (optionally set notifications)",
       "",
       "antfarm dashboard [start] [--port N]   Start dashboard daemon (default: 3333)",
       "antfarm dashboard stop                  Stop dashboard daemon",
@@ -456,6 +456,15 @@ async function main() {
 
   if (action === "resume") {
     if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+
+    // Optional: set/update notify URL on resume (or fall back to env default)
+    const resumeArgs = args.slice(3);
+    let resumeNotifyUrl: string | undefined;
+    const nuIdx = resumeArgs.indexOf("--notify-url");
+    if (nuIdx !== -1) {
+      resumeNotifyUrl = resumeArgs[nuIdx + 1];
+    }
+
     const db = (await import("../db.js")).getDb();
 
     // Find the run (support prefix match)
@@ -464,6 +473,13 @@ async function main() {
     ).get(target, `${target}%`) as { id: string; workflow_id: string; status: string } | undefined;
 
     if (!run) { process.stderr.write(`Run not found: ${target}\n`); process.exit(1); }
+
+    const envNotify = process.env.ANTFARM_NOTIFY_URL?.trim();
+    const effectiveNotify = resumeNotifyUrl ?? (envNotify || undefined);
+    if (effectiveNotify) {
+      db.prepare("UPDATE runs SET notify_url = ?, updated_at = datetime('now') WHERE id = ?").run(effectiveNotify, run.id);
+    }
+
     if (run.status !== "failed") {
       process.stderr.write(`Run ${run.id.slice(0, 8)} is "${run.status}", not "failed". Nothing to resume.\n`);
       process.exit(1);
@@ -529,6 +545,13 @@ async function main() {
           process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
         }
 
+        emitEvent({
+          ts: new Date().toISOString(),
+          event: "run.started",
+          runId: run.id,
+          workflowId: run.workflow_id,
+          detail: `Run resumed from verify step ${failedStep.step_id}`,
+        });
         console.log(`Resumed run ${run.id.slice(0, 8)} — reset loop step "${loopStep.id.slice(0, 8)}" to pending, verify step "${failedStep.step_id}" to waiting`);
         process.exit(0);
       }
@@ -556,6 +579,13 @@ async function main() {
       process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
     }
 
+    emitEvent({
+      ts: new Date().toISOString(),
+      event: "run.started",
+      runId: run.id,
+      workflowId: run.workflow_id,
+      detail: `Run resumed from step ${failedStep.step_id}`,
+    });
     console.log(`Resumed run ${run.id.slice(0, 8)} from step "${failedStep.step_id}"`);
     return;
   }
