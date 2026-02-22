@@ -2,6 +2,8 @@
  * Centralized help text module for Antfarm CLI
  */
 
+import { getVersion } from './version.js';
+
 export interface CommandExample {
   description: string;
   command: string;
@@ -240,7 +242,8 @@ const commands: Record<string, CommandHelp> = {
  * Print general help text with all available commands
  */
 export function printHelp(): void {
-  process.stdout.write("Antfarm - Autonomous workflow orchestration\n\n");
+  process.stdout.write(`Antfarm v${getVersion()}\n`);
+  process.stdout.write("Autonomous workflow orchestration\n\n");
   
   // Quick Start section
   process.stdout.write("QUICK START:\n");

@@ -28,6 +28,7 @@ import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
 import { printHelp, printCommandHelp, printWorkflowHelp, printDashboardHelp, printStepHelp, printMedicHelp, printLogsHelp } from "./help.js";
+import { getVersion } from "./version.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -35,16 +36,6 @@ import { dirname, join } from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const pkgPath = join(__dirname, "..", "..", "package.json");
-
-function getVersion(): string {
-  try {
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
-    return pkg.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
-}
 
 function formatEventTime(ts: string): string {
   const d = new Date(ts);
