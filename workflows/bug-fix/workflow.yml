@@ -9,7 +9,7 @@ description: |
   PR agent creates the pull request.
 
 polling:
-  model: default
+  model: openai-codex/gpt-5.3-codex
   timeoutSeconds: 120
 
 agents:
@@ -146,12 +146,18 @@ steps:
       BRANCH: {{branch}}
 
       Instructions:
-      1. cd into the repo
-      2. Create the bugfix branch (git checkout -b {{branch}} from main)
-      3. Read package.json, CI config, test config to understand build/test setup
-      4. Ensure .gitignore exists — if missing, create one appropriate for the detected stack (must include .env, node_modules/, *.key, *.pem at minimum)
-      5. Run the build to establish a baseline
-      6. Run the tests to establish a baseline
+      1. Resolve repo path first:
+         - If REPO is present, use it.
+         - If REPO is empty/missing, use fallback: /home/ubuntu/.openclaw/workspace/teke-platform
+      2. Resolve branch name:
+         - If BRANCH is present, use it.
+         - If BRANCH is empty/missing, create: bugfix/manual-{{run_id}}
+      3. cd into the resolved repo
+      4. Create/switch bugfix branch from main (git checkout main && git pull --ff-only || true; git checkout -B <resolved-branch>)
+      5. Read package.json, CI config, test config to understand build/test setup
+      6. Ensure .gitignore exists — if missing, create one appropriate for the detected stack (must include .env, node_modules/, *.key, *.pem at minimum)
+      7. Run the build to establish a baseline
+      8. Run the tests to establish a baseline
 
       Reply with:
       STATUS: done
@@ -184,7 +190,10 @@ steps:
       {{verify_feedback}}
 
       Instructions:
-      1. cd into the repo, checkout the branch
+      1. Resolve repo/branch before coding:
+         - REPO fallback: /home/ubuntu/.openclaw/workspace/teke-platform
+         - BRANCH fallback: bugfix/manual-{{run_id}}
+         Then cd into repo and checkout branch
       2. Implement the fix based on the root cause and fix approach
       3. Write a regression test that would have caught this bug
       4. Run {{build_cmd}} to verify the build passes
