@@ -278,6 +278,8 @@ steps:
       Reply with:
       STATUS: done
       VERIFIED: what was confirmed
+      CHECKS_RUN: exact commands/checks executed
+      EVIDENCE: concrete proof (test outputs, audit diffs, payload attempts)
 
       Or if issues found:
       STATUS: retry
@@ -383,6 +385,10 @@ steps:
       Label: security
 
       Use: gh pr create
+
+      Idempotency:
+      - Use IDEMPOTENCY KEY {{idempotency_key}} to avoid duplicate PR side effects
+      - If PR already exists for this branch, return the existing PR URL
 
       Reply with:
       STATUS: done

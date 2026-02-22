@@ -25,6 +25,7 @@ import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/e
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
 import { claimStep, completeStep, failStep, getStories } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
+import { getDb } from "../db.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -94,6 +95,7 @@ function printUsage() {
       "antfarm workflow run <name> <task>   Start a workflow run",
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
       "antfarm workflow runs                List all workflow runs",
+      "antfarm workflow reliability [N]     Reliability metrics for last N runs (default 200)",
       "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
       "",
       "antfarm dashboard [start] [--port N]   Start dashboard daemon (default: 3333)",
@@ -337,6 +339,53 @@ async function main() {
     for (const r of runs) {
       console.log(`  [${r.status.padEnd(9)}] ${r.id.slice(0, 8)}  ${r.workflow_id.padEnd(14)}  ${r.task.slice(0, 50)}${r.task.length > 50 ? "..." : ""}`);
     }
+    return;
+  }
+
+  if (action === "reliability") {
+    const limit = Math.max(1, parseInt(target || "200", 10) || 200);
+    const db = getDb();
+
+    const rows = db.prepare(
+      "SELECT id, status, workflow_id, created_at FROM runs ORDER BY datetime(created_at) DESC LIMIT ?"
+    ).all(limit) as Array<{ id: string; status: string; workflow_id: string; created_at: string }>;
+
+    if (rows.length === 0) {
+      console.log("No runs found.");
+      return;
+    }
+
+    const ids = rows.map((r) => `'${r.id.replace(/'/g, "''")}'`).join(",");
+    const retryRows = db.prepare(
+      `SELECT run_id, MAX(retry_count) as max_retry FROM steps WHERE run_id IN (${ids}) GROUP BY run_id`
+    ).all() as Array<{ run_id: string; max_retry: number }>;
+    const retryMap = new Map(retryRows.map((r) => [r.run_id, Number(r.max_retry || 0)]));
+
+    const outOfOrderRows = db.prepare(
+      `SELECT COUNT(1) as cnt
+       FROM (
+         SELECT DISTINCT a.run_id
+         FROM steps a
+         JOIN steps b ON a.run_id = b.run_id
+         WHERE a.run_id IN (${ids})
+           AND a.step_index < b.step_index
+           AND b.status IN ('running','done','failed')
+           AND a.status != 'done'
+       )`
+    ).get() as { cnt: number };
+
+    const total = rows.length;
+    const completed = rows.filter((r) => r.status === "completed").length;
+    const failed = rows.filter((r) => r.status === "failed").length;
+    const oneShot = rows.filter((r) => r.status === "completed" && (retryMap.get(r.id) ?? 0) === 0).length;
+
+    console.log(`Reliability report (last ${total} runs):`);
+    console.log(`  Completed: ${completed}`);
+    console.log(`  Failed: ${failed}`);
+    console.log(`  One-shot completed: ${oneShot}`);
+    console.log(`  Success rate: ${((completed / total) * 100).toFixed(1)}%`);
+    console.log(`  One-shot rate: ${((oneShot / total) * 100).toFixed(1)}%`);
+    console.log(`  Potential ordering anomalies: ${outOfOrderRows.cnt}`);
     return;
   }
 

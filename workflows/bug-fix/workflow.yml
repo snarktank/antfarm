@@ -75,6 +75,17 @@ agents:
         SOUL.md: ../../agents/shared/pr/SOUL.md
         IDENTITY.md: ../../agents/shared/pr/IDENTITY.md
 
+  - id: deployer
+    name: Deployer
+    role: coding
+    description: Deploys fixes to production after PR is merged.
+    workspace:
+      baseDir: agents/deployer
+      files:
+        AGENTS.md: ../../agents/shared/deployer/AGENTS.md
+        SOUL.md: ../../agents/shared/deployer/SOUL.md
+        IDENTITY.md: ../../agents/shared/deployer/IDENTITY.md
+
   - id: prod-tester
     name: Production Tester
     role: testing
@@ -241,6 +252,8 @@ steps:
       Reply with:
       STATUS: done
       VERIFIED: what was confirmed
+      CHECKS_RUN: exact commands/checks executed
+      EVIDENCE: concrete test output snippets (or curl/browser proof)
 
       Or if issues found:
       STATUS: retry
@@ -291,10 +304,58 @@ steps:
 
       Use: gh pr create
 
+      Idempotency:
+      - Use IDEMPOTENCY KEY {{idempotency_key}} to avoid duplicate PR side effects
+      - If PR already exists for this branch, return the existing PR URL
+
       Reply with:
       STATUS: done
       PR: URL to the pull request
     expects: "STATUS: done"
+    on_fail:
+      escalate_to: human
+
+  - id: deploy
+    agent: deployer
+    input: |
+      Deploy the bug fix to production.
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      PR: {{pr}}
+      CHANGES: {{changes}}
+
+      Instructions:
+      0. FIRST: Read PROJECT.md to understand deployment type and location
+      0.5 Use IDEMPOTENCY KEY {{idempotency_key}} — do not duplicate merge/deploy side effects if rerun
+      1. Determine environment type:
+         - VPS backend (Docker/PM2)
+         - VPS frontend (static files)
+         - Local tool (skip)
+         - Browser extension (skip)
+      2. If local tool or browser extension: reply with STATUS: done, DEPLOYED: skipped
+      3. If VPS deployment:
+         a. Merge the PR yourself: cd into REPO and run `gh pr merge {{pr}} --merge --auto`
+            - If already merged (state=MERGED), skip this step
+            - If merge fails due to conflicts, report STATUS: failed with details
+         b. SSH to deploy@5.161.67.200
+         c. Navigate to deployment directory
+         d. Pull latest from main branch
+         e. Run build if needed
+         f. Restart service (docker compose up -d --build, pm2 restart, or rsync to /var/www/)
+         g. Verify service is running
+         h. Get commit hash
+      4. Report deployment results
+
+      Reply with:
+      STATUS: done
+      ENVIRONMENT: <VPS-Docker|VPS-PM2|VPS-static|local|browser-extension>
+      DEPLOYED: <yes|no|skipped>
+      COMMIT: <short commit hash if deployed>
+      SERVICE_STATUS: <running|stopped|N/A>
+      VERIFICATION: <what you checked and result>
+    expects: "STATUS: done"
+    max_retries: 2
     on_fail:
       escalate_to: human
 
@@ -327,6 +388,7 @@ steps:
       TEST_TYPE: <what you tested>
       RESULT: <pass/fail/partial/skip>
       EVIDENCE: <actual data/responses>
+      CHECKS_RUN: exact commands/flows executed
       ISSUES: <any problems found, or "none">
     expects: "STATUS: done"
     max_retries: 1

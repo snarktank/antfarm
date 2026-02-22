@@ -46,6 +46,50 @@ export function resolveTemplate(template: string, context: Record<string, string
   });
 }
 
+function parseOutputKv(output: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of output.split("\n")) {
+    const match = line.match(/^([A-Z_\-]+):\s*(.+)$/);
+    if (!match) continue;
+    out[match[1].toLowerCase()] = match[2].trim();
+  }
+  return out;
+}
+
+function validateEvidenceRequirements(runId: string, stepId: string, output: string): string | null {
+  const wfId = getWorkflowId(runId);
+  if (!wfId) return null;
+
+  const kv = parseOutputKv(output);
+  const status = (kv["status"] ?? "").toLowerCase();
+  if (status !== "done") return null;
+
+  const requiredByStep: Record<string, string[]> = {
+    verify: ["verified", "checks_run", "evidence"],
+    pr: ["pr"],
+    deploy: ["environment", "deployed", "verification"],
+    "prod-test": ["result", "evidence"],
+  };
+
+  const required = requiredByStep[stepId];
+  if (!required) return null;
+
+  const missing = required.filter((k) => !kv[k] || kv[k].toLowerCase() === "n/a");
+  if (missing.length > 0) {
+    return `Missing required evidence fields for step '${stepId}': ${missing.join(", ")}`;
+  }
+
+  if (stepId === "deploy" && (kv["deployed"] ?? "").toLowerCase() === "yes") {
+    const deployMustHave = ["commit", "service_status"];
+    const missingDeploy = deployMustHave.filter((k) => !kv[k]);
+    if (missingDeploy.length > 0) {
+      return `Deploy marked yes but missing fields: ${missingDeploy.join(", ")}`;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Get the workspace path for an OpenClaw agent by its id.
  */
@@ -431,6 +475,9 @@ export function claimStep(agentId: string): ClaimResult {
         context["verify_feedback"] = "";
       }
 
+      context["idempotency_key"] = `${step.run_id}:${step.step_id}`;
+      context[`${step.step_id.toLowerCase()}_idempotency_key`] = `${step.run_id}:${step.step_id}`;
+
       // Persist story context vars to DB so verify_each steps can access them
       db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), step.run_id);
 
@@ -463,6 +510,9 @@ export function claimStep(agentId: string): ClaimResult {
     context["progress"] = readProgressFile(step.run_id);
   }
 
+  context["idempotency_key"] = `${step.run_id}:${step.step_id}`;
+  context[`${step.step_id.toLowerCase()}_idempotency_key`] = `${step.run_id}:${step.step_id}`;
+
   const resolvedInput = resolveTemplate(step.input_template, context);
 
   return {
@@ -492,10 +542,16 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   const context: Record<string, string> = JSON.parse(run.context);
 
   for (const line of output.split("\n")) {
-    const match = line.match(/^([A-Z_]+):\s*(.+)$/);
+    const match = line.match(/^([A-Z_\-]+):\s*(.+)$/);
     if (match && !match[1].startsWith("STORIES_JSON")) {
       context[match[1].toLowerCase()] = match[2].trim();
     }
+  }
+
+  const evidenceError = validateEvidenceRequirements(step.run_id, step.step_id, output);
+  if (evidenceError) {
+    failStep(stepId, evidenceError);
+    return { advanced: false, runCompleted: false };
   }
 
   db.prepare(
