@@ -27,6 +27,7 @@ import { claimStep, completeStep, failStep, getStories, peekStep } from "../inst
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
+import { printHelp, printCommandHelp } from "./help.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -83,51 +84,21 @@ function printEvents(events: AntfarmEvent[]): void {
   }
 }
 
-function printUsage() {
-  process.stdout.write(
-    [
-      "antfarm install                      Install all bundled workflows",
-      "antfarm uninstall [--force]          Full uninstall (workflows, agents, crons, DB)",
-      "",
-      "antfarm workflow list                List available workflows",
-      "antfarm workflow install <name>      Install a workflow",
-      "antfarm workflow uninstall <name>    Uninstall a workflow (blocked if runs active)",
-      "antfarm workflow uninstall --all     Uninstall all workflows (--force to override)",
-      "antfarm workflow run <name> <task>   Start a workflow run",
-      "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
-      "antfarm workflow runs                List all workflow runs",
-      "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
-      "antfarm workflow stop <run-id>        Stop/cancel a running workflow",
-      "antfarm workflow ensure-crons <name>  Recreate agent crons for a workflow",
-      "",
-      "antfarm dashboard [start] [--port N]   Start dashboard daemon (default: 3333)",
-      "antfarm dashboard stop                  Stop dashboard daemon",
-      "antfarm dashboard status                Check dashboard status",
-      "",
-      "antfarm step peek <agent-id>        Lightweight check for pending work (HAS_WORK or NO_WORK)",
-      "antfarm step claim <agent-id>       Claim pending step, output resolved input as JSON",
-      "antfarm step complete <step-id>      Complete step (reads output from stdin)",
-      "antfarm step fail <step-id> <error>  Fail step with retry logic",
-      "antfarm step stories <run-id>       List stories for a run",
-      "",
-      "antfarm medic install                Install medic watchdog cron",
-      "antfarm medic uninstall              Remove medic cron",
-      "antfarm medic run                    Run medic check now (manual trigger)",
-      "antfarm medic status                 Show medic health summary",
-      "antfarm medic log [<count>]          Show recent medic check history",
-      "",
-      "antfarm logs [<lines>]               Show recent activity (from events)",
-      "antfarm logs <run-id>                Show activity for a specific run",
-      "",
-      "antfarm version                      Show installed version",
-      "antfarm update                       Pull latest, rebuild, and reinstall workflows",
-    ].join("\n") + "\n",
-  );
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const [group, action, target] = args;
+
+  // Handle no arguments - show help and exit with code 1
+  if (args.length === 0) {
+    printHelp();
+    process.exit(1);
+  }
+
+  // Handle help commands - show help and exit with code 0
+  if (group === "help" || group === "--help" || group === "-h") {
+    printHelp();
+    process.exit(0);
+  }
 
   if (group === "version" || group === "--version" || group === "-v") {
     console.log(`antfarm v${getVersion()}`);
@@ -345,7 +316,7 @@ async function main() {
       return;
     }
 
-    printUsage();
+    printHelp();
     process.exit(1);
   }
 
@@ -400,7 +371,7 @@ async function main() {
       return;
     }
     process.stderr.write(`Unknown step action: ${action}\n`);
-    printUsage();
+    printHelp();
     process.exit(1);
   }
 
@@ -436,8 +407,8 @@ async function main() {
     return;
   }
 
-  if (args.length < 2) { printUsage(); process.exit(1); }
-  if (group !== "workflow") { printUsage(); process.exit(1); }
+  if (args.length < 2) { printHelp(); process.exit(1); }
+  if (group !== "workflow") { printHelp(); process.exit(1); }
 
   if (action === "runs") {
     const runs = listRuns();
@@ -460,7 +431,7 @@ async function main() {
   }
 
   if (action === "stop") {
-    if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+    if (!target) { process.stderr.write("Missing run-id.\n"); printHelp(); process.exit(1); }
     const result = await stopWorkflow(target);
     if (result.status === "not_found") { process.stderr.write(result.message + "\n"); process.exit(1); }
     if (result.status === "already_done") { process.stderr.write(result.message + "\n"); process.exit(1); }
@@ -468,7 +439,7 @@ async function main() {
     return;
   }
 
-  if (!target) { printUsage(); process.exit(1); }
+  if (!target) { printHelp(); process.exit(1); }
 
   if (action === "install") {
     const result = await installWorkflow({ workflowId: target });
@@ -495,7 +466,7 @@ async function main() {
 
   if (action === "status") {
     const query = args.slice(2).join(" ").trim();
-    if (!query) { process.stderr.write("Missing search query.\n"); printUsage(); process.exit(1); }
+    if (!query) { process.stderr.write("Missing search query.\n"); printHelp(); process.exit(1); }
     const result = getWorkflowStatus(query);
     if (result.status === "not_found") { process.stdout.write(`${result.message}\n`); return; }
     const { run, steps } = result;
@@ -526,7 +497,7 @@ async function main() {
   }
 
   if (action === "resume") {
-    if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+    if (!target) { process.stderr.write("Missing run-id.\n"); printHelp(); process.exit(1); }
     const db = (await import("../db.js")).getDb();
 
     // Find the run (support prefix match)
@@ -665,7 +636,7 @@ async function main() {
       runArgs.splice(nuIdx, 2);
     }
     const taskTitle = runArgs.join(" ").trim();
-    if (!taskTitle) { process.stderr.write("Missing task title.\n"); printUsage(); process.exit(1); }
+    if (!taskTitle) { process.stderr.write("Missing task title.\n"); printHelp(); process.exit(1); }
     const run = await runWorkflow({ workflowId: target, taskTitle, notifyUrl });
     process.stdout.write(
       [`Run: #${run.runNumber} (${run.id})`, `Workflow: ${run.workflowId}`, `Task: ${run.task}`, `Status: ${run.status}`].join("\n") + "\n",
@@ -674,7 +645,7 @@ async function main() {
   }
 
   process.stderr.write(`Unknown action: ${action}\n`);
-  printUsage();
+  printHelp();
   process.exit(1);
 }
 
