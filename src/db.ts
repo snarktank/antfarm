@@ -32,6 +32,7 @@ function migrate(db: DatabaseSync): void {
       task TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'running',
       context TEXT NOT NULL DEFAULT '{}',
+      project_key TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -100,6 +101,9 @@ function migrate(db: DatabaseSync): void {
   const runColNames = new Set(runCols.map((c) => c.name));
   if (!runColNames.has("notify_url")) {
     db.exec("ALTER TABLE runs ADD COLUMN notify_url TEXT");
+  }
+  if (!runColNames.has("project_key")) {
+    db.exec("ALTER TABLE runs ADD COLUMN project_key TEXT");
   }
 
   // DB-level guardrail: prevent out-of-order waiting->pending promotion.

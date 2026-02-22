@@ -14,6 +14,7 @@ import { logger } from "../lib/logger.js";
  */
 function scheduleRunCronTeardown(runId: string): void {
   try {
+    startNextQueuedRunIfAny(runId);
     const db = getDb();
     const run = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(runId) as { workflow_id: string } | undefined;
     if (run) {
@@ -30,6 +31,29 @@ function getWorkflowId(runId: string): string | undefined {
     const row = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(runId) as { workflow_id: string } | undefined;
     return row?.workflow_id;
   } catch { return undefined; }
+}
+
+function startNextQueuedRunIfAny(completedRunId: string): void {
+  try {
+    const db = getDb();
+    const row = db.prepare("SELECT project_key, workflow_id FROM runs WHERE id = ?").get(completedRunId) as { project_key: string | null; workflow_id: string } | undefined;
+    if (!row?.project_key) return;
+
+    const next = db.prepare(
+      "SELECT id FROM runs WHERE status = 'queued' AND project_key = ? ORDER BY datetime(created_at) ASC LIMIT 1"
+    ).get(row.project_key) as { id: string } | undefined;
+    if (!next) return;
+
+    db.prepare("UPDATE runs SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'queued'").run(next.id);
+    db.prepare(
+      "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE run_id = ? AND step_index = 0 AND status = 'waiting'"
+    ).run(next.id);
+
+    const wfId = getWorkflowId(next.id);
+    emitEvent({ ts: new Date().toISOString(), event: "run.started", runId: next.id, workflowId: wfId, detail: "Run auto-started from queue" });
+  } catch {
+    // best effort
+  }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
@@ -381,7 +405,7 @@ export function claimStep(agentId: string): ClaimResult {
      FROM steps s
      JOIN runs r ON r.id = s.run_id
      WHERE s.agent_id = ? AND s.status = 'pending'
-       AND r.status NOT IN ('failed', 'cancelled')
+       AND r.status = 'running'
      ORDER BY s.created_at ASC, s.step_index ASC`
   ).all(agentId) as Array<{ id: string; run_id: string; step_id: string; step_index: number; input_template: string; type: string; loop_config: string | null }>;
 

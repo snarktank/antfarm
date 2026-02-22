@@ -6,6 +6,12 @@ import { logger } from "../lib/logger.js";
 import { ensureWorkflowCrons } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 
+function extractProjectKey(taskTitle: string): string | null {
+  const m = taskTitle.match(/(?:^|\n)\s*REPO:\s*(.+)\s*$/im);
+  if (!m) return null;
+  return m[1].trim().toLowerCase();
+}
+
 export async function runWorkflow(params: {
   workflowId: string;
   taskTitle: string;
@@ -16,6 +22,7 @@ export async function runWorkflow(params: {
   const db = getDb();
   const now = new Date().toISOString();
   const runId = crypto.randomUUID();
+  const projectKey = extractProjectKey(params.taskTitle);
 
   const initialContext: Record<string, string> = {
     task: params.taskTitle,
@@ -25,10 +32,16 @@ export async function runWorkflow(params: {
   db.exec("BEGIN");
   try {
     const notifyUrl = params.notifyUrl ?? workflow.notifications?.url ?? null;
+
+    const hasActiveForProject = projectKey
+      ? (db.prepare("SELECT id FROM runs WHERE status = 'running' AND project_key = ? LIMIT 1").get(projectKey) as { id: string } | undefined)
+      : undefined;
+    const runStatus = hasActiveForProject ? "queued" : "running";
+
     const insertRun = db.prepare(
-      "INSERT INTO runs (id, workflow_id, task, status, context, notify_url, created_at, updated_at) VALUES (?, ?, ?, 'running', ?, ?, ?, ?)"
+      "INSERT INTO runs (id, workflow_id, task, status, context, notify_url, project_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
-    insertRun.run(runId, workflow.id, params.taskTitle, JSON.stringify(initialContext), notifyUrl, now, now);
+    insertRun.run(runId, workflow.id, params.taskTitle, runStatus, JSON.stringify(initialContext), notifyUrl, projectKey, now, now);
 
     const insertStep = db.prepare(
       "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -38,7 +51,7 @@ export async function runWorkflow(params: {
       const step = workflow.steps[i];
       const stepUuid = crypto.randomUUID();
       const agentId = `${workflow.id}/${step.agent}`;
-      const status = i === 0 ? "pending" : "waiting";
+      const status = runStatus === "running" && i === 0 ? "pending" : "waiting";
       const maxRetries = step.max_retries ?? step.on_fail?.max_retries ?? 2;
       const stepType = step.type ?? "single";
       const loopConfig = step.loop ? JSON.stringify(step.loop) : null;
@@ -62,13 +75,20 @@ export async function runWorkflow(params: {
     throw new Error(`Cannot start workflow run: cron setup failed. ${message}`);
   }
 
-  emitEvent({ ts: new Date().toISOString(), event: "run.started", runId, workflowId: workflow.id });
+  const created = db.prepare("SELECT status FROM runs WHERE id = ?").get(runId) as { status: string };
+  if (created.status === "running") {
+    emitEvent({ ts: new Date().toISOString(), event: "run.started", runId, workflowId: workflow.id });
+    await logger.info(`Run started: "${params.taskTitle}"`, {
+      workflowId: workflow.id,
+      runId,
+      stepId: workflow.steps[0]?.id,
+    });
+  } else {
+    await logger.info(`Run queued: "${params.taskTitle}"`, {
+      workflowId: workflow.id,
+      runId,
+    });
+  }
 
-  await logger.info(`Run started: "${params.taskTitle}"`, {
-    workflowId: workflow.id,
-    runId,
-    stepId: workflow.steps[0]?.id,
-  });
-
-  return { id: runId, workflowId: workflow.id, task: params.taskTitle, status: "running" };
+  return { id: runId, workflowId: workflow.id, task: params.taskTitle, status: created.status };
 }
