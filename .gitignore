@@ -1,8 +1,41 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-.DS_Store
+
+# Environment files (security-sensitive)
+.env
+.env.local
+.env.*.local
+
+# Secrets and keys (security-sensitive)
+*.key
+*.pem
+*.secret
+
+# Database files
 *.db
 *.sqlite
 *.sqlite3
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Backup files
+*.bak
+
+# Progress tracking
 progress.txt
 progress*.txt
