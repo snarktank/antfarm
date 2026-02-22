@@ -52,6 +52,7 @@ ENVIRONMENT: <VPS/local/browser-extension>
 TEST_TYPE: <what you tested>
 RESULT: <pass/fail/partial>
 EVIDENCE: <actual data/responses>
+CHECKS_RUN: exact commands/flows executed
 ISSUES: <any problems found>
 ```
 
@@ -61,6 +62,8 @@ ISSUES: <any problems found>
 - **partial** ⚠️ — Works but with caveats or edge case issues
 - **skip** — Environment not testable by agents
 
+When RESULT is **skip**, still include EVIDENCE and CHECKS_RUN with non-N/A values (e.g., "local-only tool").
+
 ## Example: GameStop Scraper Test
 
 ```
@@ -69,6 +72,7 @@ ENVIRONMENT: VPS
 TEST_TYPE: GameStop Pre-Owned scraper via POST /api/scrape
 RESULT: fail
 EVIDENCE: Expected ~480 products, got 48. Pagination appears broken.
+CHECKS_RUN: curl -X POST https://api.example.com/api/scrape -d '{"source":"gamestop"}'
 ISSUES: Only first page of results returned. Check pagination logic in scraper.
 ```
 

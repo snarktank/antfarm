@@ -71,7 +71,7 @@ export function resolveTemplate(template: string, context: Record<string, string
   });
 }
 
-function parseOutputKv(output: string): Record<string, string> {
+export function parseOutputKv(output: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const line of output.split("\n")) {
     const match = line.match(/^([A-Z_\-]+):\s*(.+)$/);
@@ -86,7 +86,7 @@ function extractPrUrl(output: string): string | null {
   return m ? m[0] : null;
 }
 
-function validateEvidenceRequirements(runId: string, stepId: string, output: string): string | null {
+export function validateEvidenceRequirements(runId: string, stepId: string, output: string): string | null {
   const wfId = getWorkflowId(runId);
   if (!wfId) return null;
 
