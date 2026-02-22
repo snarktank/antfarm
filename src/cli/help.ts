@@ -448,6 +448,40 @@ export function printMedicHelp(): void {
 }
 
 /**
+ * Print detailed help for logs command
+ */
+export function printLogsHelp(): void {
+  const cmd = commands.logs;
+  
+  process.stdout.write("LOGS - Show recent activity from workflow events\n\n");
+  process.stdout.write(`${cmd.description}\n\n`);
+  
+  process.stdout.write(`USAGE:\n  ${cmd.usage}\n\n`);
+
+  process.stdout.write("VARIANTS:\n\n");
+  process.stdout.write("  logs [lines]     Show the last N events (default: 50)\n");
+  process.stdout.write("                   antfarm logs\n");
+  process.stdout.write("                   antfarm logs 100\n\n");
+  process.stdout.write("  logs <run-id>    Show all events for a specific run (by ID or prefix)\n");
+  process.stdout.write("                   antfarm logs abc123\n\n");
+  process.stdout.write("  logs #<number>   Show all events for run number N\n");
+  process.stdout.write("                   antfarm logs #3\n\n");
+
+  if (cmd.examples && cmd.examples.length > 0) {
+    process.stdout.write("EXAMPLES:\n\n");
+    process.stdout.write("  View recent activity:\n");
+    process.stdout.write(`    ${cmd.examples[0].command}    # ${cmd.examples[0].description}\n`);
+    process.stdout.write(`    ${cmd.examples[1].command}  # ${cmd.examples[1].description}\n\n`);
+    
+    process.stdout.write("  View run-specific logs:\n");
+    process.stdout.write(`    ${cmd.examples[2].command}  # ${cmd.examples[2].description}\n`);
+    process.stdout.write(`    ${cmd.examples[3].command}     # ${cmd.examples[3].description}\n\n`);
+  }
+
+  process.stdout.write("For general help: antfarm --help\n");
+}
+
+/**
  * Helper to print a command section
  */
 function printCommandSection(name: string, cmd: CommandHelp): void {
