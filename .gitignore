@@ -1,8 +1,34 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Secrets
+*.key
+*.pem
+*.secret
+
+# Logs
+*.log
+
+# OS files
 .DS_Store
+
+# Database files
 *.db
 *.sqlite
 *.sqlite3
+
+# Progress tracking
 progress.txt
 progress*.txt
+
+# Coverage
+coverage/
+.nyc_output/
