@@ -377,6 +377,44 @@ export function printDashboardHelp(): void {
 }
 
 /**
+ * Print detailed help for step subcommands
+ */
+export function printStepHelp(): void {
+  const cmd = commands.step;
+  
+  process.stdout.write("STEP - Low-level step operations\n\n");
+  process.stdout.write(`${cmd.description}\n\n`);
+  
+  process.stdout.write("⚠️  NOTE: Step commands are primarily for internal agent use.\n");
+  process.stdout.write("    Most users should use workflow commands instead.\n\n");
+  
+  process.stdout.write(`USAGE:\n  ${cmd.usage}\n\n`);
+
+  if (cmd.subcommands) {
+    process.stdout.write("SUBCOMMANDS:\n\n");
+    for (const [name, sub] of Object.entries(cmd.subcommands)) {
+      process.stdout.write(`  ${name.padEnd(15)} ${sub.description}\n`);
+      process.stdout.write(`                  ${sub.usage}\n\n`);
+    }
+  }
+
+  process.stdout.write("EXAMPLES (step workflow lifecycle):\n\n");
+  process.stdout.write("  Check for pending work:\n");
+  process.stdout.write("    antfarm step peek developer\n\n");
+  process.stdout.write("  Claim a step and receive work:\n");
+  process.stdout.write("    antfarm step claim developer\n");
+  process.stdout.write("    # Returns JSON: {stepId, runId, input}\n\n");
+  process.stdout.write("  Complete a step (provide output via stdin):\n");
+  process.stdout.write("    echo 'STATUS: done' | antfarm step complete <step-id>\n\n");
+  process.stdout.write("  Fail a step with error message:\n");
+  process.stdout.write("    antfarm step fail <step-id> 'Build failed'\n\n");
+  process.stdout.write("  List stories for a run:\n");
+  process.stdout.write("    antfarm step stories <run-id>\n\n");
+
+  process.stdout.write("For general help: antfarm --help\n");
+}
+
+/**
  * Helper to print a command section
  */
 function printCommandSection(name: string, cmd: CommandHelp): void {

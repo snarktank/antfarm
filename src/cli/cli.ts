@@ -27,7 +27,7 @@ import { claimStep, completeStep, failStep, getStories, peekStep } from "../inst
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
-import { printHelp, printCommandHelp, printWorkflowHelp, printDashboardHelp } from "./help.js";
+import { printHelp, printCommandHelp, printWorkflowHelp, printDashboardHelp, printStepHelp } from "./help.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -327,6 +327,12 @@ async function main() {
   }
 
   if (group === "step") {
+    // Handle step help
+    if (action === "help" || action === "--help") {
+      printStepHelp();
+      process.exit(0);
+    }
+
     if (action === "peek") {
       if (!target) { process.stderr.write("Missing agent-id.\n"); process.exit(1); }
       const result = peekStep(target);
