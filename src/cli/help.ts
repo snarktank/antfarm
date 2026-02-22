@@ -319,6 +319,35 @@ export function printCommandHelp(command: string): void {
 }
 
 /**
+ * Print detailed help for workflow subcommands
+ */
+export function printWorkflowHelp(): void {
+  const cmd = commands.workflow;
+  
+  process.stdout.write("WORKFLOW - Manage workflows and workflow runs\n\n");
+  process.stdout.write(`${cmd.description}\n\n`);
+  process.stdout.write(`USAGE:\n  ${cmd.usage}\n\n`);
+
+  if (cmd.subcommands) {
+    process.stdout.write("SUBCOMMANDS:\n\n");
+    for (const [name, sub] of Object.entries(cmd.subcommands)) {
+      process.stdout.write(`  ${name.padEnd(15)} ${sub.description}\n`);
+      process.stdout.write(`                  ${sub.usage}\n\n`);
+    }
+  }
+
+  if (cmd.examples && cmd.examples.length > 0) {
+    process.stdout.write("EXAMPLES:\n\n");
+    for (const ex of cmd.examples) {
+      process.stdout.write(`  ${ex.description}:\n`);
+      process.stdout.write(`    ${ex.command}\n\n`);
+    }
+  }
+
+  process.stdout.write("For general help: antfarm --help\n");
+}
+
+/**
  * Helper to print a command section
  */
 function printCommandSection(name: string, cmd: CommandHelp): void {

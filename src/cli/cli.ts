@@ -27,7 +27,7 @@ import { claimStep, completeStep, failStep, getStories, peekStep } from "../inst
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
-import { printHelp, printCommandHelp } from "./help.js";
+import { printHelp, printCommandHelp, printWorkflowHelp } from "./help.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -409,6 +409,12 @@ async function main() {
 
   if (args.length < 2) { printHelp(); process.exit(1); }
   if (group !== "workflow") { printHelp(); process.exit(1); }
+
+  // Handle workflow help
+  if (action === "help" || action === "--help") {
+    printWorkflowHelp();
+    process.exit(0);
+  }
 
   if (action === "runs") {
     const runs = listRuns();
