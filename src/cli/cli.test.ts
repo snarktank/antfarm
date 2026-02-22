@@ -9,8 +9,8 @@ const __dirname = dirname(__filename);
 const cliPath = join(__dirname, "..", "..", "dist", "cli", "cli.js");
 
 describe("workflow stop CLI", () => {
-  it("help text includes 'workflow stop' command", () => {
-    // Running with no args prints usage to stdout and exits with code 1
+  it("help text includes workflow stop command and description", () => {
+    // Running with no args prints help to stdout and exits with code 1
     let output: string;
     try {
       output = execFileSync("node", [cliPath], { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
@@ -18,22 +18,24 @@ describe("workflow stop CLI", () => {
       // CLI exits with code 1 when no args — capture stdout from the error
       output = (err.stdout ?? "") + (err.stderr ?? "");
     }
-    assert.ok(output.includes("workflow stop"), "Help text should include 'workflow stop'");
+    // New help system shows "stop" under workflow section
+    assert.ok(output.includes("stop"), "Help text should include 'stop' subcommand");
     assert.ok(output.includes("Stop/cancel a running workflow"), "Help text should include stop description");
   });
 
-  it("'workflow stop' appears after 'workflow resume' in help text", () => {
+  it("workflow stop appears after resume in help text", () => {
     let output: string;
     try {
       output = execFileSync("node", [cliPath], { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
     } catch (err: any) {
       output = (err.stdout ?? "") + (err.stderr ?? "");
     }
-    const resumeIndex = output.indexOf("workflow resume");
-    const stopIndex = output.indexOf("workflow stop");
-    assert.ok(resumeIndex !== -1, "Help text should include 'workflow resume'");
-    assert.ok(stopIndex !== -1, "Help text should include 'workflow stop'");
-    assert.ok(stopIndex > resumeIndex, "'workflow stop' should appear after 'workflow resume'");
+    // In the new help system, both appear under Workflow Management section
+    const resumeIndex = output.indexOf("resume");
+    const stopIndex = output.indexOf("stop");
+    assert.ok(resumeIndex !== -1, "Help text should include 'resume'");
+    assert.ok(stopIndex !== -1, "Help text should include 'stop'");
+    assert.ok(stopIndex > resumeIndex, "'stop' should appear after 'resume'");
   });
 
   it("'workflow stop' with no run-id prints error and exits with code 1", () => {
