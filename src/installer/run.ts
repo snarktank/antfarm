@@ -6,11 +6,17 @@ import { logger } from "../lib/logger.js";
 import { ensureWorkflowCrons } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 
-function extractProjectKey(taskTitle: string): string | null {
-  const m = taskTitle.match(/REPO:\s*([^\s\n]+)/i);
+function extractField(taskTitle: string, label: string): string | null {
+  const re = new RegExp(`${label}:\\s*([^\\n]+)`, "i");
+  const m = taskTitle.match(re);
   if (!m) return null;
-  const normalized = (m[1] ?? "").replace(/[.,;]+$/g, "").trim().toLowerCase();
-  return normalized || null;
+  const value = (m[1] ?? "").trim().replace(/[.,;]+$/g, "");
+  return value || null;
+}
+
+function extractProjectKey(taskTitle: string): string | null {
+  const repo = extractField(taskTitle, "REPO");
+  return repo ? repo.toLowerCase() : null;
 }
 
 export async function runWorkflow(params: {
@@ -29,6 +35,12 @@ export async function runWorkflow(params: {
     task: params.taskTitle,
     ...workflow.context,
   };
+
+  // Seed critical context fields from task text so setup isn't starved.
+  const repo = extractField(params.taskTitle, "REPO");
+  const branch = extractField(params.taskTitle, "BRANCH") ?? extractField(params.taskTitle, "TARGET BRANCH");
+  if (repo && !initialContext.repo) initialContext.repo = repo;
+  if (branch && !initialContext.branch) initialContext.branch = branch;
 
   db.exec("BEGIN");
   try {

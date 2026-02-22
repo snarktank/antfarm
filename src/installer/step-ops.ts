@@ -80,6 +80,11 @@ function parseOutputKv(output: string): Record<string, string> {
   return out;
 }
 
+function extractPrUrl(output: string): string | null {
+  const m = output.match(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/i);
+  return m ? m[0] : null;
+}
+
 function validateEvidenceRequirements(runId: string, stepId: string, output: string): string | null {
   const wfId = getWorkflowId(runId);
   if (!wfId) return null;
@@ -539,6 +544,12 @@ export function claimStep(agentId: string): ClaimResult {
 
   const resolvedInput = resolveTemplate(step.input_template, context);
 
+  // Guardrail: don't hand setup an unusable prompt with missing repo/branch placeholders.
+  if (step.step_id === "setup" && (resolvedInput.includes("[missing: repo]") || resolvedInput.includes("[missing: branch]"))) {
+    failStep(step.id, "CONTRACT_MISSING_REPO_OR_BRANCH: setup input missing repo/branch context");
+    return { found: false };
+  }
+
   return {
     found: true,
     stepId: step.id,
@@ -570,6 +581,12 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
     if (match && !match[1].startsWith("STORIES_JSON")) {
       context[match[1].toLowerCase()] = match[2].trim();
     }
+  }
+
+  // Resilience fallback: infer PR URL from free-form output if PR: field was omitted.
+  if (step.step_id === "pr" && !context["pr"]) {
+    const prUrl = extractPrUrl(output);
+    if (prUrl) context["pr"] = prUrl;
   }
 
   const evidenceError = validateEvidenceRequirements(step.run_id, step.step_id, output);
