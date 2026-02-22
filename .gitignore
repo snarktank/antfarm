@@ -1,8 +1,36 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-.DS_Store
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.secret
+*.p12
+*.pfx
+
+# Database files
 *.db
 *.sqlite
 *.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Progress files (generated at runtime)
 progress.txt
 progress*.txt
