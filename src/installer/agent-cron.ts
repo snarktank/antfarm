@@ -119,7 +119,13 @@ Full work prompt to include in the spawned task:
 ${workPrompt}
 ---END WORK PROMPT---
 
-Reply with a short summary of what you spawned.`;
+IMPORTANT FALLBACK (prevents stuck claimed steps):
+- If sessions_spawn fails, is forbidden, or returns any error (for example: "subagent_spawning not registered"), DO NOT stop.
+- Instead, execute the work prompt directly in this same session using the claimed JSON.
+- Then complete the step yourself with step complete (or step fail if needed).
+- Never leave a claimed step unreported.
+
+Reply with a short summary of what you spawned or completed inline.`;
 }
 
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
