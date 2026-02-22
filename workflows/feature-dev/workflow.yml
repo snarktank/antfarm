@@ -153,6 +153,8 @@ steps:
       TEST_CMD: <test command>
       CI_NOTES: <brief CI notes>
       BASELINE: <baseline status>
+      BASELINE_TEST_STATUS: <pass|fail>
+      BASELINE_TEST_FAILURES: <list exact pre-existing failing tests, or "none">
     expects: "STATUS: done"
     max_retries: 2
     on_fail:
@@ -226,6 +228,8 @@ steps:
       BRANCH: {{branch}}
       CHANGES: {{changes}}
       TEST_CMD: {{test_cmd}}
+      BASELINE_TEST_STATUS: {{baseline_test_status}}
+      BASELINE_TEST_FAILURES: {{baseline_test_failures}}
 
       CURRENT STORY:
       {{current_story}}
@@ -237,7 +241,7 @@ steps:
       1. Code exists (not just TODOs or placeholders)
       2. Each acceptance criterion for the story is met
       3. Tests were written for this story's functionality
-      4. Tests pass (run {{test_cmd}})
+      4. Compare test results against baseline: if baseline had failures, only fail verify for NEW regressions or changed failing tests unrelated to baseline list
       5. No obvious incomplete work
       6. Typecheck passes
 
@@ -271,13 +275,16 @@ steps:
       CHANGES: {{changes}}
       BUILD_CMD: {{build_cmd}}
       TEST_CMD: {{test_cmd}}
+      BASELINE_TEST_STATUS: {{baseline_test_status}}
+      BASELINE_TEST_FAILURES: {{baseline_test_failures}}
 
       PROGRESS LOG:
       {{progress}}
 
       Your job (integration/E2E testing — unit tests were already written per-story):
-      1. Run the full test suite ({{test_cmd}}) to confirm everything passes together
-      2. Look for integration issues between stories
+      1. Run the full test suite ({{test_cmd}})
+      2. Compare to baseline failures and fail only for NEW regressions
+      3. Look for integration issues between stories
       3. If this is a UI feature, use agent-browser to test it end-to-end
       4. Check cross-cutting concerns: error handling, edge cases across features
       5. Verify the overall feature works as a cohesive whole
