@@ -49,7 +49,10 @@ function migrate(db: DatabaseSync): void {
       retry_count INTEGER DEFAULT 0,
       max_retries INTEGER DEFAULT 2,
       created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      claimed_at TEXT,
+      lease_expires_at TEXT,
+      claimant_agent_id TEXT
     );
 
     CREATE TABLE IF NOT EXISTS stories (
@@ -82,6 +85,15 @@ function migrate(db: DatabaseSync): void {
   if (!colNames.has("current_story_id")) {
     db.exec("ALTER TABLE steps ADD COLUMN current_story_id TEXT");
   }
+  if (!colNames.has("claimed_at")) {
+    db.exec("ALTER TABLE steps ADD COLUMN claimed_at TEXT");
+  }
+  if (!colNames.has("lease_expires_at")) {
+    db.exec("ALTER TABLE steps ADD COLUMN lease_expires_at TEXT");
+  }
+  if (!colNames.has("claimant_agent_id")) {
+    db.exec("ALTER TABLE steps ADD COLUMN claimant_agent_id TEXT");
+  }
 
   // Add columns to runs table for backwards compat
   const runCols = db.prepare("PRAGMA table_info(runs)").all() as Array<{ name: string }>;
@@ -89,6 +101,32 @@ function migrate(db: DatabaseSync): void {
   if (!runColNames.has("notify_url")) {
     db.exec("ALTER TABLE runs ADD COLUMN notify_url TEXT");
   }
+
+  // DB-level guardrail: prevent out-of-order waiting->pending promotion.
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS steps_block_out_of_order_pending
+    BEFORE UPDATE OF status ON steps
+    WHEN NEW.status = 'pending' AND OLD.status = 'waiting'
+      AND EXISTS (
+        SELECT 1
+        FROM steps prev
+        WHERE prev.run_id = NEW.run_id
+          AND prev.step_index < NEW.step_index
+          AND prev.status != 'done'
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM steps loop
+        WHERE loop.run_id = NEW.run_id
+          AND loop.type = 'loop'
+          AND loop.status = 'running'
+          AND json_extract(loop.loop_config, '$.verifyEach') = 1
+          AND json_extract(loop.loop_config, '$.verifyStep') = NEW.step_id
+      )
+    BEGIN
+      SELECT RAISE(ABORT, 'invalid step transition: out-of-order pending promotion');
+    END;
+  `);
 }
 
 export function getDbPath(): string {
