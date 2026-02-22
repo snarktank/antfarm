@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
+import { execSync } from "node:child_process";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
@@ -583,10 +584,31 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
     }
   }
 
-  // Resilience fallback: infer PR URL from free-form output if PR: field was omitted.
+  // Resilience fallback: infer PR URL when PR: field is omitted.
   if (step.step_id === "pr" && !context["pr"]) {
     const prUrl = extractPrUrl(output);
-    if (prUrl) context["pr"] = prUrl;
+    if (prUrl) {
+      context["pr"] = prUrl;
+    } else {
+      // Last-resort: query GitHub for open PR by branch in the repo workspace.
+      try {
+        const repoPath = context["repo"];
+        const branch = context["branch"];
+        if (repoPath && branch && !repoPath.startsWith("[missing:")) {
+          const safeBranch = branch.replace(/'/g, "'\\''");
+          const raw = execSync(`gh pr list --head '${safeBranch}' --json url --limit 1`, {
+            cwd: repoPath,
+            stdio: ["ignore", "pipe", "ignore"],
+            timeout: 8000,
+          }).toString("utf-8").trim();
+          const arr = JSON.parse(raw) as Array<{ url?: string }>;
+          const found = arr.find((x) => typeof x.url === "string" && x.url.length > 0)?.url;
+          if (found) context["pr"] = found;
+        }
+      } catch {
+        // ignore fallback lookup failures
+      }
+    }
   }
 
   const evidenceError = validateEvidenceRequirements(step.run_id, step.step_id, output);
