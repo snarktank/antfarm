@@ -415,6 +415,39 @@ export function printStepHelp(): void {
 }
 
 /**
+ * Print detailed help for medic subcommands
+ */
+export function printMedicHelp(): void {
+  const cmd = commands.medic;
+  
+  process.stdout.write("MEDIC - Watchdog service for workflow health\n\n");
+  process.stdout.write(`${cmd.description}\n\n`);
+  
+  process.stdout.write("The medic watchdog monitors your Antfarm installation and automatically\n");
+  process.stdout.write("fixes common issues like stuck workflows, orphaned processes, and missing crons.\n\n");
+  
+  process.stdout.write(`USAGE:\n  ${cmd.usage}\n\n`);
+
+  if (cmd.subcommands) {
+    process.stdout.write("SUBCOMMANDS:\n\n");
+    for (const [name, sub] of Object.entries(cmd.subcommands)) {
+      process.stdout.write(`  ${name.padEnd(15)} ${sub.description}\n`);
+      process.stdout.write(`                  ${sub.usage}\n\n`);
+    }
+  }
+
+  if (cmd.examples && cmd.examples.length > 0) {
+    process.stdout.write("EXAMPLES:\n\n");
+    for (const ex of cmd.examples) {
+      process.stdout.write(`  ${ex.description}:\n`);
+      process.stdout.write(`    ${ex.command}\n\n`);
+    }
+  }
+
+  process.stdout.write("For general help: antfarm --help\n");
+}
+
+/**
  * Helper to print a command section
  */
 function printCommandSection(name: string, cmd: CommandHelp): void {
