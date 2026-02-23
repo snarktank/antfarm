@@ -10,7 +10,7 @@ description: |
 
 polling:
   model: default
-  timeoutSeconds: 120
+  timeoutSeconds: 1800
 
 agents:
   - id: file-watcher
