@@ -130,6 +130,7 @@ Full guide: [docs/creating-workflows.md](docs/creating-workflows.md)
 
 ---
 
+
 ## Security
 
 You're installing agent teams that run code on your machine. We take that seriously.
@@ -193,6 +194,15 @@ antfarm dashboard status       # Check status
 - [OpenClaw](https://github.com/openclaw/openclaw) **v2026.2.9+** running on the host
   - Antfarm uses cron jobs for workflow orchestration. Older OpenClaw versions may not expose the cron tool via `/tools/invoke`. Antfarm will automatically fall back to the `openclaw` CLI, but keeping OpenClaw up to date is recommended: `npm update -g openclaw`
 - `gh` CLI for PR creation steps
+
+---
+
+## Client Library
+
+Antfarm is preparing a TypeScript client SDK that explains the upcoming programmatic surface for the agent pipeline. The SDK will expose programmatic workflow orchestration primitives and a CLI-friendly interface for customizing workflows via OpenClaw, and the future docs will live at [docs/client-library.md](docs/client-library.md).
+
+- Programmatic workflow orchestration via the agent pipeline
+- CLI-friendly SDK for customizing workflows in Node.js
 
 ---
 
