@@ -109,6 +109,29 @@ const UPDATE_HINT =
   `This may be fixed by updating OpenClaw: npm update -g openclaw`;
 
 // ---------------------------------------------------------------------------
+// Shared gateway HTTP helper — centralises auth header construction
+// ---------------------------------------------------------------------------
+
+/**
+ * Make an authenticated POST to the gateway's /tools/invoke endpoint.
+ * Resolves the gateway config, builds headers (including Bearer auth when a
+ * secret is available), and returns the raw `Response`.
+ *
+ * Throws on network errors so callers can catch and fall back to CLI.
+ */
+async function gatewayFetch(body: object): Promise<Response> {
+  const gateway = await getGatewayConfig();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (gateway.secret) headers["Authorization"] = `Bearer ${gateway.secret}`;
+
+  return fetch(`${gateway.url}/tools/invoke`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Cron operations — HTTP first, CLI fallback
 // ---------------------------------------------------------------------------
 
@@ -183,16 +206,8 @@ async function createAgentCronJobHTTP(job: {
   delivery?: { mode: "none" | "announce"; channel?: string; to?: string };
   enabled: boolean;
 }): Promise<{ ok: boolean; error?: string; id?: string } | null> {
-  const gateway = await getGatewayConfig();
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (gateway.secret) headers["Authorization"] = `Bearer ${gateway.secret}`;
-
-    const response = await fetch(`${gateway.url}/tools/invoke`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "add", job }, sessionKey: "agent:main:main" }),
-    });
+    const response = await gatewayFetch({ tool: "cron", args: { action: "add", job }, sessionKey: "agent:main:main" });
 
     if (response.status === 404) return null; // signal CLI fallback
 
@@ -216,16 +231,8 @@ async function createAgentCronJobHTTP(job: {
  */
 export async function checkCronToolAvailable(): Promise<{ ok: boolean; error?: string }> {
   // Try HTTP
-  const gateway = await getGatewayConfig();
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (gateway.secret) headers["Authorization"] = `Bearer ${gateway.secret}`;
-
-    const response = await fetch(`${gateway.url}/tools/invoke`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "list" } }),
-    });
+    const response = await gatewayFetch({ tool: "cron", args: { action: "list" } });
 
     if (response.ok) return { ok: true };
 
@@ -268,16 +275,8 @@ export async function listCronJobs(): Promise<{ ok: boolean; jobs?: Array<{ id: 
 
 /** HTTP-only list. Returns null on 404/network error. */
 async function listCronJobsHTTP(): Promise<{ ok: boolean; jobs?: Array<{ id: string; name: string }>; error?: string } | null> {
-  const gateway = await getGatewayConfig();
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (gateway.secret) headers["Authorization"] = `Bearer ${gateway.secret}`;
-
-    const response = await fetch(`${gateway.url}/tools/invoke`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "list" }, sessionKey: "agent:main:main" }),
-    });
+    const response = await gatewayFetch({ tool: "cron", args: { action: "list" }, sessionKey: "agent:main:main" });
 
     if (response.status === 404) return null;
 
@@ -323,16 +322,8 @@ export async function deleteCronJob(jobId: string): Promise<{ ok: boolean; error
 
 /** HTTP-only delete. Returns null on 404/network error. */
 async function deleteCronJobHTTP(jobId: string): Promise<{ ok: boolean; error?: string } | null> {
-  const gateway = await getGatewayConfig();
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (gateway.secret) headers["Authorization"] = `Bearer ${gateway.secret}`;
-
-    const response = await fetch(`${gateway.url}/tools/invoke`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "remove", id: jobId }, sessionKey: "agent:main:main" }),
-    });
+    const response = await gatewayFetch({ tool: "cron", args: { action: "remove", id: jobId }, sessionKey: "agent:main:main" });
 
     if (response.status === 404) return null;
 
