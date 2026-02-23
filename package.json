@@ -10,7 +10,7 @@
     "antfarm": "dist/cli/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp src/server/index.html dist/server/index.html && chmod +x dist/cli/cli.js && node scripts/inject-version.js",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/server && cp src/server/index.html dist/server/index.html && cp src/server/links.html dist/server/links.html && chmod +x dist/cli/cli.js && node scripts/inject-version.js",
     "start": "node dist/cli/cli.js"
   },
   "dependencies": {

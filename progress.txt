@@ -85,3 +85,9 @@ Started: 2026-02-11 05:47 ET
 - Files changed: README.md, docs/client-library.md, tests/client-library-readme.test.ts, progress-7609105d-8d35-4b3d-b1d5-accb57a5363b.txt
 - **Learnings:** This repo keeps docs under `docs/` and answers via small Markdown stubs; tests continue to run with `node --test`.
 ---
+## 2026-02-23 15:52 - US-002: Dashboard de Enlaces
+- Added a JSON-backed link store plus `/api/links` endpoints so the dashboard can persist incoming links and serve categories/filter results.
+- Built the new `/links` experience with responsive cards, search, category pills, and a details panel plus an integration sidebar and README/docs guidance.
+- Added docs/links-dashboard.md for Tailscale integration, a storage-focused test suite, and README guidance pointing to the new view.
+- **Learnings:** The dashboard assets sit under `src/server` and are copied to `dist/server` at build time, while tests are run with `node --test tests/*.ts`.
+---

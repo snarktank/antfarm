@@ -156,6 +156,10 @@ antfarm dashboard stop         # Stop
 antfarm dashboard status       # Check status
 ```
 
+### Dashboard de Enlaces
+
+Además del tablero de pipelines, el dashboard expone `/links`, una vista responsive para agrupar enlaces por categoría, buscar entre ellos, abrirlos y ver los detalles en un panel lateral. Está pensada para ejecutarse dentro de tu red privada (Tailscale) y se integra con tus bots o scripts con un simple POST a `http://localhost:<puerto>/api/links`. La documentación completa de integración y persistencia está en [docs/links-dashboard.md](docs/links-dashboard.md).
+
 ---
 
 ## Commands

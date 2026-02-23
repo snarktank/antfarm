@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Enlaces · Antfarm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0e1116;
+  --surface: #161b24;
+  --surface-alt: #1f2635;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #f5f6fa;
+  --muted: #9ba1b6;
+  --accent: #68e1c8;
+  --accent-strong: #5bc4ff;
+  --accent-soft: rgba(104, 225, 200, 0.15);
+  --danger: #ff6b6b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: radial-gradient(circle at top right, rgba(104,225,200,.25), transparent 45%), var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  min-height: 100vh;
+}
+header {
+  padding: 30px 5vw 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+header h1 {
+  font-size: clamp(24px, 4vw, 32px);
+  margin: 0;
+  font-weight: 600;
+}
+header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+header a {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.15);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  background: rgba(255,255,255,.04);
+}
+main {
+  padding: 0 5vw 60px;
+}
+.toolbar {
+  margin-top: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+form {
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  color: var(--muted);
+  gap: 4px;
+}
+input, textarea, button {
+  font-family: inherit;
+}
+input, textarea {
+  background: var(--surface-alt);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+textarea {
+  resize: vertical;
+  min-height: 72px;
+}
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 18px;
+  display: block;
+}
+button[type="submit"] {
+  margin-top: 4px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #04121d;
+  font-weight: 600;
+  cursor: pointer;
+}
+button[type="submit"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.search-panel {
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.search-panel input {
+  width: 100%;
+}
+.search-panel button {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.2);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.search-panel button:hover {
+  border-color: var(--accent);
+}
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.pill.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.layout {
+  margin-top: 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 20px;
+}
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.category-block {
+  border-radius: 16px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.category-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.card {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: var(--surface-alt);
+  transition: transform .2s ease, border-color .2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+}
+.card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+.card-link {
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+.card-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.small-button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.2);
+  font-size: 11px;
+  background: transparent;
+  color: var(--text);
+}
+.details-panel {
+  position: sticky;
+  top: 20px;
+  align-self: start;
+  border-radius: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 320px;
+}
+.details-panel h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.details-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+.details-content a {
+  color: var(--accent-strong);
+}
+.integration {
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.08);
+  font-size: 12px;
+  color: var(--muted);
+}
+.integration code {
+  display: block;
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.04);
+  font-family: 'Space Mono', monospace;
+}
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 40px 0;
+}
+@media (max-width: 960px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .details-panel {
+    position: relative;
+    top: 0;
+  }
+}
+@media (max-width: 640px) {
+  form {
+    padding: 16px;
+  }
+  .category-block {
+    padding: 14px;
+  }
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Dashboard de Enlaces</h1>
+    <p>Organiza los enlaces que compartes al bot. Corre en la red privada (Tailscale) y se guarda todo localmente.</p>
+  </div>
+  <a href="/" title="Ver el tablero principal">Ver tablero de runs</a>
+</header>
+<main>
+  <section class="toolbar">
+    <form id="link-form">
+      <label>
+        URL
+        <input id="link-url" type="url" required placeholder="https://docs.openclaw.ai" autocomplete="url">
+      </label>
+      <label>
+        Título
+        <input id="link-title" type="text" placeholder="Nombre del recurso">
+      </label>
+      <label>
+        Categoría
+        <input id="link-category" type="text" placeholder="Soporte, Referencia, Personal">
+      </label>
+      <label>
+        Notas
+        <textarea id="link-notes" placeholder="Descripción breve o contexto"></textarea>
+      </label>
+      <button type="submit">Guardar enlace</button>
+      <span id="form-status" class="muted"></span>
+    </form>
+    <div class="search-panel">
+      <input id="search-input" type="search" placeholder="Buscar por título, URL o categoría">
+      <button type="button" id="reset-button">Limpiar filtros</button>
+      <div class="pills" id="category-pills"></div>
+    </div>
+  </section>
+  <section class="layout">
+    <div class="board" id="links-board">
+      <div class="empty">Cargando enlaces...</div>
+    </div>
+    <aside class="details-panel" id="details-panel">
+      <div class="details-content" id="details-content">
+        <h3>Selecciona un enlace</h3>
+        <p class="muted">El panel lateral muestra detalles y permite abrir el enlace directamente.</p>
+      </div>
+      <div class="integration">
+        <strong>Integración con el bot</strong>
+        <p>Envía un POST desde OpenClaw o cualquier servicio dentro de la red privada (Tailscale) al puerto que estés usando.</p>
+        <code>
+POST http://localhost:5000/api/links
+Content-Type: application/json
+
+{
+  "url": "https://example.com",
+  "title": "Nombre",
+  "category": "Tarea",
+  "notes": "Notas opcionales"
+}
+        </code>
+        <p>Los datos se guardan en <code>~/.openclaw/antfarm/links.json</code> y solo se expone en la red privada.</p>
+      </div>
+    </aside>
+  </section>
+</main>
+<script>
+const API_BASE = "";
+const board = document.getElementById("links-board");
+const detailsContent = document.getElementById("details-content");
+const pillsContainer = document.getElementById("category-pills");
+const searchInput = document.getElementById("search-input");
+const statusSpan = document.getElementById("form-status");
+const form = document.getElementById("link-form");
+const submitButton = form.querySelector("button[type=submit]");
+
+let activeCategory = "";
+let activeSearch = "";
+let linksCache = [];
+
+function formatTime(value) {
+  try {
+    return new Date(value).toLocaleString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+function createCard(link) {
+  const card = document.createElement("article");
+  card.className = "card";
+  card.dataset.linkId = link.id;
+
+  const title = document.createElement("div");
+  title.className = "card-title";
+  title.textContent = link.title;
+
+  const urlLine = document.createElement("div");
+  urlLine.className = "card-link";
+  urlLine.textContent = link.url;
+
+  const meta = document.createElement("div");
+  meta.className = "card-meta";
+
+  const timestamp = document.createElement("span");
+  timestamp.textContent = formatTime(link.createdAt);
+
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.className = "small-button";
+  openButton.textContent = "Abrir";
+  openButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    window.open(link.url, "_blank");
+  });
+
+  meta.append(timestamp, openButton);
+  card.append(title, urlLine, meta);
+  card.addEventListener("click", () => setDetails(link));
+  return card;
+}
+
+function renderLinks(data) {
+  linksCache = data.links;
+  if (!linksCache.length) {
+    board.innerHTML = '<div class="empty">No hay enlaces guardados. Usa el formulario para agregar el primero.</div>';
+    renderCategories([]);
+    detailsContent.innerHTML = `
+      <h3>Selecciona un enlace</h3>
+      <p class="muted">El panel lateral muestra detalles y permite abrir el enlace directamente.</p>
+    `;
+    return;
+  }
+  board.innerHTML = "";
+  const categories = Array.isArray(data.categories) ? data.categories : [];
+  const availableCategories = [];
+  for (const group of categories) {
+    const items = linksCache.filter((link) => link.category === group.name);
+    if (!items.length) continue;
+    availableCategories.push(group);
+    const chunk = document.createElement("section");
+    chunk.className = "category-block";
+
+    const header = document.createElement("div");
+    header.className = "category-title";
+    const name = document.createElement("span");
+    name.textContent = group.name;
+    const count = document.createElement("span");
+    count.textContent = `${items.length} enlace(s)`;
+    header.append(name, count);
+
+    const cards = document.createElement("div");
+    cards.className = "cards";
+    cards.dataset.category = group.name;
+    for (const link of items) {
+      cards.appendChild(createCard(link));
+    }
+
+    chunk.append(header, cards);
+    board.appendChild(chunk);
+  }
+  renderCategories(availableCategories);
+}
+
+function renderCategories(categories) {
+  const total = linksCache.length;
+  const pillData = [{ name: "Todos", count: total, value: "" }, ...categories.map((item) => ({ name: item.name, count: item.count, value: item.name }))];
+  pillsContainer.innerHTML = "";
+  pillData.forEach((pill) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `pill${activeCategory === pill.value ? " active" : ""}`;
+    button.dataset.value = pill.value;
+    button.textContent = `${pill.name} (${pill.count})`;
+    button.addEventListener("click", () => {
+      activeCategory = button.dataset.value || "";
+      loadLinks();
+    });
+    pillsContainer.appendChild(button);
+  });
+}
+
+function setDetails(link) {
+  detailsContent.innerHTML = "";
+  const title = document.createElement("h3");
+  title.textContent = link.title;
+
+  const categoryLine = document.createElement("div");
+  const categoryLabel = document.createElement("strong");
+  categoryLabel.textContent = "Categoría:";
+  categoryLine.append(categoryLabel, document.createTextNode(` ${link.category}`));
+
+  const urlLine = document.createElement("div");
+  const urlLabel = document.createElement("strong");
+  urlLabel.textContent = "URL:";
+  const anchor = document.createElement("a");
+  anchor.href = link.url;
+  anchor.target = "_blank";
+  anchor.rel = "noreferrer";
+  anchor.textContent = link.url;
+  urlLine.append(urlLabel, document.createTextNode(" "), anchor);
+
+  detailsContent.append(title, categoryLine, urlLine);
+
+  if (link.notes) {
+    const notesLine = document.createElement("div");
+    const notesLabel = document.createElement("strong");
+    notesLabel.textContent = "Notas:";
+    const notesText = document.createElement("span");
+    notesText.textContent = link.notes;
+    notesLine.append(notesLabel, document.createTextNode(" "), notesText);
+    detailsContent.appendChild(notesLine);
+  }
+
+  const footer = document.createElement("div");
+  footer.className = "card-meta";
+  const openButton = document.createElement("button");
+  openButton.type = "button";
+  openButton.className = "small-button";
+  openButton.textContent = "Abrir enlace";
+  openButton.addEventListener("click", () => {
+    window.open(link.url, "_blank");
+  });
+  footer.appendChild(openButton);
+  detailsContent.appendChild(footer);
+}
+
+function setStatus(message, type = "") {
+  statusSpan.textContent = message;
+  statusSpan.style.color = type === "error" ? varColor("--danger") : "";
+}
+
+function varColor(name) {
+  return (getComputedStyle(document.documentElement).getPropertyValue(name) || "").trim();
+}
+
+async function loadLinks() {
+  const params = new URLSearchParams();
+  if (activeSearch) params.set("q", activeSearch);
+  if (activeCategory) params.set("category", activeCategory);
+  const query = params.toString();
+  const requestUrl = query ? `/api/links?${query}` : "/api/links";
+
+  try {
+    const response = await fetch(`${API_BASE}${requestUrl}`);
+    if (!response.ok) {
+      board.innerHTML = `<div class="empty">Error cargando enlaces (${response.status})</div>`;
+      return;
+    }
+    const data = await response.json();
+    renderLinks(data);
+  } catch (error) {
+    board.innerHTML = `<div class="empty">No se pudo conectar (${error?.message ?? "desconocido"})</div>`;
+  }
+}
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const url = document.getElementById("link-url").value.trim();
+  const title = document.getElementById("link-title").value.trim();
+  const category = document.getElementById("link-category").value.trim();
+  const notes = document.getElementById("link-notes").value.trim();
+  const button = event.submitter || submitButton;
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/api/links`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, title, category, notes }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || "No se pudo guardar");
+    }
+    form.reset();
+    activeSearch = "";
+    activeCategory = "";
+    searchInput.value = "";
+    setStatus("Enlace guardado");
+    await loadLinks();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "Error inesperado", "error");
+  } finally {
+    if (button) button.disabled = false;
+  }
+});
+
+searchInput.addEventListener("input", (event) => {
+  activeSearch = event.target.value.trim();
+  loadLinks();
+});
+
+document.getElementById("reset-button").addEventListener("click", () => {
+  activeCategory = "";
+  activeSearch = "";
+  searchInput.value = "";
+  loadLinks();
+});
+
+loadLinks();
+</script>
+</body>
+</html>

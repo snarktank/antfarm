@@ -1,6 +1,16 @@
 node_modules/
 dist/
+coverage/
+.nyc_output/
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.secret
+*.log
 .DS_Store
+__pycache__/
 *.db
 *.sqlite
 *.sqlite3
