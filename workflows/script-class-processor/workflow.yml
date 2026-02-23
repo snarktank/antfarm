@@ -1,0 +1,17 @@
+# Script Class Processor Workflow
+# Processes long transcript files (2-3 hours, 2000-3000 lines) by chunking them into manageable pieces.
+id: script-class-processor
+name: Script Class Processor
+version: 1
+description: |
+  Processes long transcript files (2-3 hours, 2000-3000 lines) by chunking them into manageable pieces.
+  Reads transcript files, splits them into semantically coherent chunks, and processes each chunk
+  for content extraction and analysis.
+
+polling:
+  model: default
+  timeoutSeconds: 120
+
+agents: []
+
+steps: []
