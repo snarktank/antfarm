@@ -91,9 +91,54 @@ agents:
         IDENTITY.md: agents/verification-agent/IDENTITY.md
 
 steps:
-  - id: placeholder
+  - id: detect
     agent: file-watcher
     input: |
-      Placeholder step - workflow steps will be defined in subsequent stories.
+      Detect and process transcript file for session: {{task}}
+      
+      Search for .vtt files in transcripts/raw/ directory that match the session identifier.
+      Extract the session_id and file_path from the detected transcript file.
+      Report your findings with STATUS: done when complete.
     expects: |
-      Placeholder output - this will be replaced with actual step definitions.
+      STATUS: done
+    outputs:
+      session_id: "Session identifier extracted from filename"
+      file_path: "Full path to the detected transcript file"
+
+  - id: preprocess
+    agent: transcript-cleaner
+    input: |
+      Clean and preprocess transcript for session: {{session_id}}
+      
+      Source file: {{file_path}}
+      
+      Parse the VTT file to:
+      1. Remove timestamps, headers, and formatting artifacts
+      2. Extract clean text content
+      3. Generate metadata (speaker count, duration, line count)
+      
+      Save cleaned transcript and metadata to the appropriate output directories.
+    expects: |
+      STATUS: done
+    outputs:
+      cleaned_path: "Path to the cleaned transcript file"
+      metadata_path: "Path to the metadata JSON file"
+
+  - id: chunk
+    agent: chunk-analyzer
+    input: |
+      Analyze and chunk transcript for session: {{session_id}}
+      
+      Cleaned transcript: {{cleaned_path}}
+      Metadata: {{metadata_path}}
+      
+      Split the cleaned transcript into semantically coherent chunks of approximately:
+      - 5 minutes of content each
+      - 200-300 lines per chunk
+      
+      Build a cumulative topic index that tracks topics across chunks for sequential processing.
+      Each chunk should have start/end timestamps and a summary of contained topics.
+    expects: |
+      STATUS: done
+    outputs:
+      chunk_analysis_path: "Path to the chunk analysis JSON file"
