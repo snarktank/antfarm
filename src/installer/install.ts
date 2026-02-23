@@ -143,6 +143,17 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     ],
     timeoutSeconds: TIMEOUT_20_MIN,  // security scanning + web lookups
   },
+
+  // refactoring: read + write + exec — quality gate refactors code to match patterns
+  refactoring: {
+    timeoutSeconds: TIMEOUT_30_MIN,  // quality gate refactoring + build
+    profile: "coding",
+    deny: [
+      ...ALWAYS_DENY,
+      "image", "tts",
+      "group:ui",
+    ],
+  },
 };
 
 /**
@@ -165,6 +176,7 @@ function inferRole(agentId: string): AgentRole {
       || id.includes("investigator") || id.includes("triager")) return "analysis";
   if (id.includes("verifier")) return "verification";
   if (id.includes("tester")) return "testing";
+  if (id.includes("quality-gate") || id.includes("quality_gate")) return "refactoring";
   if (id.includes("scanner")) return "scanning";
   if (id === "pr" || id.includes("/pr")) return "pr";
   // developer, fixer, setup → coding

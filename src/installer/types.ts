@@ -14,7 +14,7 @@ export type WorkflowAgentFiles = {
  * - pr:            Read + exec only — just runs `gh pr create` (pr)
  * - scanning:      Read + exec + web search for CVE lookups, NO write (scanner)
  */
-export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning";
+export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning" | "refactoring";
 
 export type WorkflowAgent = {
   id: string;
@@ -55,6 +55,7 @@ export type WorkflowStep = {
   input: string;
   expects: string;
   max_retries?: number;
+  retry_delay_ms?: number;
   on_fail?: WorkflowStepFailure;
 };
 
@@ -72,6 +73,11 @@ export type Story = {
   maxRetries: number;
 };
 
+export type CronConfig = {
+  interval_ms?: number;
+  executor?: "openclaw" | "claude-code";
+};
+
 export type WorkflowSpec = {
   id: string;
   name?: string;
@@ -80,6 +86,7 @@ export type WorkflowSpec = {
   agents: WorkflowAgent[];
   steps: WorkflowStep[];
   context?: Record<string, string>;
+  cron?: CronConfig;
   notifications?: {
     url?: string;
   };

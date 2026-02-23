@@ -24,6 +24,10 @@ agents:
         AGENTS.md: agents/planner/AGENTS.md
         SOUL.md: agents/planner/SOUL.md
         IDENTITY.md: agents/planner/IDENTITY.md
+        cc-dev-database-query.md: ../../skills/content-craft/cc-dev-database-query.md
+        cc-prompt-management.md: ../../skills/content-craft/cc-prompt-management.md
+        cc-sanity-tree-references.md: ../../skills/content-craft/cc-sanity-tree-references.md
+        react-best-practices.md: ../../skills/content-craft/react-best-practices.md
 
   - id: setup
     name: Setup
@@ -35,6 +39,8 @@ agents:
         AGENTS.md: ../../agents/shared/setup/AGENTS.md
         SOUL.md: ../../agents/shared/setup/SOUL.md
         IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
+        cc-dev-start-stop.md: ../../skills/content-craft/cc-dev-start-stop.md
+        cc-dev-install-deps.md: ../../skills/content-craft/cc-dev-install-deps.md
 
   - id: developer
     name: Developer
@@ -59,17 +65,23 @@ agents:
         AGENTS.md: ../../agents/shared/verifier/AGENTS.md
         SOUL.md: ../../agents/shared/verifier/SOUL.md
         IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
+        cc-super-dev-prompt.md: quality-gates/cc-super-dev-prompt.md
+        cc-nextjs-serverside.md: quality-gates/cc-nextjs-serverside.md
+        react-best-practices.md: ../../skills/content-craft/react-best-practices.md
 
   - id: tester
     name: Tester
     role: testing
-    description: Integration and E2E testing after all stories are implemented.
+    description: Integration and E2E testing using headed Chrome browser.
     workspace:
       baseDir: agents/tester
       files:
         AGENTS.md: agents/tester/AGENTS.md
         SOUL.md: agents/tester/SOUL.md
         IDENTITY.md: agents/tester/IDENTITY.md
+        content-craft-browser-tester.md: quality-gates/content-craft-browser-tester.md
+        cc-dev-start-stop.md: ../../skills/content-craft/cc-dev-start-stop.md
+        cc-dev-api-testing.md: ../../skills/content-craft/cc-dev-api-testing.md
 
   - id: reviewer
     name: Reviewer
@@ -83,6 +95,9 @@ agents:
         AGENTS.md: agents/reviewer/AGENTS.md
         SOUL.md: agents/reviewer/SOUL.md
         IDENTITY.md: agents/reviewer/IDENTITY.md
+        cc-super-dev-prompt.md: quality-gates/cc-super-dev-prompt.md
+        cc-nextjs-serverside.md: quality-gates/cc-nextjs-serverside.md
+        react-best-practices.md: ../../skills/content-craft/react-best-practices.md
 
 steps:
   - id: plan
@@ -93,10 +108,17 @@ steps:
       TASK:
       {{task}}
 
+      Available skills (read these for domain knowledge):
+      - cc-dev-database-query.md: How to query the PostgreSQL database (schema, tables)
+      - cc-prompt-management.md: Prompt system architecture (prompts, variables, chains)
+      - cc-sanity-tree-references.md: Sanity CMS hierarchy (businesses, categories, articles)
+      - react-best-practices.md: React/Next.js performance patterns (for sizing stories)
+
       Instructions:
       1. Explore the codebase to understand the stack, conventions, and patterns
-      2. Break the task into small user stories (max 20)
-      3. Order by dependency: schema/DB first, backend, frontend, integration
+      2. Read relevant skills above to understand the domain architecture
+      3. Break the task into small user stories (max 20)
+      4. Order by dependency: schema/DB first, backend, frontend, integration
       4. Each story must fit in one developer session (one context window)
       5. Every acceptance criterion must be mechanically verifiable
       6. Always include "Typecheck passes" as the last criterion in every story
@@ -109,7 +131,8 @@ steps:
       BRANCH: feature-branch-name
       STORIES_JSON: [ ... array of story objects ... ]
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -135,12 +158,13 @@ steps:
 
       Reply with:
       STATUS: done
-      BUILD_CMD: <build command>
-      TEST_CMD: <test command>
+      BUILD_CMD: corepack pnpm --recursive run build
+      TEST_CMD: corepack pnpm --filter web run test && cd apps/api && poetry run pytest
       CI_NOTES: <brief CI notes>
       BASELINE: <baseline status>
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -178,6 +202,13 @@ steps:
       PROGRESS LOG:
       {{progress}}
 
+      Available skills (read these before coding):
+      - cc-super-dev-prompt.md: Development standards and Implementation Chamber
+      - cc-nextjs-serverside.md: Next.js Server Component architecture
+      - cc-frontend-dev.md: UI patterns and Terminal Elegance design system
+      - cc-auth-server.md: Server-side authentication (getServerUser, Supabase)
+      - react-best-practices.md: React performance optimization (40+ rules)
+
       Instructions:
       1. Read progress-{{run_id}}.txt — especially the Codebase Patterns section
       2. Pull latest on the branch
@@ -194,7 +225,8 @@ steps:
       CHANGES: what you implemented
       TESTS: what tests you wrote
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -255,14 +287,15 @@ steps:
     expects: "STATUS: done"
     on_fail:
       retry_step: implement
-      max_retries: 2
+      max_retries: 3
+      retry_delay_ms: 600000
       on_exhausted:
         escalate_to: human
 
   - id: test
     agent: tester
     input: |
-      Integration and E2E testing of the implementation.
+      Integration and E2E browser testing of the implementation.
 
       TASK:
       {{task}}
@@ -276,16 +309,41 @@ steps:
       PROGRESS LOG:
       {{progress}}
 
-      Your job (integration/E2E testing — unit tests were already written per-story):
+      Read content-craft-browser-tester.md for full browser testing instructions.
+
+      Your job:
       1. Run the full test suite ({{test_cmd}}) to confirm everything passes together
       2. Look for integration issues between stories
-      3. If this is a UI feature, use agent-browser to test it end-to-end
-      4. Check cross-cutting concerns: error handling, edge cases across features
-      5. Verify the overall feature works as a cohesive whole
+
+      Browser testing with headed Chrome (REQUIRED for UI changes):
+      3. Ensure services are running: ./stop-all.sh && sleep 5 && ./start-all.sh
+      4. Start headed Chrome with Xvfb:
+         xvfb-run google-chrome-stable --remote-debugging-port=9222 --no-first-run --no-default-browser-check --user-data-dir=/tmp/chrome-test-profile &
+         sleep 3
+      5. Login to http://localhost:3000/login:
+         - Email: contentcraft@email.ghostinspector.com
+         - Password: Contentsurf251!
+      6. Use Chrome DevTools MCP tools to navigate and test the feature:
+         - take_snapshot before interacting (use uids from snapshot)
+         - click, fill, press_key to interact with elements
+         - wait_for after page transitions
+         - take_screenshot to document states
+      7. Check for errors: list_console_messages, list_network_requests
+      8. Run Playwright E2E tests with headed Chrome:
+         xvfb-run corepack pnpm --filter web exec playwright test --headed --project=chromium
+
+      Cross-cutting checks:
+      9. Error handling across features
+      10. Edge cases: empty inputs, special characters
+      11. Verify the overall feature works as a cohesive whole
 
       Reply with:
       STATUS: done
       RESULTS: What you tested and the outcomes
+      TEST_RESULTS:
+      - Test name: PASS/FAIL - details
+      CONSOLE_ERRORS: none (or list)
+      SCREENSHOTS: list of screenshots taken
 
       Or if issues found:
       STATUS: retry
@@ -294,7 +352,8 @@ steps:
     expects: "STATUS: done"
     on_fail:
       retry_step: implement
-      max_retries: 2
+      max_retries: 3
+      retry_delay_ms: 600000
       on_exhausted:
         escalate_to: human
 
@@ -314,10 +373,16 @@ steps:
       PROGRESS LOG:
       {{progress}}
 
+      PR title format: feat: TICKET-ID - brief description of the feature
+      If the TASK field contains a Monday.com ticket ID (e.g. FEAT-001, BUG-025, or similar),
+      extract it and include it in the PR title.
+      Example: feat: FEAT-012 - Add dark mode toggle to dashboard
+
       Create a PR with:
-      - Clear title summarizing the change
+      - Title including the ticket ID as shown above
       - Description explaining what and why
       - Reference to what was tested
+      - Monday.com ticket reference if available
 
       Use: gh pr create
 
@@ -340,8 +405,15 @@ steps:
       PROGRESS LOG:
       {{progress}}
 
+      Available skills (read these for review standards):
+      - cc-super-dev-prompt.md: Code quality standards (size limits, complexity, DRY)
+      - cc-nextjs-serverside.md: Next.js Server Component architecture
+      - react-best-practices.md: React performance optimization patterns
+
       Review for:
-      - Code quality and clarity
+      - Code quality standards (read cc-super-dev-prompt.md): function/file size limits, nesting, DRY
+      - Next.js architecture (read cc-nextjs-serverside.md): Server Components, leaf Client Components
+      - React performance (read react-best-practices.md): no waterfalls, no barrel imports, proper memoization
       - Potential bugs or issues
       - Test coverage
       - Follows project conventions

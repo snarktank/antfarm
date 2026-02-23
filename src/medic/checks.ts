@@ -9,6 +9,7 @@ export type MedicActionType =
   | "reset_step"
   | "fail_run"
   | "teardown_crons"
+  | "register_crons"
   | "none";
 
 export interface MedicFinding {
@@ -188,6 +189,46 @@ export function checkOrphanedCrons(
         severity: "warning",
         message: `${jobCount} cron job(s) for workflow "${wfId}" still running but no active runs exist`,
         action: "teardown_crons",
+        remediated: false,
+      });
+    }
+  }
+
+  return findings;
+}
+
+
+// ── Check: Missing Crons (active runs with no agent crons) ──────────
+
+/**
+ * Find active runs whose workflow has no registered agent crons.
+ * This catches the case where a gateway restart loses cron registrations
+ * while runs are still active (issue #183).
+ */
+export function checkMissingCrons(
+  cronJobs: Array<{ id: string; name: string }>,
+): MedicFinding[] {
+  const db = getDb();
+  const findings: MedicFinding[] = [];
+
+  // Get all workflow_ids that have active runs
+  const activeWorkflows = db.prepare(
+    "SELECT DISTINCT workflow_id FROM runs WHERE status = 'running'"
+  ).all() as Array<{ workflow_id: string }>;
+
+  for (const { workflow_id } of activeWorkflows) {
+    const prefix = `antfarm/${workflow_id}/`;
+    const hasCrons = cronJobs.some(j => j.name.startsWith(prefix));
+    if (!hasCrons) {
+      const runCount = (db.prepare(
+        "SELECT COUNT(*) as cnt FROM runs WHERE workflow_id = ? AND status = 'running'"
+      ).get(workflow_id) as { cnt: number }).cnt;
+
+      findings.push({
+        check: "missing_crons",
+        severity: "critical",
+        message: `Workflow "${workflow_id}" has ${runCount} active run(s) but no agent crons registered — agents cannot poll for work`,
+        action: "register_crons" as MedicActionType,
         remediated: false,
       });
     }

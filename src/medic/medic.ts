@@ -6,11 +6,14 @@
  */
 import { getDb } from "../db.js";
 import { emitEvent, type EventType } from "../installer/events.js";
-import { teardownWorkflowCronsIfIdle } from "../installer/agent-cron.js";
+import { teardownWorkflowCronsIfIdle, ensureWorkflowCrons } from "../installer/agent-cron.js";
 import { listCronJobs } from "../installer/gateway-api.js";
+import { loadWorkflowSpec } from "../installer/workflow-spec.js";
+import { resolveWorkflowDir } from "../installer/paths.js";
 import {
   runSyncChecks,
   checkOrphanedCrons,
+  checkMissingCrons,
   type MedicFinding,
 } from "./checks.js";
 import crypto from "node:crypto";
@@ -52,11 +55,11 @@ async function remediate(finding: MedicFinding): Promise<boolean> {
       // Don't auto-reset if already abandoned too many times — let cleanupAbandonedSteps handle final failure
       if (newCount >= 5) {
         db.prepare(
-          "UPDATE steps SET status = 'failed', output = 'Medic: abandoned too many times', abandoned_count = ?, updated_at = datetime('now') WHERE id = ?"
+          "UPDATE steps SET status = 'failed', output = 'Medic: abandoned too many times', abandoned_count = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?"
         ).run(newCount, finding.stepId);
         if (finding.runId) {
           db.prepare(
-            "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+            "UPDATE runs SET status = 'failed', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?"
           ).run(finding.runId);
           emitEvent({
             ts: new Date().toISOString(),
@@ -69,7 +72,7 @@ async function remediate(finding: MedicFinding): Promise<boolean> {
       }
 
       db.prepare(
-        "UPDATE steps SET status = 'pending', abandoned_count = ?, updated_at = datetime('now') WHERE id = ?"
+        "UPDATE steps SET status = 'pending', abandoned_count = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?"
       ).run(newCount, finding.stepId);
       if (finding.runId) {
         emitEvent({
@@ -89,11 +92,11 @@ async function remediate(finding: MedicFinding): Promise<boolean> {
       if (!run || run.status !== "running") return false;
 
       db.prepare(
-        "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+        "UPDATE runs SET status = 'failed', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?"
       ).run(finding.runId);
       // Also fail any non-terminal steps
       db.prepare(
-        "UPDATE steps SET status = 'failed', output = 'Medic: run marked as dead', updated_at = datetime('now') WHERE run_id = ? AND status IN ('waiting', 'pending', 'running')"
+        "UPDATE steps SET status = 'failed', output = 'Medic: run marked as dead', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE run_id = ? AND status IN ('waiting', 'pending', 'running')"
       ).run(finding.runId);
       emitEvent({
         ts: new Date().toISOString(),
@@ -113,6 +116,23 @@ async function remediate(finding: MedicFinding): Promise<boolean> {
       if (!match) return false;
       try {
         await teardownWorkflowCronsIfIdle(match[1]);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+
+    case "register_crons": {
+      // Extract workflow ID from the message
+      const wfMatch = finding.message.match(/Workflow "([^"]+)"/);
+      if (!wfMatch) return false;
+      const wfId = wfMatch[1];
+      try {
+        const wfDir = resolveWorkflowDir(wfId);
+        const workflow = await loadWorkflowSpec(wfDir);
+        
+        await ensureWorkflowCrons(workflow);
         return true;
       } catch {
         return false;
@@ -151,6 +171,7 @@ export async function runMedicCheck(): Promise<MedicCheckResult> {
     if (cronResult.ok && cronResult.jobs) {
       const antfarmCrons = cronResult.jobs.filter(j => j.name.startsWith("antfarm/"));
       findings.push(...checkOrphanedCrons(antfarmCrons));
+      findings.push(...checkMissingCrons(antfarmCrons));
     }
   } catch {
     // Can't check crons — skip this check

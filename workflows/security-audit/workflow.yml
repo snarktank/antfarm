@@ -126,7 +126,8 @@ steps:
       VULNERABILITY_COUNT: <number>
       FINDINGS: <detailed list of each vulnerability>
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -165,7 +166,8 @@ steps:
       DEFERRED: <any issues skipped and why>
       STORIES_JSON: [ ... array of story objects ... ]
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -190,7 +192,8 @@ steps:
       TEST_CMD: <test command>
       BASELINE: <baseline status>
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -243,7 +246,8 @@ steps:
       CHANGES: what was fixed
       REGRESSION_TEST: what test was added
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -332,7 +336,8 @@ steps:
     expects: "STATUS: done"
     on_fail:
       retry_step: fix
-      max_retries: 2
+      max_retries: 3
+      retry_delay_ms: 600000
       on_exhausted:
         escalate_to: human
 
@@ -356,7 +361,10 @@ steps:
       PROGRESS LOG:
       {{progress}}
 
-      PR title format: fix(security): audit and remediation YYYY-MM-DD
+      PR title format: fix(security): TICKET-ID - audit and remediation YYYY-MM-DD
+      If the TASK field contains a Monday.com ticket ID (e.g. SEC-001 or similar),
+      extract it and include it in the PR title.
+      Example: fix(security): SEC-003 - audit and remediation 2026-02-17
 
       PR body structure:
       ```

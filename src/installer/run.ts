@@ -32,7 +32,7 @@ export async function runWorkflow(params: {
     insertRun.run(runId, runNumber, workflow.id, params.taskTitle, JSON.stringify(initialContext), notifyUrl, now, now);
 
     const insertStep = db.prepare(
-      "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, retry_delay_ms, type, loop_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     for (let i = 0; i < workflow.steps.length; i++) {
@@ -41,9 +41,10 @@ export async function runWorkflow(params: {
       const agentId = `${workflow.id}_${step.agent}`;
       const status = i === 0 ? "pending" : "waiting";
       const maxRetries = step.max_retries ?? step.on_fail?.max_retries ?? 2;
+      const retryDelayMs = step.retry_delay_ms ?? 0;
       const stepType = step.type ?? "single";
       const loopConfig = step.loop ? JSON.stringify(step.loop) : null;
-      insertStep.run(stepUuid, runId, step.id, agentId, i, step.input, step.expects, status, maxRetries, stepType, loopConfig, now, now);
+      insertStep.run(stepUuid, runId, step.id, agentId, i, step.input, step.expects, status, maxRetries, retryDelayMs, stepType, loopConfig, now, now);
     }
 
     db.exec("COMMIT");

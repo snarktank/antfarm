@@ -7,7 +7,7 @@ import { readOpenClawConfig, writeOpenClawConfig } from "../installer/openclaw-c
 
 const MEDIC_CRON_NAME = "antfarm/medic";
 const MEDIC_EVERY_MS = 5 * 60 * 1000; // 5 minutes
-const MEDIC_MODEL = "default";
+const MEDIC_MODEL: string | undefined = undefined;
 const MEDIC_TIMEOUT_SECONDS = 120;
 
 function buildMedicPrompt(): string {
@@ -34,14 +34,14 @@ async function ensureMedicAgent(): Promise<void> {
   try {
     const { path, config } = await readOpenClawConfig();
     const agents = config.agents?.list ?? [];
-    if (agents.some((a: any) => a.id === "antfarm-medic")) return;
+    if (agents.some((a: any) => a.id === "main")) return;
 
     if (!config.agents) config.agents = {};
     if (!config.agents.list) config.agents.list = [];
     config.agents.list.push({
       id: "antfarm-medic",
       name: "Antfarm Medic",
-      model: MEDIC_MODEL,
+      ...(MEDIC_MODEL ? { model: MEDIC_MODEL } : {}),
     });
     await writeOpenClawConfig(path, config);
   } catch {
@@ -53,7 +53,7 @@ async function removeMedicAgent(): Promise<void> {
   try {
     const { path, config } = await readOpenClawConfig();
     const agents = config.agents?.list ?? [];
-    const idx = agents.findIndex((a: any) => a.id === "antfarm-medic");
+    const idx = agents.findIndex((a: any) => a.id === "main");
     if (idx === -1) return;
     agents.splice(idx, 1);
     await writeOpenClawConfig(path, config);
@@ -76,11 +76,11 @@ export async function installMedicCron(): Promise<{ ok: boolean; error?: string 
     name: MEDIC_CRON_NAME,
     schedule: { kind: "every", everyMs: MEDIC_EVERY_MS },
     sessionTarget: "isolated",
-    agentId: "antfarm-medic",
+    agentId: "main",
     payload: {
       kind: "agentTurn",
       message: buildMedicPrompt(),
-      model: MEDIC_MODEL,
+      ...(MEDIC_MODEL ? { model: MEDIC_MODEL } : {}),
       timeoutSeconds: MEDIC_TIMEOUT_SECONDS,
     },
     delivery: { mode: "none" },

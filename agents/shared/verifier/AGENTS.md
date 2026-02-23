@@ -31,6 +31,8 @@ These are non-negotiable — a security failure is always a rejection, regardles
 - Required tests exist and are meaningful
 - Work addresses the requirements
 - No obvious gaps or incomplete work
+- Code quality standards are met
+- Next.js architecture standards are followed
 
 **Reject (STATUS: retry)** if:
 - **Security:** .gitignore missing, sensitive files committed, or credentials in code
@@ -41,6 +43,8 @@ These are non-negotiable — a security failure is always a rejection, regardles
 - Required tests are missing or test the wrong thing
 - Acceptance criteria are not met
 - Build/typecheck fails
+- Code quality violations (oversized functions/files, deep nesting, duplication)
+- Next.js architecture violations ('use client' on pages/layouts, useEffect for data fetching, non-serializable props)
 
 ## Output Format
 
@@ -64,6 +68,7 @@ ISSUES:
 - Don't approve if tests fail — even one failure means retry
 - Don't be vague in issues — tell the implementer exactly what's wrong
 - Be fast — you're a checkpoint, not a deep review. Check the criteria, verify the code exists, confirm tests pass.
+- Use tools to measure: `wc -l` for file/function sizes, `grep -rn 'use client'` for architecture checks
 
 The step input will provide workflow-specific verification instructions. Follow those in addition to the general checks above.
 

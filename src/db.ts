@@ -101,6 +101,14 @@ function migrate(db: DatabaseSync): void {
       ) WHERE run_number IS NULL
     `);
   }
+
+  // Retry delay support
+  if (!colNames.has("retry_delay_ms")) {
+    db.exec("ALTER TABLE steps ADD COLUMN retry_delay_ms INTEGER DEFAULT 0");
+  }
+  if (!colNames.has("retry_after")) {
+    db.exec("ALTER TABLE steps ADD COLUMN retry_after TEXT");
+  }
 }
 
 export function nextRunNumber(): number {

@@ -1,4 +1,6 @@
 import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAvailable } from "./gateway-api.js";
+import { registerAgents, unregisterAgents, hasRegisteredAgents, startScheduler } from "./agent-scheduler.js";
+import { findClaudeBinary } from "./claude-executor.js";
 import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
@@ -6,7 +8,31 @@ import { getDb } from "../db.js";
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
 
-function buildAgentPrompt(workflowId: string, agentId: string): string {
+// ── Executor mode ─────────────────────────────────────────────────
+
+type ExecutorMode = "openclaw" | "claude-code";
+
+/**
+ * Determine which executor to use for a workflow's cron jobs.
+ * Priority: workflow.cron.executor > ANTFARM_EXECUTOR env > default "openclaw"
+ */
+export function getExecutorMode(workflow: WorkflowSpec): ExecutorMode {
+  const fromWorkflow = workflow.cron?.executor;
+  if (fromWorkflow === "claude-code" || fromWorkflow === "openclaw") {
+    return fromWorkflow;
+  }
+
+  const fromEnv = process.env.ANTFARM_EXECUTOR?.trim();
+  if (fromEnv === "claude-code" || fromEnv === "openclaw") {
+    return fromEnv;
+  }
+
+  return "openclaw";
+}
+
+// ── Prompt builder ────────────────────────────────────────────────
+
+export function buildAgentPrompt(workflowId: string, agentId: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
 
@@ -88,15 +114,13 @@ The workflow cannot advance until you report. Your session ending without report
 }
 
 const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
-const DEFAULT_POLLING_MODEL = "default";
+const DEFAULT_POLLING_MODEL: string | undefined = undefined;
 
-export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
+export function buildPollingPrompt(workflowId: string, agentId: string, _workModel?: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
-  const model = workModel ?? "default";
-  const workPrompt = buildWorkPrompt(workflowId, agentId);
 
-  return `Step 1 — Quick check for pending work (lightweight, no side effects):
+  return `[cron:{{cron_id}} antfarm/${workflowId}/${agentId}] Step 1 — Quick check for pending work (lightweight, no side effects):
 \`\`\`
 node ${cli} step peek "${fullAgentId}"
 \`\`\`
@@ -108,21 +132,63 @@ node ${cli} step claim "${fullAgentId}"
 \`\`\`
 If output is "NO_WORK", reply HEARTBEAT_OK and stop.
 
-If JSON is returned, parse it to extract stepId, runId, and input fields.
-Then call sessions_spawn with these parameters:
-- agentId: "${fullAgentId}"
-- model: "${model}"
-- task: The full work prompt below, followed by "\\n\\nCLAIMED STEP JSON:\\n" and the exact JSON output from step claim.
+Step 3 — If JSON is returned, it contains: {"stepId": "...", "runId": "...", "input": "..."}
+Save the stepId — you'll need it to report completion.
+The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
 
-Full work prompt to include in the spawned task:
----START WORK PROMPT---
-${workPrompt}
----END WORK PROMPT---
+Step 4 — Do the work described in the input. Format your output with KEY: value lines as specified.
 
-Reply with a short summary of what you spawned.`;
-}
+Step 5 — MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
+\`\`\`
+cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
+STATUS: done
+CHANGES: what you did
+TESTS: what tests you ran
+ANTFARM_EOF
+cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
+\`\`\`
+
+If the work FAILED:
+\`\`\`
+node ${cli} step fail "<stepId>" "description of what went wrong"
+\`\`\`
+
+RULES:
+1. NEVER end your session without calling step complete or step fail
+2. Write output to a file first, then pipe via stdin (shell escaping breaks direct args)
+3. Replace <stepId> with the actual stepId from step 3
+4. If you're unsure whether to complete or fail, call step fail with an explanation
+
+The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;}
+
+// ── Setup / teardown ──────────────────────────────────────────────
 
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
+  const mode = getExecutorMode(workflow);
+
+  if (mode === "claude-code") {
+    await setupAgentCronsClaudeCode(workflow);
+  } else {
+    await setupAgentCronsOpenclaw(workflow);
+  }
+}
+
+async function setupAgentCronsClaudeCode(workflow: WorkflowSpec): Promise<void> {
+  const everyMs = workflow.cron?.interval_ms ?? DEFAULT_EVERY_MS;
+
+  const entries = workflow.agents.map((agent, i) => ({
+    workflowId: workflow.id,
+    agentId: agent.id,
+    prompt: buildAgentPrompt(workflow.id, agent.id),
+    intervalMs: everyMs,
+    anchorMs: i * 60_000,
+  }));
+
+  registerAgents(entries);
+  startScheduler();
+}
+
+async function setupAgentCronsOpenclaw(workflow: WorkflowSpec): Promise<void> {
   const agents = workflow.agents;
   // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
   const everyMs = (workflow as any).cron?.interval_ms ?? DEFAULT_EVERY_MS;
@@ -133,7 +199,7 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
 
   for (let i = 0; i < agents.length; i++) {
     const agent = agents[i];
-    const anchorMs = i * 60_000; // stagger by 1 minute each
+    const anchorMs = i * 60_000;
     const cronName = `antfarm/${workflow.id}/${agent.id}`;
     const agentId = `${workflow.id}_${agent.id}`;
 
@@ -148,9 +214,9 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
       schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
       agentId,
-      payload: { kind: "agentTurn", message: prompt, model: pollingModel, timeoutSeconds },
-      delivery: { mode: "none" },
+      payload: { kind: "agentTurn", message: prompt, ...(pollingModel ? { model: pollingModel } : {}), timeoutSeconds },
       enabled: true,
+      delivery: { mode: "none" },
     });
 
     if (!result.ok) {
@@ -160,14 +226,13 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
 }
 
 export async function removeAgentCrons(workflowId: string): Promise<void> {
+  // Always clean up both sides — harmless if one has nothing to remove
+  unregisterAgents(workflowId);
   await deleteAgentCronJobs(`antfarm/${workflowId}/`);
 }
 
 // ── Run-scoped cron lifecycle ───────────────────────────────────────
 
-/**
- * Count active (running) runs for a given workflow.
- */
 function countActiveRuns(workflowId: string): number {
   const db = getDb();
   const row = db.prepare(
@@ -177,13 +242,41 @@ function countActiveRuns(workflowId: string): number {
 }
 
 /**
- * Check if crons already exist for a workflow.
+ * Check if crons already exist for a workflow (OpenClaw or in-memory scheduler).
  */
-async function workflowCronsExist(workflowId: string): Promise<boolean> {
+async function workflowCronsExist(workflow: WorkflowSpec): Promise<boolean> {
+  const mode = getExecutorMode(workflow);
+
+  if (mode === "claude-code") {
+    return hasRegisteredAgents(workflow.id);
+  }
+
   const result = await listCronJobs();
   if (!result.ok || !result.jobs) return false;
-  const prefix = `antfarm/${workflowId}/`;
+  const prefix = `antfarm/${workflow.id}/`;
   return result.jobs.some((j) => j.name.startsWith(prefix));
+}
+
+/**
+ * Preflight check: verify the execution backend is accessible.
+ * For claude-code mode, checks that the `claude` binary is available.
+ * For openclaw mode, checks that the cron tool (HTTP or CLI) is reachable.
+ */
+export async function checkExecutorAvailable(workflow: WorkflowSpec): Promise<{ ok: boolean; error?: string }> {
+  const mode = getExecutorMode(workflow);
+
+  if (mode === "claude-code") {
+    const binary = await findClaudeBinary();
+    if (!binary) {
+      return {
+        ok: false,
+        error: "Claude Code CLI not found. Install it or set ANTFARM_CLAUDE_PATH. Falling back to openclaw mode is possible by unsetting ANTFARM_EXECUTOR.",
+      };
+    }
+    return { ok: true };
+  }
+
+  return checkCronToolAvailable();
 }
 
 /**
@@ -191,10 +284,9 @@ async function workflowCronsExist(workflowId: string): Promise<boolean> {
  * No-ops if crons already exist (another run of the same workflow is active).
  */
 export async function ensureWorkflowCrons(workflow: WorkflowSpec): Promise<void> {
-  if (await workflowCronsExist(workflow.id)) return;
+  if (await workflowCronsExist(workflow)) return;
 
-  // Preflight: verify cron tool is accessible before attempting to create jobs
-  const preflight = await checkCronToolAvailable();
+  const preflight = await checkExecutorAvailable(workflow);
   if (!preflight.ok) {
     throw new Error(preflight.error!);
   }

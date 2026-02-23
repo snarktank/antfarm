@@ -6,6 +6,7 @@ description: |
   Bug fix pipeline. Triager analyzes the report and reproduces the issue.
   Investigator traces root cause. Setup creates the bugfix branch.
   Fixer implements the fix with a regression test. Verifier confirms correctness.
+  Tester runs E2E browser tests with headed Chrome to validate the fix.
   PR agent creates the pull request.
 
 polling:
@@ -23,6 +24,10 @@ agents:
         AGENTS.md: agents/triager/AGENTS.md
         SOUL.md: agents/triager/SOUL.md
         IDENTITY.md: agents/triager/IDENTITY.md
+        cc-backend-logs.md: ../../skills/content-craft/cc-backend-logs.md
+        cc-dev-api-testing.md: ../../skills/content-craft/cc-dev-api-testing.md
+        cc-dev-start-stop.md: ../../skills/content-craft/cc-dev-start-stop.md
+        content-craft-browser-tester.md: ../feature-dev/quality-gates/content-craft-browser-tester.md
 
   - id: investigator
     name: Investigator
@@ -34,6 +39,10 @@ agents:
         AGENTS.md: agents/investigator/AGENTS.md
         SOUL.md: agents/investigator/SOUL.md
         IDENTITY.md: agents/investigator/IDENTITY.md
+        cc-backend-logs.md: ../../skills/content-craft/cc-backend-logs.md
+        cc-dev-database-query.md: ../../skills/content-craft/cc-dev-database-query.md
+        cc-auth-server.md: ../../skills/content-craft/cc-auth-server.md
+        cc-flows-openaispec.md: ../../skills/content-craft/cc-flows-openaispec.md
 
   - id: setup
     name: Setup
@@ -45,6 +54,8 @@ agents:
         AGENTS.md: ../../agents/shared/setup/AGENTS.md
         SOUL.md: ../../agents/shared/setup/SOUL.md
         IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
+        cc-dev-start-stop.md: ../../skills/content-craft/cc-dev-start-stop.md
+        cc-dev-install-deps.md: ../../skills/content-craft/cc-dev-install-deps.md
 
   - id: fixer
     name: Fixer
@@ -56,6 +67,11 @@ agents:
         AGENTS.md: agents/fixer/AGENTS.md
         SOUL.md: agents/fixer/SOUL.md
         IDENTITY.md: agents/fixer/IDENTITY.md
+        cc-super-dev-prompt.md: ../feature-dev/quality-gates/cc-super-dev-prompt.md
+        cc-nextjs-serverside.md: ../feature-dev/quality-gates/cc-nextjs-serverside.md
+        cc-frontend-dev.md: ../../skills/content-craft/cc-frontend-dev.md
+        cc-auth-server.md: ../../skills/content-craft/cc-auth-server.md
+        react-best-practices.md: ../../skills/content-craft/react-best-practices.md
 
   - id: verifier
     name: Verifier
@@ -67,6 +83,23 @@ agents:
         AGENTS.md: ../../agents/shared/verifier/AGENTS.md
         SOUL.md: ../../agents/shared/verifier/SOUL.md
         IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
+        cc-super-dev-prompt.md: ../feature-dev/quality-gates/cc-super-dev-prompt.md
+        cc-nextjs-serverside.md: ../feature-dev/quality-gates/cc-nextjs-serverside.md
+        react-best-practices.md: ../../skills/content-craft/react-best-practices.md
+
+  - id: tester
+    name: Tester
+    role: testing
+    description: E2E browser testing of the bug fix using headed Chrome.
+    workspace:
+      baseDir: agents/tester
+      files:
+        AGENTS.md: ../feature-dev/agents/tester/AGENTS.md
+        SOUL.md: ../feature-dev/agents/tester/SOUL.md
+        IDENTITY.md: ../feature-dev/agents/tester/IDENTITY.md
+        content-craft-browser-tester.md: ../feature-dev/quality-gates/content-craft-browser-tester.md
+        cc-dev-start-stop.md: ../../skills/content-craft/cc-dev-start-stop.md
+        cc-dev-api-testing.md: ../../skills/content-craft/cc-dev-api-testing.md
 
   - id: pr
     name: PR Creator
@@ -88,12 +121,21 @@ steps:
       BUG REPORT:
       {{task}}
 
+      Available skills (read these for domain knowledge):
+      - cc-backend-logs.md: How to check backend API logs for errors
+      - cc-dev-api-testing.md: API testing with localhost bypass token
+      - cc-dev-start-stop.md: Start/stop services (./stop-all.sh, ./start-all.sh)
+      - content-craft-browser-tester.md: Browser testing with headed Chrome
+
       Instructions:
       1. Read the bug report carefully
-      2. Explore the codebase to find the affected area
-      3. Attempt to reproduce: run tests, check for failing cases, read error logs/stack traces
-      4. Classify severity (critical/high/medium/low)
-      5. Document findings
+      2. Read cc-backend-logs.md and check API logs for related errors
+      3. Explore the codebase to find the affected area
+      4. Use cc-dev-api-testing.md to test affected API endpoints
+      5. Attempt to reproduce: run tests, check for failing cases, read error logs/stack traces
+      6. If UI bug, use content-craft-browser-tester.md to reproduce in browser
+      7. Classify severity (critical/high/medium/low)
+      8. Document findings
 
       Reply with:
       STATUS: done
@@ -104,7 +146,8 @@ steps:
       REPRODUCTION: how to reproduce the bug
       PROBLEM_STATEMENT: clear description of what's wrong
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -122,18 +165,29 @@ steps:
       REPRODUCTION: {{reproduction}}
       PROBLEM_STATEMENT: {{problem_statement}}
 
+      Available skills (read these for domain knowledge):
+      - cc-backend-logs.md: How to check backend API logs
+      - cc-dev-database-query.md: How to query the PostgreSQL database
+      - cc-auth-server.md: Server-side authentication patterns (getServerUser, Supabase)
+      - cc-flows-openaispec.md: Product data flow (openaiSpecJson)
+
       Instructions:
       1. Read the code in the affected area
-      2. Trace the bug to its root cause
-      3. Document exactly what's wrong and why
-      4. Propose a fix approach
+      2. Read cc-backend-logs.md and check logs for error traces
+      3. If data-related, read cc-dev-database-query.md and query the database
+      4. If auth-related, read cc-auth-server.md for the auth patterns
+      5. If product data flow, read cc-flows-openaispec.md for the data pipeline
+      6. Trace the bug to its root cause
+      7. Document exactly what's wrong and why
+      8. Propose a fix approach
 
       Reply with:
       STATUS: done
       ROOT_CAUSE: detailed explanation of the root cause
       FIX_APPROACH: what needs to change and where
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -155,11 +209,12 @@ steps:
 
       Reply with:
       STATUS: done
-      BUILD_CMD: <build command>
-      TEST_CMD: <test command>
+      BUILD_CMD: corepack pnpm --recursive run build
+      TEST_CMD: corepack pnpm --filter web run test && cd apps/api && poetry run pytest
       BASELINE: <baseline status>
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -183,20 +238,32 @@ steps:
       VERIFY FEEDBACK (if retrying):
       {{verify_feedback}}
 
+      Available skills (read these before coding):
+      - cc-super-dev-prompt.md: Development standards and Implementation Chamber
+      - cc-nextjs-serverside.md: Next.js Server Component architecture
+      - cc-frontend-dev.md: UI patterns and Terminal Elegance design system
+      - cc-auth-server.md: Server-side authentication patterns
+      - react-best-practices.md: React performance optimization (40+ rules)
+
       Instructions:
-      1. cd into the repo, checkout the branch
-      2. Implement the fix based on the root cause and fix approach
-      3. Write a regression test that would have caught this bug
-      4. Run {{build_cmd}} to verify the build passes
-      5. Run {{test_cmd}} to verify all tests pass
-      6. Commit: fix: brief description of the fix
+      1. Read cc-super-dev-prompt.md — enter the Implementation Chamber
+      2. cd into the repo, checkout the branch
+      3. If UI change, read cc-frontend-dev.md for design system patterns
+      4. If auth-related, read cc-auth-server.md for correct auth patterns
+      5. If React/Next.js, read cc-nextjs-serverside.md and react-best-practices.md
+      6. Implement the fix based on the root cause and fix approach
+      7. Write a regression test that would have caught this bug
+      8. Run {{build_cmd}} to verify the build passes
+      9. Run {{test_cmd}} to verify all tests pass
+      10. Commit: fix: brief description of the fix
 
       Reply with:
       STATUS: done
       CHANGES: what was changed
       REGRESSION_TEST: what test was added
     expects: "STATUS: done"
-    max_retries: 2
+    max_retries: 3
+    retry_delay_ms: 600000
     on_fail:
       escalate_to: human
 
@@ -235,6 +302,24 @@ steps:
       - Check that the fix addresses the ROOT CAUSE, not just a symptom
       - All changes must be to files INSIDE the repo — not external workspace files
 
+      Code Quality Standards (read cc-super-dev-prompt.md for full details):
+      - Functions/methods: max 45 lines (strict)
+      - Code files: max 500 lines (strict)
+      - Component files: max 300 lines
+      - Component functions: max 80 lines
+      - Max nesting depth: 3 levels
+      - No code duplication (DRY enforced)
+      - Single responsibility per function
+      Use wc -l and grep to measure programmatically.
+
+      Next.js Architecture (read cc-nextjs-serverside.md for full details):
+      - Pages and layouts MUST be Server Components (no 'use client')
+      - 'use client' only on leaf components needing interactivity
+      - Data fetching in Server Components, NOT useEffect
+      - Use serverFetch() and getServerUser() — no custom fetch patterns
+      - Props passed to Client Components must be serializable
+      - server-only package protects sensitive server code
+
       Reply with:
       STATUS: done
       VERIFIED: what was confirmed
@@ -250,10 +335,72 @@ steps:
       on_exhausted:
         escalate_to: human
 
+  - id: test
+    agent: tester
+    input: |
+      E2E browser testing of the bug fix.
+
+      BUG REPORT:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+      TEST_CMD: {{test_cmd}}
+      REGRESSION_TEST: {{regression_test}}
+      PROBLEM_STATEMENT: {{problem_statement}}
+      AFFECTED_AREA: {{affected_area}}
+
+      Read content-craft-browser-tester.md for full browser testing instructions.
+
+      Your job:
+      1. Run the full test suite ({{test_cmd}}) to confirm everything passes
+      2. Verify the regression test passes
+
+      Browser testing with headed Chrome (REQUIRED):
+      3. Ensure services are running: ./stop-all.sh && sleep 5 && ./start-all.sh
+      4. Start headed Chrome with Xvfb:
+         xvfb-run google-chrome-stable --remote-debugging-port=9222 --no-first-run --no-default-browser-check --user-data-dir=/tmp/chrome-test-profile &
+         sleep 3
+      5. Login to http://localhost:3000/login:
+         - Email: contentcraft@email.ghostinspector.com
+         - Password: Contentsurf251!
+      6. Navigate to the affected area and verify the bug is fixed:
+         - Use Chrome DevTools MCP tools (take_snapshot, click, fill, wait_for)
+         - Test the specific scenario from the bug report
+         - Verify the fix works from a user perspective
+      7. Check for errors: list_console_messages, list_network_requests
+      8. Take screenshots documenting the fix works
+      9. Run Playwright E2E tests with headed Chrome:
+         xvfb-run corepack pnpm --filter web exec playwright test --headed --project=chromium
+
+      Reply with:
+      STATUS: done
+      RESULTS: What you tested and the outcomes
+      TEST_RESULTS:
+      - Test name: PASS/FAIL - details
+      CONSOLE_ERRORS: none (or list)
+      SCREENSHOTS: list of screenshots taken
+
+      Or if issues found:
+      STATUS: retry
+      FAILURES:
+      - Specific test failures or bugs found
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: fix
+      max_retries: 3
+      retry_delay_ms: 600000
+      on_exhausted:
+        escalate_to: human
+
   - id: pr
     agent: pr
     input: |
       Create a pull request for the bug fix.
+
+      TASK:
+      {{task}}
 
       REPO: {{repo}}
       BRANCH: {{branch}}
@@ -264,7 +411,9 @@ steps:
       REGRESSION_TEST: {{regression_test}}
       VERIFIED: {{verified}}
 
-      PR title format: fix: brief description of what was fixed
+      PR title format: fix: TICKET-ID - brief description of what was fixed
+      The TICKET-ID (e.g. BUG-025) is in the TASK field above. Extract it and include it in the PR title.
+      Example: fix: BUG-025 - Fix missing admin queue health visibility
 
       PR body structure:
       ```
@@ -272,6 +421,7 @@ steps:
       {{problem_statement}}
 
       **Severity:** {{severity}}
+      **Monday.com Ticket:** Extract ticket ID from task description above
 
       ## Root Cause
       {{root_cause}}

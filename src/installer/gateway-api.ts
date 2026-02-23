@@ -118,8 +118,8 @@ export async function createAgentCronJob(job: {
   sessionTarget: string;
   agentId: string;
   payload: { kind: string; message: string; model?: string; timeoutSeconds?: number };
-  delivery?: { mode: "none" | "announce"; channel?: string; to?: string };
   enabled: boolean;
+  delivery?: { mode: string; channel?: string; to?: string; bestEffort?: boolean };
 }): Promise<{ ok: boolean; error?: string; id?: string }> {
   // --- Try HTTP first ---
   const httpResult = await createAgentCronJobHTTP(job);
@@ -152,7 +152,7 @@ export async function createAgentCronJob(job: {
     }
 
     if (job.delivery?.mode === "none") {
-      args.push("--delivery", "none");
+      args.push("--no-deliver");
     }
 
     if (!job.enabled) {
@@ -180,8 +180,8 @@ async function createAgentCronJobHTTP(job: {
   sessionTarget: string;
   agentId: string;
   payload: { kind: string; message: string; model?: string; timeoutSeconds?: number };
-  delivery?: { mode: "none" | "announce"; channel?: string; to?: string };
   enabled: boolean;
+  delivery?: { mode: string; channel?: string; to?: string; bestEffort?: boolean };
 }): Promise<{ ok: boolean; error?: string; id?: string } | null> {
   const gateway = await getGatewayConfig();
   try {
