@@ -1,10 +1,13 @@
 import { describe, it, mock, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { computeHasFrontendChanges } from "../dist/installer/step-ops.js";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { fileURLToPath } from "node:url";
+
+const stepOpsPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "installer", "step-ops.js");
+const { computeHasFrontendChanges } = await import(stepOpsPath);
 
 describe("computeHasFrontendChanges", () => {
   let tmpDir: string;

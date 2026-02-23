@@ -4,9 +4,14 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { getDb } from "../dist/db.js";
-import { claimStep } from "../dist/installer/step-ops.js";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+
+const dbPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "db.js");
+const { getDb } = await import(dbPath);
+
+const stepOpsPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "installer", "step-ops.js");
+const { claimStep } = await import(stepOpsPath);
 
 /**
  * E2E integration test for frontend change detection in the verify flow.

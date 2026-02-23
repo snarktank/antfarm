@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildPollingPrompt } from "../dist/installer/agent-cron.js";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+
+const agentCronPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "installer", "agent-cron.js");
+const { buildPollingPrompt } = await import(agentCronPath);
 
 describe("buildPollingPrompt", () => {
   it("contains the step claim command with correct agent id", () => {

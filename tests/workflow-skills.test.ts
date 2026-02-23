@@ -1,7 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { loadWorkflowSpec } from "../dist/installer/workflow-spec.js";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const workflowSpecPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "installer", "workflow-spec.js");
+const { loadWorkflowSpec } = await import(workflowSpecPath);
 
 describe("workflow-spec skills parsing", () => {
   const featureDevDir = path.resolve("workflows/feature-dev");

@@ -35,3 +35,9 @@ coverage/
 # Progress files
 progress.txt
 progress*.txt
+
+# Backup files
+*.bak
+
+# Backup files
+*.bak

@@ -13,7 +13,11 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseOutputKeyValues } from "../dist/installer/step-ops.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const stepOpsPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "installer", "step-ops.js");
+const { parseOutputKeyValues } = await import(stepOpsPath);
 
 describe("parseOutputKeyValues — multi-line output parsing", () => {
 
