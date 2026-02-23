@@ -187,17 +187,44 @@ steps:
     agent: quiz-generator
     input: |
       Generate practice quiz for session: {{session_id}}
-      
+
       Notes: {{notes_path}}
-      
+
       Create comprehensive practice questions based on the notes:
       1. Quick Check (5 questions): Basic recall of key facts
       2. Concept Check (5 questions): Understanding of concepts and relationships
       3. Scenario Practice (3 questions): Real-world application scenarios
       4. Flashcards: Key terms and definitions for quick review
-      
+
       Include answer keys with explanations for all questions.
     expects: |
       STATUS: done
     outputs:
       quiz_path: "Path to the quiz markdown file"
+
+  - id: verify
+    agent: verification-agent
+    input: |
+      Verify all workflow outputs for session: {{session_id}}
+
+      Artifacts to validate:
+      - Chunk analysis: {{chunk_analysis_path}}
+      - Jump guide: {{jump_guide_path}}
+      - Notes: {{notes_path}}
+      - Quiz: {{quiz_path}}
+
+      Perform comprehensive validation:
+      1. Verify all output files exist and are non-empty
+      2. Check format compliance for each artifact type
+      3. Validate timestamp formats (HH:MM:SS) in jump guide
+      4. Verify quiz completeness (Quick Check, Concept Check, Scenario Practice, Flashcards)
+      5. Confirm notes structure and cross-references
+      6. Generate completion_report.json with detailed validation results
+
+      Report any issues found and provide a summary of validation status.
+    expects: |
+      STATUS: done
+    outputs:
+      completion_report_path: "Path to the completion report JSON file"
+    on_fail:
+      escalate_to: human
