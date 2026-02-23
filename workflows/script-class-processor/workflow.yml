@@ -142,3 +142,62 @@ steps:
       STATUS: done
     outputs:
       chunk_analysis_path: "Path to the chunk analysis JSON file"
+
+  - id: jump-guide
+    agent: jump-guide-generator
+    input: |
+      Generate jump guide for session: {{session_id}}
+      
+      Chunk analysis: {{chunk_analysis_path}}
+      
+      Create a timestamp-based navigation table in HH:MM:SS format that allows users to quickly jump to:
+      1. Topic transitions and key concepts
+      2. Code demonstrations and examples
+      3. Exam tips and important notes
+      4. Q&A sections and clarifications
+      
+      Each entry should include timestamp, topic/section name, and brief description.
+    expects: |
+      STATUS: done
+    outputs:
+      jump_guide_path: "Path to the jump guide markdown file"
+
+  - id: notes
+    agent: notes-generator
+    input: |
+      Generate structured notes for session: {{session_id}}
+      
+      Cleaned transcript: {{cleaned_path}}
+      Jump guide: {{jump_guide_path}}
+      
+      Process the cleaned transcript sections using the jump guide as structure to produce:
+      1. Session summary and learning objectives
+      2. Key concepts with clear explanations
+      3. Code examples with syntax highlighting
+      4. Important takeaways and exam tips
+      5. Cross-references to related sessions
+      
+      Notes should be well-organized with clear headings and easy to scan.
+    expects: |
+      STATUS: done
+    outputs:
+      notes_path: "Path to the notes markdown file"
+
+  - id: quiz
+    agent: quiz-generator
+    input: |
+      Generate practice quiz for session: {{session_id}}
+      
+      Notes: {{notes_path}}
+      
+      Create comprehensive practice questions based on the notes:
+      1. Quick Check (5 questions): Basic recall of key facts
+      2. Concept Check (5 questions): Understanding of concepts and relationships
+      3. Scenario Practice (3 questions): Real-world application scenarios
+      4. Flashcards: Key terms and definitions for quick review
+      
+      Include answer keys with explanations for all questions.
+    expects: |
+      STATUS: done
+    outputs:
+      quiz_path: "Path to the quiz markdown file"
