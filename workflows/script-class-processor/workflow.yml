@@ -12,6 +12,88 @@ polling:
   model: default
   timeoutSeconds: 120
 
-agents: []
+agents:
+  - id: file-watcher
+    name: File Watcher
+    role: coding
+    description: Detect new .vtt transcript files in transcripts/raw/ and extract session information to trigger the processing pipeline.
+    workspace:
+      baseDir: agents/file-watcher
+      files:
+        AGENTS.md: agents/file-watcher/AGENTS.md
+        SOUL.md: agents/file-watcher/SOUL.md
+        IDENTITY.md: agents/file-watcher/IDENTITY.md
 
-steps: []
+  - id: transcript-cleaner
+    name: Transcript Cleaner
+    role: coding
+    description: Parse VTT files to remove timestamps, headers, and formatting artifacts; extract clean text and metadata for downstream chunking and analysis.
+    workspace:
+      baseDir: agents/transcript-cleaner
+      files:
+        AGENTS.md: agents/transcript-cleaner/AGENTS.md
+        SOUL.md: agents/transcript-cleaner/SOUL.md
+        IDENTITY.md: agents/transcript-cleaner/IDENTITY.md
+
+  - id: chunk-analyzer
+    name: Chunk Analyzer
+    role: analysis
+    description: Split long transcripts into manageable time-based chunks (~5 minutes each, 200-300 lines) and build cumulative topic index for sequential AI processing.
+    workspace:
+      baseDir: agents/chunk-analyzer
+      files:
+        AGENTS.md: agents/chunk-analyzer/AGENTS.md
+        SOUL.md: agents/chunk-analyzer/SOUL.md
+        IDENTITY.md: agents/chunk-analyzer/IDENTITY.md
+
+  - id: jump-guide-generator
+    name: Jump Guide Generator
+    role: coding
+    description: Create timestamp-based navigation tables in HH:MM:SS format that allow users to quickly jump to specific topics, demos, and exam tips in video content.
+    workspace:
+      baseDir: agents/jump-guide-generator
+      files:
+        AGENTS.md: agents/jump-guide-generator/AGENTS.md
+        SOUL.md: agents/jump-guide-generator/SOUL.md
+        IDENTITY.md: agents/jump-guide-generator/IDENTITY.md
+
+  - id: notes-generator
+    name: Notes Generator
+    role: coding
+    description: Process cleaned transcript sections using the jump guide as structure and produce structured learning notes with all standard sections including summary, key concepts, code examples, and cross-references to other sessions.
+    workspace:
+      baseDir: agents/notes-generator
+      files:
+        AGENTS.md: agents/notes-generator/AGENTS.md
+        SOUL.md: agents/notes-generator/SOUL.md
+        IDENTITY.md: agents/notes-generator/IDENTITY.md
+
+  - id: quiz-generator
+    name: Quiz Generator
+    role: coding
+    description: Read notes.md and generate practice questions including Quick Check (5 recall), Concept Check (5 understanding), Scenario Practice (3 real-world), and Flashcards to help learners test their understanding.
+    workspace:
+      baseDir: agents/quiz-generator
+      files:
+        AGENTS.md: agents/quiz-generator/AGENTS.md
+        SOUL.md: agents/quiz-generator/SOUL.md
+        IDENTITY.md: agents/quiz-generator/IDENTITY.md
+
+  - id: verification-agent
+    name: Verification Agent
+    role: verification
+    description: Validate all workflow outputs by checking file existence, format compliance, timestamp validity (HH:MM:SS), and quiz completeness. Output completion_report.json with detailed validation results.
+    workspace:
+      baseDir: agents/verification-agent
+      files:
+        AGENTS.md: agents/verification-agent/AGENTS.md
+        SOUL.md: agents/verification-agent/SOUL.md
+        IDENTITY.md: agents/verification-agent/IDENTITY.md
+
+steps:
+  - id: placeholder
+    agent: file-watcher
+    input: |
+      Placeholder step - workflow steps will be defined in subsequent stories.
+    expects: |
+      Placeholder output - this will be replaced with actual step definitions.

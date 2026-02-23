@@ -1,0 +1,634 @@
+# News-to-Post Pipeline — Instagram Carousel Content Generation
+# Native Antfarm-style: strict step IO, correct roles, and verification loops.
+id: news-to-post
+name: News-to-Post Pipeline
+version: 8
+description: |
+  Transforms news stories into complete Instagram carousel posts with Reels/TikTok adaptations.
+
+  Usage:
+    antfarm workflow run news-to-post "auto"                    # Auto-discover trending story
+    antfarm workflow run news-to-post "AI coding agents"        # Search topic
+    antfarm workflow run news-to-post "https://article-url.com" # Use specific article
+
+  Output: Each run writes into a dated OUTPUT_FOLDER under:
+    /home/ai/share/projects/instagramPost/workspace/10_thenews/10_workon/
+
+polling:
+  model: kimi-coding/kimi-k2-thinking
+  timeoutSeconds: 120
+
+agents:
+  - id: news2post-preflight
+    name: Preflight
+    role: coding
+    description: Verify image generation service is healthy before pipeline starts.
+    workspace:
+      baseDir: agents/news2post-infra
+      files:
+        AGENTS.md: agents/news2post-infra/AGENTS.md
+        SOUL.md: agents/news2post-infra/SOUL.md
+        IDENTITY.md: agents/news2post-infra/IDENTITY.md
+
+  - id: news2post-scout
+    name: Scout
+    role: coding
+    timeoutSeconds: 900
+    description: Find and score trending AI/tech news stories; create OUTPUT_FOLDER and seed run files.
+    workspace:
+      baseDir: agents/news2post-scout
+      skills:
+        - agent-browser
+      files:
+        AGENTS.md: agents/news2post-scout/AGENTS.md
+        SOUL.md: agents/news2post-scout/SOUL.md
+        IDENTITY.md: agents/news2post-scout/IDENTITY.md
+
+  - id: news2post-researcher
+    name: Researcher
+    role: coding
+    timeoutSeconds: 1200
+    description: Deep-dive research — extract facts with citations and narrative hook.
+    workspace:
+      baseDir: agents/news2post-researcher
+      skills:
+        - agent-browser
+      files:
+        AGENTS.md: agents/news2post-researcher/AGENTS.md
+        SOUL.md: agents/news2post-researcher/SOUL.md
+        IDENTITY.md: agents/news2post-researcher/IDENTITY.md
+
+  - id: news2post-writer
+    name: Writer
+    role: coding
+    timeoutSeconds: 1200
+    description: Write carousel copy — 6 slides, caption, hashtags matching brand voice.
+    workspace:
+      baseDir: agents/news2post-writer
+      files:
+        AGENTS.md: agents/news2post-writer/AGENTS.md
+        SOUL.md: agents/news2post-writer/SOUL.md
+        IDENTITY.md: agents/news2post-writer/IDENTITY.md
+
+  - id: news2post-designer
+    name: Designer
+    role: coding
+    timeoutSeconds: 1200
+    description: Design visual prompts — consistent style, color palette, text placement.
+    workspace:
+      baseDir: agents/news2post-designer
+      skills:
+        - agent-browser
+      files:
+        AGENTS.md: agents/news2post-designer/AGENTS.md
+        SOUL.md: agents/news2post-designer/SOUL.md
+        IDENTITY.md: agents/news2post-designer/IDENTITY.md
+
+  - id: news2post-executor
+    name: Executor
+    role: coding
+    timeoutSeconds: 3600
+    description: Generate carousel images using Qwen Image service.
+    workspace:
+      baseDir: agents/news2post-executor
+      files:
+        AGENTS.md: agents/news2post-executor/AGENTS.md
+        SOUL.md: agents/news2post-executor/SOUL.md
+        IDENTITY.md: agents/news2post-executor/IDENTITY.md
+
+  - id: news2post-director
+    name: Director
+    role: coding
+    timeoutSeconds: 1200
+    description: Plan Reels/TikTok video direction from carousel content.
+    workspace:
+      baseDir: agents/news2post-director
+      files:
+        AGENTS.md: agents/news2post-director/AGENTS.md
+        SOUL.md: agents/news2post-director/SOUL.md
+        IDENTITY.md: agents/news2post-director/IDENTITY.md
+
+  - id: news2post-reviewer
+    name: Verifier
+    role: verification
+    timeoutSeconds: 900
+    description: Verification gate — read + exec only; never writes files. Emits retry feedback.
+    workspace:
+      baseDir: agents/news2post-reviewer
+      skills:
+        - agent-browser
+      files:
+        AGENTS.md: agents/news2post-reviewer/AGENTS.md
+        SOUL.md: agents/news2post-reviewer/SOUL.md
+        IDENTITY.md: agents/news2post-reviewer/IDENTITY.md
+
+steps:
+  - id: preflight
+    agent: news2post-preflight
+    input: |
+      Task: Pre-flight check for news-to-post workflow.
+
+      Note: Image generation now uses nano-banana-pro API (no local service required).
+      This step is kept for workflow compatibility and future extensibility.
+
+      Do:
+      1) Verify nano-banana-pro skill is available in the environment
+      2) Confirm workspace is ready
+
+      Reply with:
+      STATUS: done
+      SERVICE: healthy
+      ACTION: none
+      NOTE: Using nano-banana-pro API for image generation
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
+
+  - id: scout
+    agent: news2post-scout
+    input: |
+      Task: Find and select the best news story for an Instagram carousel.
+
+      User input: "{{task}}"
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      Modes:
+      - "auto" or empty -> Auto-scan (find 3-5 trending stories, score, select best)
+      - URL provided -> Validate and use that URL (ensure it's recent + accessible)
+      - Keywords -> Topic search
+
+      Scoring (1-10 each):
+      1) Hook strength
+      2) Visual potential (6 slides)
+      3) Audience relevance (25-45 AI/tech)
+      4) Freshness (last 24-48h)
+      5) Substance
+
+      Requirements:
+      - Use real sources (links) and include publication date for each candidate
+      - Do NOT invent facts or claim you wrote files unless you did (verify with ls)
+
+      Create OUTPUT_FOLDER (after you choose the final story title):
+      1) Set STORY_TITLE to a short title (<=80 chars)
+      2) Run:
+         STORY_SLUG=$(echo "$STORY_TITLE" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+|_+$//g' | cut -c1-60)
+         OUTPUT_FOLDER="/home/ai/share/projects/instagramPost/workspace/10_thenews/10_workon/$(date +%F)_${STORY_SLUG}"
+         mkdir -p "$OUTPUT_FOLDER"
+         touch "$OUTPUT_FOLDER/progress-{{run_id}}.txt"
+
+      Write:
+      - $OUTPUT_FOLDER/news_candidates.md
+      - $OUTPUT_FOLDER/progress-{{run_id}}.txt (seed with Scout section)
+
+      Before replying, run:
+      ls -lah "$OUTPUT_FOLDER"
+
+      Reply with:
+      STATUS: done
+      MODE: [auto-scan | user-provided | topic]
+      OUTPUT_FOLDER: [full path]
+      CANDIDATES_FOUND: [N]
+      SELECTED_STORY: [one-line summary]
+      SOURCE_URL: [URL]
+      PUBLISHED_DATE: [YYYY-MM-DD]
+      HOOK_SCORE: [1-10]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify_scout
+    agent: news2post-reviewer
+    fresh_session: true
+    input: |
+      Verify Scout outputs (read + exec only).
+
+      OUTPUT_FOLDER: {{output_folder}}
+      SOURCE_URL: {{source_url}}
+
+      Check (must be true):
+      - OUTPUT_FOLDER exists
+      - news_candidates.md exists in OUTPUT_FOLDER and is non-empty
+      - progress-{{run_id}}.txt exists in OUTPUT_FOLDER
+      - The selected story in news_candidates.md matches SELECTED_STORY and has a real URL + published date
+
+      Run:
+      ls -lah "{{output_folder}}"
+      sed -n '1,120p' "{{output_folder}}/news_candidates.md"
+
+      Reply with:
+      STATUS: done
+      VERIFIED: [what you confirmed]
+
+      Or if missing/broken:
+      STATUS: retry
+      ISSUES:
+      - [specific issue + exact fix]
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: scout
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: research
+    agent: news2post-researcher
+    input: |
+      Task: Deep-dive into the selected story and extract verifiable facts.
+
+      Story: {{selected_story}}
+      Source URL: {{source_url}}
+      Mode: {{mode}}
+      Output Folder: {{output_folder}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      Do:
+      1) Read {{output_folder}}/news_candidates.md
+      2) Scrape the source URL and at least 1 additional reputable source for context
+      3) Extract key facts WITH citations (inline links) and note any uncertainty
+      4) Produce a narrative hook and implications for your audience
+
+      Write: {{output_folder}}/source.txt
+
+      Append to progress file: {{output_folder}}/progress-{{run_id}}.txt
+
+      Before replying, run:
+      ls -lah "{{output_folder}}"
+      wc -l "{{output_folder}}/source.txt"
+
+      Reply with:
+      STATUS: done
+      OUTPUT_FOLDER: [full path]
+      TOPIC: [one-line summary]
+      HOOK: [narrative hook]
+      FACTS_COUNT: [N]
+      TONE: [serious | shocking | informative | fun]
+      RESEARCH_DEPTH: [shallow | moderate | deep]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify_research
+    agent: news2post-reviewer
+    fresh_session: true
+    input: |
+      Verify Researcher outputs (read + exec only).
+
+      OUTPUT_FOLDER: {{output_folder}}
+
+      Check:
+      - source.txt exists and is non-empty
+      - Contains at least 5 facts with citations (links)
+      - No obvious hallucinated claims (facts should be traceable)
+
+      Run:
+      ls -lah "{{output_folder}}"
+      sed -n '1,180p' "{{output_folder}}/source.txt"
+
+      Reply with:
+      STATUS: done
+      VERIFIED: [what you confirmed]
+
+      Or:
+      STATUS: retry
+      ISSUES:
+      - [missing citations / missing facts / wrong topic / etc]
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: research
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: write
+    agent: news2post-writer
+    input: |
+      Task: Create Instagram carousel copy from research.
+
+      Topic: {{topic}}
+      Hook: {{hook}}
+      Tone: {{tone}}
+      Output Folder: {{output_folder}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      Do:
+      1) Read {{output_folder}}/source.txt
+      2) Read style guide: /home/ai/share/projects/instagramPost/_kit/prompts/1_text_processor.md
+      3) Write 6 slides + caption + hashtags
+         - Slide 1: Hook
+         - Slide 2: Context
+         - Slide 3: Reveal
+         - Slide 4: Evidence
+         - Slide 5: Implications
+         - Slide 6: CTA
+      4) Max 40 words per slide; short sentences; bold key phrases
+
+      Write: {{output_folder}}/post.md
+      Append to: {{output_folder}}/progress-{{run_id}}.txt
+
+      Before replying, run:
+      python3 - <<'PY'
+      import re, pathlib
+      p=pathlib.Path("{{output_folder}}/post.md").read_text(encoding="utf-8")
+      slides=re.findall(r"^##\s*Slide\s*\d+.*?(?=^##\s*Slide\s*\d+|\Z)", p, flags=re.M|re.S)
+      def wc(s): return len(re.findall(r"\b\w+\b", s))
+      counts=[wc(s) for s in slides[:6]]
+      print("slide_word_counts:", counts, "max:", max(counts) if counts else None)
+      PY
+
+      Reply with:
+      STATUS: done
+      HEADLINE: [slide 1 headline]
+      WORD_COUNT_MAX: [max words across slides]
+      SLIDES: 6
+      REVISION: [first | second | third]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify_write
+    agent: news2post-reviewer
+    fresh_session: true
+    input: |
+      Verify Writer outputs (read + exec only).
+
+      OUTPUT_FOLDER: {{output_folder}}
+
+      Check:
+      - post.md exists and contains 6 slides
+      - Each slide <= 40 words (hard requirement)
+      - Claims match source.txt (no new facts invented)
+
+      Run:
+      ls -lah "{{output_folder}}"
+      sed -n '1,240p' "{{output_folder}}/post.md"
+
+      Reply with:
+      STATUS: done
+      VERIFIED: [what you confirmed]
+
+      Or:
+      STATUS: retry
+      ISSUES:
+      - [exact slide + issue + fix]
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: write
+      max_retries: 3
+      on_exhausted:
+        escalate_to: human
+
+  - id: design
+    agent: news2post-designer
+    input: |
+      Task: Design visual concepts and image generation prompts.
+
+      Headline: {{headline}}
+      Tone: {{tone}}
+      Output Folder: {{output_folder}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      Do:
+      1) Read {{output_folder}}/post.md
+      2) Read style guide: /home/ai/share/projects/instagramPost/_kit/style_guide_improved.md
+      3) Read prompter reference: /home/ai/share/projects/instagramPost/_kit/prompts/2_image_prompter.md
+      4) Produce prompts for 6 slides:
+         - consistent art style + palette
+         - explicit text-safe space each slide
+         - 4:5 aspect ratio
+
+      Write:
+      - {{output_folder}}/image_prompts.md
+      - {{output_folder}}/image_prompts_clean.json
+
+      Append to: {{output_folder}}/progress-{{run_id}}.txt
+
+      Reply with:
+      STATUS: done
+      SLIDE_COUNT: 6
+      ART_STYLE: [style]
+      COLOR_PALETTE: [3-4 colors]
+      REVISION: [first | second | third]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify_design
+    agent: news2post-reviewer
+    fresh_session: true
+    input: |
+      Verify Designer outputs (read + exec only).
+
+      OUTPUT_FOLDER: {{output_folder}}
+
+      Check:
+      - image_prompts.md exists and has 6 slides
+      - image_prompts_clean.json exists and is valid JSON
+      - Each prompt specifies text-safe space
+      - Style/palette consistent (no wild shifts)
+
+      Run:
+      ls -lah "{{output_folder}}"
+      python3 - <<'PY'
+      import json, pathlib, sys
+      p=pathlib.Path("{{output_folder}}/image_prompts_clean.json")
+      data=json.loads(p.read_text(encoding="utf-8"))
+      print("entries:", len(data))
+      need={"slide_num","image_prompt","text_overlay","style"}
+      missing=[]
+      for i,e in enumerate(data,1):
+        m=need - set(e.keys())
+        if m: missing.append((i,sorted(m)))
+      print("missing_fields:", missing[:10])
+      PY
+
+      Reply with:
+      STATUS: done
+      VERIFIED: [what you confirmed]
+
+      Or:
+      STATUS: retry
+      ISSUES:
+      - [exact issue + fix]
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: design
+      max_retries: 3
+      on_exhausted:
+        escalate_to: human
+
+  - id: generate
+    agent: news2post-executor
+    input: |
+      Task: Generate all carousel images from prompts.
+
+      Expected: {{slide_count}} images
+      Output Folder: {{output_folder}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      Do:
+      1) Verify service health (retry up to 60s if needed)
+      2) Read {{output_folder}}/image_prompts_clean.json
+      3) Generate slide_1.png .. slide_6.png into {{output_folder}}/images/
+      4) Verify: all exist and each > 100KB
+
+      Append to: {{output_folder}}/progress-{{run_id}}.txt
+
+      Reply with:
+      STATUS: done
+      IMAGES_GENERATED: [X of Y]
+      FAILURES: [none | list]
+      TOTAL_SIZE_MB: [combined size]
+      SERVICE_HEALTH: [healthy | degraded]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify_generate
+    agent: news2post-reviewer
+    fresh_session: true
+    input: |
+      Verify Executor outputs (read + exec only).
+
+      OUTPUT_FOLDER: {{output_folder}}
+      Expected slides: {{slide_count}}
+
+      Check:
+      - images/ exists
+      - slide_1.png .. slide_6.png exist (or failures documented)
+      - each image > 100KB
+
+      Run:
+      ls -lah "{{output_folder}}/images" || true
+
+      Reply with:
+      STATUS: done
+      VERIFIED: [what you confirmed]
+
+      Or:
+      STATUS: retry
+      ISSUES:
+      - [missing slides / corrupt / too small / etc]
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: generate
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: direct
+    agent: news2post-director
+    input: |
+      Task: Plan video adaptation for Reels/TikTok.
+
+      Headline: {{headline}}
+      Tone: {{tone}}
+      Output Folder: {{output_folder}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      Do:
+      1) Read {{output_folder}}/post.md
+      2) Read {{output_folder}}/image_prompts.md
+      3) Review {{output_folder}}/images/
+      4) Read video reference: /home/ai/share/projects/instagramPost/_kit/prompts/3_video_director.md
+      5) Write {{output_folder}}/video_prompt.md
+
+      Append to: {{output_folder}}/progress-{{run_id}}.txt
+
+      Reply with:
+      STATUS: done
+      DURATION: [seconds]
+      SEGMENTS: [count]
+      AUDIO_STYLE: [description]
+      HOOK_TYPE: [first 1-3s hook]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify_direct
+    agent: news2post-reviewer
+    fresh_session: true
+    input: |
+      Verify Director outputs (read + exec only).
+
+      OUTPUT_FOLDER: {{output_folder}}
+
+      Check:
+      - video_prompt.md exists and is non-empty
+      - Includes: hook, segment breakdown, audio, export settings
+
+      Run:
+      ls -lah "{{output_folder}}"
+      sed -n '1,220p' "{{output_folder}}/video_prompt.md"
+
+      Reply with:
+      STATUS: done
+      VERIFIED: [what you confirmed]
+
+      Or:
+      STATUS: retry
+      ISSUES:
+      - [missing section + fix]
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: direct
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: final_review
+    agent: news2post-reviewer
+    fresh_session: true
+    input: |
+      Final quality gate (read + exec only). Approve only if everything is coherent and accurate.
+
+      OUTPUT_FOLDER: {{output_folder}}
+      SELECTED_STORY: {{selected_story}}
+      SOURCE_URL: {{source_url}}
+
+      Review:
+      - news_candidates.md (selection + freshness)
+      - source.txt (facts + citations)
+      - post.md (accuracy + <=40 words/slide + strong hook)
+      - image_prompts_clean.json (matches slides)
+      - images/ (exist + sizes)
+      - video_prompt.md (complete)
+
+      Reply with:
+      STATUS: done
+      VERDICT: approved
+      QUALITY_SCORE: [1-10]
+      SUMMARY: [one line]
+
+      Or, if content needs revision (writer fixes):
+      STATUS: retry
+      VERDICT: rejected
+      QUALITY_SCORE: [1-10]
+      ISSUES:
+      - [specific fixes, pointing to file+line/slide]
+
+      Note: If issues are visual-only, still describe them precisely (they'll be routed back via the earlier verify steps).
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: write
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
