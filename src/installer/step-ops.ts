@@ -428,13 +428,22 @@ export function claimStep(agentId: string): ClaimResult {
   const db = getDb();
 
   const step = db.prepare(
-    `SELECT s.id, s.step_id, s.run_id, s.input_template, s.type, s.loop_config
+    `SELECT s.id, s.step_id, s.run_id, s.step_index, s.input_template, s.type, s.loop_config
      FROM steps s
      JOIN runs r ON r.id = s.run_id
-     WHERE s.agent_id = ? AND s.status = 'pending'
+     WHERE s.agent_id = ?
+       AND s.status = 'pending'
        AND r.status NOT IN ('failed', 'cancelled')
+       AND NOT EXISTS (
+         SELECT 1
+         FROM steps prev
+         WHERE prev.run_id = s.run_id
+           AND prev.step_index < s.step_index
+           AND prev.status != 'done'
+       )
+     ORDER BY s.created_at ASC
      LIMIT 1`
-  ).get(agentId) as { id: string; step_id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
+  ).get(agentId) as { id: string; step_id: string; run_id: string; step_index: number; input_template: string; type: string; loop_config: string | null } | undefined;
 
   if (!step) return { found: false };
 
