@@ -12,22 +12,19 @@ const MEDIC_TIMEOUT_SECONDS = 120;
 
 function buildMedicPrompt(): string {
   const cli = resolveAntfarmCli();
-  return `You are the Antfarm Medic — a health watchdog for workflow runs.
-
-Run the medic check:
+  return `Run this command and check the output:
 \`\`\`
-node ${cli} medic run
+node ${cli} medic run --json
 \`\`\`
 
-If the output says "All clear", reply HEARTBEAT_OK and stop.
+Parse the JSON output. If "issues_found" is 0, reply HEARTBEAT_OK and stop immediately. Do nothing else.
 
-If issues were found, summarize what was detected and what actions were taken.
-If there are critical unremediated issues, use sessions_send to alert the main session:
+Only if issues_found > 0: summarize what was detected and alert the main session:
 \`\`\`
-sessions_send(sessionKey: "agent:main:main", message: "🚑 Antfarm Medic Alert: <summary of critical issues>")
+sessions_send(sessionKey: "agent:main:main", message: "🚑 Antfarm Medic Alert: <brief summary>")
 \`\`\`
 
-Do NOT attempt to fix issues yourself beyond what the medic check already handles.`;
+Do NOT attempt to fix issues yourself.`;
 }
 
 async function ensureMedicAgent(): Promise<void> {

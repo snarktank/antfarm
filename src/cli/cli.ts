@@ -295,8 +295,16 @@ async function main() {
     }
 
     if (action === "run") {
+      const jsonMode = args.includes("--json");
       const result = await runMedicCheck();
-      if (result.issuesFound === 0) {
+      if (jsonMode) {
+        console.log(JSON.stringify({
+          issues_found: result.issuesFound,
+          checked_at: result.checkedAt,
+          summary: result.summary,
+          findings: result.findings ?? [],
+        }));
+      } else if (result.issuesFound === 0) {
         console.log(`All clear — no issues found (${result.checkedAt})`);
       } else {
         console.log(`Medic check complete: ${result.summary}`);

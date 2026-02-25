@@ -71,6 +71,26 @@ agents:
         SOUL.md: agents/tester/SOUL.md
         IDENTITY.md: agents/tester/IDENTITY.md
 
+  - id: security-gate
+    name: Security Gate
+    role: security
+    description: Scans code for AI-generated vulnerabilities before PR creation.
+    workspace:
+      baseDir: agents/security-gate
+      files:
+        AGENTS.md: agents/security-gate/AGENTS.md
+        SOUL.md: agents/security-gate/SOUL.md
+        IDENTITY.md: agents/security-gate/IDENTITY.md
+
+  - id: degunk-gate
+    name: Degunk Gate
+    role: analysis
+    description: Scans changed docs/markdown for AI slop before PR creation.
+    workspace:
+      baseDir: agents/degunk-gate
+      files:
+        AGENTS.md: agents/degunk-gate/AGENTS.md
+
   - id: reviewer
     name: Reviewer
     role: analysis
@@ -298,6 +318,83 @@ steps:
       on_exhausted:
         escalate_to: human
 
+  - id: security-gate
+    agent: security-gate
+    input: |
+      Security scan before PR creation.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+
+      PROGRESS LOG:
+      {{progress}}
+
+      Instructions:
+      1. cd into the repo, checkout the branch
+      2. Run `git diff main...HEAD` to see all changes
+      3. Scan for: hardcoded secrets, injection vectors, missing input validation,
+         overly permissive operations, dependency risks, auth gaps, data exposure,
+         AI code smells (placeholders, TODOs, copy-paste patterns)
+      4. If the project has security linters (eslint-plugin-security, bandit, semgrep), run them
+      5. Rate each finding: 🔴 BLOCK / 🟡 WARN / 🟢 PASS
+
+      If any 🔴 BLOCK findings:
+      STATUS: retry
+      SECURITY_ISSUES:
+      - 🔴 [description and file:line]
+
+      If only 🟡 or clean:
+      STATUS: done
+      SECURITY_REPORT: [findings summary]
+      SECURITY_NOTES: [any warnings to include in PR description]
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: implement
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: degunk
+    agent: degunk-gate
+    input: |
+      Scan changed documentation for AI slop before PR creation.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+
+      Instructions:
+      1. cd into the repo, checkout the branch
+      2. Run `git diff main...HEAD --name-only` and filter for .md/.txt/.rst/.mdx files
+      3. If no doc files changed, reply STATUS: done / SLOP_REPORT: No docs changed
+      4. For each changed doc file, run the degunk check (see AGENTS.md for the exact command)
+      5. Score each file: 0-3 pass, 4-6 warn, 7-10 block
+      6. If any file scores 7+: STATUS: retry with SLOP_ISSUES listing the file and flagged lines
+      7. If clean/warn: STATUS: done with SLOP_NOTES summarizing findings for the PR description
+
+      Reply with:
+      STATUS: done
+      SLOP_REPORT: <per-file results>
+      SLOP_NOTES: <summary for PR description, or "Clean">
+
+      Or if blocking issues:
+      STATUS: retry
+      SLOP_ISSUES:
+      - <file>: score X/10 — flagged: [specific phrases/lines]
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: implement
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
   - id: pr
     agent: developer
     input: |
@@ -310,6 +407,7 @@ steps:
       BRANCH: {{branch}}
       CHANGES: {{changes}}
       RESULTS: {{results}}
+      SLOP_NOTES: {{slop_notes}}
 
       PROGRESS LOG:
       {{progress}}
@@ -318,6 +416,7 @@ steps:
       - Clear title summarizing the change
       - Description explaining what and why
       - Reference to what was tested
+      - If SLOP_NOTES is not "Clean" or empty, include a "Docs Quality" section with the slop report
 
       Use: gh pr create
 

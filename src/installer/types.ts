@@ -14,7 +14,7 @@ export type WorkflowAgentFiles = {
  * - pr:            Read + exec only — just runs `gh pr create` (pr)
  * - scanning:      Read + exec + web search for CVE lookups, NO write (scanner)
  */
-export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning";
+export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning" | "security";
 
 export type WorkflowAgent = {
   id: string;

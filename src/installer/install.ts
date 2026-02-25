@@ -143,6 +143,19 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     ],
     timeoutSeconds: TIMEOUT_20_MIN,  // security scanning + web lookups
   },
+
+  // security: security-gate agent — read + exec + web for vuln lookups, NO write
+  security: {
+    profile: "coding",
+    alsoAllow: ["web_search", "web_fetch"],
+    deny: [
+      ...ALWAYS_DENY,
+      "write", "edit", "apply_patch",  // security gate does not modify code
+      "image", "tts",
+      "group:ui",
+    ],
+    timeoutSeconds: TIMEOUT_20_MIN,
+  },
 };
 
 /**
