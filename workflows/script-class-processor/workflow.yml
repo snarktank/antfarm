@@ -68,6 +68,17 @@ agents:
         SOUL.md: agents/notes-generator/SOUL.md
         IDENTITY.md: agents/notes-generator/IDENTITY.md
 
+  - id: markdown-converter
+    name: Markdown Converter
+    role: coding
+    description: Convert chunk_analysis.json to notes.md using Session_21 format as the template, creating structured learning notes with session dashboard, study presets, jump guide, content heatmap, key insights, and detailed sections.
+    workspace:
+      baseDir: agents/markdown-converter
+      files:
+        AGENTS.md: agents/markdown-converter/AGENTS.md
+        SOUL.md: agents/markdown-converter/SOUL.md
+        IDENTITY.md: agents/markdown-converter/IDENTITY.md
+
   - id: quiz-generator
     name: Quiz Generator
     role: coding
@@ -182,6 +193,29 @@ steps:
       STATUS: done
     outputs:
       notes_path: "Path to the notes markdown file"
+
+  - id: markdown-convert
+    agent: markdown-converter
+    input: |
+      Convert chunk analysis to formatted notes for session: {{session_id}}
+      
+      Chunk analysis: {{chunk_analysis_path}}
+      
+      Transform the chunk_analysis.json into notes.md following the Session_21 format:
+      1. Session Analysis Dashboard with difficulty score
+      2. Smart Study Presets (Exam Cram, Quick Pass, Standard, Deep Dive)
+      3. Video Jump Guide with timestamps and navigation
+      4. Content Density Heatmap
+      5. Key Insights Extraction
+      6. 3-Minute Summary
+      7. Detailed Notes organized by topics
+      8. Coverage Verification
+      
+      Create a beautifully structured markdown file that learners can use for quick review or deep study.
+    expects: |
+      STATUS: done
+    outputs:
+      formatted_notes_path: "Path to the formatted notes markdown file"
 
   - id: quiz
     agent: quiz-generator

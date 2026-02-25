@@ -1,0 +1,59 @@
+# Environment and secrets
+.env
+.env.*
+.env.local
+.env.*.local
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Coverage and logs
+coverage/
+.nyc_output/
+*.log
+logs/
+
+# Keys and certificates
+*.key
+*.pem
+*.secret
+*.p12
+*.pfx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
