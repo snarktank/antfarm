@@ -1,0 +1,56 @@
+id: jc-starter
+name: JC Starter Workflow
+version: 1
+description: |
+  Two-step starter workflow: planner creates a plan, executor performs it.
+
+agents:
+  - id: planner
+    name: Planner
+    role: analysis
+    description: Breaks down tasks into actionable steps.
+    workspace:
+      baseDir: agents/jc-starter_planner
+      files:
+        AGENTS.md: agents/jc-starter_planner/AGENTS.md
+
+  - id: executor
+    name: Executor
+    role: coding
+    description: Executes plan and reports outcomes.
+    workspace:
+      baseDir: agents/jc-starter_executor
+      files:
+        AGENTS.md: agents/jc-starter_executor/AGENTS.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      你需要把用户任务拆成可执行的小步骤。
+
+      用户任务：{{task}}
+
+      输出格式严格为：
+      STATUS: done
+      PLAN:
+      1) ...
+      2) ...
+      3) ...
+    expects: "STATUS: done"
+
+  - id: execute
+    agent: executor
+    input: |
+      按下面计划执行，并给出结果摘要。
+
+      原始任务：{{task}}
+      上一步输出：
+      {{steps.plan.output}}
+
+      输出格式严格为：
+      STATUS: done
+      CHANGES: ...
+      RESULT: ...
+      NEXT: ...
+    expects: "STATUS: done"

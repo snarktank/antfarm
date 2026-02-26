@@ -316,6 +316,39 @@ function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g
 // Normalize SQLite datetime('now') format (no T/Z) to proper ISO 8601 UTC
 function parseTS(ts) { if (!ts) return null; if (!ts.endsWith('Z') && !ts.includes('+')) ts = ts.replace(' ', 'T') + 'Z'; return new Date(ts); }
 
+function scopeBadgeClass(status) {
+  if (status === 'frozen') return 'badge-completed';
+  if (status === 'draft') return 'badge-pending';
+  return 'badge-waiting';
+}
+
+function renderScopePanel(run) {
+  const scope = run.scope || {};
+  const status = scope.status || run.scope_status || 'unfrozen';
+  const frozenAtRaw = scope.frozen_at || run.scope_frozen_at;
+  const frozenAt = frozenAtRaw ? parseTS(frozenAtRaw)?.toLocaleString() || '' : '';
+  const items = Array.isArray(scope.items) ? scope.items : (Array.isArray(run.scope_items) ? run.scope_items : []);
+  const violationCount = Number(scope.violation_count ?? run.scope_violation_count ?? 0);
+
+  const itemsHtml = items.length > 0
+    ? `<ul style="margin:8px 0 0 18px;font-size:12px;color:var(--text-tertiary);display:flex;flex-direction:column;gap:4px">${items.map(item => `<li><code style="font-family:'Geist Mono',monospace">${esc(item.item_type)}:</code> ${esc(item.item_value)}</li>`).join('')}</ul>`
+    : '<div style="font-size:12px;color:var(--text-secondary);margin-top:8px">No frozen scope is available for this run.</div>';
+
+  return `
+    <div style="margin-top:16px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-surface-alt)">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <h3 style="font-size:14px;font-weight:600;color:var(--text-primary)">Execution Scope</h3>
+        <span class="badge ${scopeBadgeClass(status)}">${esc(status)}</span>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-secondary)">
+        <div>Frozen at: ${frozenAt ? esc(frozenAt) : '—'}</div>
+        <div>Violations: ${violationCount}</div>
+      </div>
+      ${itemsHtml}
+    </div>
+  `;
+}
+
 async function openRun(id) {
   const run = await fetchJSON(`/api/runs/${id}`);
   const panel = document.getElementById('panel');
@@ -349,6 +382,7 @@ async function openRun(id) {
       <span>Updated: ${updated}</span>
     </div>
     <div class="steps-list">${stepsHTML}</div>
+    ${renderScopePanel(run)}
     <div id="stories-panel"></div>
     <div id="activity-panel"></div>
   `;

@@ -15,7 +15,7 @@ import { isFrontendChange } from "../lib/frontend-detect.js";
  * Parse KEY: value lines from step output with support for multi-line values.
  * Accumulates continuation lines until the next KEY: boundary or end of output.
  * Returns a map of lowercase keys to their (trimmed) values.
- * Skips STORIES_JSON keys (handled separately).
+ * Skips STORIES_JSON and SCOPE_JSON keys (handled separately).
  */
 export function parseOutputKeyValues(output: string): Record<string, string> {
   const result: Record<string, string> = {};
@@ -24,7 +24,7 @@ export function parseOutputKeyValues(output: string): Record<string, string> {
   let pendingValue = "";
 
   function commitPending() {
-    if (pendingKey && !pendingKey.startsWith("STORIES_JSON")) {
+    if (pendingKey && !pendingKey.startsWith("STORIES_JSON") && !pendingKey.startsWith("SCOPE_JSON")) {
       result[pendingKey.toLowerCase()] = pendingValue.trim();
     }
     pendingKey = null;
@@ -183,25 +183,172 @@ function formatCompletedStories(stories: Story[]): string {
   return done.map(s => `- ${s.storyId}: ${s.title}`).join("\n");
 }
 
+interface StoryScopeMatchContext {
+  storyId: string;
+  title: string;
+  identifiers: Set<string>;
+  tags: Set<string>;
+}
+
+function normalizeScopeToken(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function extractStoryScopeContext(storyId: string, title: string): StoryScopeMatchContext {
+  const normalizedStoryId = normalizeScopeToken(storyId);
+  const normalizedTitle = normalizeScopeToken(title);
+  const identifiers = new Set<string>([normalizedStoryId, normalizedTitle]);
+  const tags = new Set<string>();
+
+  const composite = `${storyId} ${title}`;
+  const idLike = composite.match(/[a-z]{2,}-\d+/gi) ?? [];
+  for (const token of idLike) {
+    const normalized = normalizeScopeToken(token);
+    if (!normalized) continue;
+    identifiers.add(normalized);
+    tags.add(normalized);
+  }
+
+  const hashTags = composite.match(/#[a-z0-9_-]+/gi) ?? [];
+  for (const raw of hashTags) {
+    const normalized = normalizeScopeToken(raw.slice(1));
+    if (!normalized) continue;
+    identifiers.add(normalized);
+    tags.add(normalized);
+  }
+
+  return { storyId, title, identifiers, tags };
+}
+
+function matchesScopePattern(value: string, candidates: Iterable<string>): boolean {
+  const normalized = normalizeScopeToken(value);
+  if (!normalized) return false;
+
+  const candidateList = Array.from(candidates);
+  if (normalized.includes("*")) {
+    const escaped = normalized.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+    const rx = new RegExp(`^${escaped}$`);
+    return candidateList.some((candidate) => rx.test(candidate));
+  }
+
+  return candidateList.includes(normalized);
+}
+
+function isInScopeItemType(itemType: string): boolean {
+  const normalized = normalizeScopeToken(itemType);
+  return normalized === "in_scope" || normalized === "story" || normalized === "story_id" || normalized === "id" || normalized === "stories" || normalized === "story_title" || normalized === "title" || normalized === "story_tag" || normalized === "tag" || normalized === "tags";
+}
+
+function isOutOfScopeItemType(itemType: string): boolean {
+  const normalized = normalizeScopeToken(itemType);
+  return normalized === "out_of_scope" || normalized === "blocked" || normalized === "blocked_story";
+}
+
+function isTagItemType(itemType: string): boolean {
+  const normalized = normalizeScopeToken(itemType);
+  return normalized === "story_tag" || normalized === "tag" || normalized === "tags";
+}
+
+function evaluateFrozenScopeForStory(runId: string, storyId: string, title: string): { allowed: boolean; reason?: string } {
+  const db = getDb();
+  const run = db.prepare("SELECT scope_status, scope_version FROM runs WHERE id = ?").get(runId) as
+    | { scope_status: string; scope_version: number }
+    | undefined;
+
+  if (!run || run.scope_status !== "frozen" || run.scope_version < 1) {
+    return { allowed: true };
+  }
+
+  const scopeRows = db.prepare(
+    "SELECT item_type, item_value FROM run_scope_items WHERE run_id = ? AND scope_version = ? ORDER BY item_type, item_value"
+  ).all(runId, run.scope_version) as Array<{ item_type: string; item_value: string }>;
+
+  if (scopeRows.length === 0) {
+    return { allowed: true };
+  }
+
+  const ctx = extractStoryScopeContext(storyId, title);
+  const allCandidates = ctx.identifiers;
+  const tagCandidates = ctx.tags;
+
+  for (const row of scopeRows) {
+    if (!isOutOfScopeItemType(row.item_type)) continue;
+    const candidates = isTagItemType(row.item_type) ? tagCandidates : allCandidates;
+    if (matchesScopePattern(row.item_value, candidates)) {
+      return {
+        allowed: false,
+        reason: `Story ${storyId} blocked by frozen scope item ${row.item_type}:${row.item_value}`,
+      };
+    }
+  }
+
+  const inScopeRows = scopeRows.filter((row) => isInScopeItemType(row.item_type));
+  if (inScopeRows.length === 0) {
+    return { allowed: true };
+  }
+
+  const matchedInScope = inScopeRows.some((row) => {
+    const candidates = isTagItemType(row.item_type) ? tagCandidates : allCandidates;
+    return matchesScopePattern(row.item_value, candidates);
+  });
+
+  if (!matchedInScope) {
+    return {
+      allowed: false,
+      reason: `Story ${storyId} is outside frozen scope allowlist (version ${run.scope_version})`,
+    };
+  }
+
+  return { allowed: true };
+}
+
+function failRunForScopeViolation(params: {
+  runId: string;
+  loopStepRowId: string;
+  loopStepLogicalId: string;
+  storyRowId: string;
+  storyId: string;
+  storyTitle: string;
+  reason: string;
+}): void {
+  const db = getDb();
+  db.prepare("UPDATE stories SET status = 'failed', output = ?, updated_at = datetime('now') WHERE id = ?").run(params.reason, params.storyRowId);
+  db.prepare("UPDATE steps SET status = 'failed', output = ?, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?").run(params.reason, params.loopStepRowId);
+  db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(params.runId);
+
+  const workflowId = getWorkflowId(params.runId);
+  const ts = new Date().toISOString();
+  emitEvent({ ts, event: "scope.violation", runId: params.runId, workflowId, stepId: params.loopStepLogicalId, storyId: params.storyId, storyTitle: params.storyTitle, detail: JSON.stringify({ reason: params.reason, policy: "frozen_scope_v1" }) });
+  emitEvent({ ts, event: "story.failed", runId: params.runId, workflowId, stepId: params.loopStepLogicalId, storyId: params.storyId, storyTitle: params.storyTitle, detail: params.reason });
+  emitEvent({ ts, event: "step.failed", runId: params.runId, workflowId, stepId: params.loopStepLogicalId, detail: params.reason });
+  emitEvent({ ts, event: "run.failed", runId: params.runId, workflowId, detail: "Frozen scope violation" });
+  scheduleRunCronTeardown(params.runId);
+}
+
 // ── T5: STORIES_JSON parsing ────────────────────────────────────────
 
 /**
  * Parse STORIES_JSON from step output and insert stories into the DB.
  */
-function parseAndInsertStories(output: string, runId: string): void {
+function collectJsonBlock(output: string, key: "STORIES_JSON" | "SCOPE_JSON"): string | null {
   const lines = output.split("\n");
-  const startIdx = lines.findIndex(l => l.startsWith("STORIES_JSON:"));
-  if (startIdx === -1) return;
+  const startIdx = lines.findIndex(l => l.startsWith(`${key}:`));
+  if (startIdx === -1) return null;
 
-  // Collect JSON text: first line after prefix, then subsequent lines until next KEY: or end
-  const firstLine = lines[startIdx].slice("STORIES_JSON:".length).trim();
+  const firstLine = lines[startIdx].slice(`${key}:`.length).trim();
   const jsonLines = [firstLine];
   for (let i = startIdx + 1; i < lines.length; i++) {
     if (/^[A-Z_]+:\s/.test(lines[i])) break;
     jsonLines.push(lines[i]);
   }
 
-  const jsonText = jsonLines.join("\n").trim();
+  return jsonLines.join("\n").trim();
+}
+
+function parseAndInsertStories(output: string, runId: string): void {
+  const jsonText = collectJsonBlock(output, "STORIES_JSON");
+  if (!jsonText) return;
+
   let stories: any[];
   try {
     stories = JSON.parse(jsonText);
@@ -236,6 +383,197 @@ function parseAndInsertStories(output: string, runId: string): void {
     seenIds.add(s.id);
     insert.run(crypto.randomUUID(), runId, i, s.id, s.title, s.description, JSON.stringify(ac), now, now);
   }
+}
+
+function normalizeScopeItems(payload: unknown): Array<{ item_type: string; item_value: string }> {
+  if (Array.isArray(payload)) {
+    return payload.map((entry, idx) => {
+      if (typeof entry === "string") {
+        const value = entry.trim();
+        if (!value) throw new Error(`SCOPE_JSON item at index ${idx} is empty`);
+        return { item_type: "item", item_value: value };
+      }
+      if (entry && typeof entry === "object") {
+        const row = entry as Record<string, unknown>;
+        const itemTypeRaw = row["type"] ?? row["item_type"];
+        const itemValueRaw = row["value"] ?? row["item_value"];
+        if (typeof itemTypeRaw !== "string" || !itemTypeRaw.trim() || typeof itemValueRaw !== "string" || !itemValueRaw.trim()) {
+          throw new Error(`SCOPE_JSON item at index ${idx} must include non-empty type and value`);
+        }
+        return { item_type: itemTypeRaw.trim(), item_value: itemValueRaw.trim() };
+      }
+      throw new Error(`SCOPE_JSON item at index ${idx} must be a string or object`);
+    });
+  }
+
+  if (!payload || typeof payload !== "object") {
+    throw new Error("SCOPE_JSON must be an object or an array");
+  }
+
+  const rows: Array<{ item_type: string; item_value: string }> = [];
+  for (const [itemType, rawValues] of Object.entries(payload as Record<string, unknown>)) {
+    if (!Array.isArray(rawValues)) {
+      throw new Error(`SCOPE_JSON field "${itemType}" must be an array`);
+    }
+    for (let i = 0; i < rawValues.length; i++) {
+      const raw = rawValues[i];
+      if (typeof raw !== "string" || !raw.trim()) {
+        throw new Error(`SCOPE_JSON field "${itemType}" has invalid value at index ${i}`);
+      }
+      rows.push({ item_type: itemType, item_value: raw.trim() });
+    }
+  }
+  return rows;
+}
+
+function parseAndPersistScopeBaseline(output: string, runId: string): void {
+  const jsonText = collectJsonBlock(output, "SCOPE_JSON");
+  if (!jsonText) return;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch (e) {
+    throw new Error(`Failed to parse SCOPE_JSON: ${(e as Error).message}`);
+  }
+
+  const normalized = normalizeScopeItems(parsed);
+  const deduped = new Map<string, { item_type: string; item_value: string }>();
+  for (const item of normalized) {
+    deduped.set(`${item.item_type}\u0000${item.item_value}`, item);
+  }
+
+  const db = getDb();
+  const now = new Date().toISOString();
+  db.exec("BEGIN");
+  try {
+    db.prepare("DELETE FROM run_scope_items WHERE run_id = ? AND scope_version = 1").run(runId);
+    const insert = db.prepare(
+      "INSERT INTO run_scope_items (run_id, scope_version, item_type, item_value, created_at) VALUES (?, 1, ?, ?, ?)"
+    );
+    for (const item of deduped.values()) {
+      insert.run(runId, item.item_type, item.item_value, now);
+    }
+    db.prepare(
+      "UPDATE runs SET scope_status = 'draft', scope_version = 1, updated_at = datetime('now') WHERE id = ?"
+    ).run(runId);
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
+}
+
+export class ScopeFreezeError extends Error {
+  readonly code: "SCOPE_ALREADY_FROZEN" | "SCOPE_VERSION_BUMP_REQUIRED" | "RUN_NOT_FOUND";
+
+  constructor(code: "SCOPE_ALREADY_FROZEN" | "SCOPE_VERSION_BUMP_REQUIRED" | "RUN_NOT_FOUND", message: string) {
+    super(message);
+    this.name = "ScopeFreezeError";
+    this.code = code;
+  }
+}
+
+export interface FreezeScopeOptions {
+  nextVersion?: number;
+}
+
+export interface RunScopeSnapshot {
+  runId: string;
+  status: string;
+  scopeVersion: number;
+  scopeFrozenAt: string | null;
+  items: Array<{ itemType: string; itemValue: string }>;
+}
+
+export function readRunScope(runId: string): RunScopeSnapshot {
+  const db = getDb();
+  const run = db.prepare(
+    "SELECT id, scope_status, scope_version, scope_frozen_at FROM runs WHERE id = ?"
+  ).get(runId) as { id: string; scope_status: string; scope_version: number; scope_frozen_at: string | null } | undefined;
+
+  if (!run) {
+    throw new ScopeFreezeError("RUN_NOT_FOUND", `Run not found: ${runId}`);
+  }
+
+  const items = db.prepare(
+    "SELECT item_type, item_value FROM run_scope_items WHERE run_id = ? AND scope_version = ? ORDER BY item_type, item_value"
+  ).all(runId, run.scope_version) as Array<{ item_type: string; item_value: string }>;
+
+  return {
+    runId,
+    status: run.scope_status,
+    scopeVersion: run.scope_version,
+    scopeFrozenAt: run.scope_frozen_at,
+    items: items.map((item) => ({ itemType: item.item_type, itemValue: item.item_value })),
+  };
+}
+
+export function freezeRunScope(runId: string, options: FreezeScopeOptions = {}): RunScopeSnapshot {
+  const db = getDb();
+  const run = db.prepare(
+    "SELECT id, workflow_id, scope_status, scope_version FROM runs WHERE id = ?"
+  ).get(runId) as { id: string; workflow_id: string; scope_status: string; scope_version: number } | undefined;
+
+  if (!run) {
+    throw new ScopeFreezeError("RUN_NOT_FOUND", `Run not found: ${runId}`);
+  }
+
+  const currentVersion = run.scope_version;
+  if (run.scope_status === "frozen") {
+    if (options.nextVersion == null) {
+      throw new ScopeFreezeError(
+        "SCOPE_ALREADY_FROZEN",
+        `Scope already frozen for run ${runId} at version ${currentVersion}`,
+      );
+    }
+    if (!Number.isInteger(options.nextVersion) || options.nextVersion <= currentVersion) {
+      throw new ScopeFreezeError(
+        "SCOPE_VERSION_BUMP_REQUIRED",
+        `Scope version bump required: current=${currentVersion}, requested=${options.nextVersion}`,
+      );
+    }
+  }
+
+  const targetVersion = options.nextVersion ?? currentVersion;
+  if (!Number.isInteger(targetVersion) || targetVersion < 1) {
+    throw new ScopeFreezeError(
+      "SCOPE_VERSION_BUMP_REQUIRED",
+      `Scope version bump required: current=${currentVersion}, requested=${targetVersion}`,
+    );
+  }
+
+  const now = new Date().toISOString();
+  db.exec("BEGIN");
+  try {
+    if (targetVersion !== currentVersion) {
+      db.prepare(
+        `INSERT INTO run_scope_items (run_id, scope_version, item_type, item_value, created_at)
+         SELECT run_id, ?, item_type, item_value, ?
+         FROM run_scope_items
+         WHERE run_id = ? AND scope_version = ?`
+      ).run(targetVersion, now, runId, currentVersion);
+    }
+
+    db.prepare(
+      "UPDATE runs SET scope_status = 'frozen', scope_version = ?, scope_frozen_at = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(targetVersion, now, runId);
+
+    db.exec("COMMIT");
+  } catch (e) {
+    db.exec("ROLLBACK");
+    throw e;
+  }
+
+  emitEvent({
+    ts: now,
+    event: "scope.frozen",
+    runId,
+    workflowId: run.workflow_id,
+    detail: `Scope frozen at version ${targetVersion}`,
+  });
+
+  return readRunScope(runId);
 }
 
 // ── Abandoned Step Cleanup ──────────────────────────────────────────
@@ -494,6 +832,21 @@ export function claimStep(agentId: string): ClaimResult {
         return { found: false };
       }
 
+      const scopeEval = evaluateFrozenScopeForStory(step.run_id, nextStory.story_id, nextStory.title);
+      if (!scopeEval.allowed) {
+        const reason = scopeEval.reason ?? `Story ${nextStory.story_id} is outside frozen scope`;
+        failRunForScopeViolation({
+          runId: step.run_id,
+          loopStepRowId: step.id,
+          loopStepLogicalId: step.step_id,
+          storyRowId: nextStory.id,
+          storyId: nextStory.story_id,
+          storyTitle: nextStory.title,
+          reason,
+        });
+        return { found: false };
+      }
+
       // Claim the story
       db.prepare(
         "UPDATE stories SET status = 'running', updated_at = datetime('now') WHERE id = ?"
@@ -603,8 +956,9 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
     "UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?"
   ).run(JSON.stringify(context), step.run_id);
 
-  // T5: Parse STORIES_JSON from output (any step, typically the planner)
+  // Parse planner JSON blocks (typically from planner step output)
   parseAndInsertStories(output, step.run_id);
+  parseAndPersistScopeBaseline(output, step.run_id);
 
   // T7: Loop step completion
   if (step.type === "loop" && step.current_story_id) {
@@ -748,8 +1102,8 @@ function handleVerifyEachCompletion(
 function checkLoopContinuation(runId: string, loopStepId: string): { advanced: boolean; runCompleted: boolean } {
   const db = getDb();
   const pendingStory = db.prepare(
-    "SELECT id FROM stories WHERE run_id = ? AND status = 'pending' LIMIT 1"
-  ).get(runId) as { id: string } | undefined;
+    "SELECT id, story_id, title FROM stories WHERE run_id = ? AND status = 'pending' ORDER BY story_index ASC LIMIT 1"
+  ).get(runId) as { id: string; story_id: string; title: string } | undefined;
 
   const loopStatus = db.prepare(
     "SELECT status FROM steps WHERE id = ?"
@@ -759,6 +1113,22 @@ function checkLoopContinuation(runId: string, loopStepId: string): { advanced: b
     if (loopStatus?.status === "failed") {
       return { advanced: false, runCompleted: false };
     }
+
+    const scopeEval = evaluateFrozenScopeForStory(runId, pendingStory.story_id, pendingStory.title);
+    if (!scopeEval.allowed) {
+      const loopRow = db.prepare("SELECT step_id FROM steps WHERE id = ?").get(loopStepId) as { step_id: string } | undefined;
+      failRunForScopeViolation({
+        runId,
+        loopStepRowId: loopStepId,
+        loopStepLogicalId: loopRow?.step_id ?? loopStepId,
+        storyRowId: pendingStory.id,
+        storyId: pendingStory.story_id,
+        storyTitle: pendingStory.title,
+        reason: scopeEval.reason ?? `Story ${pendingStory.story_id} is outside frozen scope`,
+      });
+      return { advanced: false, runCompleted: false };
+    }
+
     // More stories — loop step back to pending
     db.prepare(
       "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"

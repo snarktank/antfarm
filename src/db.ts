@@ -32,6 +32,9 @@ function migrate(db: DatabaseSync): void {
       task TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'running',
       context TEXT NOT NULL DEFAULT '{}',
+      scope_status TEXT NOT NULL DEFAULT 'unfrozen',
+      scope_frozen_at TEXT,
+      scope_version INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -67,6 +70,15 @@ function migrate(db: DatabaseSync): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS run_scope_items (
+      run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+      scope_version INTEGER NOT NULL,
+      item_type TEXT NOT NULL,
+      item_value TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (run_id, scope_version, item_type, item_value)
+    );
   `);
 
   // Add columns to steps table for backwards compat
@@ -100,6 +112,15 @@ function migrate(db: DatabaseSync): void {
         SELECT COUNT(*) FROM runs r2 WHERE r2.created_at <= runs.created_at
       ) WHERE run_number IS NULL
     `);
+  }
+  if (!runColNames.has("scope_status")) {
+    db.exec("ALTER TABLE runs ADD COLUMN scope_status TEXT NOT NULL DEFAULT 'unfrozen'");
+  }
+  if (!runColNames.has("scope_frozen_at")) {
+    db.exec("ALTER TABLE runs ADD COLUMN scope_frozen_at TEXT");
+  }
+  if (!runColNames.has("scope_version")) {
+    db.exec("ALTER TABLE runs ADD COLUMN scope_version INTEGER NOT NULL DEFAULT 0");
   }
 }
 

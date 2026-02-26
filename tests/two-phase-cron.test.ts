@@ -14,14 +14,20 @@ describe("two-phase-cron-setup", () => {
       assert.ok(prompt.includes("sessions_spawn"), "should mention sessions_spawn");
     });
 
-    it("includes the default work model when none specified", () => {
+    it("omits work model when none specified", () => {
       const prompt = buildPollingPrompt("feature-dev", "developer");
-      assert.ok(prompt.includes('"default"'), "should include default work model");
+      assert.ok(!prompt.includes("- model:"), "should omit work model when unspecified");
     });
 
     it("includes custom work model when specified", () => {
       const prompt = buildPollingPrompt("feature-dev", "developer", "anthropic/custom-model");
       assert.ok(prompt.includes("anthropic/custom-model"), "should include custom model");
+    });
+
+    it("regression: does not emit openai-codex/default alias when model is omitted", () => {
+      const prompt = buildPollingPrompt("bug-fix", "fixer");
+      assert.ok(!prompt.includes("openai-codex/default"), "should never hardcode provider default alias");
+      assert.ok(!prompt.includes('"default"'), "should not hardcode literal default model");
     });
 
     it("still includes step claim command", () => {
@@ -44,14 +50,9 @@ describe("two-phase-cron-setup", () => {
     // These tests verify the exported constants and prompt builder behavior
     // that setupAgentCrons depends on
 
-    it("default work model is 'default'", async () => {
-      // We verify this through the module — the constant is used in setupAgentCrons
-      // The polling prompt doesn't contain the polling model (that's in the cron payload)
-      // but we can verify the work model default
+    it("work model is optional when unspecified", async () => {
       const prompt = buildPollingPrompt("test", "agent");
-      // The polling prompt contains the WORK model, not the polling model
-      // The polling model is set in the cron job payload by setupAgentCrons
-      assert.ok(prompt.includes('"default"'), "default work model in prompt");
+      assert.ok(!prompt.includes("- model:"), "no implicit default work model in prompt");
     });
 
     it("polling prompt uses correct agent id format", () => {

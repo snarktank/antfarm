@@ -1,0 +1,108 @@
+# Progress Log
+Run: f5f414bc-922f-4ee7-9ab0-e9d82d403f28
+Task: platform-v1.1-freeze-exec-scope-clarification | 目标: 完成平台 v1.1 冻结执行范围的技术方案构建 | 基于已有产出继续优化
+Started: 2026-02-20 00:24 CST
+
+## Codebase Patterns
+- `src/db.ts` uses in-place idempotent migrations: create base tables with `CREATE TABLE IF NOT EXISTS`, then add newly introduced columns by probing `PRAGMA table_info(...)` and applying guarded `ALTER TABLE ... ADD COLUMN`.
+- DB migration tests should isolate `os.homedir()` by setting `process.env.HOME` and importing `dist/db.js` dynamically with a cache-busting query string.
+- Structured planner payloads in step output are parsed as multi-line `KEY_JSON:` blocks up to the next `KEY:` boundary (see `collectJsonBlock` in `src/installer/step-ops.ts`).
+- Service-layer domain errors in installer flows should be deterministic via typed error codes (e.g., `ScopeFreezeError.code`) so retry/verify logic can assert behavior without fragile message matching.
+- Loop-scope policy enforcement should run in both claim-time (`claimStep`) and continuation-time (`checkLoopContinuation`) paths to avoid silent out-of-scope progression between iterations.
+- CLI machine-readable commands in this repo should prefer line-oriented `key=value` output and typed error codes on stderr for script-safe parsing.
+- Human-facing event rendering in `antfarm logs` should use a centralized event→label map in `src/cli/cli.ts` to keep labels stable across new event types.
+- Dashboard API evolution should be additive: extend run-detail payloads with new fields (e.g., nested `scope` plus flat compatibility fields) without altering existing keys consumed by current UI.
+- Dashboard run-detail modal sections are rendered by inline helper functions in `src/server/index.html` (e.g., `renderScopePanel(run)`), which are straightforward to validate with template-string assertions in node tests.
+
+---
+
+## 2026-02-20 00:24 CST - US-001: Add execution-scope freeze metadata to database schema
+- Implemented `runs` schema extensions in `src/db.ts` for scope freeze lifecycle fields: `scope_status`, `scope_frozen_at`, and `scope_version`.
+- Added new `run_scope_items` table in migration, keyed by `(run_id, scope_version, item_type, item_value)` to store normalized scope snapshot entries per run/version.
+- Added backward-compatible ALTER migration path for existing databases so missing scope columns are added safely without impacting existing data.
+- Added `tests/db-scope-freeze-migration.test.ts` covering:
+  - fresh DB migration creates new scope-freeze columns and `run_scope_items`
+  - legacy DB migration adds columns and preserves existing `runs` data
+  - migration idempotency check via repeated open
+- Files changed: `src/db.ts`, `tests/db-scope-freeze-migration.test.ts`
+- **Learnings:** using per-test temporary HOME + dynamic module import is a reliable way to test DB migration behavior tied to `os.homedir()` constants.
+---
+
+## 2026-02-20 00:40 CST - US-002: Persist planner-defined scope baseline after plan completion
+- Extended planner output parsing in `src/installer/step-ops.ts` to parse `SCOPE_JSON` alongside `STORIES_JSON` via shared `collectJsonBlock` logic.
+- Added scope normalization and persistence pipeline:
+  - accepts object payloads of array fields (e.g. `in_scope`, `out_of_scope`) and array payloads of typed items
+  - validates malformed/invalid entries with deterministic error messages
+  - persists deduplicated rows to `run_scope_items` at `scope_version = 1`
+  - marks run scope metadata as `scope_status = 'draft'` and `scope_version = 1`
+- Updated key-value output parser to skip `SCOPE_JSON` so structured payload stays on the dedicated parsing path.
+- Added tests in `tests/planner-scope-baseline-persistence.test.ts` for valid persistence and malformed parse failure.
+- Extended `tests/multiline-output-parsing.test.ts` to assert both `STORIES_JSON` and `SCOPE_JSON` are excluded from generic key-value parsing.
+- Files changed: `src/installer/step-ops.ts`, `tests/planner-scope-baseline-persistence.test.ts`, `tests/multiline-output-parsing.test.ts`
+- **Learnings:** for modules that bind DB path from `os.homedir()` at import time, keep one HOME per test file (or reload module graph) to avoid cross-test DB-path drift.
+---
+## 2026-02-20 00:47 CST - US-003: Implement backend API for freezing and reading execution scope
+- Added backend service APIs in `src/installer/step-ops.ts`:
+  - `freezeRunScope(runId, options?)` to freeze active scope, stamp `scope_frozen_at`, and support explicit version bump for re-freeze.
+  - `readRunScope(runId)` to return current scope version, freeze metadata, and normalized scope items.
+  - `ScopeFreezeError` with deterministic `code` values for duplicate freeze and invalid version bump scenarios.
+- Added auditable freeze transition event emission (`scope.frozen`) and wired new event type in `src/installer/events.ts`.
+- Added tests in `tests/scope-freeze-read-api.test.ts` covering freeze transition, read API payload, deterministic duplicate-freeze rejection, and allowed re-freeze on version increment.
+- Files changed: `src/installer/step-ops.ts`, `src/installer/events.ts`, `tests/scope-freeze-read-api.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** Re-freeze semantics can be safely implemented by cloning current-version scope rows into a newer version inside one transaction, then flipping active `runs.scope_version`.
+---
+## 2026-02-20 01:00 CST - US-004: Enforce frozen scope during story lifecycle transitions
+- Added frozen scope enforcement during loop story transitions in `src/installer/step-ops.ts`:
+  - deterministic story identifier/tag matching helpers for scope items
+  - claim-time enforcement in `claimStep` before a pending story is started
+  - continuation-time enforcement in `checkLoopContinuation` after story completion
+  - explicit violation handling that marks story/step/run failed with actionable reasons
+- Added machine-readable violation event type `scope.violation` in `src/installer/events.ts` and emitted structured JSON detail payload on violations.
+- Added tests in `tests/frozen-scope-story-enforcement.test.ts` to verify out-of-scope blocking, in-scope pass-through, and continuation-path enforcement.
+- Files changed: `src/installer/step-ops.ts`, `src/installer/events.ts`, `tests/frozen-scope-story-enforcement.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** frozen-scope policy needs dual-path enforcement (claim + continuation) because loop steps can re-enter pending between iterations.
+---
+## 2026-02-20 01:14 CST - US-005: Add CLI commands to inspect and control execution scope freeze
+- Extended CLI usage and routing in `src/cli/cli.ts` with:
+  - `antfarm workflow scope <run-id>` for inspecting run scope state
+  - `antfarm workflow scope-freeze <run-id>` for freezing run scope
+- Added script-friendly line output (`key=value`) for both commands, including required scope fields (`scope_status`, `scope_version`, `scope_frozen_at`) and emitted scope items for inspect.
+- Wired deterministic CLI error handling for scope operations by surfacing `ScopeFreezeError.code` on stderr and exiting non-zero on failures.
+- Added tests in `tests/cli-scope-commands.test.ts` to validate help text, inspect output fields, freeze success path, and freeze failure exit-code behavior.
+- Files changed: `src/cli/cli.ts`, `tests/cli-scope-commands.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** CLI scope commands should expose typed backend error codes directly for robust shell-level automation checks.
+---
+## 2026-02-20 01:24 CST - US-006: Expose scope freeze state in workflow status and event logs
+- Extended workflow status model/output to surface run scope state inline (`Scope: <status> (v<version>) [at timestamp]`) for run observers.
+- Added stable CLI event labels for `scope.frozen` and `scope.violation` in `antfarm logs` rendering.
+- Added coverage in `tests/cli-status-logs-scope-visibility.test.ts` for both status visibility and log label rendering.
+- Files changed: `src/installer/status.ts`, `src/cli/cli.ts`, `tests/cli-status-logs-scope-visibility.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** extending status output is safest when preserving existing line structure and appending new fields, so existing parsing/tests remain stable.
+---
+## 2026-02-20 01:33 CST - US-007: Add dashboard backend endpoint for scope freeze details
+- Extended run-detail payload in `src/server/dashboard.ts` to include scope API contract data:
+  - `scope` object with `status`, `version`, `frozen_at`, `items`, and `violation_count`
+  - backward-compatible additive flat fields `scope_items` and `scope_violation_count`
+- Implemented scope violation summary derivation for dashboard payloads:
+  - primary source: `scope.violation` events for the run
+  - fallback source: failed step/story outputs containing scope-related errors
+- Added dashboard API coverage in `tests/dashboard-scope-api.test.ts` validating:
+  - required scope metadata and item list
+  - violation count
+  - preservation of existing run detail fields (`id`, `workflow_id`, `task`, `steps`, etc.)
+- Files changed: `src/server/dashboard.ts`, `tests/dashboard-scope-api.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** dashboard run-detail response changes should be additive (new nested/flat fields) to keep existing consumers stable while enabling richer UI contracts.
+---
+## 2026-02-20 01:42 CST - US-008: Render scope freeze panel in dashboard run detail view
+- Updated dashboard run-detail frontend modal (`src/server/index.html`) to render an **Execution Scope** panel with:
+  - scope status badge (`draft`/`frozen`/fallback)
+  - frozen timestamp row
+  - violation count row
+  - scope item list rendered from `scope.items` / compatibility fallback fields
+  - deterministic empty-state text when no scope items exist (`No frozen scope is available for this run.`)
+- Added scope-status badge mapping helper to keep visual state deterministic for draft/frozen values.
+- Added tests in `tests/dashboard-scope-panel-rendering.test.ts` to verify scope panel template wiring, required metadata labels, empty-state copy, and status→badge mapping snippets.
+- Re-ran dashboard API scope contract test to ensure run-detail scope payload compatibility remains intact.
+- Files changed: `src/server/index.html`, `tests/dashboard-scope-panel-rendering.test.ts`, `progress-f5f414bc-922f-4ee7-9ab0-e9d82d403f28.txt`
+- **Learnings:** The dashboard modal can safely evolve via additive inline render helpers while preserving existing stories/activity panels and API payload compatibility.
+---

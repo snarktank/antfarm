@@ -35,6 +35,7 @@ describe("E2E: frontend change detection in verify flow", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "antfarm-e2e-"));
     // Create a real git repo with a main branch
     execSync("git init && git checkout -b main", { cwd: tmpDir });
+    execSync("git config user.name 'Antfarm Test' && git config user.email 'antfarm-test@example.com'", { cwd: tmpDir });
     fs.writeFileSync(path.join(tmpDir, "README.md"), "# test");
     execSync("git add . && git commit -m 'init'", { cwd: tmpDir });
   });

@@ -23,7 +23,7 @@ import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
-import { claimStep, completeStep, failStep, getStories, peekStep } from "../installer/step-ops.js";
+import { claimStep, completeStep, failStep, getStories, peekStep, readRunScope, freezeRunScope, ScopeFreezeError } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
@@ -66,6 +66,8 @@ function formatEventLabel(evt: AntfarmEvent): string {
     "story.retry": "Story retry",
     "story.failed": "Story failed",
     "pipeline.advanced": "Pipeline advanced",
+    "scope.frozen": "Scope frozen",
+    "scope.violation": "Scope violation",
   };
   return labels[evt.event] ?? evt.event;
 }
@@ -96,6 +98,8 @@ function printUsage() {
       "antfarm workflow run <name> <task>   Start a workflow run",
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
       "antfarm workflow runs                List all workflow runs",
+      "antfarm workflow scope <run-id>      Show execution scope state for a run",
+      "antfarm workflow scope-freeze <run-id> Freeze execution scope for a run",
       "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
       "antfarm workflow stop <run-id>        Stop/cancel a running workflow",
       "antfarm workflow ensure-crons <name>  Recreate agent crons for a workflow",
@@ -468,6 +472,46 @@ async function main() {
     return;
   }
 
+  if (action === "scope") {
+    if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+    try {
+      const snapshot = readRunScope(target);
+      process.stdout.write(`run_id=${snapshot.runId}\n`);
+      process.stdout.write(`scope_status=${snapshot.status}\n`);
+      process.stdout.write(`scope_version=${snapshot.scopeVersion}\n`);
+      process.stdout.write(`scope_frozen_at=${snapshot.scopeFrozenAt ?? ""}\n`);
+      for (const item of snapshot.items) {
+        process.stdout.write(`scope_item=${item.itemType}:${item.itemValue}\n`);
+      }
+    } catch (err) {
+      if (err instanceof ScopeFreezeError) {
+        process.stderr.write(`${err.code}: ${err.message}\n`);
+        process.exit(1);
+      }
+      throw err;
+    }
+    return;
+  }
+
+  if (action === "scope-freeze") {
+    if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+    try {
+      const snapshot = freezeRunScope(target);
+      process.stdout.write(`ok=1\n`);
+      process.stdout.write(`run_id=${snapshot.runId}\n`);
+      process.stdout.write(`scope_status=${snapshot.status}\n`);
+      process.stdout.write(`scope_version=${snapshot.scopeVersion}\n`);
+      process.stdout.write(`scope_frozen_at=${snapshot.scopeFrozenAt ?? ""}\n`);
+    } catch (err) {
+      if (err instanceof ScopeFreezeError) {
+        process.stderr.write(`${err.code}: ${err.message}\n`);
+        process.exit(1);
+      }
+      throw err;
+    }
+    return;
+  }
+
   if (!target) { printUsage(); process.exit(1); }
 
   if (action === "install") {
@@ -505,6 +549,7 @@ async function main() {
       `Workflow: ${run.workflow_id}`,
       `Task: ${run.task.slice(0, 120)}${run.task.length > 120 ? "..." : ""}`,
       `Status: ${run.status}`,
+      `Scope: ${run.scope_status} (v${run.scope_version})${run.scope_frozen_at ? ` at ${run.scope_frozen_at}` : ""}`,
       `Created: ${run.created_at}`,
       `Updated: ${run.updated_at}`,
       "",

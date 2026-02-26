@@ -39,15 +39,15 @@ describe("polling timeout sync across all workflows", () => {
       );
     });
 
-    it(`${name} workflow polling.model is set to 'default' (OpenClaw resolves model)`, async () => {
+    it(`${name} workflow polling.model is pinned to MiniMax-M2.5`, async () => {
       const dir = path.join(WORKFLOWS_DIR, name);
       const spec = await loadWorkflowSpec(dir);
 
       assert.ok(spec.polling, `${name} should have a polling config`);
       assert.equal(
         spec.polling.model,
-        "default",
-        `${name} polling model should be "default" to let OpenClaw resolve the model, got: ${spec.polling.model}`
+        "MiniMax-M2.5",
+        `${name} polling model should be "MiniMax-M2.5", got: ${spec.polling.model}`
       );
     });
   }
