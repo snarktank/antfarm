@@ -1,0 +1,264 @@
+# Script Class Processor Workflow
+# Processes long transcript files (2-3 hours, 2000-3000 lines) by chunking them into manageable pieces.
+id: script-class-processor
+name: Script Class Processor
+version: 1
+description: |
+  Processes long transcript files (2-3 hours, 2000-3000 lines) by chunking them into manageable pieces.
+  Reads transcript files, splits them into semantically coherent chunks, and processes each chunk
+  for content extraction and analysis.
+
+polling:
+  model: default
+  timeoutSeconds: 1800
+
+agents:
+  - id: file-watcher
+    name: File Watcher
+    role: coding
+    description: Detect new .vtt transcript files in transcripts/raw/ and extract session information to trigger the processing pipeline.
+    workspace:
+      baseDir: agents/file-watcher
+      files:
+        AGENTS.md: agents/file-watcher/AGENTS.md
+        SOUL.md: agents/file-watcher/SOUL.md
+        IDENTITY.md: agents/file-watcher/IDENTITY.md
+
+  - id: transcript-cleaner
+    name: Transcript Cleaner
+    role: coding
+    description: Parse VTT files to remove timestamps, headers, and formatting artifacts; extract clean text and metadata for downstream chunking and analysis.
+    workspace:
+      baseDir: agents/transcript-cleaner
+      files:
+        AGENTS.md: agents/transcript-cleaner/AGENTS.md
+        SOUL.md: agents/transcript-cleaner/SOUL.md
+        IDENTITY.md: agents/transcript-cleaner/IDENTITY.md
+
+  - id: chunk-analyzer
+    name: Chunk Analyzer
+    role: analysis
+    description: Split long transcripts into manageable time-based chunks (~5 minutes each, 200-300 lines) and build cumulative topic index for sequential AI processing.
+    workspace:
+      baseDir: agents/chunk-analyzer
+      files:
+        AGENTS.md: agents/chunk-analyzer/AGENTS.md
+        SOUL.md: agents/chunk-analyzer/SOUL.md
+        IDENTITY.md: agents/chunk-analyzer/IDENTITY.md
+
+  - id: jump-guide-generator
+    name: Jump Guide Generator
+    role: coding
+    description: Create timestamp-based navigation tables in HH:MM:SS format that allow users to quickly jump to specific topics, demos, and exam tips in video content.
+    workspace:
+      baseDir: agents/jump-guide-generator
+      files:
+        AGENTS.md: agents/jump-guide-generator/AGENTS.md
+        SOUL.md: agents/jump-guide-generator/SOUL.md
+        IDENTITY.md: agents/jump-guide-generator/IDENTITY.md
+
+  - id: notes-generator
+    name: Notes Generator
+    role: coding
+    description: Process cleaned transcript sections using the jump guide as structure and produce structured learning notes with all standard sections including summary, key concepts, code examples, and cross-references to other sessions.
+    workspace:
+      baseDir: agents/notes-generator
+      files:
+        AGENTS.md: agents/notes-generator/AGENTS.md
+        SOUL.md: agents/notes-generator/SOUL.md
+        IDENTITY.md: agents/notes-generator/IDENTITY.md
+
+  - id: markdown-converter
+    name: Markdown Converter
+    role: coding
+    description: Convert chunk_analysis.json to notes.md using Session_21 format as the template, creating structured learning notes with session dashboard, study presets, jump guide, content heatmap, key insights, and detailed sections.
+    workspace:
+      baseDir: agents/markdown-converter
+      files:
+        AGENTS.md: agents/markdown-converter/AGENTS.md
+        SOUL.md: agents/markdown-converter/SOUL.md
+        IDENTITY.md: agents/markdown-converter/IDENTITY.md
+
+  - id: quiz-generator
+    name: Quiz Generator
+    role: coding
+    description: Read notes.md and generate practice questions including Quick Check (5 recall), Concept Check (5 understanding), Scenario Practice (3 real-world), and Flashcards to help learners test their understanding.
+    workspace:
+      baseDir: agents/quiz-generator
+      files:
+        AGENTS.md: agents/quiz-generator/AGENTS.md
+        SOUL.md: agents/quiz-generator/SOUL.md
+        IDENTITY.md: agents/quiz-generator/IDENTITY.md
+
+  - id: verification-agent
+    name: Verification Agent
+    role: verification
+    description: Validate all workflow outputs by checking file existence, format compliance, timestamp validity (HH:MM:SS), and quiz completeness. Output completion_report.json with detailed validation results.
+    workspace:
+      baseDir: agents/verification-agent
+      files:
+        AGENTS.md: agents/verification-agent/AGENTS.md
+        SOUL.md: agents/verification-agent/SOUL.md
+        IDENTITY.md: agents/verification-agent/IDENTITY.md
+
+steps:
+  - id: detect
+    agent: file-watcher
+    input: |
+      Detect and process transcript file for session: {{task}}
+      
+      Search for .vtt files in transcripts/raw/ directory that match the session identifier.
+      Extract the session_id and file_path from the detected transcript file.
+      Report your findings with STATUS: done when complete.
+    expects: |
+      STATUS: done
+    outputs:
+      session_id: "Session identifier extracted from filename"
+      file_path: "Full path to the detected transcript file"
+
+  - id: preprocess
+    agent: transcript-cleaner
+    input: |
+      Clean and preprocess transcript for session: {{session_id}}
+      
+      Source file: {{file_path}}
+      
+      Parse the VTT file to:
+      1. Remove timestamps, headers, and formatting artifacts
+      2. Extract clean text content
+      3. Generate metadata (speaker count, duration, line count)
+      
+      Save cleaned transcript and metadata to the appropriate output directories.
+    expects: |
+      STATUS: done
+    outputs:
+      cleaned_path: "Path to the cleaned transcript file"
+      metadata_path: "Path to the metadata JSON file"
+
+  - id: chunk
+    agent: chunk-analyzer
+    input: |
+      Analyze and chunk transcript for session: {{session_id}}
+      
+      Cleaned transcript: {{cleaned_path}}
+      Metadata: {{metadata_path}}
+      
+      Split the cleaned transcript into semantically coherent chunks of approximately:
+      - 5 minutes of content each
+      - 200-300 lines per chunk
+      
+      Build a cumulative topic index that tracks topics across chunks for sequential processing.
+      Each chunk should have start/end timestamps and a summary of contained topics.
+    expects: |
+      STATUS: done
+    outputs:
+      chunk_analysis_path: "Path to the chunk analysis JSON file"
+
+  - id: jump-guide
+    agent: jump-guide-generator
+    input: |
+      Generate jump guide for session: {{session_id}}
+      
+      Chunk analysis: {{chunk_analysis_path}}
+      
+      Create a timestamp-based navigation table in HH:MM:SS format that allows users to quickly jump to:
+      1. Topic transitions and key concepts
+      2. Code demonstrations and examples
+      3. Exam tips and important notes
+      4. Q&A sections and clarifications
+      
+      Each entry should include timestamp, topic/section name, and brief description.
+    expects: |
+      STATUS: done
+    outputs:
+      jump_guide_path: "Path to the jump guide markdown file"
+
+  - id: notes
+    agent: notes-generator
+    input: |
+      Generate structured notes for session: {{session_id}}
+      
+      Cleaned transcript: {{cleaned_path}}
+      Jump guide: {{jump_guide_path}}
+      
+      Process the cleaned transcript sections using the jump guide as structure to produce:
+      1. Session summary and learning objectives
+      2. Key concepts with clear explanations
+      3. Code examples with syntax highlighting
+      4. Important takeaways and exam tips
+      5. Cross-references to related sessions
+      
+      Notes should be well-organized with clear headings and easy to scan.
+    expects: |
+      STATUS: done
+    outputs:
+      notes_path: "Path to the notes markdown file"
+
+  - id: markdown-convert
+    agent: markdown-converter
+    input: |
+      Convert chunk analysis to formatted notes for session: {{session_id}}
+      
+      Chunk analysis: {{chunk_analysis_path}}
+      
+      Transform the chunk_analysis.json into notes.md following the Session_21 format:
+      1. Session Analysis Dashboard with difficulty score
+      2. Smart Study Presets (Exam Cram, Quick Pass, Standard, Deep Dive)
+      3. Video Jump Guide with timestamps and navigation
+      4. Content Density Heatmap
+      5. Key Insights Extraction
+      6. 3-Minute Summary
+      7. Detailed Notes organized by topics
+      8. Coverage Verification
+      
+      Create a beautifully structured markdown file that learners can use for quick review or deep study.
+    expects: |
+      STATUS: done
+    outputs:
+      formatted_notes_path: "Path to the formatted notes markdown file"
+
+  - id: quiz
+    agent: quiz-generator
+    input: |
+      Generate practice quiz for session: {{session_id}}
+
+      Notes: {{notes_path}}
+
+      Create comprehensive practice questions based on the notes:
+      1. Quick Check (5 questions): Basic recall of key facts
+      2. Concept Check (5 questions): Understanding of concepts and relationships
+      3. Scenario Practice (3 questions): Real-world application scenarios
+      4. Flashcards: Key terms and definitions for quick review
+
+      Include answer keys with explanations for all questions.
+    expects: |
+      STATUS: done
+    outputs:
+      quiz_path: "Path to the quiz markdown file"
+
+  - id: verify
+    agent: verification-agent
+    input: |
+      Verify all workflow outputs for session: {{session_id}}
+
+      Artifacts to validate:
+      - Chunk analysis: {{chunk_analysis_path}}
+      - Jump guide: {{jump_guide_path}}
+      - Notes: {{notes_path}}
+      - Quiz: {{quiz_path}}
+
+      Perform comprehensive validation:
+      1. Verify all output files exist and are non-empty
+      2. Check format compliance for each artifact type
+      3. Validate timestamp formats (HH:MM:SS) in jump guide
+      4. Verify quiz completeness (Quick Check, Concept Check, Scenario Practice, Flashcards)
+      5. Confirm notes structure and cross-references
+      6. Generate completion_report.json with detailed validation results
+
+      Report any issues found and provide a summary of validation status.
+    expects: |
+      STATUS: done
+    outputs:
+      completion_report_path: "Path to the completion report JSON file"
+    on_fail:
+      escalate_to: human
