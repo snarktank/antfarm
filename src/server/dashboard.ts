@@ -9,8 +9,10 @@ import YAML from "yaml";
 import type { RunInfo, StepInfo } from "../installer/status.js";
 import { getRunEvents } from "../installer/events.js";
 import { getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
+import { createLinkStore } from "./link-storage.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const linkStore = createLinkStore();
 
 interface WorkflowDef {
   id: string;
@@ -70,13 +72,92 @@ function serveHTML(res: http.ServerResponse) {
   res.end(fs.readFileSync(filePath, "utf-8"));
 }
 
+function serveLinksHTML(res: http.ServerResponse) {
+  const htmlPath = path.join(__dirname, "links.html");
+  const srcHtmlPath = path.resolve(__dirname, "..", "..", "src", "server", "links.html");
+  const filePath = fs.existsSync(htmlPath) ? htmlPath : srcHtmlPath;
+  if (!fs.existsSync(filePath)) {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not found");
+    return;
+  }
+  res.writeHead(200, { "Content-Type": "text/html" });
+  res.end(fs.readFileSync(filePath, "utf-8"));
+}
+
+async function parseJsonBody(req: http.IncomingMessage) {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    if (chunk) chunks.push(chunk);
+  }
+  const payload = Buffer.concat(chunks).toString("utf-8").trim();
+  if (!payload) return {};
+  try {
+    return JSON.parse(payload);
+  } catch {
+    throw new Error("Invalid JSON payload");
+  }
+}
+
 export function startDashboard(port = 3333): http.Server {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
 
+    if (p === "/links" || p === "/links/") {
+      return serveLinksHTML(res);
+    }
+
     if (p === "/api/workflows") {
       return json(res, loadWorkflows());
+    }
+
+    if (p === "/api/links") {
+      if (req.method === "GET") {
+        const links = linkStore.listLinks({
+          query: url.searchParams.get("q") ?? undefined,
+          category: url.searchParams.get("category") ?? undefined,
+        });
+        return json(res, {
+          links,
+          categories: linkStore.listCategories(),
+        });
+      }
+
+      if (req.method === "POST") {
+        try {
+          const payload = await parseJsonBody(req);
+          const entry = linkStore.addLink({
+            url: payload?.url ?? "",
+            title: payload?.title,
+            category: payload?.category,
+            notes: payload?.notes,
+          });
+          return json(res, entry, 201);
+        } catch (err) {
+          return json(res, { error: err instanceof Error ? err.message : "Invalid payload" }, 400);
+        }
+      }
+
+      if (req.method === "OPTIONS") {
+        res.writeHead(204, {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        });
+        return res.end();
+      }
+
+      return json(res, { error: "method not allowed" }, 405);
+    }
+
+    const linkDetailMatch = p.match(/^\/api\/links\/([^/]+)$/);
+    if (linkDetailMatch) {
+      if (req.method !== "GET") {
+        return json(res, { error: "method not allowed" }, 405);
+      }
+      const entry = linkStore.getLink(linkDetailMatch[1]);
+      return entry ? json(res, entry) : json(res, { error: "not found" }, 404);
     }
 
     const eventsMatch = p.match(/^\/api\/runs\/([^/]+)\/events$/);

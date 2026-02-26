@@ -1,0 +1,19 @@
+# Progress Log
+Run: 49c14ccd-148d-45e7-bf48-cc0f7c786fd0
+Task: Construir una app web interna "Dashboard de Enlaces" para organizar los links enviados al bot, con persistencia local y documentación de integración.
+Started: 2026-02-23 15:52 GMT-5
+
+## Codebase Patterns
+- Tests live under `tests/` and are executed with `node --test <file>.ts`.
+- Server HTML assets are stored in `src/server` and copied to `dist/server` in the build step; dashboards reference `/api/` routes provided by `src/server/dashboard.ts`.
+- Documentation lives under `docs/`, and README sections link directly to those Markdown files.
+
+---
+
+## 2026-02-23 15:52 - US-002: Dashboard de Enlaces
+- Implemented `src/server/link-storage.ts` to persist links in `~/.openclaw/antfarm/links.json` and wired `/api/links` plus `/api/links/:id` into the dashboard server.
+- Built the responsive `/links` frontend (`src/server/links.html`) with search, category pills, cards, and a detail panel, and exposed the new experience in README/docs.
+- Added `docs/links-dashboard.md` for Tailscale integration and bot POST payloads, plus `tests/dashboard-links.test.ts` to exercise storage/filter behavior.
+- Files changed: `.gitignore`, `package.json`, `package-lock.json`, `README.md`, `docs/links-dashboard.md`, `src/server/dashboard.ts`, `src/server/link-storage.ts`, `src/server/links.html`, `tests/dashboard-links.test.ts`, `workflows/feature-dev/workflow.yml`.
+- **Learnings:** Link persistence lives in `links.json` under the Antfarm home directory, and new dashboard HTML must be copied into `dist/server` during the build so it can be served alongside the existing UI.
+---
