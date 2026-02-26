@@ -151,9 +151,8 @@ export async function createAgentCronJob(job: {
       args.push("--model", job.payload.model);
     }
 
-    if (job.delivery?.mode === "none") {
-      args.push("--delivery", "none");
-    }
+    // openclaw CLI uses --deliver (boolean flag), not --delivery <value>
+    // "none" mode means no delivery notification, so we simply omit the flag
 
     if (!job.enabled) {
       args.push("--disabled");
