@@ -6,3 +6,15 @@ dist/
 *.sqlite3
 progress.txt
 progress*.txt
+.env
+.env.local
+.env.*.local
+coverage/
+.nyc_output/
+*.log
+*.key
+*.pem
+*.secret
+__pycache__/
+*.pyc
+*.bak
