@@ -331,6 +331,29 @@ antfarm workflow install my-workflow
 
 This provisions agent workspaces, registers agents in OpenClaw config, and sets up cron polling.
 
+## Running safely (avoid per-repo concurrency)
+
+If you're iterating quickly, it's easy to trigger overlapping runs against the same repository.
+A simple pattern is to use a per-repository file lock before starting a new workflow run.
+
+This repo includes a helper script:
+
+```bash
+scripts/run-safe.sh <repo_path> <workflow_id> "<task>"
+```
+
+Example:
+
+```bash
+scripts/run-safe.sh /home/me/projects/my-app feature-dev "Add OAuth login"
+```
+
+The script:
+- verifies `repo_path` is a git repository,
+- acquires a lock file under `/tmp`,
+- exits early if another run is already active for that repo,
+- starts the workflow only when the lock is acquired.
+
 ## Tips
 
 - **Be specific in input templates.** Agents get the input as their entire task context. Vague inputs produce vague results.
