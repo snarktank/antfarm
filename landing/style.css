@@ -583,3 +583,67 @@ h2.problem-text {
   .code-block pre { padding: 14px 16px; }
   .arch-block pre { padding: 16px 18px; }
 }
+
+/* ── SampleCTA component ──────────────────────────────────────────── */
+.cta-section {
+  text-align: center;
+  padding: 64px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  margin: 48px auto;
+  max-width: 640px;
+}
+
+.cta-headline {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 12px;
+  line-height: 1.25;
+}
+
+.cta-sub {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin: 0 0 28px;
+  line-height: 1.6;
+}
+
+.cta-btn {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  padding: 12px 28px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.cta-btn:hover {
+  background: var(--accent-light);
+  color: #fff;
+}
+
+@media (max-width: 600px) {
+  .cta-section {
+    padding: 40px 20px;
+    margin: 32px 16px;
+    border-radius: 8px;
+  }
+
+  .cta-headline {
+    font-size: 1.35rem;
+  }
+
+  .cta-sub {
+    font-size: 0.9rem;
+  }
+
+  .cta-btn {
+    padding: 11px 22px;
+    font-size: 0.875rem;
+  }
+}

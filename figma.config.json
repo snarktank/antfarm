@@ -1,0 +1,8 @@
+{
+  "codeConnect": {
+    "include": [
+      "landing/**/*.figma.ts",
+      "landing/**/*.figma.tsx"
+    ]
+  }
+}

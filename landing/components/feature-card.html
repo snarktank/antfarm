@@ -1,0 +1,14 @@
+<!-- FeatureCard (wf-card) component template -->
+<div class="wf-card">
+  <div class="wf-header">
+    <h3>{{title}}</h3>
+    <span class="wf-badge">{{badge}}</span>
+  </div>
+  <p>{{description}}</p>
+  <div class="wf-pipeline">
+    <!-- pipeline steps rendered as: <span>step</span><span class="wf-arrow">→</span> ... -->
+    {{#each pipeline}}
+    <span>{{this}}</span><span class="wf-arrow">&rarr;</span>
+    {{/each}}
+  </div>
+</div>
