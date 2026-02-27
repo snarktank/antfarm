@@ -149,7 +149,10 @@ export async function createAgentCronJob(job: {
     }
 
     if (job.payload?.timeoutSeconds) {
-      args.push("--timeout", `${job.payload.timeoutSeconds}`);
+      // openclaw cron add uses --timeout-seconds for agent turn timeout.
+      // Using --timeout here would set CLI RPC timeout in milliseconds and can
+      // incorrectly become 120ms for timeoutSeconds=120.
+      args.push("--timeout-seconds", `${job.payload.timeoutSeconds}`);
     }
 
     if (job.payload?.model) {
