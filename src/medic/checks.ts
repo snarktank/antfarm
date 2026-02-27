@@ -1,8 +1,12 @@
 /**
  * Medic health checks — modular functions that inspect DB state and return findings.
  */
+import fs from "node:fs/promises";
 import { getDb } from "../db.js";
 import { getMaxRoleTimeoutSeconds } from "../installer/install.js";
+import { loadWorkflowSpec } from "../installer/workflow-spec.js";
+import { resolveWorkflowDir, resolveWorkflowRoot } from "../installer/paths.js";
+import type { WorkflowSpec } from "../installer/types.js";
 
 export type MedicSeverity = "info" | "warning" | "critical";
 export type MedicActionType =
@@ -194,6 +198,26 @@ export function checkOrphanedCrons(
   }
 
   return findings;
+}
+
+// ── Workflow Spec Loader for Medic ─────────────────────────────────
+
+/**
+ * Load a workflow spec by its ID from disk.
+ * Returns null if the workflow directory doesn't exist.
+ * Used by medic to determine expected agents for cron gap detection.
+ */
+export async function loadWorkflowSpecForMedic(
+  workflowId: string
+): Promise<WorkflowSpec | null> {
+  const workflowDir = resolveWorkflowDir(workflowId);
+  try {
+    await fs.access(workflowDir);
+  } catch {
+    // Directory doesn't exist
+    return null;
+  }
+  return loadWorkflowSpec(workflowDir);
 }
 
 // ── Run All Checks ──────────────────────────────────────────────────
