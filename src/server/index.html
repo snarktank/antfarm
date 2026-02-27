@@ -233,6 +233,9 @@ let currentWf = null;
 let openRunId = null;
 let openRunRefreshInterval = null;
 
+// Cache last-known run data for surgical updates
+let lastRunData = null;
+
 function clearOpenRunRefresh() {
   if (openRunRefreshInterval) {
     clearInterval(openRunRefreshInterval);
@@ -346,11 +349,161 @@ async function refreshOpenRunPanel() {
   if (!openRunId) return;
   try {
     const run = await fetchJSON(`/api/runs/${openRunId}`);
-    renderRunPanel(run);
-    await Promise.all([loadStories(openRunId), loadActivity(openRunId)]);
+    updateRunPanel(run);
+    await Promise.all([updateStories(openRunId), loadActivity(openRunId)]);
   } catch {
     closePanel();
   }
+}
+
+/** Surgically update only changed parts of the run panel — no innerHTML replacement */
+function updateRunPanel(run) {
+  const panel = document.getElementById('panel');
+  if (!panel || !panel.children.length) {
+    // Panel not yet rendered — do full render
+    renderRunPanel(run);
+    lastRunData = run;
+    return;
+  }
+
+  // Update run-level badge
+  const metaSpan = panel.querySelector('.panel-meta .badge');
+  if (metaSpan) {
+    metaSpan.className = `badge badge-${run.status}`;
+    metaSpan.textContent = run.status;
+  }
+
+  // Update timestamps
+  const metaSpans = panel.querySelectorAll('.panel-meta > span');
+  if (metaSpans.length >= 3) {
+    const updated = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || '' : '';
+    metaSpans[2].textContent = 'Updated: ' + updated;
+  }
+
+  // Update each step row
+  const stepRows = panel.querySelectorAll('.step-row[data-step-id]');
+  const stepMap = {};
+  for (const row of stepRows) stepMap[row.dataset.stepId] = row;
+
+  for (const s of (run.steps || [])) {
+    const row = stepMap[s.step_id];
+    if (!row) continue;
+
+    const st = s.status || 'waiting';
+    const icon = stepIcons[st] || '○';
+
+    // Update icon
+    const iconEl = row.querySelector('.step-icon');
+    if (iconEl) {
+      iconEl.className = `step-icon ${st}`;
+      iconEl.textContent = icon;
+    }
+
+    // Update badge
+    const badge = row.querySelector('.badge');
+    if (badge) {
+      badge.className = `badge badge-${st}`;
+      badge.textContent = st;
+    }
+
+    // If step now has output but didn't before, add the expandable section
+    const hasOutput = !!s.output;
+    const existingDetails = row.querySelector('.step-details');
+    const existingChevron = row.querySelector('.step-chevron');
+
+    if (hasOutput && !existingDetails) {
+      // Add chevron
+      const headerDiv = row.querySelector(':scope > div:first-child');
+      if (headerDiv && !existingChevron) {
+        const chevSpan = document.createElement('span');
+        chevSpan.className = 'step-chevron';
+        chevSpan.style.cssText = 'color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block';
+        chevSpan.textContent = '▶';
+        headerDiv.appendChild(chevSpan);
+      }
+
+      // Add output section
+      const detailsDiv = document.createElement('div');
+      detailsDiv.className = 'step-details';
+      detailsDiv.style.cssText = 'display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6';
+      detailsDiv.innerHTML = `<details style="margin-top:4px" onclick="event.stopPropagation()"><summary style="font-size:11px;color:var(--text-secondary);cursor:pointer;font-weight:500">Output</summary><pre style="margin-top:6px;padding:8px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto">${esc(s.output)}</pre></details>`;
+      row.appendChild(detailsDiv);
+
+      // Make row clickable
+      row.style.cursor = 'pointer';
+      row.onclick = function() { toggleStep(this, s.step_id); };
+    } else if (hasOutput && existingDetails) {
+      // Update output text if it changed, preserving scroll position
+      const pre = existingDetails.querySelector('pre');
+      if (pre) {
+        const oldStep = lastRunData?.steps?.find(x => x.step_id === s.step_id);
+        if (oldStep?.output !== s.output) {
+          const scrollPos = pre.scrollTop;
+          pre.textContent = s.output;
+          pre.scrollTop = scrollPos;
+        }
+      }
+    }
+  }
+
+  lastRunData = run;
+}
+
+/** Surgically update stories — only touch changed elements */
+async function updateStories(runId) {
+  const stories = await fetchJSON(`/api/runs/${runId}/stories`);
+  const panel = document.getElementById('stories-panel');
+  if (!panel) return;
+
+  if (!stories || stories.length === 0) {
+    if (panel.innerHTML) panel.innerHTML = '';
+    return;
+  }
+
+  // If stories panel doesn't exist yet, do full render
+  if (!panel.querySelector('.step-row')) {
+    loadStories(runId);
+    return;
+  }
+
+  // Update progress bar
+  const done = stories.filter(s => s.status === 'done').length;
+  const pct = Math.round((done / stories.length) * 100);
+  const progressBar = panel.querySelector('[style*="width:"]');
+  if (progressBar) progressBar.style.width = pct + '%';
+  const countSpan = panel.querySelector('[style*="accent-green"]');
+  if (countSpan && countSpan.closest('[style*="justify-content"]')) {
+    countSpan.textContent = `${done} / ${stories.length} done`;
+  }
+
+  // Update each story row badge/icon
+  const rows = panel.querySelectorAll('.step-row');
+  for (let i = 0; i < stories.length && i < rows.length; i++) {
+    const s = stories[i];
+    const row = rows[i];
+    const st = s.status || 'pending';
+    const icon = stepIcons[st] || '○';
+
+    const iconEl = row.querySelector('.step-icon');
+    if (iconEl) {
+      iconEl.className = `step-icon ${st}`;
+      iconEl.textContent = icon;
+    }
+    const badge = row.querySelector('.badge');
+    if (badge) {
+      badge.className = `badge badge-${st}`;
+      badge.textContent = st;
+    }
+  }
+}
+
+function toggleStep(el, stepId) {
+  el.querySelector('.step-details').classList.toggle('step-open');
+  el.querySelector('.step-chevron').classList.toggle('step-chevron-open');
+}
+function toggleStory(el, storyId) {
+  el.querySelector('.story-details').classList.toggle('story-open');
+  el.querySelector('.story-chevron').classList.toggle('story-chevron-open');
 }
 
 function renderRunPanel(run) {
@@ -361,8 +514,8 @@ function renderRunPanel(run) {
     const st = s.status || 'waiting';
     const icon = stepIcons[st] || '○';
     const hasOutput = !!s.output;
-    const toggleAttr = hasOutput ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" style="cursor:pointer"` : '';
-    return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
+    const toggleAttr = hasOutput ? `onclick="toggleStep(this,'${s.step_id}')" style="cursor:pointer"` : '';
+    return `<div class="step-row" data-step-id="${s.step_id}" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
       <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
         <div class="step-icon ${st}">${icon}</div>
         <div class="step-name" style="flex:1">${s.step_id}</div>
@@ -388,6 +541,7 @@ function renderRunPanel(run) {
       <div id="stories-panel"></div>
     <div id="activity-panel"></div>
   `;
+  lastRunData = run;
 }
 
 function formatEventDesc(evt) {
@@ -412,35 +566,57 @@ function formatEventDesc(evt) {
   }
 }
 
+let lastActivityCount = 0;
+
+function renderActivityRow(evt) {
+  const t = parseTS(evt.ts);
+  const time = t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const agent = evt.agentId ? evt.agentId.split('/').pop() : '';
+  const desc = formatEventDesc(evt);
+  const agentSpan = agent
+    ? `<span style="color:var(--accent-teal);font-family:'Geist Mono',monospace;flex-shrink:0">${esc(agent)}</span>`
+    : '';
+  return `<div style="display:flex;gap:12px;padding:4px 0;font-size:12px;line-height:1.5;border-bottom:1px solid var(--border-light)">
+    <span style="color:var(--text-secondary);font-family:'Geist Mono',monospace;flex-shrink:0;min-width:44px">${time}</span>
+    ${agentSpan}
+    <span style="color:var(--text-primary)">${esc(desc)}</span>
+  </div>`;
+}
+
 async function loadActivity(runId) {
   const events = await fetchJSON(`/api/runs/${runId}/events`);
   const panel = document.getElementById('activity-panel');
-  if (!events || events.length === 0) { panel.innerHTML = ''; return; }
-  const rows = events.map(evt => {
-    const t = parseTS(evt.ts);
-    const time = t.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-    const agent = evt.agentId ? evt.agentId.split('/').pop() : '';
-    const desc = formatEventDesc(evt);
-    const agentSpan = agent
-      ? `<span style="color:var(--accent-teal);font-family:'Geist Mono',monospace;flex-shrink:0">${esc(agent)}</span>`
-      : '';
-    return `<div style="display:flex;gap:12px;padding:4px 0;font-size:12px;line-height:1.5;border-bottom:1px solid var(--border-light)">
-      <span style="color:var(--text-secondary);font-family:'Geist Mono',monospace;flex-shrink:0;min-width:44px">${time}</span>
-      ${agentSpan}
-      <span style="color:var(--text-primary)">${esc(desc)}</span>
-    </div>`;
-  }).join('');
+  if (!events || events.length === 0) { panel.innerHTML = ''; lastActivityCount = 0; return; }
+
+  // If container already exists and we just have new events, append them
+  const container = panel.querySelector('[data-activity-list]');
+  if (container && events.length >= lastActivityCount) {
+    const newEvents = events.slice(lastActivityCount);
+    if (newEvents.length > 0) {
+      for (const evt of newEvents) {
+        container.insertAdjacentHTML('beforeend', renderActivityRow(evt));
+      }
+    }
+    lastActivityCount = events.length;
+    return;
+  }
+
+  // First render — build the full thing
+  const rows = events.map(evt => renderActivityRow(evt)).join('');
   panel.innerHTML = `
     <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:20px">
       <h3 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:12px">Activity</h3>
-      <div style="max-height:300px;overflow-y:auto">${rows}</div>
+      <div data-activity-list style="max-height:300px;overflow-y:auto">${rows}</div>
     </div>
   `;
+  lastActivityCount = events.length;
 }
 
 function closePanel() {
   clearOpenRunRefresh();
   openRunId = null;
+  lastRunData = null;
+  lastActivityCount = 0;
   document.getElementById('overlay').classList.remove('open');
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
@@ -468,8 +644,8 @@ async function loadStories(runId) {
           try { ac = JSON.parse(s.acceptance_criteria || '[]'); } catch { ac = [s.acceptance_criteria]; }
           const retryInfo = s.retry_count > 0 ? ` <span style="color:var(--accent-orange);font-size:10px">(retry ${s.retry_count})</span>` : '';
           const hasDetails = s.description || ac.length > 0 || s.output;
-          const toggleAttr = hasDetails ? `onclick="this.querySelector('.story-details').classList.toggle('story-open');this.querySelector('.story-chevron').classList.toggle('story-chevron-open')" style="cursor:pointer"` : '';
-          return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
+          const toggleAttr = hasDetails ? `onclick="toggleStory(this,'${s.story_id}')" style="cursor:pointer"` : '';
+          return `<div class="step-row" data-story-id="${s.story_id}" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
             <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
               <div class="step-icon ${st}">${icon}</div>
               <div class="step-name" style="flex:1">${s.story_id}: ${s.title}${retryInfo}</div>

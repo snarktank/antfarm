@@ -92,6 +92,20 @@ export function resolveTemplate(template: string, context: Record<string, string
 }
 
 /**
+ * Template variables used in retry/feedback loops that may not exist on first run.
+ * Default them to empty string so findMissingTemplateKeys doesn't reject the step.
+ */
+const OPTIONAL_TEMPLATE_VARS = ["verify_feedback"] as const;
+
+export function defaultOptionalTemplateVars(context: Record<string, string>): void {
+  for (const key of OPTIONAL_TEMPLATE_VARS) {
+    if (!context[key]) {
+      context[key] = "";
+    }
+  }
+}
+
+/**
  * Find missing template placeholders for a given context object.
  */
 function findMissingTemplateKeys(template: string, context: Record<string, string>): string[] {
@@ -622,9 +636,7 @@ export function claimStep(agentId: string): ClaimResult {
       context["stories_remaining"] = String(pendingCount);
       context["progress"] = readProgressFile(step.run_id);
 
-      if (!context["verify_feedback"]) {
-        context["verify_feedback"] = "";
-      }
+      defaultOptionalTemplateVars(context);
 
       const missingKeys = findMissingTemplateKeys(step.input_template, context);
       if (missingKeys.length > 0) {
@@ -654,6 +666,8 @@ export function claimStep(agentId: string): ClaimResult {
   if (hasStories.cnt > 0) {
     context["progress"] = readProgressFile(step.run_id);
   }
+
+  defaultOptionalTemplateVars(context);
 
   const missingKeys = findMissingTemplateKeys(step.input_template, context);
   if (missingKeys.length > 0) {
