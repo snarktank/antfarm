@@ -31,9 +31,11 @@ Step 3 — Do the work described in the input. Format your output with KEY: valu
 Step 4 — MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
 cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
+# IMPORTANT: Use the exact required KEY: value fields from the step input.
+# Keep STATUS: done, then include required keys (examples: RESULTS, PR, REVIEW, CHANGES, TESTS).
 STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
+REQUIRED_KEY_1: value
+REQUIRED_KEY_2: value
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
@@ -68,9 +70,11 @@ Do the work described in the input. Format your output with KEY: value lines as 
 MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
 cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
+# IMPORTANT: Use the exact required KEY: value fields from the step input.
+# Keep STATUS: done, then include required keys (examples: RESULTS, PR, REVIEW, CHANGES, TESTS).
 STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
+REQUIRED_KEY_1: value
+REQUIRED_KEY_2: value
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
