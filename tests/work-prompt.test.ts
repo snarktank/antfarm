@@ -6,6 +6,8 @@ describe("buildWorkPrompt", () => {
   it("contains step complete instructions", () => {
     const prompt = buildWorkPrompt("feature-dev", "developer");
     assert.ok(prompt.includes("step complete"));
+    assert.ok(prompt.includes("STOP immediately"), "should require immediate stop after reporting");
+    assert.ok(prompt.includes("Do not call step complete again"), "should prohibit duplicate completion");
   });
 
   it("contains step fail instructions", () => {
@@ -22,6 +24,10 @@ describe("buildWorkPrompt", () => {
     const prompt = buildWorkPrompt("feature-dev", "developer");
     assert.ok(prompt.includes("CRITICAL"));
     assert.ok(prompt.includes("stuck forever"));
+    assert.ok(
+      prompt.includes("NEVER call subagents/subagents steer"),
+      "should forbid completion via subagents/subagents steer"
+    );
   });
 
   it("does not include HEARTBEAT_OK or NO_WORK", () => {

@@ -37,6 +37,7 @@ TESTS: what tests you ran
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
+If that command returns JSON, reporting is complete. STOP immediately. Do not call step complete again.
 
 If the work FAILED:
 \`\`\`
@@ -47,6 +48,8 @@ RULES:
 1. NEVER end your session without calling step complete or step fail
 2. Write output to a file first, then pipe via stdin (shell escaping breaks direct args)
 3. If you're unsure whether to complete or fail, call step fail with an explanation
+4. NEVER call subagents/subagents steer to report completion. Only use antfarm step complete/step fail.
+5. NEVER call step complete more than once for the same stepId.
 
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
@@ -74,6 +77,7 @@ TESTS: what tests you ran
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
+If that command returns JSON, reporting is complete. STOP immediately. Do not call step complete again.
 
 If the work FAILED:
 \`\`\`
@@ -84,6 +88,8 @@ RULES:
 1. NEVER end your session without calling step complete or step fail
 2. Write output to a file first, then pipe via stdin (shell escaping breaks direct args)
 3. If you're unsure whether to complete or fail, call step fail with an explanation
+4. NEVER call subagents/subagents steer to report completion. Only use antfarm step complete/step fail.
+5. NEVER call step complete more than once for the same stepId.
 
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }

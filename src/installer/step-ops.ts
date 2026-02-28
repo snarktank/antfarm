@@ -208,6 +208,54 @@ function formatCompletedStories(stories: Story[]): string {
 
 // ── T5: STORIES_JSON parsing ────────────────────────────────────────
 
+type ExistingStoryPayloadRow = {
+  story_id: string;
+  title: string;
+  description: string;
+  acceptance_criteria: string;
+};
+
+type ComparableStoryPayload = {
+  id: string;
+  title: string;
+  description: string;
+  acceptanceCriteria: unknown[];
+};
+
+function normalizeAcceptanceCriteria(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeIncomingStoryPayload(story: any): ComparableStoryPayload {
+  const ac = story?.acceptanceCriteria ?? story?.acceptance_criteria;
+  return {
+    id: String(story?.id ?? ""),
+    title: String(story?.title ?? ""),
+    description: String(story?.description ?? ""),
+    acceptanceCriteria: normalizeAcceptanceCriteria(ac),
+  };
+}
+
+function normalizeStoredStoryPayload(story: ExistingStoryPayloadRow): ComparableStoryPayload {
+  let parsedAc: unknown = [];
+  try {
+    parsedAc = JSON.parse(story.acceptance_criteria);
+  } catch {
+    // Existing DB rows should store valid JSON; fallback keeps comparison deterministic.
+    parsedAc = story.acceptance_criteria;
+  }
+  return {
+    id: String(story.story_id ?? ""),
+    title: String(story.title ?? ""),
+    description: String(story.description ?? ""),
+    acceptanceCriteria: normalizeAcceptanceCriteria(parsedAc),
+  };
+}
+
+function storiesPayloadHash(stories: ComparableStoryPayload[]): string {
+  return crypto.createHash("sha256").update(JSON.stringify(stories)).digest("hex");
+}
+
 /**
  * Parse STORIES_JSON from step output and insert stories into the DB.
  */
@@ -240,6 +288,19 @@ function parseAndInsertStories(output: string, runId: string): void {
   }
 
   const db = getDb();
+  const existingStories = db.prepare(
+    "SELECT story_id, title, description, acceptance_criteria FROM stories WHERE run_id = ? ORDER BY story_index ASC"
+  ).all(runId) as ExistingStoryPayloadRow[];
+  if (existingStories.length > 0) {
+    const incomingHash = storiesPayloadHash(stories.map(normalizeIncomingStoryPayload));
+    const existingHash = storiesPayloadHash(existingStories.map(normalizeStoredStoryPayload));
+
+    // Idempotent planner re-submission: ignore duplicate insertion attempts.
+    if (incomingHash === existingHash) return;
+
+    throw new Error("Run already has stories; refusing to append a different STORIES_JSON payload");
+  }
+
   const now = new Date().toISOString();
   const insert = db.prepare(
     "INSERT INTO stories (id, run_id, story_index, story_id, title, description, acceptance_criteria, status, retry_count, max_retries, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, 2, ?, ?)"
@@ -496,12 +557,19 @@ export function claimStep(agentId: string): ClaimResult {
      FROM steps s
      JOIN runs r ON r.id = s.run_id
      WHERE s.agent_id = ? AND s.status = 'pending'
-       AND r.status NOT IN ('failed', 'cancelled')
+     AND r.status NOT IN ('failed', 'cancelled')
        AND NOT EXISTS (
          SELECT 1 FROM steps prev
          WHERE prev.run_id = s.run_id
            AND prev.step_index < s.step_index
            AND prev.status NOT IN ('done', 'skipped')
+           AND NOT (
+             prev.type = 'loop'
+             AND prev.status = 'running'
+             AND prev.current_story_id IS NULL
+             AND json_extract(prev.loop_config, '$.verifyEach') = 1
+             AND json_extract(prev.loop_config, '$.verifyStep') = s.step_id
+           )
        )
     ORDER BY s.step_index ASC, s.step_id ASC
      LIMIT 1`
@@ -680,10 +748,14 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
+    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id, status FROM steps WHERE id = ?"
+  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null; status: string } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
+  if (step.status !== "running") {
+    // Idempotency guard: duplicate completions should be no-ops.
+    return { advanced: false, runCompleted: false };
+  }
 
   // Guard: don't process completions for failed runs
   const runCheck = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
@@ -1036,7 +1108,7 @@ export async function failStep(stepId: string, error: string): Promise<{ retryin
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT run_id, step_id, retry_count, max_retries, type, current_story_id FROM steps WHERE id = ?"
+    "SELECT run_id, step_id, retry_count, max_retries, type, current_story_id, status FROM steps WHERE id = ?"
   ).get(stepId) as {
     run_id: string;
     step_id: string;
@@ -1044,9 +1116,14 @@ export async function failStep(stepId: string, error: string): Promise<{ retryin
     max_retries: number;
     type: string;
     current_story_id: string | null;
+    status: string;
   } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
+  if (step.status === "done") {
+    // Idempotency guard: a completed step cannot be failed afterwards.
+    return { retrying: false, runFailed: false };
+  }
 
   // T9: Loop step failure — per-story retry
   if (step.type === "loop" && step.current_story_id) {

@@ -43,6 +43,8 @@ describe("buildPollingPrompt", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer");
     assert.ok(prompt.includes("step complete"), "should include step complete from work prompt");
     assert.ok(prompt.includes("step fail"), "should include step fail from work prompt");
+    assert.ok(prompt.includes("STOP immediately"), "should include stop-immediately safeguard");
+    assert.ok(prompt.includes("Do not call step complete again"), "should include duplicate completion guard");
     assert.ok(prompt.includes("---START WORK PROMPT---"), "should delimit work prompt");
     assert.ok(prompt.includes("---END WORK PROMPT---"), "should delimit work prompt");
   });
