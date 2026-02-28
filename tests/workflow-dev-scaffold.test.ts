@@ -105,4 +105,24 @@ describe("workflow-dev scaffold", () => {
     assert.ok(implementStep?.input.includes("Do not overwrite existing files unless"));
     assert.ok(implementStep?.input.includes("preserve it and report it as preserved"));
   });
+
+  it("defines verification loop checks and bounded retry wiring", async () => {
+    const workflowDir = path.resolve("workflows/workflow-dev");
+    const spec = await loadWorkflowSpec(workflowDir);
+
+    const verifyStep = spec.steps.find((step) => step.id === "verify");
+
+    assert.ok(verifyStep, "verify step should exist");
+    assert.ok(verifyStep?.input.includes("Generated `workflow.yml` parses as valid YAML"));
+    assert.ok(verifyStep?.input.includes("required top-level fields exist"));
+    assert.ok(verifyStep?.input.includes("every step has `id`, `agent`, and `input`"));
+    assert.ok(verifyStep?.input.includes("references a declared agent id"));
+    assert.ok(verifyStep?.input.includes("workspace.files"));
+    assert.ok(verifyStep?.input.includes("path traversal"));
+    assert.ok(verifyStep?.input.includes("STATUS: retry"));
+    assert.ok(verifyStep?.input.includes("ISSUES:"));
+
+    assert.equal(verifyStep?.on_fail?.retry_step, "implement");
+    assert.equal(verifyStep?.on_fail?.max_retries, 2);
+  });
 });

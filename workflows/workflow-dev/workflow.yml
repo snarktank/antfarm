@@ -215,6 +215,20 @@ steps:
       CURRENT STORY:
       {{current_story}}
 
+      Validation checks (required):
+      1. Generated `workflow.yml` parses as valid YAML.
+      2. Workflow schema integrity matches bundled conventions from docs/creating-workflows.md:
+         - required top-level fields exist (`id`, `name`, `version`, `description`, `agents`, `steps`)
+         - every step has `id`, `agent`, and `input`
+         - each step `agent` references a declared agent id
+      3. Agent workspace file references are valid:
+         - each declared `workspace.files` path exists on disk
+         - paths resolve under the target repository/workflow directory (no path traversal)
+      4. Retry-loop contract is present:
+         - verify step can return `STATUS: retry`
+         - workflow `on_fail` retries from `verify` back to `implement` with bounded `max_retries`
+      5. Run verification tests and report outcome.
+
       Reply with:
       STATUS: done
       VERIFIED: What you confirmed
