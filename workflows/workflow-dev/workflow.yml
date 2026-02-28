@@ -5,6 +5,7 @@ version: 1
 description: |
   Workflow authoring pipeline for creating or updating Antfarm workflows.
   Planner decomposes workflow requirements into ordered stories.
+  Architect converts stories into an implementation-ready workflow specification.
   Setup prepares branch and baseline. Developer implements each story.
   Verifier confirms story acceptance criteria, then PR agent opens a pull request.
 
@@ -23,6 +24,17 @@ agents:
         AGENTS.md: agents/planner/AGENTS.md
         SOUL.md: agents/planner/SOUL.md
         IDENTITY.md: agents/planner/IDENTITY.md
+
+  - id: architect
+    name: Architect
+    role: analysis
+    description: Produces implementation-ready workflow specs from planned stories.
+    workspace:
+      baseDir: agents/architect
+      files:
+        AGENTS.md: agents/architect/AGENTS.md
+        SOUL.md: agents/architect/SOUL.md
+        IDENTITY.md: agents/architect/IDENTITY.md
 
   - id: setup
     name: Setup
@@ -72,16 +84,51 @@ steps:
   - id: plan
     agent: planner
     input: |
-      Decompose the workflow request into ordered user stories.
+      Decompose the workflow request into dependency-ordered user stories.
 
       TASK:
       {{task}}
 
-      Reply with:
+      Follow Antfarm conventions from docs/creating-workflows.md:
+      1. Use valid workflow contract fields (id, name, version, description, agents, steps)
+      2. Use KEY: value outputs that can be parsed mechanically
+      3. Keep stories one-session in size and cap total stories at 20
+      4. Keep dependency ordering explicit (foundations before dependent stories)
+      5. Require mechanically verifiable acceptance criteria per story
+      6. Include explicit test criteria and end with "Typecheck passes"
+
+      Reply using KEY: value lines only:
       STATUS: done
       REPO: /path/to/repo
       BRANCH: feature-branch-name
-      STORIES_JSON: [ ... array of story objects ... ]
+      STORIES_JSON: [ ... JSON array of <=20 story objects ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: specify
+    agent: architect
+    input: |
+      Convert the planned stories into an implementation-ready workflow specification.
+
+      TASK:
+      {{task}}
+
+      STORIES_JSON:
+      {{stories_json}}
+
+      Enforce Antfarm conventions from docs/creating-workflows.md:
+      1. Keep dependency ordering consistent with the plan
+      2. Keep each story implementation scope bounded to one session
+      3. Preserve mechanically verifiable acceptance criteria
+      4. Keep workflow step IO in KEY: value form for deterministic parsing
+      5. Ensure verifier loops and retry wiring are explicit where needed
+
+      Reply using KEY: value lines only:
+      STATUS: done
+      SPEC_JSON: { ... JSON object with workflow implementation plan ... }
+      SPEC_CHECKS: verifiable checks that prove the spec is implementation-ready
     expects: "STATUS: done"
     max_retries: 2
     on_fail:
