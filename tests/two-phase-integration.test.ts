@@ -119,11 +119,12 @@ describe("two-phase-integration", () => {
       assert.ok(prompt.includes("step fail"));
     });
 
-    it("all three workflows produce valid prompts", () => {
+    it("all built-in workflows produce valid prompts", () => {
       const workflows = [
         { id: "feature-dev", agents: ["planner", "developer", "reviewer", "verifier"] },
         { id: "security-audit", agents: ["scanner", "analyst", "remediator"] },
         { id: "bug-fix", agents: ["triager", "fixer", "verifier"] },
+        { id: "workflow-dev", agents: ["planner", "architect", "setup", "developer", "verifier", "pr"] },
       ];
 
       for (const wf of workflows) {
