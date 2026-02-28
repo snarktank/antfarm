@@ -178,8 +178,21 @@ steps:
       VERIFY FEEDBACK (if retrying):
       {{verify_feedback}}
 
-      Reply with:
+      For workflow-generation stories, execute these implementation phases explicitly:
+      1. Generate or update `workflow.yml` in the target workflow directory.
+      2. Generate per-agent workspace files under `agents/<agent-id>/`: `AGENTS.md`, `SOUL.md`, and `IDENTITY.md`.
+
+      Safeguards (required):
+      - Validate path correctness before writing: all generated files must resolve under the target repository and target workflow directory.
+      - Do not overwrite existing files unless the story explicitly requests overwrite behavior.
+      - If a file already exists and overwrite is not explicitly requested, preserve it and report it as preserved.
+
+      Reply with KEY: value lines only:
       STATUS: done
+      WORKFLOW_ID: generated workflow id
+      CREATED_FILES: [ ... list of new files created ... ]
+      PRESERVED_FILES: [ ... list of existing files left unchanged ... ]
+      AGENTS_CREATED: [ ... list of agent ids with generated workspace files ... ]
       CHANGES: what you implemented
       TESTS: what tests you wrote
     expects: "STATUS: done"

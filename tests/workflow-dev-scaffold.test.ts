@@ -85,4 +85,24 @@ describe("workflow-dev scaffold", () => {
     assert.ok(architectPrompt.includes("dependency ordering"));
     assert.ok(architectPrompt.includes("mechanically verifiable"));
   });
+
+  it("defines implementation template for workflow and agent-file generation", async () => {
+    const workflowDir = path.resolve("workflows/workflow-dev");
+    const spec = await loadWorkflowSpec(workflowDir);
+
+    const implementStep = spec.steps.find((step) => step.id === "implement");
+
+    assert.ok(implementStep?.input.includes("Generate or update `workflow.yml`"));
+    assert.ok(implementStep?.input.includes("Generate per-agent workspace files"));
+    assert.ok(implementStep?.input.includes("`AGENTS.md`, `SOUL.md`, and `IDENTITY.md`"));
+
+    assert.ok(implementStep?.input.includes("Reply with KEY: value lines only:"));
+    assert.ok(implementStep?.input.includes("WORKFLOW_ID:"));
+    assert.ok(implementStep?.input.includes("CREATED_FILES:"));
+    assert.ok(implementStep?.input.includes("AGENTS_CREATED:"));
+
+    assert.ok(implementStep?.input.includes("Validate path correctness before writing"));
+    assert.ok(implementStep?.input.includes("Do not overwrite existing files unless"));
+    assert.ok(implementStep?.input.includes("preserve it and report it as preserved"));
+  });
 });
