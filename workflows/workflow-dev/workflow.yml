@@ -1,0 +1,192 @@
+# Ralph loop (https://github.com/snarktank/ralph) — fresh context per agent session
+id: workflow-dev
+name: Workflow Development Workflow
+version: 1
+description: |
+  Workflow authoring pipeline for creating or updating Antfarm workflows.
+  Planner decomposes workflow requirements into ordered stories.
+  Setup prepares branch and baseline. Developer implements each story.
+  Verifier confirms story acceptance criteria, then PR agent opens a pull request.
+
+polling:
+  model: default
+  timeoutSeconds: 120
+
+agents:
+  - id: planner
+    name: Planner
+    role: analysis
+    description: Breaks workflow requests into implementable stories.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
+  - id: setup
+    name: Setup
+    role: coding
+    description: Prepares environment, branch, and baseline checks.
+    workspace:
+      baseDir: agents/setup
+      files:
+        AGENTS.md: ../../agents/shared/setup/AGENTS.md
+        SOUL.md: ../../agents/shared/setup/SOUL.md
+        IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
+
+  - id: developer
+    name: Developer
+    role: coding
+    description: Implements workflow stories and adds tests.
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+        SOUL.md: agents/developer/SOUL.md
+        IDENTITY.md: agents/developer/IDENTITY.md
+
+  - id: verifier
+    name: Verifier
+    role: verification
+    description: Verifies each story's acceptance criteria and tests.
+    workspace:
+      baseDir: agents/verifier
+      files:
+        AGENTS.md: ../../agents/shared/verifier/AGENTS.md
+        SOUL.md: ../../agents/shared/verifier/SOUL.md
+        IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
+
+  - id: pr
+    name: PR Creator
+    role: pr
+    description: Creates pull requests for completed workflow work.
+    workspace:
+      baseDir: agents/pr
+      files:
+        AGENTS.md: ../../agents/shared/pr/AGENTS.md
+        SOUL.md: ../../agents/shared/pr/SOUL.md
+        IDENTITY.md: ../../agents/shared/pr/IDENTITY.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      Decompose the workflow request into ordered user stories.
+
+      TASK:
+      {{task}}
+
+      Reply with:
+      STATUS: done
+      REPO: /path/to/repo
+      BRANCH: feature-branch-name
+      STORIES_JSON: [ ... array of story objects ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: setup
+    agent: setup
+    input: |
+      Prepare the development environment for workflow changes.
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      Reply with:
+      STATUS: done
+      BUILD_CMD: <build command>
+      TEST_CMD: <test command>
+      BASELINE: <baseline status>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: implement
+    agent: developer
+    type: loop
+    loop:
+      over: stories
+      completion: all_done
+      fresh_session: true
+      verify_each: true
+      verify_step: verify
+    input: |
+      Implement the current workflow story.
+
+      TASK (overall):
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      BUILD_CMD: {{build_cmd}}
+      TEST_CMD: {{test_cmd}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      VERIFY FEEDBACK (if retrying):
+      {{verify_feedback}}
+
+      Reply with:
+      STATUS: done
+      CHANGES: what you implemented
+      TESTS: what tests you wrote
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify
+    agent: verifier
+    input: |
+      Verify the developer's workflow story implementation.
+
+      TASK (overall):
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      TEST_CMD: {{test_cmd}}
+      CHANGES: {{changes}}
+      CURRENT STORY:
+      {{current_story}}
+
+      Reply with:
+      STATUS: done
+      VERIFIED: What you confirmed
+
+      Or if incomplete:
+      STATUS: retry
+      ISSUES:
+      - What's missing or incomplete
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: implement
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: pr
+    agent: pr
+    input: |
+      Create a pull request for the completed workflow changes.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+
+      Use: gh pr create
+
+      Reply with:
+      STATUS: done
+      PR: URL to the pull request
+    expects: "STATUS: done"
+    on_fail:
+      escalate_to: human

@@ -37,8 +37,8 @@ describe("polling timeout consistency across all workflows", () => {
     assert.ok(checked >= 3, `Expected at least 3 workflows with polling, found ${checked}`);
   });
 
-  it("bug-fix, feature-dev, and security-audit all use 120s timeout", async () => {
-    const expectedWorkflows = ["bug-fix", "feature-dev", "security-audit"];
+  it("bug-fix, feature-dev, security-audit, and workflow-dev all use 120s timeout", async () => {
+    const expectedWorkflows = ["bug-fix", "feature-dev", "security-audit", "workflow-dev"];
 
     for (const name of expectedWorkflows) {
       const dir = path.join(WORKFLOWS_DIR, name);

@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 
 const WORKFLOWS_DIR = path.resolve(import.meta.dirname, "..", "workflows");
 
-const WORKFLOW_NAMES = ["bug-fix", "feature-dev", "security-audit"];
+const WORKFLOW_NAMES = ["bug-fix", "feature-dev", "security-audit", "workflow-dev"];
 
 describe("polling timeout sync across all workflows", () => {
   for (const name of WORKFLOW_NAMES) {
