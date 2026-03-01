@@ -248,3 +248,31 @@ export async function teardownWorkflowCronsIfIdle(workflowId: string): Promise<v
   if (active > 0) return;
   await removeAgentCrons(workflowId);
 }
+
+// ── Dispatcher cron — no-ops (n8n handles dispatching) ─────────────
+//
+// These functions previously created/managed an OpenClaw cron job named
+// 'antfarm/dispatcher'. Since n8n now handles dispatching exclusively,
+// these are intentional no-ops to prevent the cron from being recreated.
+
+/**
+ * No-op: n8n handles dispatching. Returns {created: false, id: null}.
+ */
+export async function ensureDispatcherCron(): Promise<{ created: boolean; id: string | null }> {
+  // n8n handles dispatching — do not create an OpenClaw dispatcher cron
+  return { created: false, id: null };
+}
+
+/**
+ * No-op: n8n handles dispatching.
+ */
+export async function enableDispatcher(): Promise<void> {
+  // n8n handles dispatching — no OpenClaw cron to enable
+}
+
+/**
+ * No-op: n8n handles dispatching.
+ */
+export async function disableDispatcher(): Promise<void> {
+  // n8n handles dispatching — no OpenClaw cron to disable
+}
