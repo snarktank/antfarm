@@ -1,0 +1,9 @@
+{
+  "task": "create antfarm workflow for create antfarm workflow",
+  "repo": "/root/.openclaw/workspace/antfarm",
+  "branch": "feature/workflow-create-antfarm-workflow",
+  "build_cmd": "npm run build",
+  "test_cmd": "npm test",
+  "changes": "Generated workflow.yml and agent workspace files",
+  "current_story": "Story US-008: Add final smoke test for generated workflow artifact validity"
+}
