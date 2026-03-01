@@ -53,14 +53,13 @@ export async function runWorkflow(params: {
   }
 
   // Start crons for this workflow (no-op if already running from another run)
+  // Cron failure is non-fatal: patlabor-worker uses step peek/claim polling,
+  // so runs are viable without cron registration.
   try {
     await ensureWorkflowCrons(workflow);
   } catch (err) {
-    // Roll back the run since it can't advance without crons
-    const db2 = getDb();
-    db2.prepare("UPDATE runs SET status = 'failed', updated_at = ? WHERE id = ?").run(new Date().toISOString(), runId);
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Cannot start workflow run: cron setup failed. ${message}`);
+    logger.warn(`Cron setup failed (non-fatal, worker will poll): ${message}`);
   }
 
   emitEvent({ ts: new Date().toISOString(), event: "run.started", runId, workflowId: workflow.id });
