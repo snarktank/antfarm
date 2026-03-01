@@ -1,5 +1,0 @@
-{
-  "model": "lm5090/qwen/qwen3-coder-30b",
-  "useLocalOnly": true,
-  "allowFallback": false
-}
