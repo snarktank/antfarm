@@ -48,6 +48,14 @@ Paste a bug report. Get back a fix with a regression test. Triager reproduces it
 triage → investigate → setup → fix → verify → PR
 ```
 
+### workflow-dev `6 agents`
+
+Describe the workflow you want. Get back a tested PR that scaffolds the workflow contract, agent files, and retry wiring. Built for bootstrapping new Antfarm workflows without hand-writing every prompt and YAML stanza.
+
+```
+plan → specify → setup → implement → verify → PR
+```
+
 ---
 
 ## Why It Works
@@ -86,6 +94,11 @@ $ antfarm workflow install feature-dev
 $ antfarm workflow run feature-dev "Add user authentication with OAuth"
 Run: a1fdf573
 Workflow: feature-dev
+Status: running
+
+$ antfarm workflow run workflow-dev "Create a customer-onboarding workflow with setup, implement, verify, and pr steps"
+Run: b7ceaa91
+Workflow: workflow-dev
 Status: running
 
 $ antfarm workflow status "OAuth"

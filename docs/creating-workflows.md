@@ -321,6 +321,49 @@ Reference them from your workflow:
       IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
 ```
 
+## Bootstrap a New Workflow with `workflow-dev`
+
+Use the built-in workflow authoring pipeline when you want Antfarm to generate or update a workflow for you.
+
+### Runnable example
+
+```bash
+antfarm workflow install workflow-dev
+antfarm workflow run workflow-dev "Create an incident-response workflow for production outages"
+```
+
+### Task input template
+
+Use a task string (or issue body) that includes these sections:
+
+```
+Goal: <what workflow to create/update>
+Repository: <path or repo slug>
+Workflow ID: <new-or-existing-id>
+Agents: <which agents are needed and why>
+Pipeline: <ordered step list>
+Constraints: <safety, tooling, path, or environment constraints>
+Acceptance Criteria:
+- <criterion 1>
+- <criterion 2>
+- Typecheck passes
+```
+
+Acceptance criteria should be concrete and mechanically verifiable (file exists, command passes, output contains key). Avoid subjective criteria like "looks good".
+
+### Required output contract (KEY: value)
+
+The workflow expects deterministic KEY: value lines from each step. At minimum:
+
+- **plan**: `STATUS`, `REPO`, `BRANCH`, `STORIES_JSON`
+- **specify**: `STATUS`, `SPEC_JSON`, `SPEC_CHECKS`
+- **implement**: `STATUS`, `WORKFLOW_ID`, `CREATED_FILES`, `PRESERVED_FILES`, `AGENTS_CREATED`, `CHANGES`, `TESTS`
+- **verify** success: `STATUS: done`, `VERIFIED`
+- **verify** retry path: `STATUS: retry`, `ISSUES`
+- **pr**: `STATUS`, `PR`
+
+These keys feed downstream template variables. If keys are missing or malformed, orchestration and retry behavior can fail.
+
 ## Installing Your Workflow
 
 Place your workflow directory in `workflows/` and run:
