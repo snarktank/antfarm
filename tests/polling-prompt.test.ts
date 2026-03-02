@@ -43,8 +43,26 @@ describe("buildPollingPrompt", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer");
     assert.ok(prompt.includes("step complete"), "should include step complete from work prompt");
     assert.ok(prompt.includes("step fail"), "should include step fail from work prompt");
+    assert.ok(
+      prompt.includes("/tmp/antfarm-step-output-<stepId>.txt"),
+      "should use step-scoped temp output path in recovery/work prompts"
+    );
     assert.ok(prompt.includes("---START WORK PROMPT---"), "should delimit work prompt");
     assert.ok(prompt.includes("---END WORK PROMPT---"), "should delimit work prompt");
+  });
+
+  it("includes file-write before step complete in recovery snippet", () => {
+    const prompt = buildPollingPrompt("feature-dev", "developer");
+    const recoveryStart = prompt.indexOf("IMPORTANT RECOVERY");
+    const recovery = recoveryStart >= 0 ? prompt.slice(recoveryStart) : prompt;
+    assert.ok(
+      recovery.includes("cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output-<stepId>.txt"),
+      "recovery snippet should write step output file before piping to step complete"
+    );
+    assert.ok(
+      recovery.includes("cat /tmp/antfarm-step-output-<stepId>.txt | node"),
+      "recovery snippet should pipe written file to step complete"
+    );
   });
 
   it("specifies the full model for the spawned task", () => {

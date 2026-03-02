@@ -6,6 +6,14 @@ describe("buildWorkPrompt", () => {
   it("contains step complete instructions", () => {
     const prompt = buildWorkPrompt("feature-dev", "developer");
     assert.ok(prompt.includes("step complete"));
+    assert.ok(
+      prompt.includes("/tmp/antfarm-step-output-<stepId>.txt"),
+      "should use step-scoped temp output file"
+    );
+    assert.ok(
+      prompt.includes('exact "Reply with:" schema'),
+      "should require using the claimed step output schema"
+    );
   });
 
   it("contains step fail instructions", () => {

@@ -436,6 +436,68 @@ function failStepWithMissingInputs(
   scheduleRunCronTeardown(runId);
 }
 
+function failStepWithInvalidOutput(
+  stepDbId: string,
+  stepPublicId: string,
+  runId: string,
+  missingKeys: string[],
+): void {
+  const db = getDb();
+  const wfId = getWorkflowId(runId);
+  const message = `Step output is incomplete: missing required key(s) ${missingKeys.join(", ")}`;
+
+  db.prepare(
+    "UPDATE steps SET status = 'failed', output = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(message, stepDbId);
+  db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(runId);
+
+  emitEvent({
+    ts: new Date().toISOString(),
+    event: "step.failed",
+    runId,
+    workflowId: wfId,
+    stepId: stepPublicId,
+    detail: message,
+  });
+  emitEvent({
+    ts: new Date().toISOString(),
+    event: "run.failed",
+    runId,
+    workflowId: wfId,
+    detail: message,
+  });
+  scheduleRunCronTeardown(runId);
+}
+
+function parseExpectedOutputKeys(expects: string | null | undefined): string[] {
+  if (!expects) return [];
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const line of expects.split("\n")) {
+    const match = line.trim().match(/^([A-Z_]+)\s*:/);
+    if (!match) continue;
+    const key = match[1].toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    keys.push(key);
+  }
+  return keys;
+}
+
+function missingRequiredOutputKeys(
+  stepPublicId: string,
+  parsedOutput: Record<string, string>,
+  expects?: string | null,
+): string[] {
+  // Step-specific output keys required by downstream templates.
+  const requiredByStep: Record<string, string[]> = {
+    plan: ["repo", "branch"],
+    setup: ["build_cmd", "test_cmd"],
+  };
+  const required = [...parseExpectedOutputKeys(expects), ...(requiredByStep[stepPublicId] ?? [])];
+  return required.filter((key) => !parsedOutput[key] || parsedOutput[key].trim().length === 0);
+}
+
 function runHasStories(runId: string): boolean {
   const db = getDb();
   const total = db.prepare(
@@ -680,8 +742,17 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
+    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id, expects FROM steps WHERE id = ?"
+  ).get(stepId) as {
+    id: string;
+    run_id: string;
+    step_id: string;
+    step_index: number;
+    type: string;
+    loop_config: string | null;
+    current_story_id: string | null;
+    expects: string | null;
+  } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
 
@@ -697,6 +768,12 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
 
   // Parse KEY: value lines and merge into context
   const parsed = parseOutputKeyValues(output);
+  const missingOutputKeys = missingRequiredOutputKeys(step.step_id, parsed, step.expects);
+  if (missingOutputKeys.length > 0) {
+    failStepWithInvalidOutput(step.id, step.step_id, step.run_id, missingOutputKeys);
+    return { advanced: false, runCompleted: false };
+  }
+
   for (const [key, value] of Object.entries(parsed)) {
     context[key] = value;
   }

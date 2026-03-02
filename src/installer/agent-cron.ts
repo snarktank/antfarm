@@ -26,16 +26,18 @@ Step 2 — If JSON is returned, it contains: {"stepId": "...", "runId": "...", "
 Save the stepId — you'll need it to report completion.
 The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
 
-Step 3 — Do the work described in the input. Format your output with KEY: value lines as specified.
+Step 3 — Do the work described in the input.
+Your final step output MUST follow the exact "Reply with:" schema inside the claimed input.
+Do NOT reuse output from previous steps or sessions.
+If the claimed input requires keys like BUILD_CMD / TEST_CMD (setup step), they are mandatory.
 
 Step 4 — MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
-cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
-STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
+# Save the EXACT final step output text from Step 3 (not a generic template).
+cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output-<stepId>.txt
+<PASTE EXACT STEP OUTPUT HERE>
 ANTFARM_EOF
-cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
+cat /tmp/antfarm-step-output-<stepId>.txt | node ${cli} step complete "<stepId>"
 \`\`\`
 
 If the work FAILED:
@@ -47,6 +49,9 @@ RULES:
 1. NEVER end your session without calling step complete or step fail
 2. Write output to a file first, then pipe via stdin (shell escaping breaks direct args)
 3. If you're unsure whether to complete or fail, call step fail with an explanation
+4. NEVER call subagents/subagents steer to report completion. Only use antfarm step complete/step fail.
+5. NEVER call step complete more than once for the same stepId.
+6. Run the file-write + step-complete command as one shell command for this stepId.
 
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
@@ -63,16 +68,18 @@ The claimed step JSON is provided below. It contains: {"stepId": "...", "runId":
 Save the stepId — you'll need it to report completion.
 The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
 
-Do the work described in the input. Format your output with KEY: value lines as specified.
+Do the work described in the input.
+Your final step output MUST follow the exact "Reply with:" schema inside the claimed input.
+Do NOT reuse output from previous steps or sessions.
+If the claimed input requires keys like BUILD_CMD / TEST_CMD (setup step), they are mandatory.
 
 MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
-cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
-STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
+# Save the EXACT final step output text from above (not a generic template).
+cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output-<stepId>.txt
+<PASTE EXACT STEP OUTPUT HERE>
 ANTFARM_EOF
-cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
+cat /tmp/antfarm-step-output-<stepId>.txt | node ${cli} step complete "<stepId>"
 \`\`\`
 
 If the work FAILED:
@@ -84,6 +91,9 @@ RULES:
 1. NEVER end your session without calling step complete or step fail
 2. Write output to a file first, then pipe via stdin (shell escaping breaks direct args)
 3. If you're unsure whether to complete or fail, call step fail with an explanation
+4. NEVER call subagents/subagents steer to report completion. Only use antfarm step complete/step fail.
+5. NEVER call step complete more than once for the same stepId.
+6. Run the file-write + step-complete command as one shell command for this stepId.
 
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
@@ -153,6 +163,23 @@ Full work prompt to include in the spawned task:
 ---START WORK PROMPT---
 ${workPrompt}
 ---END WORK PROMPT---
+
+IMPORTANT RECOVERY (you are still responsible for reporting):
+1. Save the claimed stepId before spawning.
+2. When a later system message says the subagent finished, check whether the result includes a "STATUS:" block.
+3. If a STATUS block exists, write that exact step output to /tmp/antfarm-step-output-<stepId>.txt and report it yourself:
+\`\`\`
+cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output-<stepId>.txt
+<PASTE EXACT STATUS BLOCK HERE>
+ANTFARM_EOF
+cat /tmp/antfarm-step-output-<stepId>.txt | node ${cli} step complete "<stepId>"
+\`\`\`
+4. If the subagent returns no valid STATUS block, report failure yourself:
+\`\`\`
+node ${cli} step fail "<stepId>" "Subagent finished without valid step output"
+\`\`\`
+5. NEVER stop after subagent completion without calling step complete or step fail.
+6. Do NOT only summarize the subagent result.
 
 Reply with a short summary of what you spawned.`;
 }
