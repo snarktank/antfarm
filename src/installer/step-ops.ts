@@ -36,7 +36,7 @@ export function parseOutputKeyValues(output: string): Record<string, string> {
   }
 
   for (const line of lines) {
-    const match = line.match(/^([A-Z_]+):\s*(.*)$/);
+    const match = line.match(/^([A-Z][A-Z0-9_]*):\s*(.*)$/);
     if (match) {
       // New KEY: line found — flush previous key
       commitPending();

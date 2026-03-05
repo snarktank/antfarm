@@ -1,0 +1,199 @@
+id: image-gen
+name: Image Generation Pipeline
+version: 2
+description: |
+  Multi-agent image generation pipeline with sequential image generation.
+
+polling:
+  model: google/gemini-3-pro-preview
+  timeoutSeconds: 120
+
+agents:
+  - id: storyteller
+    name: Storyteller
+    role: coding
+    description: Generates unique story concepts and expands them into visual narratives.
+    workspace:
+      baseDir: agents/storyteller
+      files:
+        SOUL.md: agents/storyteller/SOUL.md
+        IDENTITY.md: agents/storyteller/IDENTITY.md
+
+  - id: prompter
+    name: Prompt Engineer
+    role: analysis
+    description: Researches latest nano-banana-pro prompting techniques and crafts image prompts.
+    workspace:
+      baseDir: agents/prompter
+      files:
+        SOUL.md: agents/prompter/SOUL.md
+        IDENTITY.md: agents/prompter/IDENTITY.md
+      skills:
+        - last30days
+
+  - id: pixel
+    name: Pixel
+    role: coding
+    description: Generates images using nano-banana-pro based on crafted prompts.
+    workspace:
+      baseDir: agents/pixel
+      files:
+        SOUL.md: agents/pixel/SOUL.md
+        IDENTITY.md: agents/pixel/IDENTITY.md
+
+  - id: vision
+    name: Vision Reviewer
+    role: verification
+    description: Reviews generated images for quality and coherence.
+    workspace:
+      baseDir: agents/vision
+      files:
+        SOUL.md: agents/vision/SOUL.md
+        IDENTITY.md: agents/vision/IDENTITY.md
+
+steps:
+  - id: story
+    agent: storyteller
+    input: |
+      You are a creative storyteller. TASK: {{task}}
+      Generate a story thesis and expand into 4 visual parts.
+      Reply with:
+      STATUS: done
+      THESIS: <thesis>
+      STYLE: <visual style>
+      PART_1: <scene 1>
+      PART_2: <scene 2>
+      PART_3: <scene 3>
+      PART_4: <scene 4>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: prompt
+    agent: prompter
+    input: |
+      You are a prompt engineer for nano-banana-pro.
+      TASK: {{task}}
+      THESIS: {{thesis}}
+      STYLE: {{style}}
+      PART 1: {{part_1}}
+      PART 2: {{part_2}}
+      PART 3: {{part_3}}
+      PART 4: {{part_4}}
+      Craft 4 optimized prompts. Use last30days skill to research.
+      Reply with:
+      STATUS: done
+      RESEARCH_NOTES: <findings>
+      PROMPT_1: <prompt for part 1>
+      PROMPT_2: <prompt for part 2>
+      PROMPT_3: <prompt for part 3>
+      PROMPT_4: <prompt for part 4>
+      NEGATIVE_PROMPT: <shared negative prompt>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: generate_1
+    agent: pixel
+    input: |
+      Generate the FIRST image. No reference image.
+      TASK: {{task}}
+      PROMPT: {{prompt_1}}
+      NEGATIVE PROMPT: {{negative_prompt}}
+      STYLE: {{style}}
+      SCENE: {{part_1}}
+      Reply with:
+      STATUS: done
+      IMAGE_1: <absolute path>
+      STYLE_NOTES: <style notes>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: generate_2
+    agent: pixel
+    input: |
+      Generate the SECOND image. Reference: Part 1.
+      TASK: {{task}}
+      PROMPT: {{prompt_2}}
+      NEGATIVE PROMPT: {{negative_prompt}}
+      STYLE: {{style}}
+      SCENE: {{part_2}}
+      REFERENCE IMAGE: {{image_1}}
+      STYLE NOTES: {{style_notes}}
+      Reply with:
+      STATUS: done
+      IMAGE_2: <absolute path>
+      CONTINUITY_NOTES: <notes>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: generate_3
+    agent: pixel
+    input: |
+      Generate the THIRD image. References: Parts 1-2.
+      TASK: {{task}}
+      PROMPT: {{prompt_3}}
+      NEGATIVE PROMPT: {{negative_prompt}}
+      STYLE: {{style}}
+      SCENE: {{part_3}}
+      REFERENCE IMAGES: {{image_1}}, {{image_2}}
+      STYLE NOTES: {{style_notes}}
+      Reply with:
+      STATUS: done
+      IMAGE_3: <absolute path>
+      CONTINUITY_NOTES: <notes>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: generate_4
+    agent: pixel
+    input: |
+      Generate the FOURTH and FINAL image. References: Parts 1-3.
+      TASK: {{task}}
+      PROMPT: {{prompt_4}}
+      NEGATIVE PROMPT: {{negative_prompt}}
+      STYLE: {{style}}
+      SCENE: {{part_4}}
+      REFERENCE IMAGES: {{image_1}}, {{image_2}}, {{image_3}}
+      STYLE NOTES: {{style_notes}}
+      Reply with:
+      STATUS: done
+      IMAGE_4: <absolute path>
+      CONTINUITY_NOTES: <notes>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: review
+    agent: vision
+    input: |
+      Review all 4 images for quality and consistency.
+      TASK: {{task}}
+      THESIS: {{thesis}}
+      STYLE: {{style}}
+      IMAGES: {{image_1}}, {{image_2}}, {{image_3}}, {{image_4}}
+      Reply with:
+      STATUS: done
+      OVERALL_SCORE: <1-10>
+      IMAGE_1_SCORE: <1-10>
+      IMAGE_2_SCORE: <1-10>
+      IMAGE_3_SCORE: <1-10>
+      IMAGE_4_SCORE: <1-10>
+      CONSISTENCY_SCORE: <1-10>
+      VERDICT: <approved or needs_regeneration>
+      FEEDBACK: <feedback>
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: generate_1
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human

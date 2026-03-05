@@ -9,6 +9,7 @@ import YAML from "yaml";
 import type { RunInfo, StepInfo } from "../installer/status.js";
 import { getRunEvents } from "../installer/events.js";
 import { getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
+import { getVersion } from "../lib/version.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -112,6 +113,10 @@ export function startDashboard(port = 3333): http.Server {
     if (p === "/api/medic/checks") {
       const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
       return json(res, getRecentMedicChecks(limit));
+    }
+
+    if (p === "/version") {
+      return json(res, { version: getVersion() });
     }
 
     // Serve fonts
