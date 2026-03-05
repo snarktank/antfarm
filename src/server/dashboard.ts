@@ -9,6 +9,7 @@ import YAML from "yaml";
 import type { RunInfo, StepInfo } from "../installer/status.js";
 import { getRunEvents } from "../installer/events.js";
 import { getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
+import { getVersion } from "../lib/version.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -115,13 +116,7 @@ export function startDashboard(port = 3333): http.Server {
     }
 
     if (p === "/version") {
-      try {
-        const pkgPath = path.resolve(__dirname, "..", "..", "package.json");
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-        return json(res, { version: pkg.version });
-      } catch (err) {
-        return json(res, { error: "Failed to read version" }, 500);
-      }
+      return json(res, { version: getVersion() });
     }
 
     // Serve fonts

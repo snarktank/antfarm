@@ -188,10 +188,12 @@ async function createAgentCronJobHTTP(job: {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (gateway.secret) headers["Authorization"] = `Bearer ${gateway.secret}`;
 
+    // Strip 'delivery' — the gateway cron API doesn't accept it; it's handled via CLI --delivery flag
+    const { delivery: _delivery, ...gatewayJob } = job;
     const response = await fetch(`${gateway.url}/tools/invoke`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ tool: "cron", args: { action: "add", job }, sessionKey: "agent:main:main" }),
+      body: JSON.stringify({ tool: "cron", args: { action: "add", job: gatewayJob }, sessionKey: "agent:main:main" }),
     });
 
     if (response.status === 404) return null; // signal CLI fallback

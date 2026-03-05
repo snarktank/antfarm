@@ -40,6 +40,13 @@ export function resolveAntfarmRoot(): string {
 }
 
 export function resolveWorkflowRoot(): string {
+  // When ANTFARM_WORKFLOWS_DIR is set, use it as the runtime workflow root too.
+  // This allows running workflows directly from an external directory without
+  // requiring them to be installed into ~/.openclaw/antfarm/workflows/.
+  const env = process.env.ANTFARM_WORKFLOWS_DIR?.trim();
+  if (env) {
+    return path.resolve(env);
+  }
   return path.join(resolveAntfarmRoot(), "workflows");
 }
 
