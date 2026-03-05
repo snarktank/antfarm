@@ -67,6 +67,19 @@ function migrate(db: DatabaseSync): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS events (
+      id TEXT PRIMARY KEY,
+      ts TEXT NOT NULL,
+      event TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      step_id TEXT,
+      agent_id TEXT,
+      story_id TEXT,
+      workflow_id TEXT,
+      story_title TEXT,
+      detail TEXT
+    );
   `);
 
   // Add columns to steps table for backwards compat
