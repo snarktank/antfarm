@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { logger, readRecentLogs, log, formatEntry } from "../dist/lib/logger.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const loggerPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "lib", "logger.js");
+const { logger, readRecentLogs, log, formatEntry } = await import(loggerPath);
 
 describe("US-002: Logger caller integration", () => {
   it("logger.info returns void (not a Promise)", () => {

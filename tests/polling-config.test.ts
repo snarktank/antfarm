@@ -9,7 +9,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import YAML from "yaml";
-import { loadWorkflowSpec } from "../dist/installer/workflow-spec.js";
+import { fileURLToPath } from "node:url";
+
+const workflowSpecPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "installer", "workflow-spec.js");
+const { loadWorkflowSpec } = await import(workflowSpecPath);
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 

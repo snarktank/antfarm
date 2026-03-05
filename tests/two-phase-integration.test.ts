@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildPollingPrompt, buildWorkPrompt } from "../dist/installer/agent-cron.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const agentCronPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "installer", "agent-cron.js");
+const { buildPollingPrompt, buildWorkPrompt } = await import(agentCronPath);
 
 /**
  * Integration tests for the full two-phase polling flow.

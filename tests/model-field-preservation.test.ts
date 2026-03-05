@@ -10,7 +10,10 @@ import path from "node:path";
 import os from "node:os";
 import YAML from "yaml";
 import type { WorkflowAgent, WorkflowSpec } from "../dist/installer/types.js";
-import { loadWorkflowSpec } from "../dist/installer/workflow-spec.js";
+import { fileURLToPath } from "node:url";
+
+const workflowSpecPath = path.resolve(fileURLToPath(import.meta.url), "..", "..", "dist", "installer", "workflow-spec.js");
+const { loadWorkflowSpec } = await import(workflowSpecPath);
 
 const TEST_WORKFLOW_WITH_MODELS = `
 id: test-workflow
