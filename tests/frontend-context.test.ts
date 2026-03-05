@@ -13,6 +13,8 @@ describe("computeHasFrontendChanges", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "antfarm-test-"));
     // Init a git repo with a main branch
     execSync("git init && git checkout -b main", { cwd: tmpDir });
+    // Configure git user identity for the temp repo (required for commits)
+    execSync("git config user.email \"test@test.com\" && git config user.name \"Test User\"", { cwd: tmpDir });
     fs.writeFileSync(path.join(tmpDir, "README.md"), "# test");
     execSync("git add . && git commit -m 'init'", { cwd: tmpDir });
   });
@@ -65,5 +67,25 @@ describe("claimStep has_frontend_changes integration", () => {
     // has_frontend_changes is set to 'false'. We verify the logic directly.
     // The actual DB-based claimStep integration is covered by the code review.
     assert.equal(computeHasFrontendChanges("", ""), "false");
+  });
+});
+
+describe("temp git repo with user config", () => {
+  it("should allow commits in temp git repos with user identity configured", () => {
+    // Regression test: temp git repos must have user.email and user.name configured
+    // before making commits. Without this config, git commit fails with:
+    // "fatal: unable to auto-detect email address"
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "antfarm-regression-"));
+    try {
+      execSync("git init && git checkout -b main", { cwd: tmpDir });
+      // This is the fix - configure git user identity before first commit
+      execSync("git config user.email \"test@test.com\" && git config user.name \"Test User\"", { cwd: tmpDir });
+      fs.writeFileSync(path.join(tmpDir, "test.txt"), "test content");
+      execSync("git add . && git commit -m 'test commit'", { cwd: tmpDir });
+      // If we get here, the commit succeeded (fix is working)
+      assert.ok(true, "Commit succeeded with user config");
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
