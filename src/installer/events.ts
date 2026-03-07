@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { getDb } from "../db.js";
+import { resolveAntfarmEventsPath } from "./paths.js";
 
-const EVENTS_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
-const EVENTS_FILE = path.join(EVENTS_DIR, "events.jsonl");
+const EVENTS_FILE = resolveAntfarmEventsPath();
+const EVENTS_DIR = path.dirname(EVENTS_FILE);
 const MAX_EVENTS_SIZE = 10 * 1024 * 1024; // 10MB
 
 export type EventType =

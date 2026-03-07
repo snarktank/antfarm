@@ -30,8 +30,16 @@ export function resolveOpenClawConfigPath(): string {
   return path.join(resolveOpenClawStateDir(), "openclaw.json");
 }
 
-export function resolveAntfarmRoot(): string {
+export function resolveAntfarmHome(): string {
+  const env = process.env.ANTFARM_HOME?.trim();
+  if (env) {
+    return env;
+  }
   return path.join(resolveOpenClawStateDir(), "antfarm");
+}
+
+export function resolveAntfarmRoot(): string {
+  return resolveAntfarmHome();
 }
 
 export function resolveWorkflowRoot(): string {
@@ -52,6 +60,34 @@ export function resolveWorkflowWorkspaceDir(workflowId: string): string {
 
 export function resolveRunRoot(): string {
   return path.join(resolveAntfarmRoot(), "runs");
+}
+
+export function resolveAntfarmDbPath(): string {
+  return path.join(resolveAntfarmRoot(), "antfarm.db");
+}
+
+export function resolveAntfarmEventsPath(): string {
+  return path.join(resolveAntfarmRoot(), "events.jsonl");
+}
+
+export function resolveAntfarmLogsDir(): string {
+  return path.join(resolveAntfarmRoot(), "logs");
+}
+
+export function resolveAntfarmDashboardPidPath(): string {
+  return path.join(resolveAntfarmRoot(), "dashboard.pid");
+}
+
+export function resolveAntfarmDashboardLogPath(): string {
+  return path.join(resolveAntfarmRoot(), "dashboard.log");
+}
+
+export function resolveOpenClawSkillsDir(): string {
+  return path.join(resolveOpenClawStateDir(), "skills");
+}
+
+export function resolveOpenClawWorkspaceSkillsDir(): string {
+  return path.join(resolveOpenClawStateDir(), "workspace", "skills");
 }
 
 export function resolveAntfarmCli(): string {

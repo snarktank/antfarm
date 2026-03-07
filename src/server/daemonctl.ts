@@ -1,17 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { resolveAntfarmDashboardLogPath, resolveAntfarmDashboardPidPath } from "../installer/paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function getPidFile(): string {
-  return path.join(os.homedir(), ".openclaw", "antfarm", "dashboard.pid");
+  return resolveAntfarmDashboardPidPath();
 }
 
 export function getLogFile(): string {
-  return path.join(os.homedir(), ".openclaw", "antfarm", "dashboard.log");
+  return resolveAntfarmDashboardLogPath();
 }
 
 export function isRunning(): { running: true; pid: number } | { running: false } {

@@ -152,11 +152,14 @@ steps:
       4. Ensure .gitignore exists — if missing, create one appropriate for the detected stack (must include .env, node_modules/, *.key, *.pem at minimum)
       5. Run the build to establish a baseline
       6. Run the tests to establish a baseline
+      7. If build/test commands are not obvious, you MUST provide safe defaults:
+         - BUILD_CMD: python -m pip install -r requirements.txt
+         - TEST_CMD: pytest -q || echo "no tests yet"
 
       Reply with:
       STATUS: done
-      BUILD_CMD: <build command>
-      TEST_CMD: <test command>
+      BUILD_CMD: <build command (never empty)>
+      TEST_CMD: <test command (never empty)>
       BASELINE: <baseline status>
     expects: "STATUS: done"
     max_retries: 2

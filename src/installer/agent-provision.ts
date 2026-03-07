@@ -1,7 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { WorkflowAgent, WorkflowSpec } from "./types.js";
-import { resolveOpenClawStateDir, resolveWorkflowWorkspaceRoot } from "./paths.js";
+import {
+  resolveOpenClawSkillsDir,
+  resolveOpenClawWorkspaceSkillsDir,
+  resolveOpenClawStateDir,
+  resolveWorkflowWorkspaceRoot
+} from "./paths.js";
 import { writeWorkflowFile } from "./workspace-files.js";
 
 export type ProvisionedAgent = {
@@ -106,10 +111,9 @@ export async function provisionAgents(params: {
  * Returns the path if found, or null if not found.
  */
 async function resolveExternalSkillSource(skillName: string): Promise<string | null> {
-  const home = process.env.HOME || process.env.USERPROFILE || "";
   const candidates = [
-    path.join(home, ".openclaw", "workspace", "skills", skillName),
-    path.join(home, ".openclaw", "skills", skillName),
+    path.join(resolveOpenClawWorkspaceSkillsDir(), skillName),
+    path.join(resolveOpenClawSkillsDir(), skillName),
   ];
   for (const candidate of candidates) {
     try {

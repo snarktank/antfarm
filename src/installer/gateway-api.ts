@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { execFile } from "node:child_process";
+import { resolveOpenClawConfigPath, resolveOpenClawStateDir } from "./paths.js";
 
 interface GatewayConfig {
   url: string;
@@ -17,7 +18,7 @@ async function readOpenClawConfig(): Promise<{
   authMode?: "token" | "password";
   password?: string;
 }> {
-  const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
+  const configPath = resolveOpenClawConfigPath();
   try {
     const content = await fs.readFile(configPath, "utf-8");
     const config = JSON.parse(content);
@@ -77,6 +78,7 @@ async function findOpenclawBinary(): Promise<string> {
   // 2. Check common global install locations
   const candidates = [
     path.join(os.homedir(), ".npm-global", "bin", "openclaw"),
+    path.join(resolveOpenClawStateDir(), "workspace", "antfarm", "node_modules", ".bin", "openclaw"),
     "/usr/local/bin/openclaw",
     "/opt/homebrew/bin/openclaw",
   ];

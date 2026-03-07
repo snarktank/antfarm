@@ -2,7 +2,6 @@ import { getDb } from "../db.js";
 import type { LoopConfig, Story } from "./types.js";
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import crypto from "node:crypto";
 import { execSync, execFileSync } from "node:child_process";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
@@ -11,7 +10,7 @@ import { logger } from "../lib/logger.js";
 import { sendSessionMessage } from "./gateway-api.js";
 import { getMaxRoleTimeoutSeconds } from "./install.js";
 import { loadWorkflowSpec } from "./workflow-spec.js";
-import { resolveWorkflowDir } from "./paths.js";
+import { resolveOpenClawConfigPath, resolveWorkflowDir } from "./paths.js";
 import { isFrontendChange } from "../lib/frontend-detect.js";
 import type { WorkflowStepFailure } from "./types.js";
 
@@ -115,7 +114,7 @@ function findMissingTemplateKeys(template: string, context: Record<string, strin
  */
 function getAgentWorkspacePath(agentId: string): string | null {
   try {
-    const configPath = path.join(os.homedir(), ".openclaw", "openclaw.json");
+    const configPath = resolveOpenClawConfigPath();
     const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     const agent = config.agents?.list?.find((a: any) => a.id === agentId);
     return agent?.workspace ?? null;
@@ -510,6 +509,7 @@ export function claimStep(agentId: string): ClaimResult {
            WHERE loop_s.run_id = s.run_id
              AND loop_s.type = 'loop'
              AND loop_s.status = 'running'
+             AND loop_s.current_story_id IS NULL
              AND json_extract(loop_s.loop_config, '$.verifyEach') = 1
              AND json_extract(loop_s.loop_config, '$.verifyStep') = s.step_id
          )
