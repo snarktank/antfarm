@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
+import { resolveAntfarmLogsDir } from "../installer/paths.js";
 
-const LOG_DIR = path.join(os.homedir(), ".openclaw", "antfarm", "logs");
+const LOG_DIR = resolveAntfarmLogsDir();
 const LOG_FILE = path.join(LOG_DIR, "workflow.log");
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5MB
 

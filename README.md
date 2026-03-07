@@ -194,6 +194,11 @@ antfarm dashboard status       # Check status
   - Antfarm uses cron jobs for workflow orchestration. Older OpenClaw versions may not expose the cron tool via `/tools/invoke`. Antfarm will automatically fall back to the `openclaw` CLI, but keeping OpenClaw up to date is recommended: `npm update -g openclaw`
 - `gh` CLI for PR creation steps
 
+### Optional isolation env vars
+
+- `OPENCLAW_STATE_DIR` and `OPENCLAW_CONFIG_PATH` to target a specific OpenClaw profile state.
+- `ANTFARM_HOME` to isolate Antfarm DB/logs/events/pid files per project capsule.
+
 ---
 
 ## License

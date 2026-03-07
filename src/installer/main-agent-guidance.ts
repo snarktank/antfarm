@@ -1,41 +1,48 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { readOpenClawConfig } from "./openclaw-config.js";
+import { resolveOpenClawStateDir } from "./paths.js";
 
 const WORKFLOW_BLOCK_START = "<!-- antfarm:workflows -->";
 const WORKFLOW_BLOCK_END = "<!-- /antfarm:workflows -->";
 
-const CLI = "node ~/.openclaw/workspace/antfarm/dist/cli/cli.js";
+function resolveCliCommand(): string {
+  return `node ${path.join(resolveOpenClawStateDir(), "workspace", "antfarm", "dist", "cli", "cli.js")}`;
+}
 
-const TOOLS_BLOCK = `${WORKFLOW_BLOCK_START}
+function makeToolsBlock(cli: string): string {
+  return `${WORKFLOW_BLOCK_START}
 # Antfarm Workflows
 
 Antfarm CLI (always use full path to avoid PATH issues):
-\`${CLI}\`
+\`${cli}\`
 
 Commands:
-- Install: \`${CLI} workflow install <name>\`
-- Run: \`${CLI} workflow run <workflow-id> "<task>"\`
-- Status: \`${CLI} workflow status "<task title>"\`
-- Logs: \`${CLI} logs\`
+- Install: \`${cli} workflow install <name>\`
+- Run: \`${cli} workflow run <workflow-id> "<task>"\`
+- Status: \`${cli} workflow status "<task title>"\`
+- Logs: \`${cli} logs\`
 
 Workflows are self-advancing via per-agent cron jobs. No manual orchestration needed.
 ${WORKFLOW_BLOCK_END}
 `;
+}
 
-const AGENTS_BLOCK = `${WORKFLOW_BLOCK_START}
+function makeAgentsBlock(cli: string): string {
+  return `${WORKFLOW_BLOCK_START}
 # Antfarm Workflow Policy
 
 ## Installing Workflows
-Run: \`${CLI} workflow install <name>\`
+Run: \`${cli} workflow install <name>\`
 Agent cron jobs are created automatically during install.
 
 ## Running Workflows
-- Start: \`${CLI} workflow run <workflow-id> "<task>"\`
-- Status: \`${CLI} workflow status "<task title>"\`
+- Start: \`${cli} workflow run <workflow-id> "<task>"\`
+- Status: \`${cli} workflow status "<task title>"\`
 - Workflows self-advance via agent cron jobs polling SQLite for pending steps.
 ${WORKFLOW_BLOCK_END}
 `;
+}
 
 function removeBlock(content: string): string {
   const start = content.indexOf(WORKFLOW_BLOCK_START);
@@ -62,12 +69,13 @@ async function readFileOrEmpty(filePath: string): Promise<string> {
 function resolveMainAgentWorkspacePath(cfg: { agents?: { defaults?: { workspace?: string } } }) {
   const workspace = cfg.agents?.defaults?.workspace?.trim();
   if (workspace) return workspace;
-  return path.join(process.env.HOME ?? "", ".openclaw", "workspace");
+  return path.join(resolveOpenClawStateDir(), "workspace");
 }
 
 export async function updateMainAgentGuidance(): Promise<void> {
   const { config } = await readOpenClawConfig();
   const workspaceDir = resolveMainAgentWorkspacePath(config as { agents?: { defaults?: { workspace?: string } } });
+  const cli = resolveCliCommand();
   const toolsPath = path.join(workspaceDir, "TOOLS.md");
   const agentsPath = path.join(workspaceDir, "AGENTS.md");
 
@@ -75,8 +83,8 @@ export async function updateMainAgentGuidance(): Promise<void> {
   const agentsContent = await readFileOrEmpty(agentsPath);
 
   await fs.mkdir(workspaceDir, { recursive: true });
-  await fs.writeFile(toolsPath, upsertBlock(toolsContent, TOOLS_BLOCK), "utf-8");
-  await fs.writeFile(agentsPath, upsertBlock(agentsContent, AGENTS_BLOCK), "utf-8");
+  await fs.writeFile(toolsPath, upsertBlock(toolsContent, makeToolsBlock(cli)), "utf-8");
+  await fs.writeFile(agentsPath, upsertBlock(agentsContent, makeAgentsBlock(cli)), "utf-8");
 }
 
 export async function removeMainAgentGuidance(): Promise<void> {
