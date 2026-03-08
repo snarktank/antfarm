@@ -80,3 +80,9 @@ Started: 2026-02-11 05:47 ET
 - All 105 tests pass, build passes, typecheck passes
 - Files changed: src/installer/gateway-api.ts (cleanup), tests/gateway-api-model.test.ts (new, committed in prior fix)
 - **Learnings:** Merge conflict resolution can leave artifacts beyond standard markers; always grep for commit message text in source
+## 2026-02-19 12:47 UTC - feature-static-dashboard: Build local Antfarm dashboard
+- Built a standalone dashboard that reads /home/adam/.openclaw/antfarm/antfarm.db via SQL.js and renders runs, step counts, recent steps, and stories in a dark-themed layout.
+- Added a regression test to validate the dashboard HTML includes the expected title, database path, and SQL.js loader hook.
+- Files changed: dashboard/index.html, tests/dashboard.test.ts.
+- **Learnings:** Static dashboards can stay build-free by fetching the SQLite file directly and using a CDN-provided SQL.js runtime, so tests focus on the HTML shell rather than dynamic runtime behavior.
+---
