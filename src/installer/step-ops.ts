@@ -497,11 +497,22 @@ export function claimStep(agentId: string): ClaimResult {
      JOIN runs r ON r.id = s.run_id
      WHERE s.agent_id = ? AND s.status = 'pending'
        AND r.status NOT IN ('failed', 'cancelled')
-       AND NOT EXISTS (
-         SELECT 1 FROM steps prev
-         WHERE prev.run_id = s.run_id
-           AND prev.step_index < s.step_index
-           AND prev.status NOT IN ('done', 'skipped')
+       AND (
+         -- Normal case: all previous steps must be done/skipped
+         NOT EXISTS (
+           SELECT 1 FROM steps prev
+           WHERE prev.run_id = s.run_id
+             AND prev.step_index < s.step_index
+             AND prev.status NOT IN ('done', 'skipped')
+         )
+         -- Special case: allow claiming verify step when loop step is running (verify_each mode)
+         OR EXISTS (
+           SELECT 1 FROM steps loop_step
+           WHERE loop_step.run_id = s.run_id
+             AND loop_step.type = 'loop'
+             AND loop_step.status = 'running'
+             AND loop_step.loop_config IS NOT NULL
+         )
        )
     ORDER BY s.step_index ASC, s.step_id ASC
      LIMIT 1`
