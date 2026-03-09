@@ -87,6 +87,12 @@ steps:
       - criterion 1
       - criterion 2
       OPEN_QUESTIONS: none
+
+      Invalid examples that will break the workflow:
+      - using CHANGES instead of SLICE_PLAN
+      - using TESTS instead of ACCEPTANCE
+      - omitting REPO or BRANCH
+      - returning explanatory prose before STATUS: done
     expects: "STATUS: done"
     max_retries: 2
     on_fail:
