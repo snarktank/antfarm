@@ -6,3 +6,7 @@ dist/
 *.sqlite3
 progress.txt
 progress*.txt
+
+# local/generated artifacts
+*.bak
+progress/
