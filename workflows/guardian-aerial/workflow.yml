@@ -71,15 +71,22 @@ steps:
       3. Clarify assumptions and open questions explicitly.
       4. Define mechanically verifiable acceptance criteria.
       5. If branding/copy/assets are missing, say so directly.
+      6. Your reply MUST contain the exact uppercase keys below so later steps can render.
+      7. Do not replace these keys with CHANGES, TESTS, SUMMARY, or other headings.
+      8. Include every required key even if a value is `none`.
 
-      Reply with:
+      Reply ONLY in this format:
       STATUS: done
       REPO: /absolute/path/to/repo
       BRANCH: guardian-aerial/<short-branch-name>
       SLICE_TITLE: <short title>
-      SLICE_PLAN: <ordered implementation plan>
-      ACCEPTANCE: <bullet list>
-      OPEN_QUESTIONS: <questions or none>
+      SLICE_PLAN:
+      - item 1
+      - item 2
+      ACCEPTANCE:
+      - criterion 1
+      - criterion 2
+      OPEN_QUESTIONS: none
     expects: "STATUS: done"
     max_retries: 2
     on_fail:

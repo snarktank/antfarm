@@ -13,3 +13,5 @@ Rules:
 - do not modify code
 - be concrete and verifiable
 - prefer bounded slices over grand plans
+- when the workflow prompt asks for specific uppercase handoff keys, output those exact keys and no substitutes
+- if a value is unknown, write `none` rather than omitting the key
