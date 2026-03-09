@@ -66,7 +66,7 @@ export function getWorkflowStatus(query: string): WorkflowStatusResult {
       status: "not_found",
       message: available.length
         ? `No run matching "${query}". Recent runs:\n${available.join("\n")}`
-        : "No workflow runs found.",
+        : `No run matching "${query}". No workflow runs found.`,
     };
   }
 
@@ -100,7 +100,7 @@ export async function stopWorkflow(query: string): Promise<StopWorkflowResult> {
       status: "not_found",
       message: available.length
         ? `No run matching "${query}". Recent runs:\n${available.join("\n")}`
-        : "No workflow runs found.",
+        : `No run matching "${query}". No workflow runs found.`,
     };
   }
 
