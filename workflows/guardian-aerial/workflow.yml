@@ -1,0 +1,186 @@
+id: guardian-aerial
+name: Guardian Aerial Website Workflow
+version: 1
+description: |
+  Custom workflow for Guardian Aerial website planning, implementation, QA, and publishing prep.
+  Intended for staged website development with strong verification and controlled release summaries.
+
+polling:
+  model: default
+  timeoutSeconds: 120
+
+agents:
+  - id: planner
+    name: Researcher / Planner
+    role: analysis
+    description: Clarifies requirements, reviews repo state, and decomposes work into implementation slices.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
+  - id: developer
+    name: Developer
+    role: coding
+    description: Implements the planned slice and writes or updates tests/docs as needed.
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+        SOUL.md: agents/developer/SOUL.md
+        IDENTITY.md: agents/developer/IDENTITY.md
+
+  - id: qa
+    name: QA
+    role: testing
+    description: Validates acceptance criteria, tests behavior, and performs browser-based checks for UI work.
+    workspace:
+      baseDir: agents/qa
+      skills:
+        - agent-browser
+      files:
+        AGENTS.md: agents/qa/AGENTS.md
+        SOUL.md: agents/qa/SOUL.md
+        IDENTITY.md: agents/qa/IDENTITY.md
+
+  - id: publishing
+    name: Publishing
+    role: pr
+    description: Prepares release notes, deployment notes, and PR/publishing summaries without inventing release actions.
+    workspace:
+      baseDir: agents/publishing
+      files:
+        AGENTS.md: agents/publishing/AGENTS.md
+        SOUL.md: agents/publishing/SOUL.md
+        IDENTITY.md: agents/publishing/IDENTITY.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      Plan the next bounded Guardian Aerial website work slice.
+
+      TASK:
+      {{task}}
+
+      Instructions:
+      1. Review the repository and current documentation.
+      2. Identify the smallest meaningful implementation slice that can be completed safely.
+      3. Clarify assumptions and open questions explicitly.
+      4. Define mechanically verifiable acceptance criteria.
+      5. If branding/copy/assets are missing, say so directly.
+
+      Reply with:
+      STATUS: done
+      REPO: /absolute/path/to/repo
+      BRANCH: guardian-aerial/<short-branch-name>
+      SLICE_TITLE: <short title>
+      SLICE_PLAN: <ordered implementation plan>
+      ACCEPTANCE: <bullet list>
+      OPEN_QUESTIONS: <questions or none>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: implement
+    agent: developer
+    input: |
+      Implement the planned Guardian Aerial website slice.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      SLICE_TITLE: {{slice_title}}
+      SLICE_PLAN: {{slice_plan}}
+      ACCEPTANCE: {{acceptance}}
+      OPEN_QUESTIONS: {{open_questions}}
+
+      Instructions:
+      1. Work only inside the specified repo.
+      2. Keep changes scoped to this slice.
+      3. Update docs when architecture, setup, or assumptions change.
+      4. Run relevant validation commands before finishing.
+      5. Commit your work with a clear message.
+
+      Reply with:
+      STATUS: done
+      CHANGES: <what changed>
+      VALIDATION: <commands run and results>
+      DOC_UPDATES: <docs changed or none>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: qa
+    agent: qa
+    input: |
+      Validate the implemented Guardian Aerial website slice.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      SLICE_TITLE: {{slice_title}}
+      ACCEPTANCE: {{acceptance}}
+      CHANGES: {{changes}}
+      VALIDATION: {{validation}}
+
+      Instructions:
+      1. Verify each acceptance criterion against the actual repo state.
+      2. Re-run relevant tests/build/lint checks where appropriate.
+      3. If UI changed, use agent-browser for browser-based verification and capture findings.
+      4. Do not modify source files.
+
+      Reply with either:
+      STATUS: done
+      QA_RESULT: <what was verified>
+      RISKS: <remaining risks or none>
+
+      Or if incomplete:
+      STATUS: retry
+      ISSUES: <what failed or remains incomplete>
+    expects: "STATUS: done"
+    on_fail:
+      retry_step: implement
+      max_retries: 2
+      on_exhausted:
+        escalate_to: human
+
+  - id: publishing
+    agent: publishing
+    input: |
+      Prepare publishing and handoff notes for the completed Guardian Aerial slice.
+
+      TASK:
+      {{task}}
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      SLICE_TITLE: {{slice_title}}
+      CHANGES: {{changes}}
+      QA_RESULT: {{qa_result}}
+      RISKS: {{risks}}
+      DOC_UPDATES: {{doc_updates}}
+      OPEN_QUESTIONS: {{open_questions}}
+
+      Instructions:
+      1. Summarize what is ready now.
+      2. List any remaining deployment, content, or stakeholder review needs.
+      3. If GitHub PR creation is appropriate and possible, prepare it clearly.
+      4. Do not invent external publication or deployment actions that were not performed.
+
+      Reply with:
+      STATUS: done
+      PUBLISHING_SUMMARY: <release/PR/handoff summary>
+      NEXT_ACTIONS: <ordered next actions>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
