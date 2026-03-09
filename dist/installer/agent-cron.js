@@ -1,17 +1,13 @@
 import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAvailable } from "./gateway-api.js";
-import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
 import { readOpenClawConfig } from "./openclaw-config.js";
-
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
-
-function buildAgentPrompt(workflowId: string, agentId: string): string {
-  const fullAgentId = `${workflowId}_${agentId}`;
-  const cli = resolveAntfarmCli();
-
-  return `You are an Antfarm workflow agent. Check for pending work and execute it.
+function buildAgentPrompt(workflowId, agentId) {
+    const fullAgentId = `${workflowId}_${agentId}`;
+    const cli = resolveAntfarmCli();
+    return `You are an Antfarm workflow agent. Check for pending work and execute it.
 
 ⚠️ CRITICAL: You MUST call "step complete" or "step fail" before ending your session. If you don't, the workflow will be stuck forever. This is non-negotiable.
 
@@ -50,12 +46,10 @@ RULES:
 
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
-
-export function buildWorkPrompt(workflowId: string, agentId: string): string {
-  const fullAgentId = `${workflowId}_${agentId}`;
-  const cli = resolveAntfarmCli();
-
-  return `You are an Antfarm workflow agent. Execute the pending work below.
+export function buildWorkPrompt(workflowId, agentId) {
+    const fullAgentId = `${workflowId}_${agentId}`;
+    const cli = resolveAntfarmCli();
+    return `You are an Antfarm workflow agent. Execute the pending work below.
 
 ⚠️ CRITICAL: You MUST call "step complete" or "step fail" before ending your session. If you don't, the workflow will be stuck forever. This is non-negotiable.
 
@@ -87,51 +81,49 @@ RULES:
 
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
-
 const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
 const DEFAULT_POLLING_MODEL = "default";
-
-function extractModel(value: unknown): string | undefined {
-  if (!value) return undefined;
-  if (typeof value === "string") return value;
-  if (typeof value === "object" && value !== null) {
-    const primary = (value as { primary?: unknown }).primary;
-    if (typeof primary === "string") return primary;
-  }
-  return undefined;
-}
-
-async function resolveAgentCronModel(agentId: string, requestedModel?: string): Promise<string | undefined> {
-  if (requestedModel && requestedModel !== "default") {
-    return requestedModel;
-  }
-
-  try {
-    const { config } = await readOpenClawConfig();
-    const agents = config.agents?.list;
-    if (Array.isArray(agents)) {
-      const entry = agents.find((a: any) => a?.id === agentId);
-      const configured = extractModel(entry?.model);
-      if (configured) return configured;
+function extractModel(value) {
+    if (!value)
+        return undefined;
+    if (typeof value === "string")
+        return value;
+    if (typeof value === "object" && value !== null) {
+        const primary = value.primary;
+        if (typeof primary === "string")
+            return primary;
     }
-
-    const defaults = config.agents?.defaults;
-    const fallback = extractModel(defaults?.model);
-    if (fallback) return fallback;
-  } catch {
-    // best-effort — fallback below
-  }
-
-  return requestedModel;
+    return undefined;
 }
-
-export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
-  const fullAgentId = `${workflowId}_${agentId}`;
-  const cli = resolveAntfarmCli();
-  const model = workModel ?? "default";
-  const workPrompt = buildWorkPrompt(workflowId, agentId);
-
-  return `Step 1 — Quick check for pending work (lightweight, no side effects):
+async function resolveAgentCronModel(agentId, requestedModel) {
+    if (requestedModel && requestedModel !== "default") {
+        return requestedModel;
+    }
+    try {
+        const { config } = await readOpenClawConfig();
+        const agents = config.agents?.list;
+        if (Array.isArray(agents)) {
+            const entry = agents.find((a) => a?.id === agentId);
+            const configured = extractModel(entry?.model);
+            if (configured)
+                return configured;
+        }
+        const defaults = config.agents?.defaults;
+        const fallback = extractModel(defaults?.model);
+        if (fallback)
+            return fallback;
+    }
+    catch {
+        // best-effort — fallback below
+    }
+    return requestedModel;
+}
+export function buildPollingPrompt(workflowId, agentId, workModel) {
+    const fullAgentId = `${workflowId}_${agentId}`;
+    const cli = resolveAntfarmCli();
+    const model = workModel ?? "default";
+    const workPrompt = buildWorkPrompt(workflowId, agentId);
+    return `Step 1 — Quick check for pending work (lightweight, no side effects):
 \`\`\`
 node ${cli} step peek "${fullAgentId}"
 \`\`\`
@@ -156,95 +148,82 @@ ${workPrompt}
 
 Reply with a short summary of what you spawned.`;
 }
-
-export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
-  const agents = workflow.agents;
-  // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
-  const everyMs = (workflow as any).cron?.interval_ms ?? DEFAULT_EVERY_MS;
-
-  // Resolve polling model: per-agent > workflow-level > default
-  const workflowPollingModel = workflow.polling?.model ?? DEFAULT_POLLING_MODEL;
-  const workflowPollingTimeout = workflow.polling?.timeoutSeconds ?? DEFAULT_POLLING_TIMEOUT_SECONDS;
-
-  for (let i = 0; i < agents.length; i++) {
-    const agent = agents[i];
-    const anchorMs = i * 60_000; // stagger by 1 minute each
-    const cronName = `antfarm/${workflow.id}/${agent.id}`;
-    const agentId = `${workflow.id}_${agent.id}`;
-
-    // Two-phase: Phase 1 uses cheap polling model + minimal prompt
-    const requestedPollingModel = agent.pollingModel ?? workflowPollingModel;
-    const pollingModel = await resolveAgentCronModel(agentId, requestedPollingModel);
-    const requestedWorkModel = agent.model ?? workflowPollingModel;
-    const workModel = await resolveAgentCronModel(agentId, requestedWorkModel);
-    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
-    const timeoutSeconds = workflowPollingTimeout;
-
-    const result = await createAgentCronJob({
-      name: cronName,
-      schedule: { kind: "every", everyMs, anchorMs },
-      sessionTarget: "isolated",
-      agentId,
-      payload: { kind: "agentTurn", message: prompt, model: pollingModel, timeoutSeconds },
-      delivery: { mode: "none" },
-      enabled: true,
-    });
-
-    if (!result.ok) {
-      throw new Error(`Failed to create cron job for agent "${agent.id}": ${result.error}`);
+export async function setupAgentCrons(workflow) {
+    const agents = workflow.agents;
+    // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
+    const everyMs = workflow.cron?.interval_ms ?? DEFAULT_EVERY_MS;
+    // Resolve polling model: per-agent > workflow-level > default
+    const workflowPollingModel = workflow.polling?.model ?? DEFAULT_POLLING_MODEL;
+    const workflowPollingTimeout = workflow.polling?.timeoutSeconds ?? DEFAULT_POLLING_TIMEOUT_SECONDS;
+    for (let i = 0; i < agents.length; i++) {
+        const agent = agents[i];
+        const anchorMs = i * 60_000; // stagger by 1 minute each
+        const cronName = `antfarm/${workflow.id}/${agent.id}`;
+        const agentId = `${workflow.id}_${agent.id}`;
+        // Two-phase: Phase 1 uses cheap polling model + minimal prompt
+        const requestedPollingModel = agent.pollingModel ?? workflowPollingModel;
+        const pollingModel = await resolveAgentCronModel(agentId, requestedPollingModel);
+        const requestedWorkModel = agent.model ?? workflowPollingModel;
+        const workModel = await resolveAgentCronModel(agentId, requestedWorkModel);
+        const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
+        const timeoutSeconds = workflowPollingTimeout;
+        const result = await createAgentCronJob({
+            name: cronName,
+            schedule: { kind: "every", everyMs, anchorMs },
+            sessionTarget: "isolated",
+            agentId,
+            payload: { kind: "agentTurn", message: prompt, model: pollingModel, timeoutSeconds },
+            delivery: { mode: "none" },
+            enabled: true,
+        });
+        if (!result.ok) {
+            throw new Error(`Failed to create cron job for agent "${agent.id}": ${result.error}`);
+        }
     }
-  }
 }
-
-export async function removeAgentCrons(workflowId: string): Promise<void> {
-  await deleteAgentCronJobs(`antfarm/${workflowId}/`);
+export async function removeAgentCrons(workflowId) {
+    await deleteAgentCronJobs(`antfarm/${workflowId}/`);
 }
-
 // ── Run-scoped cron lifecycle ───────────────────────────────────────
-
 /**
  * Count active (running) runs for a given workflow.
  */
-function countActiveRuns(workflowId: string): number {
-  const db = getDb();
-  const row = db.prepare(
-    "SELECT COUNT(*) as cnt FROM runs WHERE workflow_id = ? AND status = 'running'"
-  ).get(workflowId) as { cnt: number };
-  return row.cnt;
+function countActiveRuns(workflowId) {
+    const db = getDb();
+    const row = db.prepare("SELECT COUNT(*) as cnt FROM runs WHERE workflow_id = ? AND status = 'running'").get(workflowId);
+    return row.cnt;
 }
-
 /**
  * Check if crons already exist for a workflow.
  */
-async function workflowCronsExist(workflowId: string): Promise<boolean> {
-  const result = await listCronJobs();
-  if (!result.ok || !result.jobs) return false;
-  const prefix = `antfarm/${workflowId}/`;
-  return result.jobs.some((j) => j.name.startsWith(prefix));
+async function workflowCronsExist(workflowId) {
+    const result = await listCronJobs();
+    if (!result.ok || !result.jobs)
+        return false;
+    const prefix = `antfarm/${workflowId}/`;
+    return result.jobs.some((j) => j.name.startsWith(prefix));
 }
-
 /**
  * Start crons for a workflow when a run begins.
  * No-ops if crons already exist (another run of the same workflow is active).
  */
-export async function ensureWorkflowCrons(workflow: WorkflowSpec): Promise<void> {
-  if (await workflowCronsExist(workflow.id)) return;
-
-  // Preflight: verify cron tool is accessible before attempting to create jobs
-  const preflight = await checkCronToolAvailable();
-  if (!preflight.ok) {
-    throw new Error(preflight.error!);
-  }
-
-  await setupAgentCrons(workflow);
+export async function ensureWorkflowCrons(workflow) {
+    if (await workflowCronsExist(workflow.id))
+        return;
+    // Preflight: verify cron tool is accessible before attempting to create jobs
+    const preflight = await checkCronToolAvailable();
+    if (!preflight.ok) {
+        throw new Error(preflight.error);
+    }
+    await setupAgentCrons(workflow);
 }
-
 /**
  * Tear down crons for a workflow when a run ends.
  * Only removes if no other active runs exist for this workflow.
  */
-export async function teardownWorkflowCronsIfIdle(workflowId: string): Promise<void> {
-  const active = countActiveRuns(workflowId);
-  if (active > 0) return;
-  await removeAgentCrons(workflowId);
+export async function teardownWorkflowCronsIfIdle(workflowId) {
+    const active = countActiveRuns(workflowId);
+    if (active > 0)
+        return;
+    await removeAgentCrons(workflowId);
 }
