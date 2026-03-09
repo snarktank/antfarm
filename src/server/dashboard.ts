@@ -137,6 +137,26 @@ export function startDashboard(port = 3333): http.Server {
       }
     }
 
+    // POST /echo - round-trip endpoint for testing
+    if (req.method === "POST" && p === "/echo") {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        const body = Buffer.concat(chunks).toString("utf-8");
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          res.writeHead(400, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+          res.end(JSON.stringify({ error: "invalid JSON" }));
+          return;
+        }
+        res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+        res.end(JSON.stringify(parsed));
+      });
+      return;
+    }
+
     // Serve frontend
     serveHTML(res);
   });
