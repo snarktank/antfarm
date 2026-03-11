@@ -655,6 +655,11 @@ export function claimStep(agentId: string): ClaimResult {
     context["progress"] = readProgressFile(step.run_id);
   }
 
+  // Optional retry feedback should not make first-pass single steps fail template resolution.
+  if (!context["verify_feedback"]) {
+    context["verify_feedback"] = "";
+  }
+
   const missingKeys = findMissingTemplateKeys(step.input_template, context);
   if (missingKeys.length > 0) {
     failStepWithMissingInputs(step.id, step.step_id, step.run_id, missingKeys);
