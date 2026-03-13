@@ -7,6 +7,26 @@ import { resolveBundledWorkflowsDir } from "../installer/paths.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
+
+interface StoryInfo {
+  id: string;
+  run_id: string;
+  story_index: number;
+  story_id: string;
+  title: string;
+  description: string;
+  acceptance_criteria: string;
+  status: string;
+  output: string | null;
+  retry_count: number;
+  max_retries: number;
+  evidence_file_paths: string | null;
+  evidence_git_diff: string | null;
+  evidence_summary: string | null;
+  evidence_validated_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
 import { getRunEvents } from "../installer/events.js";
 import { getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 
@@ -89,7 +109,7 @@ export function startDashboard(port = 3333): http.Server {
       const db = getDb();
       const stories = db.prepare(
         "SELECT * FROM stories WHERE run_id = ? ORDER BY story_index ASC"
-      ).all(storiesMatch[1]);
+      ).all(storiesMatch[1]) as unknown as StoryInfo[];
       return json(res, stories);
     }
 

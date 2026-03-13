@@ -48,6 +48,10 @@ function migrate(db: DatabaseSync): void {
       output TEXT,
       retry_count INTEGER DEFAULT 0,
       max_retries INTEGER DEFAULT 2,
+      evidence_file_paths TEXT,
+      evidence_git_diff TEXT,
+      evidence_summary TEXT,
+      evidence_validated_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -64,6 +68,10 @@ function migrate(db: DatabaseSync): void {
       output TEXT,
       retry_count INTEGER DEFAULT 0,
       max_retries INTEGER DEFAULT 2,
+      evidence_file_paths TEXT,
+      evidence_git_diff TEXT,
+      evidence_summary TEXT,
+      evidence_validated_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -84,6 +92,34 @@ function migrate(db: DatabaseSync): void {
   }
   if (!colNames.has("abandoned_count")) {
     db.exec("ALTER TABLE steps ADD COLUMN abandoned_count INTEGER DEFAULT 0");
+  }
+  if (!colNames.has("evidence_file_paths")) {
+    db.exec("ALTER TABLE steps ADD COLUMN evidence_file_paths TEXT");
+  }
+  if (!colNames.has("evidence_git_diff")) {
+    db.exec("ALTER TABLE steps ADD COLUMN evidence_git_diff TEXT");
+  }
+  if (!colNames.has("evidence_summary")) {
+    db.exec("ALTER TABLE steps ADD COLUMN evidence_summary TEXT");
+  }
+  if (!colNames.has("evidence_validated_at")) {
+    db.exec("ALTER TABLE steps ADD COLUMN evidence_validated_at TEXT");
+  }
+
+  // Add columns to stories table for backwards compat
+  const storyCols = db.prepare("PRAGMA table_info(stories)").all() as Array<{ name: string }>;
+  const storyColNames = new Set(storyCols.map((c) => c.name));
+  if (!storyColNames.has("evidence_file_paths")) {
+    db.exec("ALTER TABLE stories ADD COLUMN evidence_file_paths TEXT");
+  }
+  if (!storyColNames.has("evidence_git_diff")) {
+    db.exec("ALTER TABLE stories ADD COLUMN evidence_git_diff TEXT");
+  }
+  if (!storyColNames.has("evidence_summary")) {
+    db.exec("ALTER TABLE stories ADD COLUMN evidence_summary TEXT");
+  }
+  if (!storyColNames.has("evidence_validated_at")) {
+    db.exec("ALTER TABLE stories ADD COLUMN evidence_validated_at TEXT");
   }
 
   // Add columns to runs table for backwards compat

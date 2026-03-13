@@ -1,13 +1,13 @@
 {
-  "name": "antfarm",
-  "version": "0.5.1",
+  "name": "aeternus-antfarm",
+  "version": "0.1.0",
   "type": "module",
   "private": true,
   "engines": {
     "node": ">=22"
   },
   "bin": {
-    "antfarm": "dist/cli/cli.js"
+    "aeternus": "dist/cli/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && cp src/server/index.html dist/server/index.html && chmod +x dist/cli/cli.js && node scripts/inject-version.js",
