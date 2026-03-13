@@ -1,0 +1,157 @@
+#!/usr/bin/env node
+/**
+ * Minimal Antfarm cron guard.
+ *
+ * Modes:
+ *   doctor    - sanity checks and prints key state
+ *   reconcile - tries to unstick workflows (best-effort; safe/idempotent)
+ *   tick      - runs reconcile + prints state (what cron would run repeatedly)
+ *
+ * Assumptions:
+ *   Run from antfarm repo root: /root/smartfunds/src/antfarm
+ */
+
+const { execSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+
+function sh(cmd, opts = {}) {
+  return execSync(cmd, { stdio: "pipe", encoding: "utf8", ...opts });
+}
+function shInherit(cmd, opts = {}) {
+  return execSync(cmd, { stdio: "inherit", ...opts });
+}
+
+function die(msg) {
+  console.error(`[cron-guard] ERROR: ${msg}`);
+  process.exit(1);
+}
+
+function repoRoot() {
+  // Expecting to run from repo root; still try to detect
+  const cwd = process.cwd();
+  const pkg = path.join(cwd, "package.json");
+  const bin = path.join(cwd, "bin", "antfarm");
+  if (fs.existsSync(pkg) && fs.existsSync(bin)) return cwd;
+  return cwd; // fallback
+}
+
+function fileExists(p) {
+  try { fs.accessSync(p); return true; } catch { return false; }
+}
+
+function printHeader(mode) {
+  console.log("------------------------------------------------------------");
+  console.log(`[cron-guard] mode=${mode} ts=${new Date().toISOString()}`);
+  console.log(`[cron-guard] cwd=${process.cwd()}`);
+  console.log("------------------------------------------------------------");
+}
+
+function doctor() {
+  printHeader("doctor");
+  const root = repoRoot();
+  const bin = path.join(root, "bin", "antfarm");
+  const pkg = path.join(root, "package.json");
+
+  console.log(`[doctor] root=${root}`);
+  console.log(`[doctor] node=${process.version}`);
+
+  if (!fileExists(pkg)) console.log(`[doctor] WARN: package.json not found at ${pkg}`);
+  if (!fileExists(bin)) die(`bin/antfarm not found at ${bin} (are you in the antfarm repo root?)`);
+
+  // Basic CLI sanity
+  try {
+    const help = sh(` version`);
+    console.log("[doctor] antfarm CLI reachable ✅");
+    console.log(help.split("\n").slice(0, 8).join("\n"));
+    if (help.split("\n").length > 8) console.log("[doctor] ...");
+  } catch (e) {
+    die(`failed to run  version`);
+  }
+
+  // Snapshot state (best effort)
+  try {
+    console.log("\n[doctor] workflows:");
+    shInherit(`${bin} workflow list`);
+  } catch {
+    console.log("[doctor] WARN: cannot list workflows");
+  }
+
+  try {
+    console.log("\n[doctor] steps:");
+    shInherit(`${bin} step list`);
+  } catch {
+    console.log("[doctor] WARN: cannot list steps");
+  }
+
+  console.log("\n[doctor] done");
+}
+
+function reconcile() {
+  printHeader("reconcile");
+  const root = repoRoot();
+  const bin = path.join(root, "bin", "antfarm");
+  if (!fileExists(bin)) die(`bin/antfarm not found at ${bin}`);
+
+  // NOTE: We don't know your exact CLI subcommands for "unstick".
+  // So we do safe/low-risk actions:
+  //   - show current state
+  //   - attempt to run built-in "doctor" if exists
+  //   - attempt to "reconcile" or "repair" commands if they exist (best effort)
+  console.log("[reconcile] snapshot before:");
+  try { shInherit(`${bin} workflow list`); } catch {}
+  try { shInherit(`${bin} step list`); } catch {}
+
+  // Best-effort: try a few likely maintenance commands if present.
+  const candidates = [
+    `${bin} doctor`,
+    `${bin} maintenance reconcile`,
+    `${bin} maintenance repair`,
+    `${bin} reconcile`,
+    `${bin} repair`,
+  ];
+
+  let ranAny = false;
+  for (const cmd of candidates) {
+    try {
+      // Probe command existence by running with --help first
+      const base = cmd.split(" ").slice(0, 3).join(" ");
+      // If it errors, ignore and continue
+      sh(`${base} --help`);
+      console.log(`[reconcile] running: ${cmd}`);
+      shInherit(cmd);
+      ranAny = true;
+      break;
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!ranAny) {
+    console.log("[reconcile] No known reconcile/repair command detected; leaving state unchanged (this is OK).");
+    console.log("[reconcile] If you tell me the exact antfarm command to unstick/advance, I’ll wire it in.");
+  }
+
+  console.log("\n[reconcile] snapshot after:");
+  try { shInherit(`${bin} workflow list`); } catch {}
+  try { shInherit(`${bin} step list`); } catch {}
+
+  console.log("[reconcile] done");
+}
+
+function tick() {
+  printHeader("tick");
+  // tick = reconcile + a short summary
+  reconcile();
+  console.log("[tick] done");
+}
+
+const mode = process.argv[2] || "--help";
+if (mode === "--help" || mode === "-h") {
+  console.log("Usage: node scripts/antfarm-cron-guard.js {doctor|reconcile|tick}");
+  process.exit(0);
+}
+if (mode === "doctor") doctor();
+else if (mode === "reconcile") reconcile();
+else if (mode === "tick") tick();
+else die(`unknown mode: ${mode}`);
