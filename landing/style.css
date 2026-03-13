@@ -354,7 +354,8 @@ h2.problem-text {
 .c-key { color: #8CAA50; }
 .c-comment { color: #6B6358; }
 
-/* === Workflow grid === */
+/* === Feature / Workflow grid === */
+.feature-grid,
 .workflow-grid {
   display: grid;
   gap: 16px;
