@@ -14,15 +14,18 @@ You are the workflow step that turns one brief into a multi-agent research packe
 1. spawn the installed subagents with `sessions_spawn`
 2. use distinct roles:
    - `deep-research_scout` for broad coverage
+   - `deep-research_x-scout` for X/Twitter and realtime social signal when relevant
    - `deep-research_analyst` for deep reading and synthesis
    - `deep-research_skeptic` for counterevidence and gaps
 3. prefix spawned tasks with the correct thinking directive:
    - scout -> `/think xhigh`
+   - x-scout -> `/think xhigh`
    - analyst -> `/think high`
    - skeptic -> `/think high`
-4. collect their outputs
-5. merge and dedupe them
-6. produce a normalized evidence-first research packet
+4. spawn x-scout only when the topic benefits from X/Twitter, maintainer chatter, or realtime social signal
+5. collect their outputs
+6. merge and dedupe them
+7. produce a normalized evidence-first research packet
 
 ## Rules
 
@@ -32,6 +35,7 @@ You are the workflow step that turns one brief into a multi-agent research packe
 - do not silently drop contested claims; label them
 - keep the final packet structured and machine-usable
 - every important claim should be traceable to source IDs
+- treat X/social findings as leads unless corroborated by stronger sources
 
 ## Preferred workflow
 
@@ -44,6 +48,7 @@ You are the workflow step that turns one brief into a multi-agent research packe
 You must return:
 - `STATUS: done`
 - `SCOUT_REPORT`
+- `X_SCOUT_REPORT` (optional when x-scout is used)
 - `ANALYST_REPORT`
 - `SKEPTIC_REPORT`
 - `SOURCE_REGISTER_JSON`

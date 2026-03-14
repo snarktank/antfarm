@@ -137,7 +137,29 @@ All agents must:
 
 ---
 
-## 4. Analyst
+## 4. X Scout
+
+**Model:** `openai-codex/gpt-5.4` @ `xhigh`
+
+**Goal:** Gather high-signal X/Twitter leads when realtime social/dev signal matters.
+
+**Required outputs:**
+- `STATUS: done`
+- `X_SCOUT_SYNTHESIS`
+- `X_SOURCE_REGISTER_JSON`
+- `SOCIAL_LEADS_JSON`
+- `OPEN_QUESTIONS`
+- `CANONICAL_TARGETS`
+
+**Quality bar:**
+- strong targeted query selection
+- maintainer / official / primary-participant bias
+- social findings treated as lead-generation, not final proof
+- useful mapping from chatter to canonical underlying artifacts
+
+---
+
+## 5. Analyst
 
 **Model:** `anthropic/claude-opus-4-6` @ `high`
 
@@ -158,7 +180,7 @@ All agents must:
 
 ---
 
-## 5. Skeptic
+## 6. Skeptic
 
 **Model:** `anthropic/claude-opus-4-6` @ `high`
 
@@ -179,7 +201,7 @@ All agents must:
 
 ---
 
-## 6. Verifier
+## 7. Verifier
 
 **Model:** `openai-codex/gpt-5.4` @ `xhigh`
 
@@ -201,7 +223,7 @@ All agents must:
 
 ---
 
-## 7. Writer
+## 8. Writer
 
 **Model:** `anthropic/claude-opus-4-6` @ `high`
 

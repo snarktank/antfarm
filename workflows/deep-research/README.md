@@ -26,6 +26,7 @@ After `workflow install deep-research`, the following agent IDs are available:
 - `deep-research_planner`
 - `deep-research_orchestrator`
 - `deep-research_scout`
+- `deep-research_x-scout`
 - `deep-research_analyst`
 - `deep-research_skeptic`
 - `deep-research_verifier`
@@ -46,3 +47,8 @@ node dist/cli/cli.js workflow status deep-research
 - `FINAL_REPORT` from the writer
 
 See `PROMPT_SPEC.md` for the detailed prompt contracts for every agent.
+
+
+## Optional X source intake
+
+This workflow can now optionally spawn `deep-research_x-scout` when the topic would benefit from X/Twitter, maintainer chatter, or realtime social signal. X findings are treated as lead-generation evidence unless corroborated by stronger sources.

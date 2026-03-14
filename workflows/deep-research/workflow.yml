@@ -57,6 +57,21 @@ agents:
         SOUL.md: agents/scout/SOUL.md
         IDENTITY.md: agents/scout/IDENTITY.md
 
+  - id: x-scout
+    name: X Scout
+    role: scanning
+    model: openai-codex/gpt-5.4
+    thinking: xhigh
+    timeoutSeconds: 1800
+    description: Optional X/Twitter source-intake agent for realtime social and maintainer signals.
+    workspace:
+      baseDir: agents/x-scout
+      files:
+        AGENTS.md: agents/x-scout/AGENTS.md
+        SOUL.md: agents/x-scout/SOUL.md
+        IDENTITY.md: agents/x-scout/IDENTITY.md
+        scripts/x_api.py: agents/x-scout/scripts/x_api.py
+
   - id: analyst
     name: Analyst
     role: research
@@ -196,15 +211,19 @@ steps:
          - deep-research_scout
          - deep-research_analyst
          - deep-research_skeptic
+         - deep-research_x-scout (optional; only when X/Twitter or realtime social signal is relevant)
       3. Prefix the spawned task for each subagent with the correct thinking directive:
          - scout -> /think xhigh
+         - x-scout -> /think xhigh
          - analyst -> /think high
          - skeptic -> /think high
       4. Give each subagent the same task context but different role instructions.
-      5. Run them in parallel when practical. If the runtime makes that awkward, run them back-to-back but preserve the role split.
-      6. Collect all outputs.
-      7. Merge, deduplicate, and normalize them into one research packet.
-      8. Do not write the final report yet.
+      5. If the topic would benefit from X/Twitter, maintainer chatter, breaking social signal, or realtime community reactions, also spawn x-scout.
+      6. Run them in parallel when practical. If the runtime makes that awkward, run them back-to-back but preserve the role split.
+      7. Collect all outputs.
+      8. Merge, deduplicate, and normalize them into one research packet.
+      9. Treat X/social results as lead-generation evidence unless corroborated by stronger sources.
+      10. Do not write the final report yet.
 
       Required packet structure:
       - SOURCES: array of source objects with source_id, title, url/path, source_type, published_at if known, retrieved_at if known, reliability, freshness, why_it_matters
@@ -217,6 +236,7 @@ steps:
       Reply with:
       STATUS: done
       SCOUT_REPORT: raw or lightly cleaned scout output
+      X_SCOUT_REPORT: optional raw or lightly cleaned x-scout output when used
       ANALYST_REPORT: raw or lightly cleaned analyst output
       SKEPTIC_REPORT: raw or lightly cleaned skeptic output
       SOURCE_REGISTER_JSON: normalized JSON array of sources
