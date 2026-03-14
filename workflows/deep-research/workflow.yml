@@ -1,0 +1,294 @@
+id: deep-research
+name: Deep Research Workflow
+version: 1
+description: |
+  Multi-agent deep research pipeline for OpenClaw. GPT-5.4 handles scoping,
+  orchestration, and verification. Claude Opus 4.6 handles deep analysis and
+  final report writing. The orchestration step spawns specialized subagents for
+  broad search, deep reading, and skeptical gap-finding, then hands a verified
+  research packet to the final writer.
+
+polling:
+  model: lmstudio/qwen-fast
+  timeoutSeconds: 120
+
+agents:
+  - id: planner
+    name: Planner
+    role: analysis
+    model: openai-codex/gpt-5.4
+    timeoutSeconds: 1800
+    description: Scopes the question and turns it into a concrete research brief.
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
+  - id: orchestrator
+    name: Orchestrator
+    role: analysis
+    model: openai-codex/gpt-5.4
+    timeoutSeconds: 3600
+    description: Spawns scout, analyst, and skeptic subagents and merges their outputs into a research packet.
+    workspace:
+      baseDir: agents/orchestrator
+      files:
+        AGENTS.md: agents/orchestrator/AGENTS.md
+        SOUL.md: agents/orchestrator/SOUL.md
+        IDENTITY.md: agents/orchestrator/IDENTITY.md
+
+  - id: scout
+    name: Scout
+    role: scanning
+    model: openai-codex/gpt-5.4
+    timeoutSeconds: 1800
+    description: Broad search agent for source discovery, coverage, timelines, and fast fact collection.
+    workspace:
+      baseDir: agents/scout
+      files:
+        AGENTS.md: agents/scout/AGENTS.md
+        SOUL.md: agents/scout/SOUL.md
+        IDENTITY.md: agents/scout/IDENTITY.md
+
+  - id: analyst
+    name: Analyst
+    role: scanning
+    model: anthropic/claude-opus-4-6
+    timeoutSeconds: 2400
+    description: Deep-reading agent for nuance, synthesis, and implications.
+    workspace:
+      baseDir: agents/analyst
+      files:
+        AGENTS.md: agents/analyst/AGENTS.md
+        SOUL.md: agents/analyst/SOUL.md
+        IDENTITY.md: agents/analyst/IDENTITY.md
+
+  - id: skeptic
+    name: Skeptic
+    role: scanning
+    model: openai-codex/gpt-5.4
+    timeoutSeconds: 1800
+    description: Searches for conflicts, missing evidence, and weak claims.
+    workspace:
+      baseDir: agents/skeptic
+      files:
+        AGENTS.md: agents/skeptic/AGENTS.md
+        SOUL.md: agents/skeptic/SOUL.md
+        IDENTITY.md: agents/skeptic/IDENTITY.md
+
+  - id: verifier
+    name: Verifier
+    role: scanning
+    model: openai-codex/gpt-5.4
+    timeoutSeconds: 2400
+    description: Verifies the research packet, does targeted follow-up checks, and produces the final verified packet.
+    workspace:
+      baseDir: agents/verifier
+      files:
+        AGENTS.md: agents/verifier/AGENTS.md
+        SOUL.md: agents/verifier/SOUL.md
+        IDENTITY.md: agents/verifier/IDENTITY.md
+
+  - id: writer
+    name: Final Writer
+    role: analysis
+    model: anthropic/claude-opus-4-6
+    timeoutSeconds: 2400
+    description: Writes the final report from verified findings only.
+    workspace:
+      baseDir: agents/writer
+      files:
+        AGENTS.md: agents/writer/AGENTS.md
+        SOUL.md: agents/writer/SOUL.md
+        IDENTITY.md: agents/writer/IDENTITY.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      Turn the task below into a concrete research brief for a multi-agent workflow.
+
+      TASK:
+      {{task}}
+
+      Deliverables:
+      1. State the exact research objective.
+      2. Define scope and explicit non-goals.
+      3. Break the topic into 4-10 research questions.
+      4. Define what a good final report must contain.
+      5. Keep the brief compact but operational.
+
+      Reply with:
+      STATUS: done
+      RESEARCH_OBJECTIVE: one-sentence objective
+      RESEARCH_BRIEF: multi-line brief with scope, non-goals, and framing
+      RESEARCH_QUESTIONS_JSON: [ ... JSON array of research questions ... ]
+      SUCCESS_CRITERIA: bullet list or numbered list
+      REPORT_OUTLINE: proposed markdown outline for the final report
+      RESEARCH_CONSTRAINTS: important limitations, time windows, or source constraints
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: research
+    agent: orchestrator
+    input: |
+      Produce a high-quality research packet from the brief below.
+
+      TASK:
+      {{task}}
+
+      RESEARCH OBJECTIVE:
+      {{research_objective}}
+
+      RESEARCH BRIEF:
+      {{research_brief}}
+
+      RESEARCH QUESTIONS:
+      {{research_questions_json}}
+
+      SUCCESS CRITERIA:
+      {{success_criteria}}
+
+      REPORT OUTLINE:
+      {{report_outline}}
+
+      CONSTRAINTS:
+      {{research_constraints}}
+
+      Required workflow:
+      1. Spawn specialized subagents using sessions_spawn.
+      2. Use these installed agent IDs:
+         - deep-research_scout
+         - deep-research_analyst
+         - deep-research_skeptic
+      3. Give each subagent the same task context but different role instructions.
+      4. Run them in parallel when practical. If the runtime makes that awkward, run them back-to-back but still preserve the role split.
+      5. Collect all outputs.
+      6. Merge, deduplicate, and normalize them into one research packet.
+      7. Do not write the final report yet.
+
+      The research packet must include:
+      - confirmed findings
+      - probable findings
+      - contested findings
+      - unresolved questions
+      - high-value sources
+      - confidence notes
+      - coverage notes tied back to the research questions
+
+      Reply with:
+      STATUS: done
+      SCOUT_REPORT: raw or lightly cleaned scout output
+      ANALYST_REPORT: raw or lightly cleaned analyst output
+      SKEPTIC_REPORT: raw or lightly cleaned skeptic output
+      RESEARCH_PACKET_JSON: normalized JSON object for downstream verification and writing
+      SOURCE_REGISTER: compact source register with URLs and why they matter
+      ORCHESTRATION_NOTES: what you merged, deduped, or marked uncertain
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
+
+  - id: verify
+    agent: verifier
+    input: |
+      Verify and improve the research packet below.
+
+      TASK:
+      {{task}}
+
+      RESEARCH OBJECTIVE:
+      {{research_objective}}
+
+      RESEARCH BRIEF:
+      {{research_brief}}
+
+      RESEARCH QUESTIONS:
+      {{research_questions_json}}
+
+      SUCCESS CRITERIA:
+      {{success_criteria}}
+
+      REPORT OUTLINE:
+      {{report_outline}}
+
+      SOURCE REGISTER:
+      {{source_register}}
+
+      RESEARCH PACKET:
+      {{research_packet_json}}
+
+      ORCHESTRATION NOTES:
+      {{orchestration_notes}}
+
+      Instructions:
+      1. Check whether the packet actually answers the research questions.
+      2. Perform targeted follow-up web checks where claims are weak, thinly sourced, or contested.
+      3. Separate confirmed vs probable vs contested claims more cleanly when needed.
+      4. Preserve uncertainty instead of pretending weak claims are solid.
+      5. Produce the packet the final writer should trust.
+      6. Do not write the final report.
+
+      Reply with:
+      STATUS: done
+      VERIFIED_PACKET_JSON: improved JSON object ready for final writing
+      CONFIDENCE_SUMMARY: what is solid, what is likely, what remains uncertain
+      COVERAGE_CHECK: mapping of research questions to answer quality
+      LIMITATIONS: remaining blind spots and caveats
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
+
+  - id: write
+    agent: writer
+    input: |
+      Write the final report in markdown using only the verified packet and the brief below.
+
+      TASK:
+      {{task}}
+
+      RESEARCH OBJECTIVE:
+      {{research_objective}}
+
+      RESEARCH BRIEF:
+      {{research_brief}}
+
+      SUCCESS CRITERIA:
+      {{success_criteria}}
+
+      REPORT OUTLINE:
+      {{report_outline}}
+
+      VERIFIED PACKET:
+      {{verified_packet_json}}
+
+      CONFIDENCE SUMMARY:
+      {{confidence_summary}}
+
+      COVERAGE CHECK:
+      {{coverage_check}}
+
+      LIMITATIONS:
+      {{limitations}}
+
+      Rules:
+      1. Do not start new research.
+      2. Do not invent citations or sources.
+      3. Preserve uncertainty explicitly.
+      4. Write like a strong analyst, not like marketing.
+      5. Include a short executive summary.
+      6. Include a clear sources section.
+
+      Reply with:
+      STATUS: done
+      EXECUTIVE_SUMMARY: concise executive summary
+      FINAL_REPORT: full markdown report
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
