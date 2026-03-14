@@ -75,6 +75,10 @@ export function startDashboard(port = 3333): http.Server {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
 
+    if (p === "/health") {
+      return json(res, { status: "ok", timestamp: Date.now() });
+    }
+
     if (p === "/api/workflows") {
       return json(res, loadWorkflows());
     }
