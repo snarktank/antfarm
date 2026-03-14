@@ -72,16 +72,56 @@ const TIMEOUT_20_MIN = 1200;
 const TIMEOUT_30_MIN = 1800;
 
 const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[]; deny: string[]; timeoutSeconds: number }> = {
+  // planning: read-only reasoning/planning — no exec, no web, no sessions, no memory
+  planning: {
+    profile: "coding",
+    deny: [
+      ...ALWAYS_DENY,
+      "group:runtime", "group:sessions", "group:memory",
+      "write", "edit", "apply_patch",
+      "image", "tts",
+      "group:ui",
+    ],
+    timeoutSeconds: TIMEOUT_20_MIN,
+  },
+
+  // coordination: read + sessions only — used by orchestrators that spawn subagents
+  coordination: {
+    profile: "coding",
+    deny: [
+      ...ALWAYS_DENY,
+      "group:runtime", "group:memory",
+      "write", "edit", "apply_patch",
+      "image", "tts",
+      "group:ui",
+    ],
+    timeoutSeconds: TIMEOUT_20_MIN,
+  },
+
+  // research: read + web only — no exec, no sessions, no memory, no writing
+  research: {
+    profile: "coding",
+    alsoAllow: ["web_search", "web_fetch"],
+    deny: [
+      ...ALWAYS_DENY,
+      "group:runtime", "group:sessions", "group:memory",
+      "write", "edit", "apply_patch",
+      "image", "tts",
+      "group:ui",
+    ],
+    timeoutSeconds: TIMEOUT_20_MIN,
+  },
+
   // analysis: read code, run git/grep, reason — no writing, no web, no browser
   analysis: {
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // no file modification
-      "image", "tts",                  // unnecessary
-      "group:ui",                      // no browser/canvas
+      "write", "edit", "apply_patch",
+      "image", "tts",
+      "group:ui",
     ],
-    timeoutSeconds: TIMEOUT_20_MIN,  // codebase exploration + reasoning
+    timeoutSeconds: TIMEOUT_20_MIN,
   },
 
   // coding: full read/write/exec — the workhorses (developer, fixer, setup)
@@ -89,10 +129,10 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
-      "image", "tts",                  // unnecessary
-      "group:ui",                      // no browser/canvas
+      "image", "tts",
+      "group:ui",
     ],
-    timeoutSeconds: TIMEOUT_30_MIN,  // implements code + build + tests
+    timeoutSeconds: TIMEOUT_30_MIN,
   },
 
   // verification: read + exec but NO write — preserves independent verification integrity
@@ -100,11 +140,11 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // cannot modify code it's verifying
-      "image", "tts",                  // unnecessary
-      "group:ui",                      // no browser/canvas
+      "write", "edit", "apply_patch",
+      "image", "tts",
+      "group:ui",
     ],
-    timeoutSeconds: TIMEOUT_20_MIN,  // code review + runs tests
+    timeoutSeconds: TIMEOUT_20_MIN,
   },
 
   // testing: read + exec + browser/web for E2E, NO write
@@ -113,10 +153,10 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     alsoAllow: ["browser", "web_search", "web_fetch"],
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // testers don't write production code
-      "image", "tts",                  // unnecessary
+      "write", "edit", "apply_patch",
+      "image", "tts",
     ],
-    timeoutSeconds: TIMEOUT_30_MIN,  // full test suites + E2E
+    timeoutSeconds: TIMEOUT_30_MIN,
   },
 
   // pr: just needs read + exec (for `gh pr create`)
@@ -124,11 +164,11 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // no file modification
-      "image", "tts",                  // unnecessary
-      "group:ui",                      // no browser/canvas
+      "write", "edit", "apply_patch",
+      "image", "tts",
+      "group:ui",
     ],
-    timeoutSeconds: TIMEOUT_20_MIN,  // quick task, no special-casing
+    timeoutSeconds: TIMEOUT_20_MIN,
   },
 
   // scanning: read + exec + web (CVE lookups), NO write
@@ -137,11 +177,11 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     alsoAllow: ["web_search", "web_fetch"],
     deny: [
       ...ALWAYS_DENY,
-      "write", "edit", "apply_patch",  // scanners don't modify code
-      "image", "tts",                  // unnecessary
-      "group:ui",                      // no browser/canvas
+      "write", "edit", "apply_patch",
+      "image", "tts",
+      "group:ui",
     ],
-    timeoutSeconds: TIMEOUT_20_MIN,  // security scanning + web lookups
+    timeoutSeconds: TIMEOUT_20_MIN,
   },
 };
 
@@ -161,9 +201,10 @@ const SUBAGENT_POLICY = { allowAgents: [] as string[] };
  */
 function inferRole(agentId: string): AgentRole {
   const id = agentId.toLowerCase();
-  if (id.includes("planner") || id.includes("prioritizer") || id.includes("reviewer")
-      || id.includes("investigator") || id.includes("triager")) return "analysis";
-  if (id.includes("verifier")) return "verification";
+  if (id.includes("planner") || id.includes("writer") || id.includes("prioritizer")
+      || id.includes("reviewer") || id.includes("investigator") || id.includes("triager")) return "planning";
+  if (id.includes("orchestrator")) return "coordination";
+  if (id.includes("scout") || id.includes("analyst") || id.includes("skeptic") || id.includes("verifier")) return "research";
   if (id.includes("tester")) return "testing";
   if (id.includes("scanner")) return "scanning";
   if (id === "pr" || id.includes("/pr")) return "pr";

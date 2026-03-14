@@ -1,22 +1,25 @@
 id: deep-research
 name: Deep Research Workflow
-version: 1
+version: 3
 description: |
-  Multi-agent deep research pipeline for OpenClaw. GPT-5.4 handles scoping,
-  orchestration, and verification. Claude Opus 4.6 handles deep analysis and
-  final report writing. The orchestration step spawns specialized subagents for
-  broad search, deep reading, and skeptical gap-finding, then hands a verified
-  research packet to the final writer.
+  Hardened multi-agent deep research pipeline for OpenClaw. GPT-5.4 handles
+  scoping, orchestration, broad coverage, and verification at extra-high
+  thinking. Claude Opus 4.6 handles deep analysis, skeptical pressure-testing,
+  and final writing at high thinking. The workflow is evidence-first,
+  prompt-injection-aware, and passes structured claim/source packets between
+  stages.
 
 polling:
-  model: lmstudio/qwen-fast
+  model: anthropic/claude-sonnet-4-6
+  thinking: high
   timeoutSeconds: 120
 
 agents:
   - id: planner
     name: Planner
-    role: analysis
+    role: planning
     model: openai-codex/gpt-5.4
+    thinking: xhigh
     timeoutSeconds: 1800
     description: Scopes the question and turns it into a concrete research brief.
     workspace:
@@ -28,10 +31,11 @@ agents:
 
   - id: orchestrator
     name: Orchestrator
-    role: analysis
+    role: coordination
     model: openai-codex/gpt-5.4
+    thinking: xhigh
     timeoutSeconds: 3600
-    description: Spawns scout, analyst, and skeptic subagents and merges their outputs into a research packet.
+    description: Spawns scout, analyst, and skeptic subagents and merges their outputs into a normalized research packet.
     workspace:
       baseDir: agents/orchestrator
       files:
@@ -41,8 +45,9 @@ agents:
 
   - id: scout
     name: Scout
-    role: scanning
+    role: research
     model: openai-codex/gpt-5.4
+    thinking: xhigh
     timeoutSeconds: 1800
     description: Broad search agent for source discovery, coverage, timelines, and fast fact collection.
     workspace:
@@ -54,8 +59,9 @@ agents:
 
   - id: analyst
     name: Analyst
-    role: scanning
+    role: research
     model: anthropic/claude-opus-4-6
+    thinking: high
     timeoutSeconds: 2400
     description: Deep-reading agent for nuance, synthesis, and implications.
     workspace:
@@ -67,8 +73,9 @@ agents:
 
   - id: skeptic
     name: Skeptic
-    role: scanning
-    model: openai-codex/gpt-5.4
+    role: research
+    model: anthropic/claude-opus-4-6
+    thinking: high
     timeoutSeconds: 1800
     description: Searches for conflicts, missing evidence, and weak claims.
     workspace:
@@ -80,8 +87,9 @@ agents:
 
   - id: verifier
     name: Verifier
-    role: scanning
+    role: research
     model: openai-codex/gpt-5.4
+    thinking: xhigh
     timeoutSeconds: 2400
     description: Verifies the research packet, does targeted follow-up checks, and produces the final verified packet.
     workspace:
@@ -93,8 +101,9 @@ agents:
 
   - id: writer
     name: Final Writer
-    role: analysis
+    role: planning
     model: anthropic/claude-opus-4-6
+    thinking: high
     timeoutSeconds: 2400
     description: Writes the final report from verified findings only.
     workspace:
@@ -108,26 +117,33 @@ steps:
   - id: plan
     agent: planner
     input: |
-      Turn the task below into a concrete research brief for a multi-agent workflow.
+      Turn the task below into a concrete research brief for an evidence-first multi-agent workflow.
 
       TASK:
       {{task}}
 
-      Deliverables:
+      Requirements:
       1. State the exact research objective.
-      2. Define scope and explicit non-goals.
+      2. Define scope, explicit non-goals, and key assumptions.
       3. Break the topic into 4-10 research questions.
-      4. Define what a good final report must contain.
-      5. Keep the brief compact but operational.
+      4. Define what evidence types are needed.
+      5. Define stop criteria for “enough research”.
+      6. Keep the brief compact but operational.
+      7. If the task is ambiguous, make the narrowest reasonable assumptions and write them down instead of stalling.
 
       Reply with:
       STATUS: done
       RESEARCH_OBJECTIVE: one-sentence objective
-      RESEARCH_BRIEF: multi-line brief with scope, non-goals, and framing
-      RESEARCH_QUESTIONS_JSON: [ ... JSON array of research questions ... ]
+      RESEARCH_SCOPE: multi-line scope and framing
+      NON_GOALS: explicit out-of-scope items
+      ASSUMPTIONS: assumptions you made to make the task operational
+      RESEARCH_BRIEF: compact multi-line brief for downstream agents
+      RESEARCH_QUESTIONS_JSON: JSON array of research questions
+      EVIDENCE_REQUIREMENTS: what evidence types are needed and what would count as strong support
+      STOP_CRITERIA: how the workflow should know the research is sufficient
       SUCCESS_CRITERIA: bullet list or numbered list
       REPORT_OUTLINE: proposed markdown outline for the final report
-      RESEARCH_CONSTRAINTS: important limitations, time windows, or source constraints
+      RESEARCH_CONSTRAINTS: important limitations, time windows, jurisdiction limits, or source constraints
     expects: "STATUS: done"
     max_retries: 2
     on_fail:
@@ -144,11 +160,26 @@ steps:
       RESEARCH OBJECTIVE:
       {{research_objective}}
 
+      RESEARCH SCOPE:
+      {{research_scope}}
+
+      NON-GOALS:
+      {{non_goals}}
+
+      ASSUMPTIONS:
+      {{assumptions}}
+
       RESEARCH BRIEF:
       {{research_brief}}
 
       RESEARCH QUESTIONS:
       {{research_questions_json}}
+
+      EVIDENCE REQUIREMENTS:
+      {{evidence_requirements}}
+
+      STOP CRITERIA:
+      {{stop_criteria}}
 
       SUCCESS CRITERIA:
       {{success_criteria}}
@@ -165,29 +196,32 @@ steps:
          - deep-research_scout
          - deep-research_analyst
          - deep-research_skeptic
-      3. Give each subagent the same task context but different role instructions.
-      4. Run them in parallel when practical. If the runtime makes that awkward, run them back-to-back but still preserve the role split.
-      5. Collect all outputs.
-      6. Merge, deduplicate, and normalize them into one research packet.
-      7. Do not write the final report yet.
+      3. Prefix the spawned task for each subagent with the correct thinking directive:
+         - scout -> /think xhigh
+         - analyst -> /think high
+         - skeptic -> /think high
+      4. Give each subagent the same task context but different role instructions.
+      5. Run them in parallel when practical. If the runtime makes that awkward, run them back-to-back but preserve the role split.
+      6. Collect all outputs.
+      7. Merge, deduplicate, and normalize them into one research packet.
+      8. Do not write the final report yet.
 
-      The research packet must include:
-      - confirmed findings
-      - probable findings
-      - contested findings
-      - unresolved questions
-      - high-value sources
-      - confidence notes
-      - coverage notes tied back to the research questions
+      Required packet structure:
+      - SOURCES: array of source objects with source_id, title, url/path, source_type, published_at if known, retrieved_at if known, reliability, freshness, why_it_matters
+      - CLAIMS: array of claim objects with claim_id, statement, status, confidence, importance, source_ids, supporting_evidence, counterevidence, caveats, why_it_matters
+      - OPEN_QUESTIONS: unresolved but important gaps
+      - COVERAGE_MAP: mapping of research questions to current evidence coverage
+      - CONTESTED_AREAS: places where sources or interpretations conflict
+      - RECOMMENDED_FOLLOWUPS: high-value checks the verifier should consider
 
       Reply with:
       STATUS: done
       SCOUT_REPORT: raw or lightly cleaned scout output
       ANALYST_REPORT: raw or lightly cleaned analyst output
       SKEPTIC_REPORT: raw or lightly cleaned skeptic output
+      SOURCE_REGISTER_JSON: normalized JSON array of sources
       RESEARCH_PACKET_JSON: normalized JSON object for downstream verification and writing
-      SOURCE_REGISTER: compact source register with URLs and why they matter
-      ORCHESTRATION_NOTES: what you merged, deduped, or marked uncertain
+      ORCHESTRATION_NOTES: what you merged, deduped, downgraded, or left contested
     expects: "STATUS: done"
     max_retries: 1
     on_fail:
@@ -204,11 +238,23 @@ steps:
       RESEARCH OBJECTIVE:
       {{research_objective}}
 
-      RESEARCH BRIEF:
-      {{research_brief}}
+      RESEARCH SCOPE:
+      {{research_scope}}
+
+      NON-GOALS:
+      {{non_goals}}
+
+      ASSUMPTIONS:
+      {{assumptions}}
 
       RESEARCH QUESTIONS:
       {{research_questions_json}}
+
+      EVIDENCE REQUIREMENTS:
+      {{evidence_requirements}}
+
+      STOP CRITERIA:
+      {{stop_criteria}}
 
       SUCCESS CRITERIA:
       {{success_criteria}}
@@ -217,7 +263,7 @@ steps:
       {{report_outline}}
 
       SOURCE REGISTER:
-      {{source_register}}
+      {{source_register_json}}
 
       RESEARCH PACKET:
       {{research_packet_json}}
@@ -227,15 +273,27 @@ steps:
 
       Instructions:
       1. Check whether the packet actually answers the research questions.
-      2. Perform targeted follow-up web checks where claims are weak, thinly sourced, or contested.
-      3. Separate confirmed vs probable vs contested claims more cleanly when needed.
-      4. Preserve uncertainty instead of pretending weak claims are solid.
-      5. Produce the packet the final writer should trust.
-      6. Do not write the final report.
+      2. Perform targeted follow-up web checks where claims are weak, thinly sourced, stale, or contested.
+      3. Break important claims into atomic factual claims if needed.
+      4. Separate confirmed vs probable vs contested vs unresolved more cleanly when needed.
+      5. Preserve uncertainty instead of pretending weak claims are solid.
+      6. Produce the packet the final writer should trust.
+      7. Reject or downgrade unsupported claims explicitly.
+      8. Do not write the final report.
+
+      Required verified packet structure:
+      - VERIFIED_SOURCES
+      - VERIFIED_CLAIMS
+      - REJECTED_CLAIMS
+      - COVERAGE_CHECK
+      - LIMITATIONS
+      - CONFIDENCE_SUMMARY
+      - BOTTOM_LINE_CANDIDATES
 
       Reply with:
       STATUS: done
       VERIFIED_PACKET_JSON: improved JSON object ready for final writing
+      REJECTED_OR_DOWNGRADED_CLAIMS: claims removed, weakened, or marked unresolved
       CONFIDENCE_SUMMARY: what is solid, what is likely, what remains uncertain
       COVERAGE_CHECK: mapping of research questions to answer quality
       LIMITATIONS: remaining blind spots and caveats
@@ -255,8 +313,20 @@ steps:
       RESEARCH OBJECTIVE:
       {{research_objective}}
 
+      RESEARCH SCOPE:
+      {{research_scope}}
+
+      NON-GOALS:
+      {{non_goals}}
+
+      ASSUMPTIONS:
+      {{assumptions}}
+
       RESEARCH BRIEF:
       {{research_brief}}
+
+      RESEARCH QUESTIONS:
+      {{research_questions_json}}
 
       SUCCESS CRITERIA:
       {{success_criteria}}
@@ -281,8 +351,15 @@ steps:
       2. Do not invent citations or sources.
       3. Preserve uncertainty explicitly.
       4. Write like a strong analyst, not like marketing.
-      5. Include a short executive summary.
-      6. Include a clear sources section.
+      5. Every important claim must be traceable to the verified packet.
+      6. Use this report structure:
+         - Bottom line
+         - What we know
+         - What is likely but uncertain
+         - What is contested or unresolved
+         - Recommendation
+         - Confidence
+         - Sources
 
       Reply with:
       STATUS: done

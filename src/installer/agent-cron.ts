@@ -6,6 +6,13 @@ import { getDb } from "../db.js";
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
 
+function prefixThinkingDirective(thinking: string | undefined, body: string): string {
+  if (!thinking) return body;
+  return `/think ${thinking}
+
+${body}`;
+}
+
 function buildAgentPrompt(workflowId: string, agentId: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
@@ -50,11 +57,11 @@ RULES:
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
 
-export function buildWorkPrompt(workflowId: string, agentId: string): string {
+export function buildWorkPrompt(workflowId: string, agentId: string, thinking?: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
 
-  return `You are an Antfarm workflow agent. Execute the pending work below.
+  const body = `You are an Antfarm workflow agent. Execute the pending work below.
 
 ⚠️ CRITICAL: You MUST call "step complete" or "step fail" before ending your session. If you don't, the workflow will be stuck forever. This is non-negotiable.
 
@@ -85,18 +92,26 @@ RULES:
 3. If you're unsure whether to complete or fail, call step fail with an explanation
 
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
+
+  return prefixThinkingDirective(thinking, body);
 }
 
 const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
 const DEFAULT_POLLING_MODEL = "default";
 
-export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
+export function buildPollingPrompt(
+  workflowId: string,
+  agentId: string,
+  workModel?: string,
+  workThinking?: string,
+  pollingThinking?: string,
+): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
   const model = workModel ?? "default";
-  const workPrompt = buildWorkPrompt(workflowId, agentId);
+  const workPrompt = buildWorkPrompt(workflowId, agentId, workThinking);
 
-  return `Step 1 — Quick check for pending work (lightweight, no side effects):
+  const body = `Step 1 — Quick check for pending work (lightweight, no side effects):
 \`\`\`
 node ${cli} step peek "${fullAgentId}"
 \`\`\`
@@ -120,6 +135,8 @@ ${workPrompt}
 ---END WORK PROMPT---
 
 Reply with a short summary of what you spawned.`;
+
+  return prefixThinkingDirective(pollingThinking, body);
 }
 
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
@@ -129,6 +146,7 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
 
   // Resolve polling model: per-agent > workflow-level > default
   const workflowPollingModel = workflow.polling?.model ?? DEFAULT_POLLING_MODEL;
+  const workflowPollingThinking = workflow.polling?.thinking;
   const workflowPollingTimeout = workflow.polling?.timeoutSeconds ?? DEFAULT_POLLING_TIMEOUT_SECONDS;
 
   for (let i = 0; i < agents.length; i++) {
@@ -140,7 +158,7 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     // Two-phase: Phase 1 uses cheap polling model + minimal prompt
     const pollingModel = agent.pollingModel ?? workflowPollingModel;
     const workModel = agent.model; // Phase 2 model (passed to sessions_spawn via prompt)
-    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
+    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel, agent.thinking, workflowPollingThinking);
     const timeoutSeconds = workflowPollingTimeout;
 
     const result = await createAgentCronJob({

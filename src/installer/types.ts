@@ -7,14 +7,17 @@ export type WorkflowAgentFiles = {
 /**
  * Agent roles control tool access during install.
  *
- * - analysis:      Read-only code exploration (planner, prioritizer, reviewer, investigator, triager)
+ * - planning:      Read-only reasoning/planning (planner, writer)
+ * - coordination:  Read + sessions only, no exec/write (orchestrator)
+ * - research:      Read + web only, no exec/write/sessions (scout, analyst, skeptic, verifier)
+ * - analysis:      Read-only code exploration (legacy/general)
  * - coding:        Full read/write/exec for implementation (developer, fixer, setup)
- * - verification:  Read + exec but NO write — independent verification integrity (verifier)
+ * - verification:  Read + exec but NO write — independent verification integrity (legacy verifier role)
  * - testing:       Read + exec + browser/web for E2E testing, NO write (tester)
  * - pr:            Read + exec only — just runs `gh pr create` (pr)
  * - scanning:      Read + exec + web search for CVE lookups, NO write (scanner)
  */
-export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning";
+export type AgentRole = "planning" | "coordination" | "research" | "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning";
 
 export type WorkflowAgent = {
   id: string;
@@ -22,6 +25,7 @@ export type WorkflowAgent = {
   description?: string;
   role?: AgentRole;
   model?: string;
+  thinking?: string;
   pollingModel?: string;
   timeoutSeconds?: number;
   workspace: WorkflowAgentFiles;
@@ -29,6 +33,7 @@ export type WorkflowAgent = {
 
 export type PollingConfig = {
   model?: string;
+  thinking?: string;
   timeoutSeconds?: number;
 };
 
