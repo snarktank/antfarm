@@ -91,6 +91,7 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     deny: [
       ...ALWAYS_DENY,
       "group:runtime", "group:memory",
+      "web_search", "web_fetch",
       "write", "edit", "apply_patch",
       "image", "tts",
       "group:ui",
@@ -117,6 +118,8 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
+      "group:sessions", "group:memory",
+      "web_search", "web_fetch",
       "write", "edit", "apply_patch",
       "image", "tts",
       "group:ui",
@@ -140,6 +143,7 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
+      "group:sessions", "group:memory",
       "write", "edit", "apply_patch",
       "image", "tts",
       "group:ui",
@@ -153,6 +157,7 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     alsoAllow: ["browser", "web_search", "web_fetch"],
     deny: [
       ...ALWAYS_DENY,
+      "group:sessions", "group:memory",
       "write", "edit", "apply_patch",
       "image", "tts",
     ],
@@ -164,6 +169,8 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     profile: "coding",
     deny: [
       ...ALWAYS_DENY,
+      "group:sessions", "group:memory",
+      "web_search", "web_fetch",
       "write", "edit", "apply_patch",
       "image", "tts",
       "group:ui",
@@ -177,6 +184,7 @@ const ROLE_POLICIES: Record<AgentRole, { profile?: string; alsoAllow?: string[];
     alsoAllow: ["web_search", "web_fetch"],
     deny: [
       ...ALWAYS_DENY,
+      "group:sessions", "group:memory",
       "write", "edit", "apply_patch",
       "image", "tts",
       "group:ui",
@@ -193,26 +201,23 @@ export function getMaxRoleTimeoutSeconds(): number {
   return Math.max(...Object.values(ROLE_POLICIES).map(r => r.timeoutSeconds));
 }
 
-const SUBAGENT_POLICY = { allowAgents: [] as string[] };
-
-/**
- * Infer an agent's role from its id when not explicitly set in workflow YAML.
- * Matches common agent id patterns across all bundled workflows.
- */
-function inferRole(agentId: string): AgentRole {
-  const id = agentId.toLowerCase();
-  if (id.includes("planner") || id.includes("writer") || id.includes("prioritizer")
-      || id.includes("reviewer") || id.includes("investigator") || id.includes("triager")) return "planning";
-  if (id.includes("orchestrator")) return "coordination";
-  if (id.includes("scout") || id.includes("analyst") || id.includes("skeptic") || id.includes("verifier")) return "research";
-  if (id.includes("tester")) return "testing";
-  if (id.includes("scanner")) return "scanning";
-  if (id === "pr" || id.includes("/pr")) return "pr";
-  // developer, fixer, setup → coding
-  return "coding";
+export function buildSubagentPolicy(params: {
+  workflowId: string;
+  role: AgentRole;
+  agentId: string;
+  workflowAgentIds: string[];
+}): { allowAgents: string[] } {
+  if (params.role !== "coordination") {
+    return { allowAgents: [] };
+  }
+  return {
+    allowAgents: params.workflowAgentIds
+      .filter((workflowAgentId) => workflowAgentId !== params.agentId)
+      .map((workflowAgentId) => `${params.workflowId}_${workflowAgentId}`),
+  };
 }
 
-function buildToolsConfig(role: AgentRole): Record<string, unknown> {
+export function buildToolsConfig(role: AgentRole): Record<string, unknown> {
   const defaults = ROLE_POLICIES[role];
   const tools: Record<string, unknown> = {};
   if (defaults.profile) tools.profile = defaults.profile;
@@ -249,7 +254,16 @@ function ensureSessionMaintenance(config: OpenClawConfig): void {
 
 function upsertAgent(
   list: Array<Record<string, unknown>>,
-  agent: { id: string; name?: string; model?: string; timeoutSeconds?: number; workspaceDir: string; agentDir: string; role: AgentRole },
+  agent: {
+    id: string;
+    name?: string;
+    model?: string;
+    timeoutSeconds?: number;
+    workspaceDir: string;
+    agentDir: string;
+    role: AgentRole;
+    subagentAllowAgents: string[];
+  },
 ) {
   const existing = list.find((entry) => entry.id === agent.id);
   // Never overwrite the user's default (main) agent — it was configured outside antfarm.
@@ -260,7 +274,7 @@ function upsertAgent(
     workspace: agent.workspaceDir,
     agentDir: agent.agentDir,
     tools: buildToolsConfig(agent.role),
-    subagents: SUBAGENT_POLICY,
+    subagents: { allowAgents: agent.subagentAllowAgents },
   };
   if (agent.model) payload.model = agent.model;
   // Note: timeoutSeconds is NOT written to the agent config entry because
@@ -280,10 +294,10 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
   const workflow = await loadWorkflowSpec(workflowDir);
   const provisioned = await provisionAgents({ workflow, workflowDir, bundledSourceDir });
 
-  // Build a role lookup: workflow agent id → role (explicit or inferred)
+  // Build a role lookup: workflow agent id → explicit role from workflow.yml
   const roleMap = new Map<string, AgentRole>();
   for (const agent of workflow.agents) {
-    roleMap.set(agent.id, agent.role ?? inferRole(agent.id));
+    roleMap.set(agent.id, agent.role);
   }
 
   const { path: configPath, config } = await readOpenClawConfig();
@@ -291,6 +305,7 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
   ensureSessionMaintenance(config);
   const list = ensureAgentList(config);
   ensureMainAgentInList(list, config);
+  const workflowAgentIds = workflow.agents.map((agent) => agent.id);
   for (const agent of provisioned) {
     const existing = list.find((entry) => entry.id === agent.id);
     if (existing && !agent.id.startsWith(workflow.id + "_")) {
@@ -302,8 +317,18 @@ export async function installWorkflow(params: { workflowId: string }): Promise<W
     // Extract the local agent id (strip the workflow prefix + separator)
     const prefix = workflow.id + "_";
     const localId = agent.id.startsWith(prefix) ? agent.id.slice(prefix.length) : agent.id;
-    const role = roleMap.get(localId) ?? inferRole(localId);
-    upsertAgent(list, { ...agent, role });
+    const role = roleMap.get(localId);
+    if (!role) throw new Error(`Missing explicit role for workflow agent "${localId}"`);
+    upsertAgent(list, {
+      ...agent,
+      role,
+      subagentAllowAgents: buildSubagentPolicy({
+        workflowId: workflow.id,
+        role,
+        agentId: localId,
+        workflowAgentIds,
+      }).allowAgents,
+    });
   }
   await writeOpenClawConfig(configPath, config);
   await updateMainAgentGuidance();

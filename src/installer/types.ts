@@ -17,13 +17,14 @@ export type WorkflowAgentFiles = {
  * - pr:            Read + exec only — just runs `gh pr create` (pr)
  * - scanning:      Read + exec + web search for CVE lookups, NO write (scanner)
  */
-export type AgentRole = "planning" | "coordination" | "research" | "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning";
+export const AGENT_ROLES = ["planning", "coordination", "research", "analysis", "coding", "verification", "testing", "pr", "scanning"] as const;
+export type AgentRole = (typeof AGENT_ROLES)[number];
 
 export type WorkflowAgent = {
   id: string;
   name?: string;
   description?: string;
-  role?: AgentRole;
+  role: AgentRole;
   model?: string;
   thinking?: string;
   pollingModel?: string;

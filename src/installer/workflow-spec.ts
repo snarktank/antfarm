@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import type { LoopConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
+import { AGENT_ROLES, type LoopConfig, type PollingConfig, type WorkflowAgent, type WorkflowSpec, type WorkflowStep } from "./types.js";
 
 export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
   const filePath = path.join(workflowDir, "workflow.yml");
@@ -56,6 +56,12 @@ function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
       throw new Error(`workflow.yml has duplicate agent id "${agent.id}" in ${workflowDir}`);
     }
     ids.add(agent.id);
+    if (!agent.role) {
+      throw new Error(`workflow.yml missing role for agent "${agent.id}"`);
+    }
+    if (!AGENT_ROLES.includes(agent.role)) {
+      throw new Error(`workflow.yml agent "${agent.id}" has unknown role "${String(agent.role)}"`);
+    }
     if (!agent.workspace?.baseDir?.trim()) {
       throw new Error(`workflow.yml missing workspace.baseDir for agent "${agent.id}"`);
     }
