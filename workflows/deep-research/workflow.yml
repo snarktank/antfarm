@@ -242,7 +242,7 @@ steps:
       SOURCE_REGISTER_JSON: normalized JSON array of sources
       RESEARCH_PACKET_JSON: normalized JSON object for downstream verification and writing
       ORCHESTRATION_NOTES: what you merged, deduped, downgraded, or left contested
-    expects: "STATUS: done"
+    expects: "RESEARCH_PACKET_JSON:"
     max_retries: 1
     on_fail:
       escalate_to: human
@@ -317,7 +317,7 @@ steps:
       CONFIDENCE_SUMMARY: what is solid, what is likely, what remains uncertain
       COVERAGE_CHECK: mapping of research questions to answer quality
       LIMITATIONS: remaining blind spots and caveats
-    expects: "STATUS: done"
+    expects: "VERIFIED_PACKET_JSON:"
     max_retries: 1
     on_fail:
       escalate_to: human
@@ -385,7 +385,7 @@ steps:
       STATUS: done
       EXECUTIVE_SUMMARY: concise executive summary
       FINAL_REPORT: full markdown report
-    expects: "STATUS: done"
+    expects: "FINAL_REPORT:"
     max_retries: 1
     on_fail:
       escalate_to: human

@@ -49,6 +49,122 @@ export function parseOutputKeyValues(output: string): Record<string, string> {
   return result;
 }
 
+export type StepOutputStatus = "done" | "retry" | "blocked";
+
+export type ValidatedStepOutput = {
+  parsed: Record<string, string>;
+  status: StepOutputStatus;
+  jsonFields: Record<string, unknown>;
+};
+
+function parseJsonField(key: string, value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Malformed ${key}: ${message}`);
+  }
+}
+
+function extractStoriesJson(output: string): string | null {
+  const lines = output.split("\n");
+  const startIdx = lines.findIndex((line) => line.startsWith("STORIES_JSON:"));
+  if (startIdx === -1) return null;
+  const firstLine = lines[startIdx].slice("STORIES_JSON:".length).trim();
+  const jsonLines = [firstLine];
+  for (let i = startIdx + 1; i < lines.length; i += 1) {
+    if (/^[A-Z_]+:\s/.test(lines[i])) break;
+    jsonLines.push(lines[i]);
+  }
+  return jsonLines.join("\n").trim();
+}
+
+export function validateStepOutputContract(output: string, expects: string): ValidatedStepOutput {
+  const parsed = parseOutputKeyValues(output);
+  const rawStatus = parsed["status"]?.trim().toLowerCase();
+  if (!rawStatus) {
+    throw new Error("Missing required STATUS field");
+  }
+  if (rawStatus !== "done" && rawStatus !== "retry" && rawStatus !== "blocked") {
+    throw new Error(`Unknown STATUS: ${parsed["status"]}`);
+  }
+
+  const jsonFields: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (key === "packet_json" || key.endsWith("_json")) {
+      jsonFields[key] = parseJsonField(key.toUpperCase(), value);
+    }
+  }
+
+  const storiesJson = extractStoriesJson(output);
+  if (storiesJson) {
+    jsonFields["stories_json"] = parseJsonField("STORIES_JSON", storiesJson);
+  }
+
+  if (!outputSatisfiesExpects(output, expects, parsed)) {
+    throw new Error(`Output did not satisfy expects contract: ${expects}`);
+  }
+
+  return {
+    parsed,
+    status: rawStatus,
+    jsonFields,
+  };
+}
+
+function outputSatisfiesExpects(
+  output: string,
+  expects: string,
+  parsed: Record<string, string>,
+): boolean {
+  const status = parsed["status"]?.trim().toLowerCase();
+  if (status === "retry" || status === "blocked") return true;
+  const trimmed = expects.trim();
+  if (!trimmed) return true;
+  const statusMatch = trimmed.match(/^STATUS:\s*(done|retry|blocked)\s*$/i);
+  if (statusMatch) {
+    return status === statusMatch[1].toLowerCase();
+  }
+  return output.includes(trimmed);
+}
+
+function deriveStepFailureReason(parsed: Record<string, string>, output: string, fallback: string): string {
+  return parsed["issues"]?.trim() || parsed["error"]?.trim() || parsed["block_reason"]?.trim() || output || fallback;
+}
+
+function persistRunContext(runId: string, context: Record<string, string>): void {
+  const db = getDb();
+  db.prepare(
+    "UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(JSON.stringify(context), runId);
+}
+
+function blockStep(
+  step: { id: string; run_id: string; step_id: string; current_story_id: string | null },
+  output: string,
+): { advanced: boolean; runCompleted: boolean } {
+  const db = getDb();
+
+  if (step.current_story_id) {
+    db.prepare(
+      "UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+    ).run(step.current_story_id);
+  }
+
+  db.prepare(
+    "UPDATE steps SET status = 'blocked', output = ?, current_story_id = NULL, updated_at = datetime('now') WHERE id = ?"
+  ).run(output, step.id);
+  db.prepare(
+    "UPDATE runs SET status = 'blocked', updated_at = datetime('now') WHERE id = ?"
+  ).run(step.run_id);
+  const workflowId = getWorkflowId(step.run_id);
+  const detail = output.split("\n")[0] || "Blocked by workflow step output";
+  emitEvent({ ts: new Date().toISOString(), event: "step.blocked", runId: step.run_id, workflowId, stepId: step.step_id, detail });
+  emitEvent({ ts: new Date().toISOString(), event: "run.blocked", runId: step.run_id, workflowId, detail });
+  scheduleRunCronTeardown(step.run_id);
+  return { advanced: false, runCompleted: false };
+}
+
 /**
  * Fire-and-forget cron teardown when a run ends.
  * Looks up the workflow_id for the run and tears down crons if no other active runs.
@@ -432,7 +548,7 @@ export function claimStep(agentId: string): ClaimResult {
      FROM steps s
      JOIN runs r ON r.id = s.run_id
      WHERE s.agent_id = ? AND s.status = 'pending'
-       AND r.status NOT IN ('failed', 'cancelled')
+       AND r.status NOT IN ('failed', 'cancelled', 'blocked')
      LIMIT 1`
   ).get(agentId) as { id: string; step_id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
 
@@ -440,7 +556,7 @@ export function claimStep(agentId: string): ClaimResult {
 
   // Guard: don't claim work for a failed run
   const runStatus = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
-  if (runStatus?.status === "failed") return { found: false };
+  if (runStatus?.status === "failed" || runStatus?.status === "blocked" || runStatus?.status === "cancelled") return { found: false };
 
   // Get run context
   const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string } | undefined;
@@ -578,36 +694,46 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
+    "SELECT id, run_id, step_id, step_index, expects, type, loop_config, current_story_id FROM steps WHERE id = ?"
+  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; expects: string; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
 
-  // Guard: don't process completions for failed runs
+  // Guard: don't process completions for terminal runs
   const runCheck = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
-  if (runCheck?.status === "failed") {
+  if (runCheck?.status === "failed" || runCheck?.status === "blocked" || runCheck?.status === "cancelled") {
     return { advanced: false, runCompleted: false };
   }
 
-  // Merge KEY: value lines into run context
-  const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string };
-  const context: Record<string, string> = JSON.parse(run.context);
-
-  // Parse KEY: value lines and merge into context
-  const parsed = parseOutputKeyValues(output);
-  for (const [key, value] of Object.entries(parsed)) {
-    context[key] = value;
+  let validated: ValidatedStepOutput;
+  try {
+    validated = validateStepOutputContract(output, step.expects);
+    parseAndInsertStories(output, step.run_id);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    failStep(stepId, `Step output contract violation: ${message}`);
+    return { advanced: false, runCompleted: false };
   }
 
-  db.prepare(
-    "UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?"
-  ).run(JSON.stringify(context), step.run_id);
+  // Merge validated KEY: value lines into run context only after contract checks pass.
+  const run = db.prepare("SELECT context FROM runs WHERE id = ?").get(step.run_id) as { context: string };
+  const context: Record<string, string> = JSON.parse(run.context);
+  for (const [key, value] of Object.entries(validated.parsed)) {
+    context[key] = value;
+  }
+  persistRunContext(step.run_id, context);
 
-  // T5: Parse STORIES_JSON from output (any step, typically the planner)
-  parseAndInsertStories(output, step.run_id);
+  if (validated.status === "blocked") {
+    return blockStep(step, output);
+  }
 
   // T7: Loop step completion
   if (step.type === "loop" && step.current_story_id) {
+    if (validated.status === "retry") {
+      failStep(stepId, deriveStepFailureReason(validated.parsed, output, "Loop step requested retry"));
+      return { advanced: false, runCompleted: false };
+    }
+
     // Look up story info for event
     const storyRow = db.prepare("SELECT story_id, title FROM stories WHERE id = ?").get(step.current_story_id) as { story_id: string; title: string } | undefined;
 
@@ -648,8 +774,6 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   }
 
   // T8: Check if this is a verify step triggered by verify-each
-  // NOTE: Don't filter by status='running' — the loop step may have been temporarily
-  // reset by cleanupAbandonedSteps, causing this to fall through to single-step path (#52)
   const loopStepRow = db.prepare(
     "SELECT id, loop_config, run_id FROM steps WHERE run_id = ? AND type = 'loop' LIMIT 1"
   ).get(step.run_id) as { id: string; loop_config: string | null; run_id: string } | undefined;
@@ -657,8 +781,13 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   if (loopStepRow?.loop_config) {
     const lc: LoopConfig = JSON.parse(loopStepRow.loop_config);
     if (lc.verifyEach && lc.verifyStep === step.step_id) {
-      return handleVerifyEachCompletion(step, loopStepRow.id, output, context);
+      return handleVerifyEachCompletion(step, loopStepRow.id, output, context, validated.status);
     }
+  }
+
+  if (validated.status === "retry") {
+    failStep(stepId, deriveStepFailureReason(validated.parsed, output, "Step requested retry"));
+    return { advanced: false, runCompleted: false };
   }
 
   // Single step: mark done and advance
@@ -678,10 +807,10 @@ function handleVerifyEachCompletion(
   verifyStep: { id: string; run_id: string; step_id: string; step_index: number },
   loopStepId: string,
   output: string,
-  context: Record<string, string>
+  context: Record<string, string>,
+  status: StepOutputStatus,
 ): { advanced: boolean; runCompleted: boolean } {
   const db = getDb();
-  const status = context["status"]?.toLowerCase();
 
   // Reset verify step to waiting for next use
   db.prepare(
@@ -813,7 +942,7 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
 
   // Guard: don't advance or complete a run that's already failed/cancelled
   const runStatus = db.prepare("SELECT status FROM runs WHERE id = ?").get(runId) as { status: string } | undefined;
-  if (runStatus?.status === "failed" || runStatus?.status === "cancelled") {
+  if (runStatus?.status === "failed" || runStatus?.status === "blocked" || runStatus?.status === "cancelled") {
     return { advanced: false, runCompleted: false };
   }
 
