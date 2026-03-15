@@ -15,6 +15,20 @@ polling:
   timeoutSeconds: 120
 
 agents:
+  - id: preflight
+    name: Preflight
+    role: analysis
+    model: openai-codex/gpt-5.4
+    thinking: high
+    timeoutSeconds: 1200
+    description: Inspects local context first and decides where external research is actually needed.
+    workspace:
+      baseDir: agents/preflight
+      files:
+        AGENTS.md: agents/preflight/AGENTS.md
+        SOUL.md: agents/preflight/SOUL.md
+        IDENTITY.md: agents/preflight/IDENTITY.md
+
   - id: planner
     name: Planner
     role: planning
@@ -129,6 +143,37 @@ agents:
         IDENTITY.md: agents/writer/IDENTITY.md
 
 steps:
+  - id: preflight
+    agent: preflight
+    input: |
+      Inspect local context before the workflow goes broad on the web.
+
+      TASK:
+      {{task}}
+
+      Instructions:
+      1. Look for relevant local docs, repository context, and safe workflow-visible context first.
+      2. Summarize only context that is useful to downstream research and safe to share across workflow agents.
+      3. Identify local constraints, assumptions already implied by the task, and key unknowns.
+      4. Decide whether broad web research is needed at all, and if so, what gaps it should focus on.
+      5. If local context is thin, say so clearly.
+      6. Do not browse the web.
+
+      Reply with:
+      STATUS: done
+      LOCAL_CONTEXT_SUMMARY: compact multi-line summary of relevant local context
+      LOCAL_RELEVANT_SOURCES: local docs, files, prior artifacts, or other non-web sources you used
+      KNOWN_LOCAL_CONSTRAINTS: local limitations, assumptions, or environment facts that should shape the research
+      OPEN_QUESTIONS: what is still unknown after checking local context
+      WEB_RESEARCH_NEEDED: yes or no
+      WEB_RESEARCH_REASON: why web research is or is not needed, and what it should focus on if yes
+      SAFE_SHARED_CONTEXT: concise context safe to pass to all downstream workflow agents
+      LOCAL_CONTEXT_PACKET_JSON: normalized JSON object containing the local context summary, sources, constraints, open questions, and web-research decision
+    expects: "LOCAL_CONTEXT_PACKET_JSON:"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
+
   - id: plan
     agent: planner
     input: |
@@ -136,6 +181,30 @@ steps:
 
       TASK:
       {{task}}
+
+      LOCAL CONTEXT SUMMARY:
+      {{local_context_summary}}
+
+      LOCAL SOURCES:
+      {{local_relevant_sources}}
+
+      KNOWN LOCAL CONSTRAINTS:
+      {{known_local_constraints}}
+
+      OPEN QUESTIONS AFTER LOCAL PREFLIGHT:
+      {{open_questions}}
+
+      WEB RESEARCH NEEDED:
+      {{web_research_needed}}
+
+      WEB RESEARCH REASON:
+      {{web_research_reason}}
+
+      SAFE SHARED CONTEXT:
+      {{safe_shared_context}}
+
+      LOCAL CONTEXT PACKET:
+      {{local_context_packet_json}}
 
       Requirements:
       1. State the exact research objective.
@@ -204,6 +273,30 @@ steps:
 
       CONSTRAINTS:
       {{research_constraints}}
+
+      LOCAL CONTEXT SUMMARY:
+      {{local_context_summary}}
+
+      LOCAL SOURCES:
+      {{local_relevant_sources}}
+
+      KNOWN LOCAL CONSTRAINTS:
+      {{known_local_constraints}}
+
+      OPEN QUESTIONS AFTER LOCAL PREFLIGHT:
+      {{open_questions}}
+
+      WEB RESEARCH NEEDED:
+      {{web_research_needed}}
+
+      WEB RESEARCH REASON:
+      {{web_research_reason}}
+
+      SAFE SHARED CONTEXT:
+      {{safe_shared_context}}
+
+      LOCAL CONTEXT PACKET:
+      {{local_context_packet_json}}
 
       Required workflow:
       1. Spawn specialized subagents using sessions_spawn.
@@ -290,6 +383,24 @@ steps:
 
       ORCHESTRATION NOTES:
       {{orchestration_notes}}
+
+      LOCAL CONTEXT SUMMARY:
+      {{local_context_summary}}
+
+      LOCAL SOURCES:
+      {{local_relevant_sources}}
+
+      KNOWN LOCAL CONSTRAINTS:
+      {{known_local_constraints}}
+
+      OPEN QUESTIONS AFTER LOCAL PREFLIGHT:
+      {{open_questions}}
+
+      SAFE SHARED CONTEXT:
+      {{safe_shared_context}}
+
+      LOCAL CONTEXT PACKET:
+      {{local_context_packet_json}}
 
       Instructions:
       1. Check whether the packet actually answers the research questions.

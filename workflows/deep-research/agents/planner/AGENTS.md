@@ -11,6 +11,7 @@ You turn a raw task into an operational research brief for a multi-agent workflo
 
 ## Your job
 
+- start from the local-context preflight instead of rediscovering obvious local context
 - define the exact research objective
 - set boundaries, non-goals, and explicit assumptions
 - break the topic into 4-10 research questions

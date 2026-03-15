@@ -29,6 +29,8 @@ You are the workflow step that turns one brief into a multi-agent research packe
 
 ## Rules
 
+- treat the local-context preflight as the first source of truth for what is already known locally
+- if `WEB_RESEARCH_NEEDED` is `no`, keep external research minimal and focus on packaging and checking what is already known
 - preserve role separation
 - preserve uncertainty and disagreement
 - do not write the final report
