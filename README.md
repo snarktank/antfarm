@@ -185,6 +185,12 @@ antfarm dashboard status       # Check status
 | `antfarm dashboard` | Start the web dashboard |
 | `antfarm logs [<lines>]` | View recent log entries |
 
+### Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run hello` | Run the hello-world demo script (prints current date) |
+
 ---
 
 ## Requirements

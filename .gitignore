@@ -6,3 +6,18 @@ dist/
 *.sqlite3
 progress.txt
 progress*.txt
+
+# Security-sensitive files
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.secret
+
+# Test/Coverage
+coverage/
+.nyc_output/
+
+# Logs
+*.log
