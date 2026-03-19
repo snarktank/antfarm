@@ -1,0 +1,18 @@
+# Progress Log
+Run: 76764fb6-4016-4d3d-b14d-2bcc858f851b
+Task: 验证 src/smoke-test.js 文件存在并可执行。接受标准：文件存在，执行 node -e "import('/Users/zky/antfarm/src/smoke-test.js').then(m => m.run())" 输出 'Smoke test OK'
+Started: 2026-03-19 09:13 GMT+8
+
+## Codebase Patterns
+- The package uses ESM (`"type": "module"`), so source `.js` modules can be imported directly by absolute path in Node.
+- Story-specific smoke coverage can be kept focused with `node:test` and a narrow `npm test` script.
+
+---
+
+## 2026-03-19 09:15 GMT+8 - US-001: Ensure the smoke test module exists and satisfies the required execution contract
+- Verified `src/smoke-test.js` exists in source control as an ES module exporting `run()`.
+- Added automated test coverage that imports the module and checks the exact stdout produced by the required Node smoke command.
+- Added an `npm test` script so the requested test command runs the smoke test coverage for this story.
+- Files changed: `package.json`, `src/smoke-test.js`, `tests/smoke-test.test.js`
+- **Learnings:** executing the exact `node -e` import command inside a test is a reliable way to lock down command-level stdout behavior for source-level ESM entrypoints.
+---
