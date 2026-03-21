@@ -2,6 +2,7 @@ import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAva
 import type { ModelConfig, WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
+import { readOpenClawConfig } from "./openclaw-config.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
@@ -91,6 +92,41 @@ const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
 const DEFAULT_POLLING_MODEL = "default";
 
 export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string | ModelConfig): string {
+function extractModel(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null) {
+    const primary = (value as { primary?: unknown }).primary;
+    if (typeof primary === "string") return primary;
+  }
+  return undefined;
+}
+
+async function resolveAgentCronModel(agentId: string, requestedModel?: string): Promise<string | undefined> {
+  if (requestedModel && requestedModel !== "default") {
+    return requestedModel;
+  }
+
+  try {
+    const { config } = await readOpenClawConfig();
+    const agents = config.agents?.list;
+    if (Array.isArray(agents)) {
+      const entry = agents.find((a: any) => a?.id === agentId);
+      const configured = extractModel(entry?.model);
+      if (configured) return configured;
+    }
+
+    const defaults = config.agents?.defaults;
+    const fallback = extractModel(defaults?.model);
+    if (fallback) return fallback;
+  } catch {
+    // best-effort — fallback below
+  }
+
+  return requestedModel;
+}
+
+export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
   let model: string;
@@ -145,8 +181,10 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const agentId = `${workflow.id}_${agent.id}`;
 
     // Two-phase: Phase 1 uses cheap polling model + minimal prompt
-    const pollingModel = agent.pollingModel ?? workflowPollingModel;
-    const workModel = agent.model; // Phase 2 model (passed to sessions_spawn via prompt)
+    const requestedPollingModel = agent.pollingModel ?? workflowPollingModel;
+    const pollingModel = await resolveAgentCronModel(agentId, requestedPollingModel);
+    const requestedWorkModel = agent.model ?? workflowPollingModel;
+    const workModel = await resolveAgentCronModel(agentId, requestedWorkModel);
     const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
     const timeoutSeconds = workflowPollingTimeout;
 

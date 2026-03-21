@@ -230,6 +230,23 @@ select:focus{outline:none;border-color:#8ECFC0}
 const API = '';
 let workflows = [];
 let currentWf = null;
+let openRunId = null;
+let openRunRefreshInterval = null;
+
+function clearOpenRunRefresh() {
+  if (openRunRefreshInterval) {
+    clearInterval(openRunRefreshInterval);
+    openRunRefreshInterval = null;
+  }
+}
+
+function startOpenRunRefresh() {
+  if (!openRunId) return;
+  clearOpenRunRefresh();
+  openRunRefreshInterval = setInterval(() => {
+    void refreshOpenRunPanel();
+  }, 5000);
+}
 
 async function fetchJSON(url) {
   const r = await fetch(API + url);
@@ -318,6 +335,25 @@ function parseTS(ts) { if (!ts) return null; if (!ts.endsWith('Z') && !ts.includ
 
 async function openRun(id) {
   const run = await fetchJSON(`/api/runs/${id}`);
+  renderRunPanel(run);
+  await Promise.all([loadStories(id), loadActivity(id)]);
+  openRunId = id;
+  document.getElementById('overlay').classList.add('open');
+  startOpenRunRefresh();
+}
+
+async function refreshOpenRunPanel() {
+  if (!openRunId) return;
+  try {
+    const run = await fetchJSON(`/api/runs/${openRunId}`);
+    renderRunPanel(run);
+    await Promise.all([loadStories(openRunId), loadActivity(openRunId)]);
+  } catch {
+    closePanel();
+  }
+}
+
+function renderRunPanel(run) {
   const panel = document.getElementById('panel');
   const created = run.created_at ? parseTS(run.created_at)?.toLocaleString() || "" : '';
   const updated = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || "" : '';
@@ -349,12 +385,9 @@ async function openRun(id) {
       <span>Updated: ${updated}</span>
     </div>
     <div class="steps-list">${stepsHTML}</div>
-    <div id="stories-panel"></div>
+      <div id="stories-panel"></div>
     <div id="activity-panel"></div>
   `;
-  document.getElementById('overlay').classList.add('open');
-  loadStories(id);
-  loadActivity(id);
 }
 
 function formatEventDesc(evt) {
@@ -406,6 +439,8 @@ async function loadActivity(runId) {
 }
 
 function closePanel() {
+  clearOpenRunRefresh();
+  openRunId = null;
   document.getElementById('overlay').classList.remove('open');
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });

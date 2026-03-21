@@ -236,7 +236,7 @@ steps:
       5. Run {{build_cmd}} to verify the build passes
       6. Run {{test_cmd}} to verify all tests pass
       7. Commit: fix(security): brief description
-      8. Append to progress-{{run_id}}.txt
+      8. Rewrite progress-{{run_id}}.txt with updated story results and patterns
 
       Reply with:
       STATUS: done

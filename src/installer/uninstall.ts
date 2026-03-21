@@ -30,6 +30,54 @@ function filterAgentList(
   });
 }
 
+function isPathWithin(target: string, root: string): boolean {
+  const relative = path.relative(path.resolve(root), path.resolve(target));
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+/**
+ * Select only agents that are clearly Antfarm-managed.
+ *
+ * Primary signal: agent id is prefixed by an installed Antfarm workflow id.
+ * Fallback signal (for partial/corrupt state): workspace is under
+ * ~/.openclaw/workspaces/workflows/<workflow-id>/...
+ */
+export function selectAntfarmManagedAgents(
+  list: Array<Record<string, unknown>>,
+  workflowIds: Iterable<string>,
+  workflowWorkspaceRoot = resolveWorkflowWorkspaceRoot(),
+): Array<Record<string, unknown>> {
+  const knownWorkflowIds = new Set(
+    Array.from(workflowIds)
+      .map((id) => id.trim())
+      .filter(Boolean),
+  );
+
+  return list.filter((entry) => {
+    const id = typeof entry.id === "string" ? entry.id : "";
+
+    for (const workflowId of knownWorkflowIds) {
+      if (id.startsWith(`${workflowId}_`)) {
+        return true;
+      }
+    }
+    const workspace = typeof entry.workspace === "string" ? entry.workspace : "";
+    if (!workspace) {
+      return false;
+    }
+
+    if (!isPathWithin(workspace, workflowWorkspaceRoot)) {
+      return false;
+    }
+    const relative = path.relative(path.resolve(workflowWorkspaceRoot), path.resolve(workspace));
+    const [workflowId] = relative.split(path.sep);
+    if (!workflowId) {
+      return false;
+    }
+    return id.startsWith(`${workflowId}_`);
+  });
+}
+
 async function pathExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath);
@@ -75,6 +123,15 @@ function removeRunRecords(workflowId: string): void {
   } catch {
     // DB might not exist yet
   }
+}
+
+async function listInstalledWorkflowIds(): Promise<string[]> {
+  const workflowRoot = resolveWorkflowRoot();
+  if (!(await pathExists(workflowRoot))) {
+    return [];
+  }
+  const entries = await fs.readdir(workflowRoot, { withFileTypes: true });
+  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
 }
 
 export async function uninstallWorkflow(params: {
@@ -135,13 +192,8 @@ export async function uninstallAllWorkflows(): Promise<void> {
 
   const { path: configPath, config } = await readOpenClawConfig();
   const list = Array.isArray(config.agents?.list) ? config.agents?.list : [];
-  const removedAgents = list.filter((entry) => {
-    const id = typeof entry.id === "string" ? entry.id : "";
-    // Identify antfarm-managed agents: they have agentDir under ~/.openclaw/agents/
-    // and id is not "main" (the user's default agent)
-    const agentDir = typeof entry.agentDir === "string" ? entry.agentDir : "";
-    return id !== "main" && agentDir.includes("/.openclaw/agents/");
-  });
+  const installedWorkflowIds = await listInstalledWorkflowIds();
+  const removedAgents = selectAntfarmManagedAgents(list, installedWorkflowIds);
   if (config.agents) {
     config.agents.list = list.filter((entry) => !removedAgents.includes(entry));
   }
