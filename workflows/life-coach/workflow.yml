@@ -1,0 +1,178 @@
+# Personal Life Coach Workflow
+# Personal workflow: Weekly review, habit tracking, planning, health nudges
+
+id: life-coach
+name: Personal Life Coach
+version: 1
+description: |
+  Weekly life coaching session for Christopher.
+  Reviewer assesses past week (habits, health, goals).
+  Planner designs the coming week.
+  Coach delivers a concise brief with nudges and adjustments.
+  Runs autonomously on Sunday evenings.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 300
+
+agents:
+  - id: reviewer
+    name: Week Reviewer
+    role: analysis
+    description: Reviews the past week's activities, habits, and outcomes.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: agents/life-reviewer/AGENTS.md
+        SOUL.md: agents/life-reviewer/SOUL.md
+        IDENTITY.md: agents/life-reviewer/IDENTITY.md
+
+  - id: planner
+    name: Week Planner
+    role: analysis
+    description: Plans the coming week based on goals, calendar, and energy patterns.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/life-planner/AGENTS.md
+        SOUL.md: agents/life-planner/SOUL.md
+        IDENTITY.md: agents/life-planner/IDENTITY.md
+
+  - id: coach
+    name: Life Coach
+    role: analysis
+    description: Synthesizes review and plan into an actionable, motivating brief.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/coach
+      files:
+        AGENTS.md: agents/life-coach/AGENTS.md
+        SOUL.md: agents/life-coach/SOUL.md
+        IDENTITY.md: agents/life-coach/IDENTITY.md
+
+steps:
+  - id: review-week
+    agent: reviewer
+    input: |
+      Review Christopher's past week.
+
+      FOCUS AREAS:
+      {{task}}
+
+      Check these dimensions:
+      1. **Work output** — What shipped? What's blocked? ClickUp task completion rate.
+      2. **Health & energy** — Any patterns (sleep, exercise, stress indicators)?
+      3. **Relationships** — Family time, social interactions, networking.
+      4. **Learning** — What was consumed (articles, courses, conversations)?
+      5. **Financial** — Any notable spend, income, or decisions.
+
+      Data sources to check:
+      - ClickUp tasks completed/updated this week
+      - Calendar events (if accessible)
+      - Memory logs from the past 7 days
+      - Any personal notes or journal entries
+
+      Reply with:
+      STATUS: done
+      WINS: [ ... what went well ... ]
+      MISSES: [ ... what didn't happen or fell short ... ]
+      PATTERNS: [ ... recurring themes, positive or negative ... ]
+      ENERGY_ASSESSMENT: [ ... high/medium/low and why ... ]
+      SCORE: N/10 (honest, not inflated)
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: plan-week
+    agent: planner
+    input: |
+      Plan Christopher's coming week.
+
+      FOCUS AREAS:
+      {{task}}
+
+      LAST WEEK REVIEW:
+      Wins: {{wins}}
+      Misses: {{misses}}
+      Patterns: {{patterns}}
+      Energy: {{energy_assessment}}
+      Score: {{score}}
+
+      Planning principles:
+      1. Protect deep work blocks (AM for strategic thinking)
+      2. Batch meetings and calls
+      3. Include recovery time (Christopher is not a machine)
+      4. Address the misses — but don't overload
+      5. Build on the wins — momentum matters
+      6. One personal growth activity per week minimum
+
+      Reply with:
+      STATUS: done
+      TOP_3_PRIORITIES: [ ... the week's must-wins ... ]
+      DAILY_THEMES: { mon: ..., tue: ..., etc. }
+      HABIT_TARGETS: [ ... specific, measurable daily habits ... ]
+      AVOID_LIST: [ ... things to say no to this week ... ]
+      WILDCARD: [ ... one stretch goal or fun challenge ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: deliver
+    agent: coach
+    input: |
+      Deliver the weekly coaching brief to Christopher.
+
+      FOCUS AREAS:
+      {{task}}
+
+      REVIEW:
+      Wins: {{wins}}
+      Misses: {{misses}}
+      Patterns: {{patterns}}
+      Score: {{score}}
+
+      PLAN:
+      Priorities: {{top_3_priorities}}
+      Daily themes: {{daily_themes}}
+      Habits: {{habit_targets}}
+      Avoid: {{avoid_list}}
+      Wildcard: {{wildcard}}
+
+      Brief format (deliver this exactly):
+      ---
+      # Weekly Pulse — [date range]
+      
+      ## Last Week: [score]/10
+      **Wins:** [2-3 bullet highlights]
+      **Watch:** [1-2 things to improve]
+      
+      ## This Week: Top 3
+      1. [Priority 1]
+      2. [Priority 2]  
+      3. [Priority 3]
+      
+      ## Daily Rhythm
+      [Mon-Fri themes, one line each]
+      
+      ## Habit Tracker
+      [3-5 daily habits as checkboxes]
+      
+      ## Coach's Note
+      [1-2 sentences — honest, specific, encouraging without being cheesy]
+      ---
+
+      Tone: Like a trusted friend who's also your personal trainer.
+      Not corporate. Not fluffy. Direct and caring.
+
+      Reply with:
+      STATUS: done
+      BRIEF: [ ... the formatted brief ... ]
+      DELIVERY_CHANNEL: discord-personal or clickup
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human

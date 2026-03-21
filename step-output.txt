@@ -1,0 +1,6 @@
+STATUS: retry
+ISSUES:
+- BRIEF is missing ([missing: brief]); no deliverable text was provided to review or polish.
+- SUCCESS_CRITERIA is missing ([missing: success_criteria]); acceptance thresholds are undefined.
+- Because the brief is absent, checklist items 1-7 cannot be validated (coverage, citation quality, actionability, length, executive summary quality, risk clarity, CEO tone).
+- Please resubmit with the full draft brief (including executive summary, top 3 services, >=5 current citations, key risks, and 3 concrete next actions) plus explicit success criteria.

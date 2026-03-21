@@ -99,6 +99,7 @@ agents:
     timeoutSeconds: 900      # Optional: override the role's default timeout (seconds)
     description: What it does.
     timeoutSeconds: 1800     # Optional: override isolated session timeout (seconds)
+    model: provider/model-name  # Optional: scalar string model (see Model Config below)
     workspace:
       baseDir: agents/my-agent
       files:                 # Workspace files provisioned for this agent
@@ -108,6 +109,33 @@ agents:
       skills:                # Optional: skills to install into the workspace
         - antfarm-workflows
 ```
+
+### Model Config
+
+The `model` field accepts either a scalar string or a structured object with a primary model and optional fallbacks:
+
+**Scalar string** (simple case):
+```yaml
+agents:
+  - id: reviewer
+    model: anthropic/claude-sonnet-4
+    # ...
+```
+
+**Structured object** (primary + fallbacks for resilience):
+```yaml
+agents:
+  - id: reviewer
+    model:
+      primary: anthropic/claude-sonnet-4
+      fallbacks:
+        - anthropic/claude-haiku-3
+        - openai/gpt-4.1-mini
+        - openrouter/auto
+    # ...
+```
+
+The structured form is written into `openclaw.json` as a JSON object, allowing OpenClaw to automatically fall back to alternate models if the primary is unavailable or rate-limited. Agents without a `model` field use OpenClaw's default model.
 
 File paths are relative to the workflow directory. You can reference shared agents:
 

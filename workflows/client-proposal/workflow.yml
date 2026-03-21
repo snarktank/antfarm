@@ -1,0 +1,220 @@
+# Client Proposal Workflow
+# Business workflow: Research client, draft proposal, review, polish
+
+id: client-proposal
+name: Client Proposal
+version: 1
+description: |
+  Produces a tailored consulting proposal for a prospective client.
+  Researcher profiles the client and identifies pain points.
+  Strategist designs the engagement approach and pricing.
+  Writer drafts the proposal.
+  Reviewer ensures quality and alignment with CQC positioning.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 300
+
+agents:
+  - id: researcher
+    name: Client Researcher
+    role: scanning
+    description: Profiles the prospective client, identifies pain points and opportunities.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/researcher
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/researcher/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/researcher/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/researcher/IDENTITY.md
+
+  - id: strategist
+    name: Q Revenue
+    role: analysis
+    description: Designs the engagement approach, scope, and pricing.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/shared/revenue
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/revenue/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/revenue/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/revenue/IDENTITY.md
+
+  - id: writer
+    name: Proposal Writer
+    role: coding
+    description: Drafts the full proposal document.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/writer
+      files:
+        AGENTS.md: agents/writer/AGENTS.md
+        SOUL.md: agents/writer/SOUL.md
+        IDENTITY.md: agents/writer/IDENTITY.md
+
+  - id: reviewer
+    name: Proposal Reviewer
+    role: verification
+    description: Reviews for quality, positioning, and persuasiveness.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/reviewer/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/reviewer/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/reviewer/IDENTITY.md
+
+steps:
+  - id: profile
+    agent: researcher
+    input: |
+      Research and profile this prospective client.
+
+      CLIENT/OPPORTUNITY:
+      {{task}}
+
+      Instructions:
+      1. Research the company (size, industry, tech stack, recent news)
+      2. Identify their likely pain points around AI/ML/data
+      3. Find their key decision makers (LinkedIn, company page)
+      4. Note any competitors or existing vendors
+      5. Identify what CQC services would be most relevant
+
+      CQC capabilities for reference:
+      - AI & Machine Learning strategy and implementation
+      - Data Analytics & Predictive Modeling
+      - E-commerce optimization (Magento, custom)
+      - Custom software development (Python, Java, PHP, JS)
+      - TensorFlow / ML model development
+
+      Reply with:
+      STATUS: done
+      COMPANY_PROFILE: [ ... ]
+      PAIN_POINTS: [ ... ]
+      KEY_CONTACTS: [ ... ]
+      CQC_FIT: [ ... which services match ... ]
+      COMPETITIVE_LANDSCAPE: [ ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: strategy
+    agent: strategist
+    input: |
+      Design the engagement strategy for this proposal.
+
+      CLIENT/OPPORTUNITY:
+      {{task}}
+
+      COMPANY_PROFILE:
+      {{company_profile}}
+
+      PAIN_POINTS:
+      {{pain_points}}
+
+      CQC_FIT:
+      {{cqc_fit}}
+
+      Instructions:
+      1. Define the engagement scope (what CQC will deliver)
+      2. Break into phases (discovery, implementation, optimization)
+      3. Estimate timeline and resource requirements
+      4. Propose pricing structure (fixed, T&M, retainer, or hybrid)
+      5. Define success metrics and deliverables per phase
+      6. Identify risks and mitigation strategies
+
+      Reply with:
+      STATUS: done
+      SCOPE: [ ... ]
+      PHASES: [ ... ]
+      TIMELINE: [ ... ]
+      PRICING: [ ... ]
+      SUCCESS_METRICS: [ ... ]
+      RISKS: [ ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: draft
+    agent: writer
+    input: |
+      Draft the full client proposal.
+
+      CLIENT/OPPORTUNITY:
+      {{task}}
+
+      COMPANY_PROFILE:
+      {{company_profile}}
+
+      SCOPE:
+      {{scope}}
+
+      PHASES:
+      {{phases}}
+
+      TIMELINE:
+      {{timeline}}
+
+      PRICING:
+      {{pricing}}
+
+      SUCCESS_METRICS:
+      {{success_metrics}}
+
+      Proposal structure:
+      1. Cover page (CQC branding, client name, date)
+      2. Executive Summary (why CQC, what we'll deliver, expected impact)
+      3. Understanding Your Challenges (show we did our homework)
+      4. Proposed Approach (phases, methodology, deliverables)
+      5. Timeline & Milestones
+      6. Investment (pricing, payment terms)
+      7. Why CQC (differentiators, relevant experience)
+      8. Next Steps
+
+      Tone: Professional, confident, specific. No fluff.
+      Length: 4-8 pages.
+
+      Reply with:
+      STATUS: done
+      PROPOSAL: [ ... full document in markdown ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: review
+    agent: reviewer
+    input: |
+      Review this proposal before delivery to Christopher for final approval.
+
+      CLIENT/OPPORTUNITY:
+      {{task}}
+
+      PROPOSAL:
+      {{proposal}}
+
+      Review checklist:
+      1. Is the client research accurate and specific (not generic)?
+      2. Does the scope match the identified pain points?
+      3. Is pricing realistic and competitive?
+      4. Is the tone confident without being arrogant?
+      5. Are deliverables specific and measurable?
+      6. Would YOU hire CQC based on this proposal?
+      7. Any legal or ethical concerns?
+
+      IMPORTANT: This is a DRAFT for Christopher's review.
+      Tag anything that needs his input with [CHRIS: question].
+
+      Reply with:
+      STATUS: done
+      QUALITY: pass/fail
+      CHRIS_QUESTIONS: [ ... items needing his input ... ]
+      FINAL_PROPOSAL: [ ... polished version ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      retry_step: draft
+      on_exhausted:
+        escalate_to: human

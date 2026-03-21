@@ -8,7 +8,7 @@ import { readOpenClawConfig, writeOpenClawConfig } from "../installer/openclaw-c
 const MEDIC_CRON_NAME = "antfarm/medic";
 const MEDIC_EVERY_MS = 5 * 60 * 1000; // 5 minutes
 const MEDIC_MODEL = "default";
-const MEDIC_TIMEOUT_SECONDS = 120;
+const MEDIC_TIMEOUT_SECONDS = 300;
 
 function buildMedicPrompt(): string {
   const cli = resolveAntfarmCli();

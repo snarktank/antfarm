@@ -1,0 +1,207 @@
+# Research Brief Workflow
+# Business workflow: Intake a research question, gather sources, synthesize, deliver brief
+
+id: research-brief
+name: Research Brief
+version: 1
+description: |
+  Produces a decision-grade research brief for Christopher.
+  Scoper defines questions and success criteria.
+  Researcher gathers and validates sources.
+  Synthesizer produces draft brief.
+  Reviewer polishes and delivers.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 600
+
+agents:
+  - id: scoper
+    name: Scoper
+    role: analysis
+    description: Decomposes research request into specific questions and success criteria.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/scoper
+      files:
+        AGENTS.md: agents/scoper/AGENTS.md
+        SOUL.md: agents/scoper/SOUL.md
+        IDENTITY.md: agents/scoper/IDENTITY.md
+
+  - id: researcher
+    name: Q Research
+    role: analysis
+    description: Gathers sources, validates claims, extracts key findings.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/shared/research
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/research/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/research/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/research/IDENTITY.md
+
+  - id: synthesizer
+    name: Q Research
+    role: analysis
+    description: Combines findings into a structured brief with recommendations.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/shared/research
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/research/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/research/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/research/IDENTITY.md
+
+  - id: reviewer
+    name: Reviewer
+    role: analysis
+    description: Reviews brief for quality, accuracy, and actionability.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/reviewer/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/reviewer/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/reviewer/IDENTITY.md
+
+steps:
+  - id: scope
+    agent: scoper
+    input: |
+      Define the research scope for the following request.
+
+      REQUEST:
+      {{task}}
+
+      Instructions:
+      1. Break the request into 3-7 specific research questions
+      2. Define what "good enough" looks like for each question
+      3. Identify likely source types (academic, industry, news, data)
+      4. Flag any assumptions or constraints
+      5. Set a target brief length (default: 1-2 pages)
+
+      Reply with:
+      STATUS: done
+      QUESTIONS: [ ... numbered list ... ]
+      SUCCESS_CRITERIA: [ ... what makes this brief actionable ... ]
+      SOURCE_TYPES: [ ... where to look ... ]
+      CONSTRAINTS: [ ... any limits or caveats ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: research
+    agent: researcher
+    input: |
+      Research the following questions. You are gathering raw findings.
+
+      ORIGINAL REQUEST:
+      {{task}}
+
+      QUESTIONS:
+      {{questions}}
+
+      SOURCE_TYPES:
+      {{source_types}}
+
+      Instructions:
+      1. For each question, find 2-5 credible sources
+      2. Extract key data points, quotes, and statistics
+      3. Note source credibility and recency
+      4. Flag conflicting information between sources
+      5. Do NOT synthesize yet — just gather and organize
+
+      Reply with:
+      STATUS: done
+      FINDINGS: [ ... organized by question ... ]
+      SOURCES: [ ... with URLs and credibility notes ... ]
+      CONFLICTS: [ ... any contradictions found ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: synthesize
+    agent: synthesizer
+    input: |
+      Synthesize research findings into a decision brief.
+
+      ORIGINAL REQUEST:
+      {{task}}
+
+      QUESTIONS:
+      {{questions}}
+
+      FINDINGS:
+      {{findings}}
+
+      SOURCES:
+      {{sources}}
+
+      CONFLICTS:
+      {{conflicts}}
+
+      SUCCESS_CRITERIA:
+      {{success_criteria}}
+
+      Brief format:
+      1. Executive Summary (3-5 sentences)
+      2. Key Findings (organized by question, with citations)
+      3. Analysis (what the findings mean for CQC)
+      4. Recommendations (2-4 actionable next steps)
+      5. Risks & Uncertainties
+      6. Sources
+
+      Constraints:
+      - Maximum 2 pages
+      - Every claim must cite a source
+      - Recommendations must be specific and actionable
+      - Write for a CEO audience (concise, decision-focused)
+
+      Reply with:
+      STATUS: done
+      BRIEF: [ ... the full brief ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: review
+    agent: reviewer
+    input: |
+      Review this research brief before delivery to Christopher.
+
+      ORIGINAL REQUEST:
+      {{task}}
+
+      SUCCESS_CRITERIA:
+      {{success_criteria}}
+
+      BRIEF:
+      {{brief}}
+
+      Review checklist:
+      1. Does the brief answer all original questions?
+      2. Are all claims cited with credible sources?
+      3. Are recommendations specific and actionable?
+      4. Is it concise (≤2 pages)?
+      5. Is the executive summary accurate and compelling?
+      6. Are risks and uncertainties clearly stated?
+      7. Is the tone appropriate for a CEO audience?
+
+      Reply with:
+      STATUS: done
+      QUALITY: pass/fail
+      NOTES: [ ... any adjustments made ... ]
+      FINAL_BRIEF: [ ... polished version ... ]
+
+      Or if major issues:
+      STATUS: retry
+      ISSUES: [ ... what needs fixing ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      retry_step: synthesize
+      on_exhausted:
+        escalate_to: human

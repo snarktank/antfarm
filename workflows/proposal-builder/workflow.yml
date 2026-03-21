@@ -1,0 +1,239 @@
+# Proposal Builder Workflow
+# Business workflow: Generate a consulting proposal from discovery call notes
+
+id: proposal-builder
+name: Proposal Builder
+version: 1
+description: |
+  Generates a consulting proposal from discovery call notes.
+  Needs Extractor distills pain points, goals, constraints, and timeline from the notes.
+  Solution Architect maps needs to CQC services, defines scope, and estimates effort.
+  Proposal Writer drafts the full proposal in CQC's format and commits it to the repo.
+  Reviewer checks completeness, competitive positioning, and pricing sanity — retries the write step if needed.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 300
+
+agents:
+  - id: needs-extractor
+    name: Needs Extractor
+    role: analysis
+    description: Extracts client pain points, goals, constraints, timeline, and decision makers from discovery notes.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/needs-extractor
+      files:
+        AGENTS.md: agents/needs-extractor/AGENTS.md
+        SOUL.md: agents/needs-extractor/SOUL.md
+        IDENTITY.md: agents/needs-extractor/IDENTITY.md
+
+  - id: solution-architect
+    name: Solution Architect
+    role: analysis
+    description: Maps client needs to CQC services, defines engagement scope, estimates effort and investment range.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/solution-architect
+      files:
+        AGENTS.md: agents/solution-architect/AGENTS.md
+        SOUL.md: agents/solution-architect/SOUL.md
+        IDENTITY.md: agents/solution-architect/IDENTITY.md
+
+  - id: proposal-writer
+    name: Proposal Writer
+    role: coding
+    description: Writes the full proposal in CQC's format and commits it to the repository.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/proposal-writer
+      files:
+        AGENTS.md: agents/proposal-writer/AGENTS.md
+        SOUL.md: agents/proposal-writer/SOUL.md
+        IDENTITY.md: agents/proposal-writer/IDENTITY.md
+
+  - id: reviewer
+    name: Proposal Reviewer
+    role: analysis
+    description: Reviews for completeness, competitive positioning, and pricing sanity. Approves or requests a rewrite.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/reviewer/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/reviewer/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/reviewer/IDENTITY.md
+
+steps:
+  - id: extract
+    agent: needs-extractor
+    input: |
+      Extract the key client needs from these discovery call notes.
+
+      DISCOVERY NOTES:
+      {{task}}
+
+      Instructions:
+      1. Identify the top 3–5 specific pain points with evidence from the notes.
+      2. Extract stated goals and desired outcomes with measurable targets where mentioned.
+      3. Note all constraints: budget, technical, and organizational.
+      4. Extract the stated or implied timeline and any hard deadlines.
+      5. Identify key decision makers, sponsors, and blockers named in the notes.
+      6. Flag any unclear or missing information in GAPS.
+
+      Reply with:
+      STATUS: done
+      PAIN_POINTS: <numbered list of 3–5 specific pain points with evidence>
+      GOALS: <numbered list of stated goals and desired outcomes>
+      CONSTRAINTS: <budget, technical, and organizational constraints>
+      TIMELINE: <stated or implied timeline with hard deadlines>
+      DECISION_MAKERS: <names, titles, and roles of key contacts>
+      GAPS: <missing or ambiguous information; "none" if complete>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: architect
+    agent: solution-architect
+    input: |
+      Design the engagement scope and solution approach for this client.
+
+      DISCOVERY NOTES:
+      {{task}}
+
+      PAIN_POINTS:
+      {{pain_points}}
+
+      GOALS:
+      {{goals}}
+
+      CONSTRAINTS:
+      {{constraints}}
+
+      TIMELINE:
+      {{timeline}}
+
+      CQC capabilities:
+      - AI & Machine Learning strategy and implementation
+      - Data Analytics & Predictive Modeling
+      - E-commerce optimization (Magento, custom)
+      - Custom software development (Python, Java, PHP, JavaScript)
+      - TensorFlow / ML model development
+
+      Instructions:
+      1. Map each pain point to one or more CQC services.
+      2. Define the engagement scope — what CQC will deliver and what is out of scope.
+      3. Break delivery into phases with milestones and deliverables per phase.
+      4. Estimate effort per phase in weeks and recommend team composition.
+      5. Propose an investment range with pricing structure and justification.
+      6. Identify the top 3 delivery risks with mitigation approaches.
+
+      Reply with:
+      STATUS: done
+      SERVICES_MAPPED: <CQC services mapped to each pain point>
+      SCOPE: <what CQC will deliver and explicit out-of-scope items>
+      ENGAGEMENT_PHASES: <phased delivery plan with milestones and deliverables>
+      EFFORT_ESTIMATE: <weeks per phase and suggested team composition>
+      INVESTMENT_RANGE: <pricing structure, range, and justification>
+      RISKS: <top 3 delivery risks with mitigation approaches>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: write
+    agent: proposal-writer
+    input: |
+      Write the full consulting proposal for this client.
+
+      DISCOVERY NOTES:
+      {{task}}
+
+      PAIN_POINTS:
+      {{pain_points}}
+
+      GOALS:
+      {{goals}}
+
+      SERVICES_MAPPED:
+      {{services_mapped}}
+
+      SCOPE:
+      {{scope}}
+
+      ENGAGEMENT_PHASES:
+      {{engagement_phases}}
+
+      EFFORT_ESTIMATE:
+      {{effort_estimate}}
+
+      INVESTMENT_RANGE:
+      {{investment_range}}
+
+      RISKS:
+      {{risks}}
+
+      Proposal format (required sections in order):
+      1. Executive Summary — why CQC, what we'll deliver, and the expected business impact (2–3 paragraphs)
+      2. Problem Statement — restate the client's challenges in their language, not ours
+      3. Proposed Solution — phased approach, methodology, and key deliverables
+      4. Timeline — visual or tabular phase breakdown with milestones
+      5. Investment — pricing structure, range, and payment terms
+      6. About CQC — firm overview, relevant experience, differentiators
+
+      Tone: Professional, confident, and specific. No filler. Every claim must be tied to the client's stated needs.
+      Format: Markdown. Commit to proposals/<client-slug>-proposal.md and report the path.
+
+      {{#if review_feedback}}
+      REVIEW FEEDBACK:
+      {{review_feedback}}
+
+      Address all review feedback above before committing the revised proposal.
+      {{/if}}
+
+      Reply with:
+      STATUS: done
+      PROPOSAL: <full proposal document in Markdown>
+      PROPOSAL_PATH: <file path where proposal was committed, e.g. proposals/acme-corp-proposal.md>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: review
+    agent: reviewer
+    input: |
+      Review this consulting proposal before it goes to Christopher for final approval.
+
+      DISCOVERY NOTES:
+      {{task}}
+
+      PROPOSAL:
+      {{proposal}}
+
+      PROPOSAL_PATH:
+      {{proposal_path}}
+
+      Review checklist:
+      1. Completeness — all six required sections present and fully written (no placeholders)
+      2. Client specificity — every section references the client's actual pain points and goals
+      3. Scope clarity — deliverables are concrete and measurable, out-of-scope is explicit
+      4. Competitive positioning — would a Fortune 500 CFO choose CQC over a Big 4 competitor?
+      5. Pricing sanity — investment range is realistic and defensible given the stated scope
+      6. Timeline credibility — phases and durations are achievable, not aspirational
+      7. About CQC — relevant and differentiating, not boilerplate
+
+      Tag anything requiring Christopher's input with [CHRIS: question].
+
+      Reply with:
+      STATUS: done
+      QUALITY: pass/fail
+      REVIEW_FEEDBACK: <specific actionable revision requests if QUALITY is fail; "none" if pass>
+      PROPOSAL_PATH: <file path of the reviewed proposal>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      retry_step: write
+      on_exhausted:
+        escalate_to: human

@@ -1,0 +1,335 @@
+# Feature Development Workflow (CQC Customized)
+# Forked from Antfarm's feature-dev, adapted for CQC stack and model routing
+
+id: cqc-feature-dev
+name: CQC Feature Development
+version: 1
+description: |
+  Story-based feature development pipeline customized for CQC.
+  Steps: plan → setup → implement (loop w/ verify) → test → security-check → pr → review.
+  Shared agents (setup, verifier, pr) use local copies from agents/shared/ (duplicated from Antfarm, may be modified).
+  Custom agents (planner, developer, tester, cqc-security-checker, reviewer) use CQC personas.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 600
+
+agents:
+  - id: planner
+    name: Planner
+    role: analysis
+    description: Decomposes tasks into ordered user stories for CQC repos.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/planner
+      files:
+        AGENTS.md: agents/planner/AGENTS.md
+        SOUL.md: agents/planner/SOUL.md
+        IDENTITY.md: agents/planner/IDENTITY.md
+
+  - id: setup
+    name: Setup
+    role: coding
+    description: Creates branches and establishes build/test baselines.
+    workspace:
+      baseDir: agents/shared/setup
+      files:
+        AGENTS.md: ../../agents/shared/setup/AGENTS.md
+        SOUL.md: ../../agents/shared/setup/SOUL.md
+        IDENTITY.md: ../../agents/shared/setup/IDENTITY.md
+
+  - id: developer
+    name: Developer
+    role: coding
+    description: Implements features following CQC coding standards.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/developer
+      files:
+        AGENTS.md: agents/developer/AGENTS.md
+        SOUL.md: agents/developer/SOUL.md
+        IDENTITY.md: agents/developer/IDENTITY.md
+
+  - id: verifier
+    name: Verifier
+    role: verification
+    description: Verifies work is correct, complete, and doesn't introduce regressions.
+    workspace:
+      baseDir: agents/shared/verifier
+      files:
+        AGENTS.md: ../../agents/shared/verifier/AGENTS.md
+        SOUL.md: ../../agents/shared/verifier/SOUL.md
+        IDENTITY.md: ../../agents/shared/verifier/IDENTITY.md
+
+  - id: tester
+    name: Tester
+    role: testing
+    description: Integration and E2E testing.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/tester
+      files:
+        AGENTS.md: agents/tester/AGENTS.md
+        SOUL.md: agents/tester/SOUL.md
+        IDENTITY.md: agents/tester/IDENTITY.md
+
+  - id: cqc-security-checker
+    name: Q Platform
+    role: coding
+    description: Pre-PR security scan scoped to CQC's Python, PHP/Magento, JavaScript, and TensorFlow stack.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/shared/platform
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/platform/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/platform/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/platform/IDENTITY.md
+
+  - id: pr
+    name: PR Creator
+    role: pr
+    description: Creates pull requests with comprehensive documentation.
+    workspace:
+      baseDir: agents/shared/pr
+      files:
+        AGENTS.md: ../../agents/shared/pr/AGENTS.md
+        SOUL.md: ../../agents/shared/pr/SOUL.md
+        IDENTITY.md: ../../agents/shared/pr/IDENTITY.md
+
+  - id: reviewer
+    name: Reviewer
+    role: verification
+    description: Code review and PR approval.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/reviewer
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/reviewer/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/reviewer/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/reviewer/IDENTITY.md
+
+steps:
+  - id: plan
+    agent: planner
+    input: |
+      Decompose the following task into ordered user stories.
+
+      TASK:
+      {{task}}
+
+      Instructions:
+      1. Explore the codebase to understand the stack and patterns
+      2. Break into small user stories (max 15)
+      3. Order by dependency (data layer → backend → frontend → integration)
+      4. Each story fits in one developer session
+      5. Every acceptance criterion must be mechanically verifiable
+      6. Every story MUST include test criteria
+
+      Reply with:
+      STATUS: done
+      REPO: /path/to/repo
+      BRANCH: feature-branch-name
+      STORIES_JSON: [ ... array of story objects ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: setup
+    agent: setup
+    input: |
+      Set up the workspace for this feature branch.
+
+      TASK: {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      Instructions:
+      1. Navigate to the repo at REPO
+      2. Create and checkout the feature branch BRANCH (or pull latest if it already exists)
+      3. Confirm the workspace is clean and ready for implementation
+
+      Reply with:
+      STATUS: done
+      WORKSPACE: <confirmed repo path>
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
+
+  - id: implement
+    agent: developer
+    type: loop
+    loop:
+      over: stories
+      completion: all_done
+      fresh_session: true
+      verify_each: true
+      verify_step: verify
+    input: |
+      Implement the following user story in a fresh session.
+
+      TASK (overall): {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      COMPLETED STORIES: {{completed_stories}}
+      VERIFY FEEDBACK (if retrying): {{verify_feedback}}
+
+      Instructions:
+      1. Pull latest on the branch
+      2. Implement this story only — follow CQC coding standards in your AGENTS.md
+      3. Write tests for this story
+      4. Run build and tests
+      5. Commit with message: feat: {{current_story_id}} - {{current_story_title}}
+
+      Reply with:
+      STATUS: done
+      CHANGES: what you implemented
+      TESTS: what tests you wrote
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify
+    agent: verifier
+    input: |
+      Verify the developer's work on this story.
+
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+
+      CURRENT STORY:
+      {{current_story}}
+
+      Check:
+      1. Code exists (not placeholders)
+      2. Acceptance criteria met
+      3. Tests written and passing
+      4. No obvious incomplete work
+
+      Reply with:
+      STATUS: done
+      VERIFIED: What you confirmed
+
+      Or if incomplete:
+      STATUS: retry
+      ISSUES: [ ... what's missing ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      retry_step: implement
+      on_exhausted:
+        escalate_to: human
+
+  - id: test
+    agent: tester
+    input: |
+      Integration testing of the full implementation.
+
+      TASK: {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+
+      Run the full test suite, check for integration issues between stories,
+      and verify the feature works as a cohesive whole.
+
+      Reply with:
+      STATUS: done
+      RESULTS: What you tested and outcomes
+
+      Or if issues:
+      STATUS: retry
+      FAILURES: [ ... specific failures ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      retry_step: implement
+      on_exhausted:
+        escalate_to: human
+
+  - id: security-check
+    agent: cqc-security-checker
+    input: |
+      Perform a pre-PR security check on the feature changes.
+
+      TASK: {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      TEST_RESULTS: {{results}}
+
+      Scan the changes introduced on this branch for CQC stack risks:
+      1. Hardcoded secrets, API keys, or credentials in Python, PHP, or JavaScript files
+      2. SQL/command injection risks in PHP (Magento) and Python code
+      3. XSS vulnerabilities in JavaScript and PHP template output
+      4. Insecure ML model loading or deserialization in TensorFlow/Python code
+      5. Dependency vulnerabilities in requirements.txt, composer.json, and package.json
+      6. Magento-specific risks: missing CSP headers, weak ACL rules, unsafe admin routes
+
+      Return STATUS: done with your findings (NONE if clean).
+      Return STATUS: retry only if a CRITICAL or HIGH severity blocker is found that must be
+      fixed before the PR can be created.
+
+      Reply with:
+      STATUS: done
+      SECURITY_FINDINGS: <list of findings with severity and file location, or NONE>
+      BLOCKER: yes/no
+      BLOCKER_REASON: <reason if BLOCKER is yes; omit otherwise>
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
+
+  - id: pr
+    agent: pr
+    input: |
+      Create a pull request for the completed feature.
+
+      TASK: {{task}}
+      REPO: {{repo}}
+      BRANCH: {{branch}}
+      CHANGES: {{changes}}
+      TEST_RESULTS: {{results}}
+      SECURITY_FINDINGS: {{security_findings}}
+
+      Use: gh pr create
+
+      Reply with:
+      STATUS: done
+      PR: URL to the pull request
+    expects: "STATUS: done"
+    max_retries: 1
+    on_fail:
+      escalate_to: human
+
+  - id: review
+    agent: reviewer
+    input: |
+      Review the pull request.
+
+      PR: {{pr}}
+      TASK: {{task}}
+      SECURITY_FINDINGS: {{security_findings}}
+
+      Review for code quality, bugs, test coverage, CQC coding conventions, and security posture.
+      Post review via: gh pr review <number> --approve/--request-changes
+
+      Reply with:
+      STATUS: done
+      DECISION: approved
+
+      Or if changes needed:
+      STATUS: retry
+      DECISION: changes_requested
+      FEEDBACK: [ ... what needs to change ... ]
+    expects: "STATUS: done"
+    max_retries: 3
+    on_fail:
+      retry_step: implement
+      on_exhausted:
+        escalate_to: human

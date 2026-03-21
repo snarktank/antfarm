@@ -263,7 +263,7 @@ function parseAndInsertStories(output: string, runId: string): void {
 
 // ── Abandoned Step Cleanup ──────────────────────────────────────────
 
-const ABANDONED_THRESHOLD_MS = (getMaxRoleTimeoutSeconds() + 5 * 60) * 1000; // max role timeout + 5 min buffer
+const ABANDONED_THRESHOLD_MS = (getMaxRoleTimeoutSeconds() + 2 * 60) * 1000; // max role timeout + 2 min buffer
 const MAX_ABANDON_RESETS = 5; // abandoned steps get more chances than explicit failures
 
 /**

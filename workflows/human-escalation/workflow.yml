@@ -1,0 +1,61 @@
+# Human Escalation Workflow
+# Operations workflow: Format and deliver a ticket that requires Christopher's direct decision
+
+id: human-escalation
+name: Human Escalation
+version: 1
+description: |
+  Handles tickets that cannot be automatically routed to a downstream workflow.
+  Escalation Handler formats the ticket into a clear briefing with a specific
+  question for Christopher, an initial priority recommendation, and a suggested
+  downstream workflow for his consideration.
+  Runs when the clickup-triage router assigns WORKFLOW_ID: human-escalation.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 300
+
+agents:
+  - id: escalation-handler
+    name: Escalation Handler
+    role: analysis
+    description: Formats unroutable tickets into a clear human-ready briefing with a specific question.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/escalation-handler
+      files:
+        AGENTS.md: agents/escalation-handler/AGENTS.md
+        SOUL.md: agents/escalation-handler/SOUL.md
+        IDENTITY.md: agents/escalation-handler/IDENTITY.md
+
+steps:
+  - id: escalate
+    agent: escalation-handler
+    input: |
+      Prepare this ticket for Christopher's direct review and decision.
+
+      TICKET:
+      {{task}}
+
+      Instructions:
+      1. Write a 2–3 sentence summary of what the ticket is asking.
+      2. State clearly why it could not be automatically routed
+         (ambiguous intent, missing context, general-task category, or no matching workflow).
+      3. Formulate the single most important question Christopher needs to answer to unblock it.
+         The question must be answerable in one sentence.
+      4. Recommend an initial priority (P0–P3) with a one-sentence business justification.
+      5. Suggest the most likely downstream workflow as a recommendation only
+         (or "unknown" if genuinely unclear).
+
+      Reply with:
+      STATUS: done
+      SUMMARY: <2–3 sentence summary of the ticket>
+      REASON_NOT_ROUTED: <why automatic routing was not possible>
+      QUESTION_FOR_CHRISTOPHER: <the single most important question to unblock this ticket>
+      RECOMMENDED_PRIORITY: <P0-critical | P1-high | P2-medium | P3-low>
+      SUGGESTED_WORKFLOW: <best-guess workflow ID as a recommendation, or "unknown">
+      ORIGINAL_TICKET: <original ticket text verbatim>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human

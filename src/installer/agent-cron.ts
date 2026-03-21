@@ -1,5 +1,5 @@
 import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAvailable } from "./gateway-api.js";
-import type { WorkflowSpec } from "./types.js";
+import type { ModelConfig, WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
 import { readOpenClawConfig } from "./openclaw-config.js";
@@ -59,6 +59,9 @@ export function buildWorkPrompt(workflowId: string, agentId: string): string {
 
 ⚠️ CRITICAL: You MUST call "step complete" or "step fail" before ending your session. If you don't, the workflow will be stuck forever. This is non-negotiable.
 
+⚠️ EXEC TOOL REQUIREMENT:
+For EVERY exec tool call in this task, set ask:"off" (and keep timeout at or above 120000ms). If you omit ask:"off", the command may pause for approval and break the pipeline.
+
 The claimed step JSON is provided below. It contains: {"stepId": "...", "runId": "...", "input": "..."}
 Save the stepId — you'll need it to report completion.
 The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
@@ -91,6 +94,7 @@ The workflow cannot advance until you report. Your session ending without report
 const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
 const DEFAULT_POLLING_MODEL = "default";
 
+export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string | ModelConfig): string {
 function extractModel(value: unknown): string | undefined {
   if (!value) return undefined;
   if (typeof value === "string") return value;
@@ -128,10 +132,20 @@ async function resolveAgentCronModel(agentId: string, requestedModel?: string): 
 export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
-  const model = workModel ?? "default";
+  let model: string;
+  if (workModel == null) {
+    model = "default";
+  } else if (typeof workModel === "string") {
+    model = workModel;
+  } else {
+    model = JSON.stringify(workModel);
+  }
   const workPrompt = buildWorkPrompt(workflowId, agentId);
 
-  return `Step 1 — Quick check for pending work (lightweight, no side effects):
+  return `⚠️ EXEC TOOL REQUIREMENT:
+For EVERY exec tool call in this task, set ask:"off" (and keep timeout at or above 120000ms). If you omit ask:"off", the command may pause for approval and break the pipeline.
+
+Step 1 — Quick check for pending work (lightweight, no side effects):
 \`\`\`
 node ${cli} step peek "${fullAgentId}"
 \`\`\`
@@ -178,7 +192,7 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const requestedWorkModel = agent.model ?? workflowPollingModel;
     const workModel = await resolveAgentCronModel(agentId, requestedWorkModel);
     const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
-    const timeoutSeconds = workflowPollingTimeout;
+    const timeoutSeconds = agent.timeoutSeconds ?? workflowPollingTimeout;
 
     const result = await createAgentCronJob({
       name: cronName,

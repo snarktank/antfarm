@@ -1,0 +1,221 @@
+# Content Pipeline Workflow
+# Business workflow: Produce marketing content (blog posts, LinkedIn posts, newsletters) for CQC
+
+id: content-pipeline
+name: Content Pipeline
+version: 2
+description: |
+  Produces marketing content for CQC brand presence.
+  Topic Researcher gathers data points and selects the strongest angle.
+  Outline Architect structures the content with a hook, key arguments, and CTA.
+  Draft Writer writes the full piece in Chris Queen's voice and commits it.
+  Editor reviews for clarity, accuracy, tone, and SEO — retries draft if needed.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 600
+
+agents:
+  - id: topic-researcher
+    name: Topic Researcher
+    role: scanning
+    description: Researches the topic, gathers data points, and identifies the strongest angle.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/topic-researcher
+      files:
+        AGENTS.md: agents/topic-researcher/AGENTS.md
+        SOUL.md: agents/topic-researcher/SOUL.md
+        IDENTITY.md: agents/topic-researcher/IDENTITY.md
+
+  - id: outline-architect
+    name: Outline Architect
+    role: analysis
+    description: Structures the content with a hook, key arguments, supporting evidence, and CTA.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/outline-architect
+      files:
+        AGENTS.md: agents/outline-architect/AGENTS.md
+        SOUL.md: agents/outline-architect/SOUL.md
+        IDENTITY.md: agents/outline-architect/IDENTITY.md
+
+  - id: draft-writer
+    name: Draft Writer
+    role: coding
+    description: Writes the full draft in Chris Queen's voice and commits it to a file.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/draft-writer
+      files:
+        AGENTS.md: agents/draft-writer/AGENTS.md
+        SOUL.md: agents/draft-writer/SOUL.md
+        IDENTITY.md: agents/draft-writer/IDENTITY.md
+
+  - id: editor
+    name: Editor
+    role: analysis
+    description: Reviews for clarity, accuracy, tone consistency, and SEO. Approves or requests redraft.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/editor
+      files:
+        AGENTS.md: agents/editor/AGENTS.md
+        SOUL.md: agents/editor/SOUL.md
+        IDENTITY.md: agents/editor/IDENTITY.md
+
+steps:
+  - id: research
+    agent: topic-researcher
+    input: |
+      Research the following content request for CQC.
+
+      CONTENT REQUEST:
+      {{task}}
+
+      CQC expertise areas:
+      - AI & Machine Learning strategy
+      - Data Analytics & Predictive Modeling
+      - E-commerce (Magento, custom)
+      - Programming (Python, Java, PHP, JavaScript)
+      - TensorFlow, Data Visualization
+
+      Target audience: CTOs, VPs of Engineering, business owners evaluating AI adoption.
+
+      Instructions:
+      1. Identify 3–5 distinct angles for this topic
+      2. Gather supporting data points, statistics, case studies, and quotes with sources
+      3. Assess credibility and recency of each source
+      4. Select the strongest angle — genuinely insightful, not merely topical
+      5. Do NOT draft content — research and angle selection only
+
+      Reply with:
+      STATUS: done
+      RESEARCH_FINDINGS: <structured findings organized by angle, with source citations>
+      KEY_ANGLES: <ranked list of 3–5 angles with a one-sentence rationale each>
+      DATA_POINTS: <key statistics, case studies, and quotes with sources>
+      SELECTED_ANGLE: <the strongest angle with a one-sentence justification>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: outline
+    agent: outline-architect
+    input: |
+      Structure this content piece for maximum impact.
+
+      CONTENT REQUEST:
+      {{task}}
+
+      RESEARCH_FINDINGS:
+      {{research_findings}}
+
+      KEY_ANGLES:
+      {{key_angles}}
+
+      DATA_POINTS:
+      {{data_points}}
+
+      SELECTED_ANGLE:
+      {{selected_angle}}
+
+      Instructions:
+      1. Craft an opening hook that stops the reader mid-scroll
+      2. Define 3–5 key arguments that build the case for the selected angle
+      3. Map supporting data points to each argument
+      4. Design a CTA that converts readers to CQC prospects
+      5. Produce a detailed H2/H3 outline with 3–5 bullet points per section
+
+      Reply with:
+      STATUS: done
+      HOOK: <opening hook — one to two sentences>
+      KEY_ARGUMENTS: <numbered list of 3–5 arguments with a one-sentence summary each>
+      OUTLINE: <full H2/H3 structure with bullet points and evidence mapped per section>
+      CTA: <the call to action — what the reader should do next, and why>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: draft
+    agent: draft-writer
+    input: |
+      Write the full content draft in Christopher Queen's voice.
+
+      CONTENT REQUEST:
+      {{task}}
+
+      HOOK:
+      {{hook}}
+
+      KEY_ARGUMENTS:
+      {{key_arguments}}
+
+      OUTLINE:
+      {{outline}}
+
+      DATA_POINTS:
+      {{data_points}}
+
+      CTA:
+      {{cta}}
+
+      Guidelines:
+      - Voice: Authoritative but approachable, data-driven, action-oriented
+      - 1200–2500 words depending on topic depth
+      - Every section complete — no placeholders or "TBD"
+      - Embed data points and evidence naturally within prose
+      - Format: Markdown with proper headings, lists, and code blocks where relevant
+      - Commit draft to content/drafts/<slug>.md and report the path
+
+      {{#if revision_notes}}
+      REVISION NOTES FROM EDITOR:
+      {{revision_notes}}
+
+      Address all revision notes above before committing the updated draft.
+      {{/if}}
+
+      Reply with:
+      STATUS: done
+      DRAFT: <full content draft in Markdown>
+      WORD_COUNT: <integer word count>
+      CONTENT_PATH: <file path where draft was committed, e.g. content/drafts/ai-roi-guide.md>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: edit
+    agent: editor
+    input: |
+      Review this content draft before publication.
+
+      CONTENT REQUEST:
+      {{task}}
+
+      DRAFT:
+      {{draft}}
+
+      CONTENT_PATH:
+      {{content_path}}
+
+      Review checklist:
+      1. Clarity — every sentence is direct and unambiguous
+      2. Accuracy — no incorrect claims about AI, ML, data, or CQC services
+      3. Tone consistency — sounds like Christopher Queen throughout, not generic AI content
+      4. SEO optimization — keyword present in H1, natural density, compelling meta candidates
+      5. Hook strength — first two sentences earn the read
+      6. CTA — feels earned and directs the reader to a CQC service or consultation
+
+      Reply with:
+      STATUS: done
+      QUALITY: pass/fail
+      REVISION_NOTES: <specific actionable revision requests if QUALITY is fail; "none" if pass>
+      CONTENT_PATH: <file path of the approved draft>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      retry_step: draft
+      on_exhausted:
+        escalate_to: human

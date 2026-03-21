@@ -25,7 +25,7 @@ export interface MedicFinding {
 
 // ── Check: Stuck Steps ──────────────────────────────────────────────
 
-const MAX_ROLE_TIMEOUT_MS = (getMaxRoleTimeoutSeconds() + 5 * 60) * 1000;
+const MAX_ROLE_TIMEOUT_MS = (getMaxRoleTimeoutSeconds() + 2 * 60) * 1000;
 
 /**
  * Find steps that have been "running" longer than the max role timeout.

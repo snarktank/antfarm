@@ -1,0 +1,255 @@
+# ClickUp Triage Workflow
+# Operations workflow: Classify a ClickUp ticket, assign priority, and route to the correct downstream workflow
+
+id: clickup-triage
+name: ClickUp Triage
+version: 2
+description: |
+  Quin receives a ClickUp ticket (title + description) and routes it to the
+  correct downstream workflow.
+  Classifier categorizes the ticket into one of eight standard types.
+  Prioritizer assigns a P0–P3 priority based on business impact and revenue risk.
+  Router maps category + priority to a specific Antfarm workflow ID and formats
+  the dispatch payload.
+  Verifier validates the routing decision and dispatch payload before dispatch.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 600
+
+agents:
+  - id: classifier
+    name: Classifier
+    role: analysis
+    description: Reads the ticket and assigns it to exactly one category.
+    model: openai-codex/gpt-5.3-codex
+    timeoutSeconds: 600
+    workspace:
+      baseDir: agents/classifier
+      files:
+        AGENTS.md: agents/classifier/AGENTS.md
+        SOUL.md: agents/classifier/SOUL.md
+        IDENTITY.md: agents/classifier/IDENTITY.md
+
+  - id: prioritizer
+    name: Prioritizer
+    role: analysis
+    description: Assigns P0–P3 priority based on business impact and revenue risk.
+    model: openai-codex/gpt-5.3-codex
+    timeoutSeconds: 900
+    workspace:
+      baseDir: agents/prioritizer
+      files:
+        AGENTS.md: agents/prioritizer/AGENTS.md
+        SOUL.md: agents/prioritizer/SOUL.md
+        IDENTITY.md: agents/prioritizer/IDENTITY.md
+
+  - id: router
+    name: Router
+    role: analysis
+    description: Maps category + priority to a workflow ID and formats the dispatch payload.
+    model: openai-codex/gpt-5.3-codex
+    timeoutSeconds: 600
+    workspace:
+      baseDir: agents/router
+      files:
+        AGENTS.md: agents/router/AGENTS.md
+        SOUL.md: agents/router/SOUL.md
+        IDENTITY.md: agents/router/IDENTITY.md
+
+  - id: verifier
+    name: Routing Verifier
+    role: verification
+    description: Validates category, priority, workflow ID, and dispatch payload before dispatch.
+    model: openai-codex/gpt-5.3-codex
+    timeoutSeconds: 600
+    workspace:
+      baseDir: agents/verifier
+      files:
+        AGENTS.md: agents/verifier/AGENTS.md
+        SOUL.md: agents/verifier/SOUL.md
+        IDENTITY.md: agents/verifier/IDENTITY.md
+
+steps:
+  - id: classify
+    agent: classifier
+    input: |
+      Classify the following ClickUp ticket into exactly one category.
+
+      TICKET:
+      {{task}}
+
+      Valid categories:
+      - feature-request: New capability or enhancement to an existing system
+      - bug-report: Something is broken or behaving incorrectly
+      - client-research: Research a prospect, client, industry, or market
+      - content-task: Blog post, newsletter, LinkedIn, or other marketing content
+      - security-concern: Vulnerability, compliance issue, or access control problem
+      - portfolio-task: Internal business metrics, performance review, or ops analysis
+      - proposal-request: Generate or update a consulting proposal for a client
+      - general-task: Anything that does not fit the above categories
+
+      Instructions:
+      1. Read the full ticket title and description
+      2. Identify the primary intent (not secondary effects)
+      3. Assign exactly one category — pick the closest match
+      4. Write one sentence citing specific ticket language to justify the choice
+      5. If two categories are equally valid, set AMBIGUOUS: yes AND set CATEGORY to general-task
+
+      Edge cases:
+      - If the ticket is vague, incomplete, or covers multiple unrelated topics → general-task, AMBIGUOUS: yes
+      - If the ticket describes both a bug and a feature in equal weight → general-task, AMBIGUOUS: yes
+      - When in doubt, commit to general-task rather than guessing a specific category
+
+      Reply with:
+      STATUS: done
+      CATEGORY: <one of the eight categories above>
+      RATIONALE: <one sentence citing specific ticket language>
+      AMBIGUOUS: yes/no
+      AMBIGUOUS_CONTEXT: <if AMBIGUOUS is yes, explain why; otherwise use "none">
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: prioritize
+    agent: prioritizer
+    input: |
+      Assign a priority to this ticket based on its category and content.
+
+      TICKET:
+      {{task}}
+
+      CATEGORY: {{category}}
+      AMBIGUOUS: {{ambiguous}}
+      AMBIGUOUS_CONTEXT: {{ambiguous_context}}
+
+      Priority levels:
+      - P0-critical: 6–7 points (business=3, client=2/1, revenue=2) — production down, client SLA breach, legal/security exposure, revenue blocked
+      - P1-high: 4–5 points — significant client impact or revenue opportunity within 48 hours
+      - P2-medium: 2–3 points — important but not urgent; schedule within the sprint
+      - P3-low: 0–1 point — nice-to-have, low impact, or indefinitely deferrable
+
+      Instructions:
+      1. Assess business impact: who is affected and how severely (0 = none, 3 = critical)
+      2. Assess client exposure: is a paying client or active prospect directly at risk (0 / 1 / 2)
+      3. Assess revenue implications: is money blocked, at risk, or an opportunity time-sensitive (0 / 1 / 2)
+      4. Map the composite score to the priority scale:
+         - P0-critical = 6–7 points
+         - P1-high = 4–5 points
+         - P2-medium = 2–3 points
+         - P3-low = 0–1 point
+      5. Write one sentence naming the specific business or client risk that drives the call
+      6. If AMBIGUOUS is yes and AMBIGUOUS_CONTEXT contains explicit urgency signals (production down, client SLA breach, legal/security exposure), trigger human escalation by setting PRIORITY to "P0-critical-humaneval" and IMPACT_SUMMARY to a one-sentence description of the specific urgency signals detected
+
+      Edge cases:
+      - If AMBIGUOUS is yes but AMBIGUOUS_CONTEXT contains explicit urgency signals, use those signals to override the default P2-medium and escalate to human
+      - If AMBIGUOUS is yes and no explicit urgency signals detected, default to P2-medium
+
+      Reply with:
+      STATUS: done
+      PRIORITY: <P0-critical | P1-high | P2-medium | P3-low | P0-critical-humaneval>
+      IMPACT_SUMMARY: <one sentence justifying the priority in terms of business or client risk>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: route
+    agent: router
+    input: |
+      Map this ticket to the correct Antfarm workflow and format the dispatch payload.
+
+      TICKET:
+      {{task}}
+
+      CATEGORY: {{category}}
+      PRIORITY: {{priority}}
+      RATIONALE: {{rationale}}
+      IMPACT_SUMMARY: {{impact_summary}}
+      AMBIGUOUS: {{ambiguous}}
+      AMBIGUOUS_CONTEXT: {{ambiguous_context}}
+
+      Routing table:
+      - feature-request   → cqc-feature-dev
+      - bug-report        → cqc-feature-dev
+      - client-research   → research-brief
+      - content-task      → content-pipeline
+      - security-concern  → security-audit
+      - portfolio-task    → portfolio-review
+      - proposal-request  → client-proposal
+      - general-task      → human-escalation
+
+      Instructions:
+      1. Look up CATEGORY in the routing table — use the exact workflow ID shown
+      2. Build a JSON dispatch payload with keys: task, priority, source_ticket
+        - task: a clean one-paragraph restatement of the ticket suitable as workflow input
+        - priority: the assigned priority level
+        - source_ticket: the original ticket text verbatim
+      3. If CATEGORY is general-task, set WORKFLOW_ID to human-escalation and note reason
+      4. Output must be unambiguous — no conditional or multi-value fields
+
+      Reply with:
+      STATUS: done
+      CATEGORY: <category from classify step>
+      PRIORITY: <priority from prioritize step>
+      WORKFLOW_ID: <workflow id from routing table>
+      DISPATCH_PAYLOAD: <valid JSON with task, priority, source_ticket>
+      NOTES: <any routing caveats or escalation reasons; omit if none>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: verify-routing
+    agent: verifier
+    input: |
+      Verify that the triage routing decision and dispatch payload are well-formed
+      and safe to dispatch.
+
+      TICKET:
+      {{task}}
+
+      CATEGORY: {{category}}
+      PRIORITY: {{priority}}
+      WORKFLOW_ID: {{workflow_id}}
+      RATIONALE: {{rationale}}
+      IMPACT_SUMMARY: {{impact_summary}}
+      AMBIGUOUS: {{ambiguous}}
+      AMBIGUOUS_CONTEXT: {{ambiguous_context}}
+      DISPATCH_PAYLOAD: {{dispatch_payload}}
+
+      Verification requirements:
+      1. CATEGORY must be exactly one of:
+         feature-request, bug-report, client-research, content-task,
+         security-concern, portfolio-task, proposal-request, general-task
+      2. PRIORITY must be exactly one of:
+         P0-critical, P1-high, P2-medium, P3-low, P0-critical-humaneval
+      3. WORKFLOW_ID must match the routing table for the given CATEGORY:
+         - feature-request   → cqc-feature-dev
+         - bug-report        → cqc-feature-dev
+         - client-research   → research-brief
+         - content-task      → content-pipeline
+         - security-concern  → security-audit
+         - portfolio-task    → portfolio-review
+         - proposal-request  → client-proposal
+         - general-task      → human-escalation
+      4. RATIONALE must exist if CATEGORY is not general-task
+      5. IMPACT_SUMMARY must exist
+      6. DISPATCH_PAYLOAD must be valid JSON containing at least these three keys:
+         task, priority, source_ticket (additional keys are permitted)
+      7. DISPATCH_PAYLOAD.priority must equal PRIORITY exactly.
+
+      Do NOT attempt to fix the payload — only verify and report.
+      If any condition fails, set VALID to no and list all issues.
+
+      Reply with:
+      STATUS: done
+      VALID: yes/no
+      ERRORS: <semicolon-separated list of specific problems, or NONE>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      retry_step: route
+      on_exhausted:
+        escalate_to: human

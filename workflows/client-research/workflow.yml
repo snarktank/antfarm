@@ -1,0 +1,231 @@
+# Client Research Workflow
+# Business workflow: Research a prospect company and produce a briefing document for Chris
+
+id: client-research
+name: Client Research
+version: 1
+description: |
+  Researches a prospect company and produces an executive briefing for Christopher.
+  Scout gathers company profile, financials, news, and leadership.
+  Industry Mapper assesses industry trends, competitive landscape, and AI readiness.
+  Opportunity Finder identifies CQC service alignment and engagement angles.
+  Briefing Writer compiles findings into a structured Markdown doc and commits to repo.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 300
+
+agents:
+  - id: scout
+    name: Company Intelligence Scout
+    role: scanning
+    description: Gathers company profile, recent news, financials, and leadership team.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/scout
+      files:
+        AGENTS.md: agents/scout/AGENTS.md
+        SOUL.md: agents/scout/SOUL.md
+        IDENTITY.md: agents/scout/IDENTITY.md
+
+  - id: industry-mapper
+    name: Industry & Competitive Landscape Mapper
+    role: scanning
+    description: Maps the prospect to industry trends, competitive landscape, and AI readiness.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/industry-mapper
+      files:
+        AGENTS.md: agents/industry-mapper/AGENTS.md
+        SOUL.md: agents/industry-mapper/SOUL.md
+        IDENTITY.md: agents/industry-mapper/IDENTITY.md
+
+  - id: opportunity-finder
+    name: Revenue Opportunity Finder
+    role: analysis
+    description: Identifies CQC service alignment and the strongest engagement angle.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/opportunity-finder
+      files:
+        AGENTS.md: agents/opportunity-finder/AGENTS.md
+        SOUL.md: agents/opportunity-finder/SOUL.md
+        IDENTITY.md: agents/opportunity-finder/IDENTITY.md
+
+  - id: briefing-writer
+    name: Executive Briefing Writer
+    role: coding
+    description: Compiles all findings into a structured Markdown briefing doc and commits to repo.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/briefing-writer
+      files:
+        AGENTS.md: agents/briefing-writer/AGENTS.md
+        SOUL.md: agents/briefing-writer/SOUL.md
+        IDENTITY.md: agents/briefing-writer/IDENTITY.md
+
+steps:
+  - id: gather
+    agent: scout
+    input: |
+      Research the following prospect company and gather structured intelligence.
+
+      PROSPECT:
+      {{task}}
+
+      Instructions:
+      1. Identify the company's industry, size, HQ, employee count, and business model
+      2. Research their tech stack and any known digital infrastructure
+      3. Pull notable news from the last 12 months (funding, product launches, exec changes, partnerships)
+      4. Gather publicly available financials: revenue, growth rate, funding stage, or key indicators
+      5. Identify the leadership team: CEO, CTO, CDO, VP of Engineering, or equivalent titles
+      6. Flag any fields that could not be verified from public sources
+
+      Reply with:
+      STATUS: done
+      COMPANY_PROFILE: [ ... industry, size, HQ, employee count, tech stack, business model ... ]
+      RECENT_NEWS: [ ... notable news items from last 12 months with source and date ... ]
+      FINANCIALS: [ ... revenue, growth, funding stage, or key indicators; note estimates ... ]
+      LEADERSHIP: [ ... C-suite names, titles, and LinkedIn URLs where available ... ]
+      DATA_GAPS: [ ... fields unverifiable from public sources ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: map-industry
+    agent: industry-mapper
+    input: |
+      Analyze this prospect's industry position, competitive landscape, and AI readiness.
+
+      PROSPECT:
+      {{task}}
+
+      COMPANY_PROFILE:
+      {{company_profile}}
+
+      RECENT_NEWS:
+      {{recent_news}}
+
+      Instructions:
+      1. Identify the company's primary industry and relevant sub-verticals
+      2. Research the top 3-5 trends shaping this sector over the next 18-24 months
+      3. Map the competitive landscape: key players, market share, and the prospect's position
+      4. Assess AI and digital maturity — has the company invested in AI, automation, or data infra?
+      5. Rate AI readiness (early / developing / advanced) with supporting evidence
+      6. Assign a market position label: market leader, challenger, niche player, or at-risk
+
+      Reply with:
+      STATUS: done
+      INDUSTRY_TRENDS: [ ... top 3-5 macro trends with timeframes ... ]
+      COMPETITIVE_LANDSCAPE: [ ... key competitors, market share, prospect's relative standing ... ]
+      AI_READINESS: [ ... early / developing / advanced with supporting evidence ... ]
+      MARKET_POSITION: [ ... market leader / challenger / niche player / at-risk with rationale ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: find-opportunities
+    agent: opportunity-finder
+    input: |
+      Identify where CQC's services align with this prospect's needs and priorities.
+
+      PROSPECT:
+      {{task}}
+
+      COMPANY_PROFILE:
+      {{company_profile}}
+
+      INDUSTRY_TRENDS:
+      {{industry_trends}}
+
+      COMPETITIVE_LANDSCAPE:
+      {{competitive_landscape}}
+
+      AI_READINESS:
+      {{ai_readiness}}
+
+      CQC capabilities for reference:
+      - AI & Machine Learning strategy and implementation
+      - Data Analytics & Predictive Modeling
+      - E-commerce optimization (Magento, custom)
+      - Custom software development (Python, Java, PHP, JS)
+      - TensorFlow / ML model development
+
+      Instructions:
+      1. Map each CQC service line to specific, evidence-based prospect pain points
+      2. Rank the top 2-3 opportunities by urgency, budget signal, and CQC fit
+      3. Estimate deal size or engagement range per priority service
+      4. Define the single strongest engagement angle — the problem Christopher should lead with
+      5. Note any disqualifiers or risks that reduce the likelihood of winning
+
+      Reply with:
+      STATUS: done
+      CQC_OPPORTUNITIES: [ ... service line, prospect pain point, and evidence for each ... ]
+      PRIORITY_SERVICES: [ ... top 2-3 CQC services ranked by fit and revenue potential ... ]
+      REVENUE_POTENTIAL: [ ... estimated deal size or range per priority service ... ]
+      ENGAGEMENT_ANGLE: [ ... the single strongest opening for Christopher — specific and actionable ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: write-briefing
+    agent: briefing-writer
+    input: |
+      Compile all research findings into an executive briefing document for Christopher.
+
+      PROSPECT:
+      {{task}}
+
+      COMPANY_PROFILE:
+      {{company_profile}}
+
+      RECENT_NEWS:
+      {{recent_news}}
+
+      FINANCIALS:
+      {{financials}}
+
+      LEADERSHIP:
+      {{leadership}}
+
+      INDUSTRY_TRENDS:
+      {{industry_trends}}
+
+      COMPETITIVE_LANDSCAPE:
+      {{competitive_landscape}}
+
+      AI_READINESS:
+      {{ai_readiness}}
+
+      MARKET_POSITION:
+      {{market_position}}
+
+      CQC_OPPORTUNITIES:
+      {{cqc_opportunities}}
+
+      PRIORITY_SERVICES:
+      {{priority_services}}
+
+      REVENUE_POTENTIAL:
+      {{revenue_potential}}
+
+      ENGAGEMENT_ANGLE:
+      {{engagement_angle}}
+
+      Instructions:
+      1. Write the full briefing using the structure defined in your AGENTS.md
+      2. Every claim must trace back to data from the inputs — no filler
+      3. Save the file to briefings/<company-slug>-research-brief.md (slug = company name lowercased, spaces and special characters replaced with hyphens, e.g., "O'Reilly Media" → oreilly-media)
+      4. Commit with message: "briefing: add <company-slug> research brief"
+      5. Report the committed file path
+
+      Reply with:
+      STATUS: done
+      BRIEFING_PATH: [ ... relative path to the committed briefing file ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human

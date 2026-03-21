@@ -9,31 +9,33 @@ description: |
   Verifier confirms each fix. Tester runs final integration validation. PR agent creates the pull request.
 
 polling:
-  model: default
-  timeoutSeconds: 120
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 600
 
 agents:
   - id: scanner
-    name: Scanner
-    role: scanning
+    name: Q Platform
+    role: coding
     description: Explores codebase and runs comprehensive security analysis.
+    model: openai-codex/gpt-5.3-codex
     workspace:
-      baseDir: agents/scanner
+      baseDir: agents/shared/platform
       files:
-        AGENTS.md: agents/scanner/AGENTS.md
-        SOUL.md: agents/scanner/SOUL.md
-        IDENTITY.md: agents/scanner/IDENTITY.md
+        AGENTS.md: ../../../quin-workflows/agents/shared/platform/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/platform/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/platform/IDENTITY.md
 
   - id: prioritizer
-    name: Prioritizer
-    role: analysis
+    name: Q Platform
+    role: coding
     description: Deduplicates, ranks, and groups findings into a fix plan.
+    model: openai-codex/gpt-5.3-codex
     workspace:
-      baseDir: agents/prioritizer
+      baseDir: agents/shared/platform
       files:
-        AGENTS.md: agents/prioritizer/AGENTS.md
-        SOUL.md: agents/prioritizer/SOUL.md
-        IDENTITY.md: agents/prioritizer/IDENTITY.md
+        AGENTS.md: ../../../quin-workflows/agents/shared/platform/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/platform/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/platform/IDENTITY.md
 
   - id: setup
     name: Setup
@@ -49,6 +51,7 @@ agents:
   - id: fixer
     name: Fixer
     role: coding
+    model: openai-codex/gpt-5.3-codex
     description: Implements security fixes one at a time with regression tests.
     workspace:
       baseDir: agents/fixer
@@ -71,6 +74,7 @@ agents:
   - id: tester
     name: Tester
     role: testing
+    model: openai-codex/gpt-5.3-codex
     description: Final integration testing and audit re-run after all fixes.
     workspace:
       baseDir: agents/tester
@@ -288,9 +292,9 @@ steps:
       ISSUES:
       - What's wrong or incomplete
     expects: "STATUS: done"
+    max_retries: 3
     on_fail:
       retry_step: fix
-      max_retries: 3
       on_exhausted:
         escalate_to: human
 
@@ -330,9 +334,9 @@ steps:
       FAILURES:
       - What's broken
     expects: "STATUS: done"
+    max_retries: 2
     on_fail:
       retry_step: fix
-      max_retries: 2
       on_exhausted:
         escalate_to: human
 

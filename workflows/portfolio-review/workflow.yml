@@ -1,0 +1,178 @@
+# Portfolio Review Workflow
+# Business workflow: Analyze CQC business metrics across active projects, surface risks and opportunities, deliver executive summary
+
+id: portfolio-review
+name: Portfolio Review
+version: 1
+description: |
+  Analyzes CQC's business metrics across active projects and produces an executive summary.
+  Data Collector gathers project status, revenue data, utilization rates, and milestone completion.
+  Analyst identifies trends, risks, and opportunities across the portfolio.
+  Report Writer produces an executive summary with KPIs, red/yellow/green status, and recommended actions.
+
+polling:
+  model: openrouter/google/gemini-2.5-flash-lite
+  timeoutSeconds: 300
+
+agents:
+  - id: data-collector
+    name: Data Collector
+    role: analysis
+    description: Gathers project status, revenue data, utilization rates, and milestone completion from provided context.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/data-collector
+      files:
+        AGENTS.md: agents/data-collector/AGENTS.md
+        SOUL.md: agents/data-collector/SOUL.md
+        IDENTITY.md: agents/data-collector/IDENTITY.md
+
+  - id: analyst
+    name: Q Finance
+    role: analysis
+    description: Identifies trends, risks, and opportunities across the portfolio. Flags underperforming projects, resource bottlenecks, and revenue concentration risk.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/shared/finance
+      files:
+        AGENTS.md: ../../../quin-workflows/agents/shared/finance/AGENTS.md
+        SOUL.md: ../../../quin-workflows/agents/shared/finance/SOUL.md
+        IDENTITY.md: ../../../quin-workflows/agents/shared/finance/IDENTITY.md
+
+  - id: report-writer
+    name: Report Writer
+    role: coding
+    description: Produces executive summary with KPIs, red/yellow/green status, and recommended actions. Commits report to repo.
+    model: openai-codex/gpt-5.3-codex
+    workspace:
+      baseDir: agents/report-writer
+      files:
+        AGENTS.md: agents/report-writer/AGENTS.md
+        SOUL.md: agents/report-writer/SOUL.md
+        IDENTITY.md: agents/report-writer/IDENTITY.md
+
+steps:
+  - id: collect
+    agent: data-collector
+    input: |
+      Gather all available portfolio metrics for the following reporting request.
+
+      REQUEST:
+      {{task}}
+
+      Collect the following data points for each active project:
+      1. Project name and client
+      2. Current status (on-track / at-risk / delayed / complete)
+      3. Revenue contribution (MRR/ARR, contract value, invoiced YTD)
+      4. Resource utilization rate (% of allocated capacity in use)
+      5. Milestone completion rate (milestones completed vs. planned)
+      6. Next milestone or deliverable due date
+      7. Any open blockers or escalations
+
+      Flag any data that is missing, estimated, or unverifiable — do not fabricate.
+
+      Reply with:
+      STATUS: done
+      PROJECTS: [ ... per-project data with all collected fields ... ]
+      REVENUE_TOTAL: <total portfolio MRR/ARR>
+      UTILIZATION_RATES: [ ... per-project utilization rates ... ]
+      MILESTONE_DATA: [ ... per-project milestone completion status ... ]
+      DATA_GAPS: [ ... fields missing or unverifiable; omit if none ... ]
+      PERIOD: <reporting period>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: analyze
+    agent: analyst
+    input: |
+      Analyze the portfolio data and identify trends, risks, and opportunities.
+
+      REQUEST:
+      {{task}}
+
+      PROJECTS:
+      {{projects}}
+
+      REVENUE_TOTAL:
+      {{revenue_total}}
+
+      UTILIZATION_RATES:
+      {{utilization_rates}}
+
+      MILESTONE_DATA:
+      {{milestone_data}}
+
+      DATA_GAPS:
+      {{data_gaps}}
+
+      PERIOD:
+      {{period}}
+
+      Analysis dimensions:
+      1. Trend analysis — MoM or QoQ revenue direction, delivery performance trajectory
+      2. Risk identification — underperforming projects, resource bottlenecks, revenue concentration risk (flag if any client exceeds 30% of total)
+      3. Opportunity identification — upsell signals, referral potential, capacity availability
+      4. Portfolio health rating per project — red (critical), yellow (watch), green (healthy)
+
+      For each risk and opportunity, provide specific evidence and a recommended action.
+
+      Reply with:
+      STATUS: done
+      TRENDS: [ ... key portfolio trends with supporting data ... ]
+      RISKS: [ ... top risks with evidence and recommended action; include concentration risk if applicable ... ]
+      OPPORTUNITIES: [ ... top opportunities with specific next steps ... ]
+      PROJECT_RATINGS: [ ... per-project red/yellow/green rating with one-line rationale ... ]
+      FLAGS: [ ... items requiring immediate executive attention ... ]
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
+
+  - id: report
+    agent: report-writer
+    input: |
+      Produce an executive portfolio summary and commit it to the repository.
+
+      REQUEST:
+      {{task}}
+
+      PERIOD:
+      {{period}}
+
+      PROJECTS:
+      {{projects}}
+
+      REVENUE_TOTAL:
+      {{revenue_total}}
+
+      TRENDS:
+      {{trends}}
+
+      RISKS:
+      {{risks}}
+
+      OPPORTUNITIES:
+      {{opportunities}}
+
+      PROJECT_RATINGS:
+      {{project_ratings}}
+
+      FLAGS:
+      {{flags}}
+
+      Instructions:
+      1. Write the executive summary using the structure defined in your AGENTS.md
+      2. Every claim must trace back to data from the inputs — no filler
+      3. Save the file to reports/portfolio-review-{{period}}.md using the period slug (lowercased, spaces replaced with hyphens, e.g., "Feb 2026" → feb-2026)
+      4. Commit with message: "report: add portfolio review <period-slug>"
+      5. Report the committed file path
+
+      Reply with:
+      STATUS: done
+      REPORT_PATH: <relative path to the committed report file>
+    expects: "STATUS: done"
+    max_retries: 2
+    on_fail:
+      escalate_to: human
