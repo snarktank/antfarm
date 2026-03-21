@@ -186,7 +186,7 @@ steps:
       5. Run typecheck / build
       6. Run tests to confirm they pass
       7. Commit: feat: {{current_story_id}} - {{current_story_title}}
-      8. Append to progress-{{run_id}}.txt
+      8. Rewrite progress-{{run_id}}.txt with updated story results and patterns
       9. Update Codebase Patterns if you found reusable patterns
 
       Reply with:

@@ -16,12 +16,12 @@ function buildMedicPrompt(): string {
 
 Run the medic check:
 \`\`\`
-node ${cli} medic run
+node ${cli} medic run --json
 \`\`\`
 
-If the output says "All clear", reply HEARTBEAT_OK and stop.
-
+If the check output contains "issuesFound": 0, reply HEARTBEAT_OK and stop.
 If issues were found, summarize what was detected and what actions were taken.
+
 If there are critical unremediated issues, use sessions_send to alert the main session:
 \`\`\`
 sessions_send(sessionKey: "agent:main:main", message: "🚑 Antfarm Medic Alert: <summary of critical issues>")

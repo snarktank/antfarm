@@ -17,6 +17,7 @@ export type OpenClawConfig = {
   };
   agents?: {
     defaults?: {
+      model?: string | { primary?: string };
       subagents?: {
         allowAgents?: string[];
       };

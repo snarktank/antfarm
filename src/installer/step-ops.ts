@@ -8,8 +8,12 @@ import { execSync, execFileSync } from "node:child_process";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
+import { sendSessionMessage } from "./gateway-api.js";
 import { getMaxRoleTimeoutSeconds } from "./install.js";
+import { loadWorkflowSpec } from "./workflow-spec.js";
+import { resolveWorkflowDir } from "./paths.js";
 import { isFrontendChange } from "../lib/frontend-detect.js";
+import type { WorkflowStepFailure } from "./types.js";
 
 /**
  * Parse KEY: value lines from step output with support for multi-line values.
@@ -85,6 +89,25 @@ export function resolveTemplate(template: string, context: Record<string, string
     if (lower in context) return context[lower];
     return `[missing: ${key}]`;
   });
+}
+
+/**
+ * Find missing template placeholders for a given context object.
+ */
+function findMissingTemplateKeys(template: string, context: Record<string, string>): string[] {
+  const missing: string[] = [];
+  const seen = new Set<string>();
+  template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (_match, key: string) => {
+    const lower = key.toLowerCase();
+    const hasExact = Object.prototype.hasOwnProperty.call(context, key);
+    const hasLower = Object.prototype.hasOwnProperty.call(context, lower);
+    if (!hasExact && !hasLower && !seen.has(lower)) {
+      seen.add(lower);
+      missing.push(lower);
+    }
+    return "";
+  });
+  return missing;
 }
 
 /**
@@ -380,6 +403,47 @@ export function computeHasFrontendChanges(repo: string, branch: string): string 
   }
 }
 
+function failStepWithMissingInputs(
+  stepDbId: string,
+  stepPublicId: string,
+  runId: string,
+  missingKeys: string[],
+): void {
+  const db = getDb();
+  const wfId = getWorkflowId(runId);
+  const message = `Step input is not ready: missing required template key(s) ${missingKeys.join(", ")}`;
+
+  db.prepare(
+    "UPDATE steps SET status = 'failed', output = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(message, stepDbId);
+  db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(runId);
+
+  emitEvent({
+    ts: new Date().toISOString(),
+    event: "step.failed",
+    runId,
+    workflowId: wfId,
+    stepId: stepPublicId,
+    detail: message,
+  });
+  emitEvent({
+    ts: new Date().toISOString(),
+    event: "run.failed",
+    runId,
+    workflowId: wfId,
+    detail: message,
+  });
+  scheduleRunCronTeardown(runId);
+}
+
+function runHasStories(runId: string): boolean {
+  const db = getDb();
+  const total = db.prepare(
+    "SELECT COUNT(*) as cnt FROM stories WHERE run_id = ?"
+  ).get(runId) as { cnt: number } | undefined;
+  return (total?.cnt ?? 0) > 0;
+}
+
 // ── Peek (lightweight work check) ───────────────────────────────────
 
 export type PeekResult = "HAS_WORK" | "NO_WORK";
@@ -428,13 +492,24 @@ export function claimStep(agentId: string): ClaimResult {
   const db = getDb();
 
   const step = db.prepare(
-    `SELECT s.id, s.step_id, s.run_id, s.input_template, s.type, s.loop_config
+    `SELECT s.id, s.step_id, s.run_id, s.input_template, s.type, s.loop_config, s.step_index
      FROM steps s
      JOIN runs r ON r.id = s.run_id
      WHERE s.agent_id = ? AND s.status = 'pending'
        AND r.status NOT IN ('failed', 'cancelled')
+       AND NOT EXISTS (
+         SELECT 1 FROM steps prev
+         WHERE prev.run_id = s.run_id
+           AND prev.step_index < s.step_index
+           AND prev.status NOT IN ('done', 'skipped')
+       )
+    ORDER BY s.step_index ASC, s.step_id ASC
      LIMIT 1`
-  ).get(agentId) as { id: string; step_id: string; run_id: string; input_template: string; type: string; loop_config: string | null } | undefined;
+  ).get(agentId) as {
+    id: string; step_id: string; run_id: string; input_template: string; type: string;
+    loop_config: string | null;
+    step_index: number;
+  } | undefined;
 
   if (!step) return { found: false };
 
@@ -460,6 +535,21 @@ export function claimStep(agentId: string): ClaimResult {
   if (step.type === "loop") {
     const loopConfig: LoopConfig | null = step.loop_config ? JSON.parse(step.loop_config) : null;
     if (loopConfig?.over === "stories") {
+      if (!runHasStories(step.run_id)) {
+        const message = "Loop cannot run because planning did not produce STORIES_JSON.";
+        db.prepare(
+          "UPDATE steps SET status = 'failed', output = ?, updated_at = datetime('now') WHERE id = ?"
+        ).run(message, step.id);
+        db.prepare(
+          "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+        ).run(step.run_id);
+        const wfId = getWorkflowId(step.run_id);
+        emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: step.step_id, agentId: agentId, detail: message });
+        emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: message });
+        scheduleRunCronTeardown(step.run_id);
+        return { found: false };
+      }
+
       // Find next pending story
       const nextStory = db.prepare(
         "SELECT * FROM stories WHERE run_id = ? AND status = 'pending' ORDER BY story_index ASC LIMIT 1"
@@ -536,6 +626,12 @@ export function claimStep(agentId: string): ClaimResult {
         context["verify_feedback"] = "";
       }
 
+      const missingKeys = findMissingTemplateKeys(step.input_template, context);
+      if (missingKeys.length > 0) {
+        failStepWithMissingInputs(step.id, step.step_id, step.run_id, missingKeys);
+        return { found: false };
+      }
+
       // Persist story context vars to DB so verify_each steps can access them
       db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), step.run_id);
 
@@ -557,6 +653,12 @@ export function claimStep(agentId: string): ClaimResult {
   ).get(step.run_id) as { cnt: number };
   if (hasStories.cnt > 0) {
     context["progress"] = readProgressFile(step.run_id);
+  }
+
+  const missingKeys = findMissingTemplateKeys(step.input_template, context);
+  if (missingKeys.length > 0) {
+    failStepWithMissingInputs(step.id, step.step_id, step.run_id, missingKeys);
+    return { found: false };
   }
 
   const resolvedInput = resolveTemplate(step.input_template, context);
@@ -817,6 +919,13 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
     return { advanced: false, runCompleted: false };
   }
 
+  const runningStep = db.prepare(
+    "SELECT id FROM steps WHERE run_id = ? AND status = 'running' LIMIT 1"
+  ).get(runId) as { id: string } | undefined;
+  if (runningStep) {
+    return { advanced: false, runCompleted: false };
+  }
+
   const next = db.prepare(
     "SELECT id, step_id FROM steps WHERE run_id = ? AND status = 'waiting' ORDER BY step_index ASC LIMIT 1"
   ).get(runId) as { id: string; step_id: string } | undefined;
@@ -849,6 +958,51 @@ function advancePipeline(runId: string): { advanced: boolean; runCompleted: bool
   }
 }
 
+function resolveEscalationTarget(policy: WorkflowStepFailure | null): string | null {
+  const escalateTo = policy?.on_exhausted?.escalate_to || policy?.escalate_to;
+  if (!escalateTo) return null;
+
+  const normalized = escalateTo.trim().toLowerCase();
+  if (normalized === "human" || normalized === "main") return "agent:main:main";
+  if (normalized.startsWith("agent:")) return escalateTo;
+  return null;
+}
+
+async function getOnFailPolicy(runId: string, stepId: string): Promise<WorkflowStepFailure | null> {
+  try {
+    const db = getDb();
+    const run = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(runId) as { workflow_id: string } | undefined;
+    if (!run) return null;
+
+    const workflowDir = resolveWorkflowDir(run.workflow_id);
+    const workflow = await loadWorkflowSpec(workflowDir);
+    const step = workflow.steps.find((s) => s.id === stepId);
+    return step?.on_fail ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function notifyFailureExhausted(runId: string, stepId: string, reason: string): Promise<void> {
+  try {
+    const policy = await getOnFailPolicy(runId, stepId);
+    const sessionKey = resolveEscalationTarget(policy);
+    if (!sessionKey) return;
+
+    const wfId = getWorkflowId(runId) ?? "unknown";
+    const message = `Antfarm alert: step "${stepId}" exhausted retries in run ${runId.slice(0, 8)} (${wfId}). Reason: ${reason}`;
+    const result = await sendSessionMessage({ sessionKey, message });
+    if (!result.ok) {
+      logger.warn(`Failed to send escalation message: ${result.error ?? "unknown error"}`, {
+        runId,
+        stepId,
+      });
+    }
+  } catch {
+    // escalation should never block pipeline completion
+  }
+}
+
 // ── Fail ────────────────────────────────────────────────────────────
 
 // ─── Progress Archiving (T15) ────────────────────────────────────────
@@ -878,12 +1032,19 @@ export function archiveRunProgress(runId: string): void {
 /**
  * Fail a step, with retry logic. For loop steps, applies per-story retry.
  */
-export function failStep(stepId: string, error: string): { retrying: boolean; runFailed: boolean } {
+export async function failStep(stepId: string, error: string): Promise<{ retrying: boolean; runFailed: boolean }> {
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT run_id, retry_count, max_retries, type, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { run_id: string; retry_count: number; max_retries: number; type: string; current_story_id: string | null } | undefined;
+    "SELECT run_id, step_id, retry_count, max_retries, type, current_story_id FROM steps WHERE id = ?"
+  ).get(stepId) as {
+    run_id: string;
+    step_id: string;
+    retry_count: number;
+    max_retries: number;
+    type: string;
+    current_story_id: string | null;
+  } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
 
@@ -906,6 +1067,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
         emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: stepId, detail: error });
         emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: "Story retries exhausted" });
         scheduleRunCronTeardown(step.run_id);
+        await notifyFailureExhausted(step.run_id, step.step_id, error);
         return { retrying: false, runFailed: true };
       }
 
@@ -930,6 +1092,7 @@ export function failStep(stepId: string, error: string): { retrying: boolean; ru
     emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId2, stepId: stepId, detail: error });
     emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId2, detail: "Step retries exhausted" });
     scheduleRunCronTeardown(step.run_id);
+    await notifyFailureExhausted(step.run_id, step.step_id, error);
     return { retrying: false, runFailed: true };
   } else {
     db.prepare(
