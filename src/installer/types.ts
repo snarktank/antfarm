@@ -16,12 +16,17 @@ export type WorkflowAgentFiles = {
  */
 export type AgentRole = "analysis" | "coding" | "verification" | "testing" | "pr" | "scanning";
 
+export type ModelConfig = {
+  primary: string;
+  fallbacks?: string[];
+};
+
 export type WorkflowAgent = {
   id: string;
   name?: string;
   description?: string;
   role?: AgentRole;
-  model?: string;
+  model?: string | ModelConfig;
   pollingModel?: string;
   timeoutSeconds?: number;
   workspace: WorkflowAgentFiles;

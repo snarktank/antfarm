@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
-import type { LoopConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
+import type { LoopConfig, ModelConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
 
 export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
   const filePath = path.join(workflowDir, "workflow.yml");
@@ -43,6 +43,26 @@ function validatePollingConfig(polling: PollingConfig, workflowDir: string) {
   }
 }
 
+function validateAgentModel(model: string | ModelConfig, agentId: string) {
+  if (typeof model === "string") return;
+  if (typeof model !== "object" || model === null) {
+    throw new Error(`workflow.yml agent "${agentId}" model must be a string or object with a primary field`);
+  }
+  if (typeof model.primary !== "string" || model.primary.trim() === "") {
+    throw new Error(`workflow.yml agent "${agentId}" model.primary must be a non-empty string`);
+  }
+  if (model.fallbacks !== undefined) {
+    if (!Array.isArray(model.fallbacks)) {
+      throw new Error(`workflow.yml agent "${agentId}" model.fallbacks must be a list`);
+    }
+    for (const fb of model.fallbacks) {
+      if (typeof fb !== "string" || !fb.trim()) {
+        throw new Error(`workflow.yml agent "${agentId}" model.fallbacks must contain non-empty strings`);
+      }
+    }
+  }
+}
+
 function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
   const ids = new Set<string>();
   for (const agent of agents) {
@@ -67,6 +87,9 @@ function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
     }
     if (agent.timeoutSeconds !== undefined && agent.timeoutSeconds <= 0) {
       throw new Error(`workflow.yml agent "${agent.id}" timeoutSeconds must be positive`);
+    }
+    if (agent.model !== undefined) {
+      validateAgentModel(agent.model, agent.id);
     }
   }
 }

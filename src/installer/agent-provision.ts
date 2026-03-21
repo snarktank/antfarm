@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { WorkflowAgent, WorkflowSpec } from "./types.js";
+import type { ModelConfig, WorkflowAgent, WorkflowSpec } from "./types.js";
 import { resolveOpenClawStateDir, resolveWorkflowWorkspaceRoot } from "./paths.js";
 import { writeWorkflowFile } from "./workspace-files.js";
 
 export type ProvisionedAgent = {
   id: string;
   name?: string;
-  model?: string;
+  model?: string | ModelConfig;
   timeoutSeconds?: number;
   workspaceDir: string;
   agentDir: string;

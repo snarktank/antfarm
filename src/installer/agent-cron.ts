@@ -1,5 +1,5 @@
 import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAvailable } from "./gateway-api.js";
-import type { WorkflowSpec } from "./types.js";
+import type { ModelConfig, WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
 import { readOpenClawConfig } from "./openclaw-config.js";
@@ -91,6 +91,7 @@ The workflow cannot advance until you report. Your session ending without report
 const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
 const DEFAULT_POLLING_MODEL = "default";
 
+export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string | ModelConfig): string {
 function extractModel(value: unknown): string | undefined {
   if (!value) return undefined;
   if (typeof value === "string") return value;
@@ -128,7 +129,14 @@ async function resolveAgentCronModel(agentId: string, requestedModel?: string): 
 export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
-  const model = workModel ?? "default";
+  let model: string;
+  if (workModel == null) {
+    model = "default";
+  } else if (typeof workModel === "string") {
+    model = workModel;
+  } else {
+    model = JSON.stringify(workModel);
+  }
   const workPrompt = buildWorkPrompt(workflowId, agentId);
 
   return `Step 1 — Quick check for pending work (lightweight, no side effects):

@@ -208,7 +208,7 @@ function ensureSessionMaintenance(config: OpenClawConfig): void {
 
 function upsertAgent(
   list: Array<Record<string, unknown>>,
-  agent: { id: string; name?: string; model?: string; timeoutSeconds?: number; workspaceDir: string; agentDir: string; role: AgentRole },
+  agent: { id: string; name?: string; model?: string | import("./types.js").ModelConfig; timeoutSeconds?: number; workspaceDir: string; agentDir: string; role: AgentRole },
 ) {
   const existing = list.find((entry) => entry.id === agent.id);
   // Never overwrite the user's default (main) agent — it was configured outside antfarm.
