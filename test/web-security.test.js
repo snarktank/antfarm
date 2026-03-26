@@ -59,3 +59,39 @@ test('should reject directory traversal in download and serve only data files', 
     fs.rmSync(fixtureRoot, { recursive: true, force: true });
   }
 });
+
+test('should require authentication and admin role for admin delete', async () => {
+  await withServer(async (baseUrl) => {
+    const unauthenticated = await fetch(`${baseUrl}/admin/delete-user`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userId: 'victim-1' })
+    });
+    assert.equal(unauthenticated.status, 401);
+    assert.deepEqual(await unauthenticated.json(), { error: 'Authentication required' });
+
+    const nonAdmin = await fetch(`${baseUrl}/admin/delete-user`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-authenticated-user': 'alice',
+        'x-user-role': 'user'
+      },
+      body: JSON.stringify({ userId: 'victim-2' })
+    });
+    assert.equal(nonAdmin.status, 403);
+    assert.deepEqual(await nonAdmin.json(), { error: 'Admin role required' });
+
+    const admin = await fetch(`${baseUrl}/admin/delete-user`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-authenticated-user': 'root-admin',
+        'x-user-role': 'ADMIN'
+      },
+      body: JSON.stringify({ userId: 'victim-3' })
+    });
+    assert.equal(admin.status, 200);
+    assert.deepEqual(await admin.json(), { deleted: 'victim-3', by: 'root-admin' });
+  });
+});

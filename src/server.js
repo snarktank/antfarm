@@ -72,9 +72,32 @@ app.get('/download', (req, res) => {
   }
 });
 
-app.post('/admin/delete-user', (req, res) => {
+function requireAuthenticatedUser(req, res, next) {
+  const username = req.get('x-authenticated-user');
+
+  if (typeof username !== 'string' || username.trim() === '') {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  req.user = {
+    name: username.trim(),
+    role: typeof req.get('x-user-role') === 'string' ? req.get('x-user-role').trim().toLowerCase() : ''
+  };
+
+  next();
+}
+
+function requireAdminRole(req, res, next) {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin role required' });
+  }
+
+  next();
+}
+
+app.post('/admin/delete-user', requireAuthenticatedUser, requireAdminRole, (req, res) => {
   const userId = req.body.userId;
-  res.json({ deleted: userId, by: 'unauthenticated-user' });
+  res.json({ deleted: userId, by: req.user.name });
 });
 
 app.get('/fetch', async (req, res) => {

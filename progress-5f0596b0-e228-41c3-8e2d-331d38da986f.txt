@@ -1,17 +1,16 @@
 Run: 5f0596b0-e228-41c3-8e2d-331d38da986f
-Story: fix-004
+Story: fix-005
 Status: done
 
 Completed story results:
-- Reworked the /download route in src/server.js to validate raw input, reject traversal markers and null bytes, normalize the requested path, and resolve it against the data directory before reading.
-- Enforced data-directory containment with path.resolve plus path.relative so resolved targets cannot escape the intended download root.
-- Added explicit error handling so invalid file input returns 400, missing in-directory files return 404, and unexpected read failures return 500.
-- Added a regression test that hits the real /download endpoint with a safe file request plus plain traversal, nested traversal, URL-encoded traversal, and null-byte payloads.
-- Added minimal build/test scripts in package.json so npm run build and npm test execute during workflow verification.
+- Protected the /admin/delete-user route in src/server.js with an authentication middleware that requires an authenticated user header before any state-changing action can run.
+- Added an admin-authorization middleware that only allows requests with the admin role to reach the delete handler and returns 403 for authenticated non-admin users.
+- Updated the delete response to attribute successful deletes to the authenticated admin instead of the prior unauthenticated placeholder.
+- Added a regression test that hits the real /admin/delete-user endpoint and verifies unauthenticated requests are denied, non-admin authenticated requests are forbidden, and authenticated admins can still delete a user.
 - Verified npm run build passes.
 - Verified npm test passes.
 
 Patterns:
-- For directory traversal fixes, reject dangerous raw input like traversal markers and null bytes before filesystem access, then normalize and resolve the path against a fixed base directory.
-- Use path.resolve plus path.relative to prove the final target stays inside the intended directory rather than trusting string concatenation.
-- Regression tests should exercise the real HTTP endpoint with both safe requests and encoded exploit variants so retries catch incomplete traversal defenses.
+- For missing-auth vulnerabilities on state-changing routes, enforce authentication before the handler and apply role checks as separate middleware so authorization happens before any mutation logic.
+- Regression tests should exercise the original HTTP endpoint with both unauthenticated and under-privileged requests, then confirm the authorized role still succeeds.
+- Keep authz fixes minimal by using the existing request path and simple request metadata rather than broad application rewrites.
