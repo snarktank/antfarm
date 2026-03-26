@@ -1,0 +1,28 @@
+# Node dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+*.secret
+*.key
+*.pem
+
+# Build artifacts
+dist/
+coverage/
+.nyc_output/
+
+# macOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
