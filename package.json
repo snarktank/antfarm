@@ -1,0 +1,15 @@
+{
+  "name": "antfarm-security-smoketest-34",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "4.18.2",
+    "lodash": "4.17.20",
+    "minimist": "0.0.8",
+    "sqlite3": "5.1.6"
+  }
+}
