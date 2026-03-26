@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 import sqlite3 from 'sqlite3';
+import { fileURLToPath } from 'url';
 
 const app = express();
 const db = new sqlite3.Database(':memory:');
@@ -37,9 +38,38 @@ app.post('/run', (req, res) => {
 
 app.get('/download', (req, res) => {
   const file = req.query.file;
-  const target = path.join(process.cwd(), 'data', file);
-  const content = fs.readFileSync(target, 'utf8');
-  res.type('text/plain').send(content);
+
+  if (typeof file !== 'string' || file.trim() === '') {
+    return res.status(400).json({ error: 'A valid file is required' });
+  }
+
+  if (file.includes('\0') || file.includes('..')) {
+    return res.status(400).json({ error: 'Invalid file path' });
+  }
+
+  const dataDirectory = path.resolve(process.cwd(), 'data');
+  const normalizedFile = path.normalize(file).replace(/^([/\\])+/, '');
+  const target = path.resolve(dataDirectory, normalizedFile);
+  const relativeTarget = path.relative(dataDirectory, target);
+
+  if (
+    normalizedFile === '' ||
+    relativeTarget.startsWith('..') ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    return res.status(400).json({ error: 'Invalid file path' });
+  }
+
+  try {
+    const content = fs.readFileSync(target, 'utf8');
+    res.type('text/plain').send(content);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    return res.status(500).json({ error: 'Unable to read file' });
+  }
 });
 
 app.post('/admin/delete-user', (req, res) => {
@@ -63,4 +93,12 @@ app.get('/debug', (req, res) => {
   res.json({ env: process.env, cwd: process.cwd() });
 });
 
-app.listen(3000);
+export function startServer(port = 3000) {
+  return app.listen(port);
+}
+
+const isEntrypoint = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+
+if (isEntrypoint) {
+  startServer(3000);
+}
