@@ -129,6 +129,22 @@ test('should require authentication and admin role for admin delete', async () =
   });
 });
 
+test('should reject SQL injection in user lookup and return only bound-parameter matches', async () => {
+  await withServer(async (baseUrl) => {
+    const safe = await fetch(`${baseUrl}/user?id=1`);
+    assert.equal(safe.status, 200);
+    assert.deepEqual(await safe.json(), [{ id: 1, name: 'Alice' }]);
+
+    const injected = await fetch(`${baseUrl}/user?id=${encodeURIComponent('1 OR 1=1')}`);
+    assert.equal(injected.status, 400);
+    assert.deepEqual(await injected.json(), { error: 'id must be a numeric identifier' });
+
+    const unionPayload = await fetch(`${baseUrl}/user?id=${encodeURIComponent('1 UNION SELECT 99,sqlite_version()')}`);
+    assert.equal(unionPayload.status, 400);
+    assert.deepEqual(await unionPayload.json(), { error: 'id must be a numeric identifier' });
+  });
+});
+
 test('should reject code-execution payloads in deserialize and accept only schema-valid JSON', async () => {
   const markerFile = '/tmp/antfarm-deserialize-owned';
   fs.rmSync(markerFile, { force: true });

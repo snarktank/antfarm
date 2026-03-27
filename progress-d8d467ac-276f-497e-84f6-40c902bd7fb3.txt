@@ -1,17 +1,16 @@
 Run: d8d467ac-276f-497e-84f6-40c902bd7fb3
-Story: fix-002
+Story: fix-003
 Status: done
 
 Completed story results:
-- Replaced the vulnerable `eval`-based `/deserialize` implementation in `src/server.js` with `JSON.parse` so request payloads are handled strictly as JSON data instead of executable code.
-- Added explicit schema validation for deserialized payloads and only accept plain objects with exactly two fields: a non-empty string `type` and a primitive-or-null `value`.
-- Closed the endpoint on malformed JSON, non-string `payload` inputs, and schema-invalid objects by returning HTTP 400 with `Invalid payload`.
-- Added a regression test in `test/web-security.test.js` that submits an `eval`-style code-execution payload, verifies it is rejected, and confirms no attacker-controlled file is written.
-- Added a positive test case proving a schema-valid JSON payload is still accepted by `/deserialize`.
+- Reworked the vulnerable `/user` lookup in `src/server.js` to reject non-numeric `id` values up front and return HTTP 400 for malformed identifiers.
+- Removed direct SQL string concatenation and switched the user lookup query to a bound parameter (`SELECT * FROM users WHERE id = ?`) so request input can no longer change query structure.
+- Seeded the in-memory `users` table with fixture rows so the endpoint and regression coverage exercise a real successful lookup path.
+- Added a regression test in `test/web-security.test.js` that verifies a safe numeric lookup still returns the expected user while classic `OR 1=1` and `UNION SELECT` injection payloads are rejected.
 - Verified `npm run build` passes.
 - Verified `npm test` passes.
 
 Patterns:
-- When an endpoint expects serialized data, parse it with a data-only parser such as `JSON.parse` and reject any format that would require code execution to interpret.
-- Define a narrow schema for accepted payloads and reject extra fields, wrong types, arrays, and non-object values so the endpoint fails closed.
-- Regression tests for insecure deserialization should include a payload that would have executed under `eval`, plus a safe payload that demonstrates the intended contract still works.
+- For SQL-backed lookups, validate identifier shape before touching the database and fail closed on malformed input.
+- Never interpolate user-controlled values into SQL strings; always use placeholders/bound parameters.
+- Regression tests for SQL injection should cover both a normal successful lookup and exploit payloads that previously would have altered the query structure.

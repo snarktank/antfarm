@@ -7,6 +7,12 @@ import { fileURLToPath } from 'url';
 export const app = express();
 const db = new sqlite3.Database(':memory:');
 
+db.serialize(() => {
+  db.run('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT NOT NULL)');
+  db.run('INSERT OR IGNORE INTO users (id, name) VALUES (?, ?)', [1, 'Alice']);
+  db.run('INSERT OR IGNORE INTO users (id, name) VALUES (?, ?)', [2, 'Bob']);
+});
+
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -16,8 +22,13 @@ app.use((req, res, next) => {
 
 app.get('/user', (req, res) => {
   const id = req.query.id;
-  const sql = `SELECT * FROM users WHERE id = ${id}`;
-  db.all(sql, [], (err, rows) => {
+
+  if (typeof id !== 'string' || !/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'id must be a numeric identifier' });
+  }
+
+  const sql = 'SELECT * FROM users WHERE id = ?';
+  db.all(sql, [Number.parseInt(id, 10)], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows);
   });
