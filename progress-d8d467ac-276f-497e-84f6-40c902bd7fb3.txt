@@ -1,15 +1,14 @@
-Story fix-008: Harden session cookies and session expiration policy
+Story fix-009: Add CSRF protections on state-changing endpoints
 
 Completed:
-- Integrated session hardening into the live Express request path in `src/server.js` by issuing and rotating the `sid` cookie through application middleware instead of leaving the policy as a test-only helper.
-- Hardened `src/session.js` so cookies remain `httpOnly`, default to `sameSite: 'lax'`, enforce a 15-minute `maxAge`, and automatically enable `secure` for real TLS requests, including deployments behind a proxy forwarding `X-Forwarded-Proto: https`.
-- Added session encoding/decoding plus renewal enforcement so malformed or stale session cookies are rotated after the configured renewal window instead of persisting indefinitely.
-- Added durable product documentation in `docs/session-cookie-policy.md` describing the restrictive cookie policy, TLS/proxy secure handling, expiration, and rotation behavior.
-- Extended `test/web-security.test.js` with end-to-end regression coverage that hits the live `/session` route, asserts `HttpOnly`/`Secure`/`SameSite=Lax`/`Max-Age=900` on the emitted cookie, and proves stale session cookies are rotated.
+- Added targeted CSRF enforcement in `src/server.js` for the state-changing `/run`, `/admin/delete-user`, and `/deserialize` POST routes.
+- Implemented strict same-origin validation for cookie-authenticated requests by checking the request `Origin` header first and falling back to `Referer`, then rejecting missing or cross-site sources with `403 { error: 'CSRF validation failed' }`.
+- Scoped the guard to requests that present the app `sid` cookie so existing non-cookie API flows are not broken while browser-backed session requests gain CSRF protection.
+- Extended `test/web-security.test.js` with an end-to-end regression test that first obtains a live session cookie, then proves forged cross-site POSTs to `/run` and `/admin/delete-user` are blocked, same-origin requests still succeed, and cookie-backed POSTs without `Origin`/`Referer` are rejected.
 - Verified the fix with `npm run build` and `npm test`.
 
 Patterns / learnings:
-- Session-cookie fixes must land in a real request path; helper-only hardening is insufficient if the application never emits the hardened cookie.
-- Treat TLS detection as a deployment concern, not just an environment flag: honor request security signals such as `req.secure` and `X-Forwarded-Proto` when deciding whether to set `Secure`.
-- Durable repository documentation is part of the security fix when the acceptance criteria require a documented default policy.
-- Regression tests for session security should inspect the actual `Set-Cookie` header and verify rotation behavior for stale cookies, not just helper return values.
+- For cookie-backed state changes, SameSite helps but server-side same-origin validation closes the loop and should explicitly reject requests with missing provenance headers.
+- A minimal CSRF fix can be applied route-by-route without disturbing unrelated authentication or input-validation logic.
+- Regression tests should simulate a real browser flow by minting a live session cookie first; otherwise CSRF coverage can miss the exploitable path.
+- Keeping CSRF checks conditional on the presence of the session cookie avoids unintentionally breaking non-browser clients that are not using cookie authentication.

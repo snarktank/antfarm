@@ -27,6 +27,13 @@ async function withServer(run) {
   }
 }
 
+async function issueSessionCookie(baseUrl) {
+  const response = await fetch(`${baseUrl}/session`);
+  const cookieHeader = response.headers.get('set-cookie');
+  assert.ok(cookieHeader, 'expected session cookie to be issued');
+  return cookieHeader.split(';', 1)[0];
+}
+
 test('should reject directory traversal in download and serve only data files', async () => {
   const originalCwd = process.cwd();
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'download-fixture-'));
@@ -132,6 +139,82 @@ test('should require authentication and admin role for admin delete', async () =
     });
     assert.equal(admin.status, 200);
     assert.deepEqual(await admin.json(), { deleted: 'victim-3', by: 'root-admin' });
+  });
+});
+
+test('should reject cross-site forged POST requests on cookie-authenticated state-changing routes', async () => {
+  await withServer(async (baseUrl) => {
+    const sessionCookie = await issueSessionCookie(baseUrl);
+
+    const forgedRun = await fetch(`${baseUrl}/run`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: sessionCookie,
+        origin: 'https://evil.example'
+      },
+      body: JSON.stringify({ cmd: '' })
+    });
+    assert.equal(forgedRun.status, 403);
+    assert.deepEqual(await forgedRun.json(), { error: 'CSRF validation failed' });
+
+    const sameOriginRun = await fetch(`${baseUrl}/run`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: sessionCookie,
+        origin: baseUrl
+      },
+      body: JSON.stringify({ cmd: '' })
+    });
+    assert.equal(sameOriginRun.status, 200);
+
+    const forgedDelete = await fetch(`${baseUrl}/admin/delete-user`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: sessionCookie,
+        origin: 'https://evil.example',
+        'x-authenticated-user': 'root-admin',
+        'x-user-role': 'admin'
+      },
+      body: JSON.stringify({ userId: 'victim-4' })
+    });
+    assert.equal(forgedDelete.status, 403);
+    assert.deepEqual(await forgedDelete.json(), { error: 'CSRF validation failed' });
+
+    const sameOriginDeserialize = await fetch(`${baseUrl}/deserialize`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: sessionCookie,
+        referer: `${baseUrl}/form`
+      },
+      body: JSON.stringify({
+        payload: '{"type":"note","value":"safe text"}'
+      })
+    });
+    assert.equal(sameOriginDeserialize.status, 200);
+    assert.deepEqual(await sameOriginDeserialize.json(), {
+      ok: true,
+      obj: {
+        type: 'note',
+        value: 'safe text'
+      }
+    });
+
+    const missingSource = await fetch(`${baseUrl}/deserialize`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: sessionCookie
+      },
+      body: JSON.stringify({
+        payload: '{"type":"note","value":"safe text"}'
+      })
+    });
+    assert.equal(missingSource.status, 403);
+    assert.deepEqual(await missingSource.json(), { error: 'CSRF validation failed' });
   });
 });
 

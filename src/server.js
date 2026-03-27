@@ -78,7 +78,7 @@ app.get('/search', (req, res) => {
 const SAFE_RUN_ARGUMENTS = new Set(['', '.', './data', 'data']);
 const UNSAFE_RUN_PATTERN = /[;&|`$()<>\\\n\r]/;
 
-app.post('/run', (req, res) => {
+app.post('/run', requireCsrfProtection, (req, res) => {
   const cmd = req.body?.cmd;
 
   if (typeof cmd !== 'string') {
@@ -163,6 +163,48 @@ function requireAuthenticatedUser(req, res, next) {
 function requireAdminRole(req, res, next) {
   if (req.user?.role !== 'admin') {
     return res.status(403).json({ error: 'Admin role required' });
+  }
+
+  next();
+}
+
+function getRequestOrigin(req) {
+  const forwardedProto = req.get('x-forwarded-proto');
+  const protocol = typeof forwardedProto === 'string' && forwardedProto.trim() !== ''
+    ? forwardedProto.split(',')[0].trim()
+    : (req.protocol || 'http');
+
+  return `${protocol}://${req.get('host')}`;
+}
+
+function isAllowedCsrfSource(req) {
+  const requestOrigin = getRequestOrigin(req);
+  const originHeader = req.get('origin');
+
+  if (typeof originHeader === 'string' && originHeader.trim() !== '') {
+    return originHeader === requestOrigin;
+  }
+
+  const refererHeader = req.get('referer');
+
+  if (typeof refererHeader === 'string' && refererHeader.trim() !== '') {
+    try {
+      return new URL(refererHeader).origin === requestOrigin;
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+function requireCsrfProtection(req, res, next) {
+  if (!readCookie(req, 'sid')) {
+    return next();
+  }
+
+  if (!isAllowedCsrfSource(req)) {
+    return res.status(403).json({ error: 'CSRF validation failed' });
   }
 
   next();
@@ -320,7 +362,7 @@ function isValidDeserializedObject(value) {
   return ['string', 'number', 'boolean'].includes(typeof value.value) || value.value === null;
 }
 
-app.post('/admin/delete-user', requireAuthenticatedUser, requireAdminRole, (req, res) => {
+app.post('/admin/delete-user', requireCsrfProtection, requireAuthenticatedUser, requireAdminRole, (req, res) => {
   const userId = req.body.userId;
   res.json({ deleted: userId, by: req.user.name });
 });
@@ -341,7 +383,7 @@ app.get('/fetch', async (req, res) => {
   }
 });
 
-app.post('/deserialize', (req, res) => {
+app.post('/deserialize', requireCsrfProtection, (req, res) => {
   if (typeof req.body?.payload !== 'string') {
     return res.status(400).json({ error: 'Invalid payload' });
   }
