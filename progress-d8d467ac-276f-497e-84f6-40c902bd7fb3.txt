@@ -1,16 +1,18 @@
 Run: d8d467ac-276f-497e-84f6-40c902bd7fb3
-Story: fix-003
+Story: fix-004
 Status: done
 
 Completed story results:
-- Reworked the vulnerable `/user` lookup in `src/server.js` to reject non-numeric `id` values up front and return HTTP 400 for malformed identifiers.
-- Removed direct SQL string concatenation and switched the user lookup query to a bound parameter (`SELECT * FROM users WHERE id = ?`) so request input can no longer change query structure.
-- Seeded the in-memory `users` table with fixture rows so the endpoint and regression coverage exercise a real successful lookup path.
-- Added a regression test in `test/web-security.test.js` that verifies a safe numeric lookup still returns the expected user while classic `OR 1=1` and `UNION SELECT` injection payloads are rejected.
+- Hardened the vulnerable `/fetch` endpoint in `src/server.js` so it now requires a non-empty, strictly parsed URL instead of blindly fetching `req.query.url`.
+- Added explicit outbound fetch policy controls: only `https:` URLs to the hostname allowlist (`example.com`, `www.example.com`) are permitted, credentials in URLs are rejected, and hostnames resolving to localhost, RFC1918, link-local, loopback, unique-local, and metadata-style internal IP space are blocked.
+- Replaced automatic redirect following with manual redirect validation in `fetchAllowedUrl(...)`, so every hop is re-validated and redirect chains cannot bounce an allowed URL into an internal target.
+- Added an outbound request timeout using `AbortController` and capped redirect depth to fail closed on hanging or abusive upstream behavior.
+- Added a regression test in `test/web-security.test.js` that verifies direct localhost SSRF is rejected and that a redirect from an allowlisted host to a metadata IP is also rejected.
 - Verified `npm run build` passes.
 - Verified `npm test` passes.
 
 Patterns:
-- For SQL-backed lookups, validate identifier shape before touching the database and fail closed on malformed input.
-- Never interpolate user-controlled values into SQL strings; always use placeholders/bound parameters.
-- Regression tests for SQL injection should cover both a normal successful lookup and exploit payloads that previously would have altered the query structure.
+- SSRF defenses should validate the fully parsed URL, not raw strings, and should enforce both protocol and destination allowlists.
+- Treat DNS resolution as part of authorization: block requests when a hostname resolves to internal, loopback, or link-local IP space even if the hostname itself looks benign.
+- Disable automatic redirect trust for server-side fetches; validate each redirect hop before issuing the next request.
+- Add explicit outbound timeouts so security controls do not leave the process hanging on malicious or unreachable upstreams.

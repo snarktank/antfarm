@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
-import { startServer } from '../src/server.js';
+import { fetchAllowedUrl, startServer } from '../src/server.js';
 
 async function withServer(run) {
   const server = startServer(0);
@@ -187,4 +187,42 @@ test('should reject code-execution payloads in deserialize and accept only schem
       }
     });
   });
+});
+
+test('should reject SSRF targets and redirect chains that resolve to internal addresses', async () => {
+  await assert.rejects(
+    () => fetchAllowedUrl('http://127.0.0.1/private'),
+    /URL not allowed/
+  );
+
+  const lookup = async (hostname) => {
+    if (hostname === 'example.com') {
+      return [{ address: '93.184.216.34', family: 4 }];
+    }
+
+    if (hostname === '169.254.169.254.nip.io') {
+      return [{ address: '169.254.169.254', family: 4 }];
+    }
+
+    throw new Error(`Unexpected hostname lookup: ${hostname}`);
+  };
+
+  let fetchCalls = 0;
+  await assert.rejects(
+    () => fetchAllowedUrl('https://example.com/redirect', {
+      lookup,
+      fetchImpl: async () => {
+        fetchCalls += 1;
+        return new Response(null, {
+          status: 302,
+          headers: {
+            location: 'https://169.254.169.254.nip.io/latest/meta-data/'
+          }
+        });
+      }
+    }),
+    /URL not allowed/
+  );
+
+  assert.equal(fetchCalls, 1);
 });

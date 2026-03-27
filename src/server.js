@@ -2,6 +2,8 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import sqlite3 from 'sqlite3';
+import { promises as dns } from 'node:dns';
+import net from 'node:net';
 import { fileURLToPath } from 'url';
 
 export const app = express();
@@ -136,6 +138,136 @@ function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const ALLOWED_FETCH_PROTOCOLS = new Set(['https:']);
+const ALLOWED_FETCH_HOSTNAMES = new Set(['example.com', 'www.example.com']);
+const FETCH_TIMEOUT_MS = 3_000;
+const MAX_FETCH_REDIRECTS = 3;
+
+function isBlockedIpv4(ip) {
+  const octets = ip.split('.').map((part) => Number.parseInt(part, 10));
+
+  if (octets.length !== 4 || octets.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
+    return true;
+  }
+
+  return (
+    octets[0] === 0 ||
+    octets[0] === 10 ||
+    octets[0] === 127 ||
+    (octets[0] === 169 && octets[1] === 254) ||
+    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+    (octets[0] === 192 && octets[1] === 168)
+  );
+}
+
+function normalizeIp(ip) {
+  if (typeof ip !== 'string') {
+    return '';
+  }
+
+  const mappedIpv4 = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (mappedIpv4) {
+    return mappedIpv4[1];
+  }
+
+  return ip.toLowerCase();
+}
+
+function isBlockedIp(ip) {
+  const normalizedIp = normalizeIp(ip);
+  const family = net.isIP(normalizedIp);
+
+  if (family === 4) {
+    return isBlockedIpv4(normalizedIp);
+  }
+
+  if (family === 6) {
+    return normalizedIp === '::1' || normalizedIp.startsWith('fc') || normalizedIp.startsWith('fd') || normalizedIp.startsWith('fe8') || normalizedIp.startsWith('fe9') || normalizedIp.startsWith('fea') || normalizedIp.startsWith('feb');
+  }
+
+  return true;
+}
+
+async function assertUrlIsAllowed(candidateUrl, lookup = dns.lookup) {
+  let parsedUrl;
+
+  try {
+    parsedUrl = new URL(candidateUrl);
+  } catch {
+    throw new Error('Invalid URL');
+  }
+
+  if (!ALLOWED_FETCH_PROTOCOLS.has(parsedUrl.protocol)) {
+    throw new Error('URL not allowed');
+  }
+
+  if (parsedUrl.username || parsedUrl.password) {
+    throw new Error('URL not allowed');
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase();
+
+  if (!ALLOWED_FETCH_HOSTNAMES.has(hostname) || hostname === 'localhost' || hostname.endsWith('.localhost')) {
+    throw new Error('URL not allowed');
+  }
+
+  const directIpFamily = net.isIP(hostname);
+  if (directIpFamily !== 0) {
+    if (isBlockedIp(hostname)) {
+      throw new Error('URL not allowed');
+    }
+
+    return parsedUrl;
+  }
+
+  const addresses = await lookup(hostname, { all: true, verbatim: true });
+
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    throw new Error('URL not allowed');
+  }
+
+  if (addresses.some((entry) => isBlockedIp(entry.address))) {
+    throw new Error('URL not allowed');
+  }
+
+  return parsedUrl;
+}
+
+async function fetchAllowedUrl(url, { fetchImpl = fetch, lookup = dns.lookup } = {}) {
+  let currentUrl = url;
+
+  for (let redirectCount = 0; redirectCount <= MAX_FETCH_REDIRECTS; redirectCount += 1) {
+    const validatedUrl = await assertUrlIsAllowed(currentUrl, lookup);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    try {
+      const response = await fetchImpl(validatedUrl.toString(), {
+        method: 'GET',
+        redirect: 'manual',
+        signal: controller.signal
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+
+        if (!location) {
+          throw new Error('Invalid redirect');
+        }
+
+        currentUrl = new URL(location, validatedUrl).toString();
+        continue;
+      }
+
+      return response;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw new Error('Too many redirects');
+}
+
 function isValidDeserializedObject(value) {
   if (!isPlainObject(value)) {
     return false;
@@ -161,9 +293,18 @@ app.post('/admin/delete-user', requireAuthenticatedUser, requireAdminRole, (req,
 
 app.get('/fetch', async (req, res) => {
   const url = req.query.url;
-  const r = await fetch(url);
-  const text = await r.text();
-  res.send(text.slice(0, 200));
+
+  if (typeof url !== 'string' || url.trim() === '') {
+    return res.status(400).json({ error: 'A valid URL is required' });
+  }
+
+  try {
+    const response = await fetchAllowedUrl(url);
+    const text = await response.text();
+    return res.send(text.slice(0, 200));
+  } catch (error) {
+    return res.status(400).json({ error: error.name === 'AbortError' ? 'Upstream request timed out' : error.message });
+  }
 });
 
 app.post('/deserialize', (req, res) => {
@@ -189,6 +330,8 @@ app.post('/deserialize', (req, res) => {
 app.get('/debug', (req, res) => {
   res.json({ env: process.env, cwd: process.cwd() });
 });
+
+export { assertUrlIsAllowed, fetchAllowedUrl };
 
 export function startServer(port = 3000) {
   return app.listen(port);
