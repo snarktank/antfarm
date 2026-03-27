@@ -1,7 +1,6 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
 import sqlite3 from 'sqlite3';
 import { fileURLToPath } from 'url';
 
@@ -29,11 +28,38 @@ app.get('/search', (req, res) => {
   res.send(`<h1>Results for: ${q}</h1>`);
 });
 
+const SAFE_RUN_ARGUMENTS = new Set(['', '.', './data', 'data']);
+const UNSAFE_RUN_PATTERN = /[;&|`$()<>\\\n\r]/;
+
 app.post('/run', (req, res) => {
-  const cmd = req.body.cmd;
-  exec(`ls ${cmd}`, (err, stdout, stderr) => {
-    res.json({ err: err?.message, stdout, stderr });
-  });
+  const cmd = req.body?.cmd;
+
+  if (typeof cmd !== 'string') {
+    return res.status(400).json({ error: 'cmd must be a string' });
+  }
+
+  const normalizedCmd = cmd.trim();
+
+  if (UNSAFE_RUN_PATTERN.test(normalizedCmd)) {
+    return res.status(400).json({ error: 'Unsafe command input' });
+  }
+
+  if (!SAFE_RUN_ARGUMENTS.has(normalizedCmd)) {
+    return res.status(400).json({ error: 'Unsupported ls target' });
+  }
+
+  const targetDirectory = normalizedCmd === '' ? '.' : normalizedCmd;
+
+  try {
+    const stdout = fs.readdirSync(targetDirectory).join('\n');
+    res.json({ err: null, stdout, stderr: '' });
+  } catch (error) {
+    res.status(error.code === 'ENOENT' ? 400 : 500).json({
+      err: error.message,
+      stdout: '',
+      stderr: ''
+    });
+  }
 });
 
 app.get('/download', (req, res) => {

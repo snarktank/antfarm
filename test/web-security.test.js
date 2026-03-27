@@ -60,6 +60,39 @@ test('should reject directory traversal in download and serve only data files', 
   }
 });
 
+test('should reject command injection payloads in run endpoint', async () => {
+  await withServer(async (baseUrl) => {
+    const safe = await fetch(`${baseUrl}/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ cmd: '' })
+    });
+    assert.equal(safe.status, 200);
+    const safeBody = await safe.json();
+    assert.equal(safeBody.err, null);
+    assert.equal(safeBody.stderr, '');
+    assert.match(safeBody.stdout, /src/);
+
+    const injected = await fetch(`${baseUrl}/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ cmd: '; touch /tmp/antfarm-owned' })
+    });
+    assert.equal(injected.status, 400);
+    assert.deepEqual(await injected.json(), { error: 'Unsafe command input' });
+    assert.equal(fs.existsSync('/tmp/antfarm-owned'), false);
+
+    const subshell = await fetch(`${baseUrl}/run`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ cmd: '$(touch /tmp/antfarm-owned-2)' })
+    });
+    assert.equal(subshell.status, 400);
+    assert.deepEqual(await subshell.json(), { error: 'Unsafe command input' });
+    assert.equal(fs.existsSync('/tmp/antfarm-owned-2'), false);
+  });
+});
+
 test('should require authentication and admin role for admin delete', async () => {
   await withServer(async (baseUrl) => {
     const unauthenticated = await fetch(`${baseUrl}/admin/delete-user`, {

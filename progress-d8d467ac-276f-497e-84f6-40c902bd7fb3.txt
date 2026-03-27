@@ -1,0 +1,16 @@
+Run: d8d467ac-276f-497e-84f6-40c902bd7fb3
+Story: fix-001
+Status: done
+
+Completed story results:
+- Replaced the vulnerable shell-based `/run` implementation in `src/server.js` with a native `fs.readdirSync` directory listing so user input is no longer interpolated into a shell command.
+- Added a strict allowlist for permitted `cmd` values (`'', '.', './data', 'data'`) and reject unsafe metacharacters such as `;`, `&&`, backticks, `$()`, redirects, and line breaks with 400 responses.
+- Preserved the endpoint behavior for safe requests by returning directory contents without invoking a shell.
+- Added a regression test in `test/web-security.test.js` that exercises `/run` with safe input and command-injection payloads, and confirms exploit attempts are rejected and do not create attacker-controlled files.
+- Verified `npm run build` passes.
+- Verified `npm test` passes.
+
+Patterns:
+- For command-injection flaws, remove shell usage entirely when possible and replace it with native APIs that operate on validated inputs.
+- Pair native API changes with a strict allowlist for accepted arguments so the endpoint only supports the narrow behavior it actually needs.
+- Regression tests should attempt realistic payloads (`;`, subshell syntax, etc.) and verify both the HTTP rejection and the absence of side effects on disk.
