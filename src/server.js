@@ -6,6 +6,7 @@ import sqlite3 from 'sqlite3';
 import { promises as dns } from 'node:dns';
 import net from 'node:net';
 import { fileURLToPath } from 'url';
+import { createSessionCookie, decodeSessionValue, encodeSessionValue, isSecureRequest, shouldRotateSession } from './session.js';
 
 export const app = express();
 const db = new sqlite3.Database(':memory:');
@@ -20,6 +21,37 @@ app.use(express.json());
 
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+});
+
+function readCookie(req, name) {
+  const cookieHeader = req.headers.cookie;
+
+  if (typeof cookieHeader !== 'string' || cookieHeader.trim() === '') {
+    return null;
+  }
+
+  for (const cookie of cookieHeader.split(';')) {
+    const [rawName, ...rawValueParts] = cookie.trim().split('=');
+
+    if (rawName === name) {
+      return rawValueParts.join('=');
+    }
+  }
+
+  return null;
+}
+
+app.use((req, res, next) => {
+  const now = Date.now();
+  const existingSession = decodeSessionValue(readCookie(req, 'sid'));
+
+  if (!existingSession || shouldRotateSession({ issuedAt: existingSession.issuedAt, now })) {
+    res.cookie('sid', encodeSessionValue({ issuedAt: now }), createSessionCookie({
+      isSecureContext: isSecureRequest(req)
+    }));
+  }
+
   next();
 });
 
@@ -331,6 +363,15 @@ app.post('/deserialize', (req, res) => {
 
 app.get('/debug', (_req, res) => {
   res.status(404).json({ error: 'Not found' });
+});
+
+app.get('/session', (req, res) => {
+  const session = decodeSessionValue(readCookie(req, 'sid'));
+  res.json({
+    hasSession: Boolean(session),
+    issuedAt: session?.issuedAt ?? null,
+    sameSite: createSessionCookie({ isSecureContext: isSecureRequest(req) }).sameSite
+  });
 });
 
 export { assertUrlIsAllowed, fetchAllowedUrl };

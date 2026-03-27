@@ -8,7 +8,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getConfig, validateConfig } from '../src/config.js';
 import { fetchAllowedUrl, startServer } from '../src/server.js';
-import { createSessionCookie, sessionPolicy, shouldRotateSession } from '../src/session.js';
+import { createSessionCookie, decodeSessionValue, encodeSessionValue, isSecureRequest, sessionPolicy, shouldRotateSession } from '../src/session.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -313,7 +313,7 @@ test('should reject SSRF targets and redirect chains that resolve to internal ad
   assert.equal(fetchCalls, 1);
 });
 
-test('should harden session cookies and rotate sessions before expiry', () => {
+test('should harden session cookies in the live request path and rotate sessions before expiry', async () => {
   const productionCookie = createSessionCookie({ isSecureContext: true });
   assert.equal(productionCookie.httpOnly, true);
   assert.equal(productionCookie.secure, true);
@@ -326,9 +326,56 @@ test('should harden session cookies and rotate sessions before expiry', () => {
   assert.equal(developmentCookie.sameSite, 'lax');
   assert.equal(developmentCookie.maxAge, 15 * 60 * 1000);
 
+  assert.equal(isSecureRequest({ secure: true, get: () => null, headers: {} }), true);
+  assert.equal(isSecureRequest({ secure: false, get: (name) => (name === 'x-forwarded-proto' ? 'https' : null), headers: {} }), true);
+  assert.equal(isSecureRequest({ secure: false, get: () => null, headers: {} }), false);
+
   assert.equal(shouldRotateSession({ issuedAt: 1_000, now: 1_000 + sessionPolicy.renewalWindowMs - 1 }), false);
   assert.equal(shouldRotateSession({ issuedAt: 1_000, now: 1_000 + sessionPolicy.renewalWindowMs }), true);
   assert.equal(shouldRotateSession({ issuedAt: Number.NaN, now: 1_000 }), true);
+
+  await withServer(async (baseUrl) => {
+    const tlsResponse = await fetch(`${baseUrl}/session`, {
+      headers: {
+        'x-forwarded-proto': 'https'
+      }
+    });
+
+    assert.equal(tlsResponse.status, 200);
+    const tlsCookieHeader = tlsResponse.headers.get('set-cookie') ?? '';
+    assert.match(tlsCookieHeader, /sid=/);
+    assert.match(tlsCookieHeader, /HttpOnly/i);
+    assert.match(tlsCookieHeader, /Secure/i);
+    assert.match(tlsCookieHeader, /SameSite=Lax/i);
+    assert.match(tlsCookieHeader, /Max-Age=900/i);
+
+    const insecureResponse = await fetch(`${baseUrl}/session`);
+    const insecureCookieHeader = insecureResponse.headers.get('set-cookie') ?? '';
+    assert.match(insecureCookieHeader, /sid=/);
+    assert.match(insecureCookieHeader, /HttpOnly/i);
+    assert.doesNotMatch(insecureCookieHeader, /Secure/i);
+    assert.match(insecureCookieHeader, /SameSite=Lax/i);
+
+    const staleSessionCookie = encodeSessionValue({
+      issuedAt: Date.now() - sessionPolicy.renewalWindowMs - 1_000
+    });
+    const rotatedResponse = await fetch(`${baseUrl}/session`, {
+      headers: {
+        cookie: `sid=${staleSessionCookie}`
+      }
+    });
+    const rotatedCookieHeader = rotatedResponse.headers.get('set-cookie') ?? '';
+    assert.match(rotatedCookieHeader, /sid=/);
+    const rotatedValue = /sid=([^;]+)/.exec(rotatedCookieHeader)?.[1] ?? '';
+    const decodedRotatedSession = decodeSessionValue(rotatedValue);
+    assert.ok(decodedRotatedSession);
+    assert.ok(decodedRotatedSession.issuedAt > Date.now() - sessionPolicy.renewalWindowMs);
+  });
+
+  const sessionPolicyDoc = fs.readFileSync(path.resolve('docs/session-cookie-policy.md'), 'utf8');
+  assert.match(sessionPolicyDoc, /SameSite=Lax/);
+  assert.match(sessionPolicyDoc, /X-Forwarded-Proto: https/);
+  assert.match(sessionPolicyDoc, /Max-Age=900/);
 });
 
 test('should pin patched dependency versions and enforce a high-severity audit gate in CI', () => {

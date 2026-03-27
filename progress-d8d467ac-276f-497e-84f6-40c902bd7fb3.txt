@@ -1,16 +1,15 @@
-Run: d8d467ac-276f-497e-84f6-40c902bd7fb3
-Story: fix-008
-Status: done
+Story fix-008: Harden session cookies and session expiration policy
 
-Completed story results:
-- Hardened `src/session.js` by replacing insecure defaults with a documented restrictive session policy: cookies are now always `httpOnly`, default to `sameSite: 'lax'`, enable `secure` automatically for TLS/production contexts, and enforce a bounded `maxAge` of 15 minutes.
-- Added explicit session lifecycle controls in `src/session.js` with a renewal window and `shouldRotateSession()` helper so sessions are rotated before expiry instead of lingering indefinitely.
-- Kept the change targeted by exporting `createSessionCookie()` for environment-aware cookie construction while preserving a default `sessionCookie` export for existing consumers.
-- Added regression coverage in `test/web-security.test.js` to verify production cookies are `httpOnly` + `secure`, development cookies stay `httpOnly` with restrictive `sameSite`, session expiration is bounded, and renewal triggers once the configured rotation window is reached.
-- Verified `npm run build` passes.
-- Verified `npm test` passes.
+Completed:
+- Integrated session hardening into the live Express request path in `src/server.js` by issuing and rotating the `sid` cookie through application middleware instead of leaving the policy as a test-only helper.
+- Hardened `src/session.js` so cookies remain `httpOnly`, default to `sameSite: 'lax'`, enforce a 15-minute `maxAge`, and automatically enable `secure` for real TLS requests, including deployments behind a proxy forwarding `X-Forwarded-Proto: https`.
+- Added session encoding/decoding plus renewal enforcement so malformed or stale session cookies are rotated after the configured renewal window instead of persisting indefinitely.
+- Added durable product documentation in `docs/session-cookie-policy.md` describing the restrictive cookie policy, TLS/proxy secure handling, expiration, and rotation behavior.
+- Extended `test/web-security.test.js` with end-to-end regression coverage that hits the live `/session` route, asserts `HttpOnly`/`Secure`/`SameSite=Lax`/`Max-Age=900` on the emitted cookie, and proves stale session cookies are rotated.
+- Verified the fix with `npm run build` and `npm test`.
 
-Patterns:
-- Session cookies should be secure by default: `httpOnly` always on, `sameSite` restrictive unless there is a documented cross-site requirement, and `secure` tied to TLS/production contexts.
-- Treat session lifetime as part of the fix, not a follow-up: define explicit TTL and renewal thresholds so stale sessions cannot remain valid indefinitely.
-- Regression tests for session security should assert both configuration hardening and lifecycle behavior, including rotation thresholds, to prevent future drift back to permissive defaults.
+Patterns / learnings:
+- Session-cookie fixes must land in a real request path; helper-only hardening is insufficient if the application never emits the hardened cookie.
+- Treat TLS detection as a deployment concern, not just an environment flag: honor request security signals such as `req.secure` and `X-Forwarded-Proto` when deciding whether to set `Secure`.
+- Durable repository documentation is part of the security fix when the acceptance criteria require a documented default policy.
+- Regression tests for session security should inspect the actual `Set-Cookie` header and verify rotation behavior for stale cookies, not just helper return values.
