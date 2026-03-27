@@ -1,14 +1,14 @@
-Story fix-009: Add CSRF protections on state-changing endpoints
+Story fix-010: Restrict CORS and apply baseline HTTP security headers
 
 Completed:
-- Added targeted CSRF enforcement in `src/server.js` for the state-changing `/run`, `/admin/delete-user`, and `/deserialize` POST routes.
-- Implemented strict same-origin validation for cookie-authenticated requests by checking the request `Origin` header first and falling back to `Referer`, then rejecting missing or cross-site sources with `403 { error: 'CSRF validation failed' }`.
-- Scoped the guard to requests that present the app `sid` cookie so existing non-cookie API flows are not broken while browser-backed session requests gain CSRF protection.
-- Extended `test/web-security.test.js` with an end-to-end regression test that first obtains a live session cookie, then proves forged cross-site POSTs to `/run` and `/admin/delete-user` are blocked, same-origin requests still succeed, and cookie-backed POSTs without `Origin`/`Referer` are rejected.
+- Replaced the wildcard CORS behavior in `src/server.js` with an explicit trusted-origin allowlist that permits only approved app origins plus local development origins, and only advertises the required `GET`/`POST` methods and expected request headers.
+- Added centralized baseline response hardening in `src/server.js` with `Content-Security-Policy`, `X-Frame-Options: DENY`, and `X-Content-Type-Options: nosniff`, plus conditional `Strict-Transport-Security` on secure requests.
+- Added strict OPTIONS preflight handling so trusted origins receive a `204` CORS response while untrusted origins are denied with `403` instead of inheriting permissive behavior.
+- Extended `test/web-security.test.js` with an integration regression test that proves trusted origins receive the narrowed CORS policy and security headers, untrusted origins do not get CORS access, and hostile preflights are rejected.
 - Verified the fix with `npm run build` and `npm test`.
 
 Patterns / learnings:
-- For cookie-backed state changes, SameSite helps but server-side same-origin validation closes the loop and should explicitly reject requests with missing provenance headers.
-- A minimal CSRF fix can be applied route-by-route without disturbing unrelated authentication or input-validation logic.
-- Regression tests should simulate a real browser flow by minting a live session cookie first; otherwise CSRF coverage can miss the exploitable path.
-- Keeping CSRF checks conditional on the presence of the session cookie avoids unintentionally breaking non-browser clients that are not using cookie authentication.
+- CORS should echo only known trusted origins; omitting `Access-Control-Allow-Origin` for everything else is safer than trying to sanitize arbitrary origins.
+- Baseline browser hardening can be applied with a small shared middleware layer, which keeps header policy consistent across routes without broad refactors.
+- HSTS should be emitted only for secure requests, while CSP, frame protections, and MIME sniffing protections should be applied universally.
+- Regression tests for CORS should cover both simple requests and OPTIONS preflight behavior, because exploitable misconfigurations often hide in preflight handling.

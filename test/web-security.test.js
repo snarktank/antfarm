@@ -34,6 +34,62 @@ async function issueSessionCookie(baseUrl) {
   return cookieHeader.split(';', 1)[0];
 }
 
+test('should allow CORS only for trusted origins and set baseline security headers', async () => {
+  await withServer(async (baseUrl) => {
+    const trustedOrigin = 'https://app.example.com';
+    const trustedResponse = await fetch(`${baseUrl}/search?q=headers`, {
+      headers: {
+        origin: trustedOrigin,
+        'x-forwarded-proto': 'https'
+      }
+    });
+
+    assert.equal(trustedResponse.status, 200);
+    assert.equal(trustedResponse.headers.get('access-control-allow-origin'), trustedOrigin);
+    assert.equal(trustedResponse.headers.get('access-control-allow-methods'), 'GET, POST');
+    assert.equal(trustedResponse.headers.get('access-control-allow-headers'), 'content-type, x-authenticated-user, x-user-role');
+    assert.equal(trustedResponse.headers.get('vary'), 'Origin');
+    assert.equal(trustedResponse.headers.get('content-security-policy'), "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'");
+    assert.equal(trustedResponse.headers.get('x-frame-options'), 'DENY');
+    assert.equal(trustedResponse.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(trustedResponse.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains');
+
+    const untrustedResponse = await fetch(`${baseUrl}/search?q=headers`, {
+      headers: {
+        origin: 'https://evil.example'
+      }
+    });
+
+    assert.equal(untrustedResponse.status, 200);
+    assert.equal(untrustedResponse.headers.get('access-control-allow-origin'), null);
+    assert.equal(untrustedResponse.headers.get('access-control-allow-methods'), null);
+    assert.equal(untrustedResponse.headers.get('access-control-allow-headers'), null);
+    assert.equal(untrustedResponse.headers.get('content-security-policy'), "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'");
+    assert.equal(untrustedResponse.headers.get('x-frame-options'), 'DENY');
+    assert.equal(untrustedResponse.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(untrustedResponse.headers.get('strict-transport-security'), null);
+
+    const preflight = await fetch(`${baseUrl}/run`, {
+      method: 'OPTIONS',
+      headers: {
+        origin: trustedOrigin,
+        'access-control-request-method': 'POST'
+      }
+    });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), trustedOrigin);
+
+    const rejectedPreflight = await fetch(`${baseUrl}/run`, {
+      method: 'OPTIONS',
+      headers: {
+        origin: 'https://evil.example',
+        'access-control-request-method': 'POST'
+      }
+    });
+    assert.equal(rejectedPreflight.status, 403);
+  });
+});
+
 test('should reject directory traversal in download and serve only data files', async () => {
   const originalCwd = process.cwd();
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'download-fixture-'));

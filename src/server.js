@@ -19,8 +19,52 @@ db.serialize(() => {
 
 app.use(express.json());
 
+const TRUSTED_CORS_ORIGINS = new Set([
+  'https://app.example.com',
+  'https://admin.example.com'
+]);
+const TRUSTED_LOCAL_ORIGIN_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
+const ALLOWED_CORS_METHODS = ['GET', 'POST'];
+const ALLOWED_CORS_HEADERS = ['content-type', 'x-authenticated-user', 'x-user-role'];
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "script-src 'self'",
+  "style-src 'self'"
+].join('; ');
+
+function isTrustedCorsOrigin(origin) {
+  return TRUSTED_CORS_ORIGINS.has(origin) || TRUSTED_LOCAL_ORIGIN_PATTERN.test(origin);
+}
+
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  if (isSecureRequest(req)) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+
+  const origin = req.get('origin');
+
+  if (typeof origin === 'string' && origin.trim() !== '' && isTrustedCorsOrigin(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', ALLOWED_CORS_METHODS.join(', '));
+    res.setHeader('Access-Control-Allow-Headers', ALLOWED_CORS_HEADERS.join(', '));
+  }
+
+  if (req.method === 'OPTIONS') {
+    if (typeof origin === 'string' && origin.trim() !== '' && isTrustedCorsOrigin(origin)) {
+      return res.sendStatus(204);
+    }
+
+    return res.sendStatus(403);
+  }
+
   next();
 });
 
