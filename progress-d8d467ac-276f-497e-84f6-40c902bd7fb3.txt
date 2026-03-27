@@ -1,15 +1,18 @@
 Run: d8d467ac-276f-497e-84f6-40c902bd7fb3
-Story: fix-005
+Story: fix-006
 Status: done
 
 Completed story results:
-- Fixed reflected XSS in the `/search` handler in `src/server.js` by treating `q` as user-controlled text, requiring a string value, and HTML-encoding it with `escape-html` before interpolating it into the HTML response.
-- Kept the change minimal and contextual: the route still returns HTML, but user input is now rendered as inert text instead of executable markup.
-- Added a regression test in `test/web-security.test.js` that sends a `<script>alert("owned")</script>` payload to `/search` and verifies the response body contains the encoded form (`&lt;script&gt;...`) and no raw `<script>` tag.
+- Removed repository-tracked secrets from `src/config.js` by replacing hardcoded API/admin/JWT values with environment-backed `getConfig()` and `validateConfig()` helpers that require `API_KEY`, `ADMIN_PASSWORD`, and `JWT_SECRET` at runtime.
+- Replaced the unsafe `/debug` handler in `src/server.js` so it now returns a 404 error instead of dumping `process.env` and runtime details.
+- Updated `src/write-log.sh` to redact JWT-derived log output and avoid writing secret material to `app.log`.
+- Replaced secret-like placeholders in `.env.example` with non-live rotation placeholders and documented the required rotation work in `docs/secret-rotation.md`.
+- Added regression coverage in `test/web-security.test.js` for environment-based config loading, the locked-down `/debug` endpoint, and log redaction.
 - Verified `npm run build` passes.
 - Verified `npm test` passes.
 
 Patterns:
-- For reflected XSS, encode untrusted data for the output context at the final render point rather than attempting ad hoc blacklist filtering.
-- Preserve intended response format while ensuring user-controlled values are treated strictly as text.
-- Regression tests for XSS should use realistic script payloads and assert both the encoded output and the absence of executable markup.
+- Remove hardcoded secrets entirely from tracked source and fail fast when required secret environment variables are missing.
+- Treat debug/diagnostic endpoints as high-risk surfaces; return a generic not-found response when runtime internals should never be exposed.
+- Redact secrets before logging and assert on the rendered log output in regression tests so raw token values cannot leak back in.
+- Document secret rotation separately from source code and keep checked-in environment templates limited to placeholders only.

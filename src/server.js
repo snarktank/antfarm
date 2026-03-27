@@ -329,8 +329,8 @@ app.post('/deserialize', (req, res) => {
   res.json({ ok: true, obj });
 });
 
-app.get('/debug', (req, res) => {
-  res.json({ env: process.env, cwd: process.cwd() });
+app.get('/debug', (_req, res) => {
+  res.status(404).json({ error: 'Not found' });
 });
 
 export { assertUrlIsAllowed, fetchAllowedUrl };

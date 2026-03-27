@@ -4,7 +4,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { getConfig, validateConfig } from '../src/config.js';
 import { fetchAllowedUrl, startServer } from '../src/server.js';
+
+const execFileAsync = promisify(execFile);
 
 async function withServer(run) {
   const server = startServer(0);
@@ -201,6 +206,72 @@ test('should reject code-execution payloads in deserialize and accept only schem
       }
     });
   });
+});
+
+test('should read required secrets from environment instead of hardcoded source values', () => {
+  const missing = validateConfig({ API_KEY: 'api', ADMIN_PASSWORD: '', JWT_SECRET: 'jwt' });
+  assert.deepEqual(missing, ['ADMIN_PASSWORD']);
+
+  const originalEnv = {
+    API_KEY: process.env.API_KEY,
+    ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+    JWT_SECRET: process.env.JWT_SECRET
+  };
+
+  process.env.API_KEY = 'rotated-api-key';
+  process.env.ADMIN_PASSWORD = 'rotated-admin-password';
+  process.env.JWT_SECRET = 'rotated-jwt-secret';
+
+  try {
+    assert.deepEqual(getConfig(), {
+      apiKey: 'rotated-api-key',
+      adminPassword: 'rotated-admin-password',
+      jwtSecret: 'rotated-jwt-secret'
+    });
+  } finally {
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (typeof value === 'undefined') {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+});
+
+test('should not expose runtime environment details from debug endpoint', async () => {
+  process.env.DEBUG_SECRET = 'debug-secret-value';
+
+  try {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/debug`);
+      assert.equal(response.status, 404);
+      assert.deepEqual(await response.json(), { error: 'Not found' });
+    });
+  } finally {
+    delete process.env.DEBUG_SECRET;
+  }
+});
+
+test('should redact JWT secret values from log output', async () => {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'log-redaction-fixture-'));
+  const logPath = path.join(fixtureRoot, 'app.log');
+
+  try {
+    await execFileAsync('sh', [path.resolve('src/write-log.sh')], {
+      cwd: fixtureRoot,
+      env: {
+        ...process.env,
+        JWT_SECRET: 'jwt-super-secret-value'
+      }
+    });
+
+    const logContents = fs.readFileSync(logPath, 'utf8');
+    assert.equal(logContents, 'token=[redacted]\n');
+    assert.doesNotMatch(logContents, /jwt-super-secret-value/);
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
 });
 
 test('should reject SSRF targets and redirect chains that resolve to internal addresses', async () => {
