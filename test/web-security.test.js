@@ -8,6 +8,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { getConfig, validateConfig } from '../src/config.js';
 import { fetchAllowedUrl, startServer } from '../src/server.js';
+import { createSessionCookie, sessionPolicy, shouldRotateSession } from '../src/session.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -310,6 +311,24 @@ test('should reject SSRF targets and redirect chains that resolve to internal ad
   );
 
   assert.equal(fetchCalls, 1);
+});
+
+test('should harden session cookies and rotate sessions before expiry', () => {
+  const productionCookie = createSessionCookie({ isSecureContext: true });
+  assert.equal(productionCookie.httpOnly, true);
+  assert.equal(productionCookie.secure, true);
+  assert.equal(productionCookie.sameSite, 'lax');
+  assert.equal(productionCookie.maxAge, 15 * 60 * 1000);
+
+  const developmentCookie = createSessionCookie({ isSecureContext: false });
+  assert.equal(developmentCookie.httpOnly, true);
+  assert.equal(developmentCookie.secure, false);
+  assert.equal(developmentCookie.sameSite, 'lax');
+  assert.equal(developmentCookie.maxAge, 15 * 60 * 1000);
+
+  assert.equal(shouldRotateSession({ issuedAt: 1_000, now: 1_000 + sessionPolicy.renewalWindowMs - 1 }), false);
+  assert.equal(shouldRotateSession({ issuedAt: 1_000, now: 1_000 + sessionPolicy.renewalWindowMs }), true);
+  assert.equal(shouldRotateSession({ issuedAt: Number.NaN, now: 1_000 }), true);
 });
 
 test('should pin patched dependency versions and enforce a high-severity audit gate in CI', () => {

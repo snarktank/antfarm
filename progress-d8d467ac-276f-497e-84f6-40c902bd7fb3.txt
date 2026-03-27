@@ -1,17 +1,16 @@
 Run: d8d467ac-276f-497e-84f6-40c902bd7fb3
-Story: fix-007
+Story: fix-008
 Status: done
 
 Completed story results:
-- Upgraded vulnerable direct dependencies in `package.json`/`package-lock.json`: `express` to `^4.22.1`, `lodash` to `^4.17.23`, `minimist` to `^1.2.8`, and `sqlite3` to `^6.0.1`, then regenerated the lockfile so the installed graph resolves with `npm audit` reporting zero vulnerabilities.
-- Added a dedicated `audit:dependencies` npm script that fails on high/critical advisories via `npm audit --audit-level=high`.
-- Added `.github/workflows/ci.yml` to enforce the dependency audit gate alongside `npm ci`, `npm run build`, and `npm test` on every push and pull request.
-- Added regression coverage in `test/web-security.test.js` to assert the patched dependency versions remain pinned in `package.json` and that the CI workflow keeps the audit gate wired in.
+- Hardened `src/session.js` by replacing insecure defaults with a documented restrictive session policy: cookies are now always `httpOnly`, default to `sameSite: 'lax'`, enable `secure` automatically for TLS/production contexts, and enforce a bounded `maxAge` of 15 minutes.
+- Added explicit session lifecycle controls in `src/session.js` with a renewal window and `shouldRotateSession()` helper so sessions are rotated before expiry instead of lingering indefinitely.
+- Kept the change targeted by exporting `createSessionCookie()` for environment-aware cookie construction while preserving a default `sessionCookie` export for existing consumers.
+- Added regression coverage in `test/web-security.test.js` to verify production cookies are `httpOnly` + `secure`, development cookies stay `httpOnly` with restrictive `sameSite`, session expiration is bounded, and renewal triggers once the configured rotation window is reached.
 - Verified `npm run build` passes.
 - Verified `npm test` passes.
-- Verified `npm run audit:dependencies` passes with zero vulnerabilities.
 
 Patterns:
-- Close dependency findings by upgrading both direct packages and the transitive graph they pull in, then prove the result with a fresh lockfile and a clean `npm audit` run.
-- Treat dependency policy as part of the security boundary: keep the audit threshold codified in package scripts so local and CI enforcement stay aligned.
-- Add regression tests around the policy surface (required package versions and CI commands) so future changes cannot silently remove the audit gate.
+- Session cookies should be secure by default: `httpOnly` always on, `sameSite` restrictive unless there is a documented cross-site requirement, and `secure` tied to TLS/production contexts.
+- Treat session lifetime as part of the fix, not a follow-up: define explicit TTL and renewal thresholds so stale sessions cannot remain valid indefinitely.
+- Regression tests for session security should assert both configuration hardening and lifecycle behavior, including rotation thresholds, to prevent future drift back to permissive defaults.
