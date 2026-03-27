@@ -6,12 +6,13 @@
   "scripts": {
     "start": "node src/server.js",
     "build": "node --check src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "audit:dependencies": "npm audit --audit-level=high"
   },
   "dependencies": {
-    "express": "4.18.2",
-    "lodash": "4.17.20",
-    "minimist": "0.0.8",
-    "sqlite3": "5.1.6"
+    "express": "^4.22.1",
+    "lodash": "^4.17.23",
+    "minimist": "^1.2.8",
+    "sqlite3": "^6.0.1"
   }
 }

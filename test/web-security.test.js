@@ -311,3 +311,18 @@ test('should reject SSRF targets and redirect chains that resolve to internal ad
 
   assert.equal(fetchCalls, 1);
 });
+
+test('should pin patched dependency versions and enforce a high-severity audit gate in CI', () => {
+  const packageJson = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8'));
+  assert.equal(packageJson.dependencies.express, '^4.22.1');
+  assert.equal(packageJson.dependencies.lodash, '^4.17.23');
+  assert.equal(packageJson.dependencies.minimist, '^1.2.8');
+  assert.equal(packageJson.dependencies.sqlite3, '^6.0.1');
+  assert.equal(packageJson.scripts['audit:dependencies'], 'npm audit --audit-level=high');
+
+  const ciWorkflow = fs.readFileSync(path.resolve('.github/workflows/ci.yml'), 'utf8');
+  assert.match(ciWorkflow, /run: npm ci/);
+  assert.match(ciWorkflow, /run: npm run build/);
+  assert.match(ciWorkflow, /run: npm test/);
+  assert.match(ciWorkflow, /run: npm run audit:dependencies/);
+});
