@@ -1,3 +1,4 @@
+import escapeHtml from 'escape-html';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -37,8 +38,9 @@ app.get('/user', (req, res) => {
 });
 
 app.get('/search', (req, res) => {
-  const q = req.query.q || '';
-  res.send(`<h1>Results for: ${q}</h1>`);
+  const q = typeof req.query.q === 'string' ? req.query.q : '';
+  const escapedQuery = escapeHtml(q);
+  res.type('html').send(`<h1>Results for: ${escapedQuery}</h1>`);
 });
 
 const SAFE_RUN_ARGUMENTS = new Set(['', '.', './data', 'data']);

@@ -145,6 +145,20 @@ test('should reject SQL injection in user lookup and return only bound-parameter
   });
 });
 
+test('should HTML-encode reflected search input so script payloads render as inert text', async () => {
+  await withServer(async (baseUrl) => {
+    const payload = '<script>alert("owned")</script>';
+    const response = await fetch(`${baseUrl}/search?q=${encodeURIComponent(payload)}`);
+
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type') ?? '', /^text\/html/);
+
+    const body = await response.text();
+    assert.equal(body, '<h1>Results for: &lt;script&gt;alert(&quot;owned&quot;)&lt;/script&gt;</h1>');
+    assert.doesNotMatch(body, /<script>/i);
+  });
+});
+
 test('should reject code-execution payloads in deserialize and accept only schema-valid JSON', async () => {
   const markerFile = '/tmp/antfarm-deserialize-owned';
   fs.rmSync(markerFile, { force: true });
