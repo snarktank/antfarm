@@ -1,16 +1,17 @@
 Run: d8d467ac-276f-497e-84f6-40c902bd7fb3
-Story: fix-001
+Story: fix-002
 Status: done
 
 Completed story results:
-- Replaced the vulnerable shell-based `/run` implementation in `src/server.js` with a native `fs.readdirSync` directory listing so user input is no longer interpolated into a shell command.
-- Added a strict allowlist for permitted `cmd` values (`'', '.', './data', 'data'`) and reject unsafe metacharacters such as `;`, `&&`, backticks, `$()`, redirects, and line breaks with 400 responses.
-- Preserved the endpoint behavior for safe requests by returning directory contents without invoking a shell.
-- Added a regression test in `test/web-security.test.js` that exercises `/run` with safe input and command-injection payloads, and confirms exploit attempts are rejected and do not create attacker-controlled files.
+- Replaced the vulnerable `eval`-based `/deserialize` implementation in `src/server.js` with `JSON.parse` so request payloads are handled strictly as JSON data instead of executable code.
+- Added explicit schema validation for deserialized payloads and only accept plain objects with exactly two fields: a non-empty string `type` and a primitive-or-null `value`.
+- Closed the endpoint on malformed JSON, non-string `payload` inputs, and schema-invalid objects by returning HTTP 400 with `Invalid payload`.
+- Added a regression test in `test/web-security.test.js` that submits an `eval`-style code-execution payload, verifies it is rejected, and confirms no attacker-controlled file is written.
+- Added a positive test case proving a schema-valid JSON payload is still accepted by `/deserialize`.
 - Verified `npm run build` passes.
 - Verified `npm test` passes.
 
 Patterns:
-- For command-injection flaws, remove shell usage entirely when possible and replace it with native APIs that operate on validated inputs.
-- Pair native API changes with a strict allowlist for accepted arguments so the endpoint only supports the narrow behavior it actually needs.
-- Regression tests should attempt realistic payloads (`;`, subshell syntax, etc.) and verify both the HTTP rejection and the absence of side effects on disk.
+- When an endpoint expects serialized data, parse it with a data-only parser such as `JSON.parse` and reject any format that would require code execution to interpret.
+- Define a narrow schema for accepted payloads and reject extra fields, wrong types, arrays, and non-object values so the endpoint fails closed.
+- Regression tests for insecure deserialization should include a payload that would have executed under `eval`, plus a safe payload that demonstrates the intended contract still works.

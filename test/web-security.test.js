@@ -128,3 +128,47 @@ test('should require authentication and admin role for admin delete', async () =
     assert.deepEqual(await admin.json(), { deleted: 'victim-3', by: 'root-admin' });
   });
 });
+
+test('should reject code-execution payloads in deserialize and accept only schema-valid JSON', async () => {
+  const markerFile = '/tmp/antfarm-deserialize-owned';
+  fs.rmSync(markerFile, { force: true });
+
+  await withServer(async (baseUrl) => {
+    const malicious = await fetch(`${baseUrl}/deserialize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        payload: '{"type":"note","value":this.constructor.constructor("return process")().mainModule.require("fs").writeFileSync("/tmp/antfarm-deserialize-owned","owned")}'
+      })
+    });
+    assert.equal(malicious.status, 400);
+    assert.deepEqual(await malicious.json(), { error: 'Invalid payload' });
+    assert.equal(fs.existsSync(markerFile), false);
+
+    const invalidSchema = await fetch(`${baseUrl}/deserialize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        payload: '{"type":"","extra":"field"}'
+      })
+    });
+    assert.equal(invalidSchema.status, 400);
+    assert.deepEqual(await invalidSchema.json(), { error: 'Invalid payload' });
+
+    const safe = await fetch(`${baseUrl}/deserialize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        payload: '{"type":"note","value":"safe text"}'
+      })
+    });
+    assert.equal(safe.status, 200);
+    assert.deepEqual(await safe.json(), {
+      ok: true,
+      obj: {
+        type: 'note',
+        value: 'safe text'
+      }
+    });
+  });
+});

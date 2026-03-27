@@ -4,7 +4,7 @@ import path from 'path';
 import sqlite3 from 'sqlite3';
 import { fileURLToPath } from 'url';
 
-const app = express();
+export const app = express();
 const db = new sqlite3.Database(':memory:');
 
 app.use(express.json());
@@ -121,6 +121,28 @@ function requireAdminRole(req, res, next) {
   next();
 }
 
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isValidDeserializedObject(value) {
+  if (!isPlainObject(value)) {
+    return false;
+  }
+
+  const keys = Object.keys(value);
+
+  if (keys.length !== 2 || !keys.includes('type') || !keys.includes('value')) {
+    return false;
+  }
+
+  if (typeof value.type !== 'string' || value.type.trim() === '') {
+    return false;
+  }
+
+  return ['string', 'number', 'boolean'].includes(typeof value.value) || value.value === null;
+}
+
 app.post('/admin/delete-user', requireAuthenticatedUser, requireAdminRole, (req, res) => {
   const userId = req.body.userId;
   res.json({ deleted: userId, by: req.user.name });
@@ -134,7 +156,22 @@ app.get('/fetch', async (req, res) => {
 });
 
 app.post('/deserialize', (req, res) => {
-  const obj = eval('(' + req.body.payload + ')');
+  if (typeof req.body?.payload !== 'string') {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+
+  let obj;
+
+  try {
+    obj = JSON.parse(req.body.payload);
+  } catch {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+
+  if (!isValidDeserializedObject(obj)) {
+    return res.status(400).json({ error: 'Invalid payload' });
+  }
+
   res.json({ ok: true, obj });
 });
 
