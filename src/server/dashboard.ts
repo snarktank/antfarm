@@ -56,8 +56,22 @@ function getRunById(id: string): (RunInfo & { steps: StepInfo[] }) | null {
   return { ...run, steps };
 }
 
-function json(res: http.ServerResponse, data: unknown, status = 200) {
-  res.writeHead(status, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+const ALLOWED_ORIGINS = new Set([
+  "http://localhost:3333",
+  "http://127.0.0.1:3333",
+]);
+
+function getCorsHeaders(req: http.IncomingMessage): Record<string, string> {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    return { "Access-Control-Allow-Origin": origin, "Vary": "Origin" };
+  }
+  return {};
+}
+
+function json(res: http.ServerResponse, data: unknown, status = 200, req?: http.IncomingMessage) {
+  const cors = req ? getCorsHeaders(req) : {};
+  res.writeHead(status, { "Content-Type": "application/json", ...cors });
   res.end(JSON.stringify(data));
 }
 
@@ -76,12 +90,12 @@ export function startDashboard(port = 3333): http.Server {
     const p = url.pathname;
 
     if (p === "/api/workflows") {
-      return json(res, loadWorkflows());
+      return json(res, loadWorkflows(), 200, req);
     }
 
     const eventsMatch = p.match(/^\/api\/runs\/([^/]+)\/events$/);
     if (eventsMatch) {
-      return json(res, getRunEvents(eventsMatch[1]));
+      return json(res, getRunEvents(eventsMatch[1]), 200, req);
     }
 
     const storiesMatch = p.match(/^\/api\/runs\/([^/]+)\/stories$/);
@@ -90,28 +104,28 @@ export function startDashboard(port = 3333): http.Server {
       const stories = db.prepare(
         "SELECT * FROM stories WHERE run_id = ? ORDER BY story_index ASC"
       ).all(storiesMatch[1]);
-      return json(res, stories);
+      return json(res, stories, 200, req);
     }
 
     const runMatch = p.match(/^\/api\/runs\/(.+)$/);
     if (runMatch) {
       const run = getRunById(runMatch[1]);
-      return run ? json(res, run) : json(res, { error: "not found" }, 404);
+      return run ? json(res, run, 200, req) : json(res, { error: "not found" }, 404, req);
     }
 
     if (p === "/api/runs") {
       const wf = url.searchParams.get("workflow") ?? undefined;
-      return json(res, getRuns(wf));
+      return json(res, getRuns(wf), 200, req);
     }
 
     // Medic API
     if (p === "/api/medic/status") {
-      return json(res, getMedicStatus());
+      return json(res, getMedicStatus(), 200, req);
     }
 
     if (p === "/api/medic/checks") {
       const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
-      return json(res, getRecentMedicChecks(limit));
+      return json(res, getRecentMedicChecks(limit), 200, req);
     }
 
     // Serve fonts
@@ -121,7 +135,8 @@ export function startDashboard(port = 3333): http.Server {
       const srcFontPath = path.resolve(__dirname, "..", "..", "src", "..", "assets", "fonts", fontName);
       const resolvedFont = fs.existsSync(fontPath) ? fontPath : srcFontPath;
       if (fs.existsSync(resolvedFont)) {
-        res.writeHead(200, { "Content-Type": "font/woff2", "Cache-Control": "public, max-age=31536000", "Access-Control-Allow-Origin": "*" });
+        const cors = getCorsHeaders(req);
+        res.writeHead(200, { "Content-Type": "font/woff2", "Cache-Control": "public, max-age=31536000", ...cors });
         return res.end(fs.readFileSync(resolvedFont));
       }
     }
