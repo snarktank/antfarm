@@ -92,6 +92,20 @@ function migrate(db: DatabaseSync): void {
   if (!runColNames.has("notify_url")) {
     db.exec("ALTER TABLE runs ADD COLUMN notify_url TEXT");
   }
+  if (!runColNames.has("notify_auth")) {
+    db.exec("ALTER TABLE runs ADD COLUMN notify_auth TEXT");
+    // Migrate existing rows: extract #auth= fragment from notify_url into notify_auth
+    const rows = db.prepare("SELECT id, notify_url FROM runs WHERE notify_url LIKE '%#auth=%'").all() as Array<{ id: string; notify_url: string }>;
+    const update = db.prepare("UPDATE runs SET notify_url = ?, notify_auth = ? WHERE id = ?");
+    for (const row of rows) {
+      const hashIdx = row.notify_url.indexOf("#auth=");
+      if (hashIdx !== -1) {
+        const cleanUrl = row.notify_url.slice(0, hashIdx);
+        const token = decodeURIComponent(row.notify_url.slice(hashIdx + 6));
+        update.run(cleanUrl, token, row.id);
+      }
+    }
+  }
   if (!runColNames.has("run_number")) {
     db.exec("ALTER TABLE runs ADD COLUMN run_number INTEGER");
     // Backfill existing runs with sequential numbers based on creation order

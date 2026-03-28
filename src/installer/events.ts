@@ -45,34 +45,36 @@ export function emitEvent(evt: AntfarmEvent): void {
   fireWebhook(evt);
 }
 
-// In-memory cache: runId -> notify_url | null
-const notifyUrlCache = new Map<string, string | null>();
+// In-memory cache: runId -> { url, auth } | null
+interface NotifyConfig { url: string; auth: string | null; }
+const notifyCache = new Map<string, NotifyConfig | null>();
 
-function getNotifyUrl(runId: string): string | null {
-  if (notifyUrlCache.has(runId)) return notifyUrlCache.get(runId)!;
+function getNotifyConfig(runId: string): NotifyConfig | null {
+  if (notifyCache.has(runId)) return notifyCache.get(runId)!;
   try {
     const db = getDb();
-    const row = db.prepare("SELECT notify_url FROM runs WHERE id = ?").get(runId) as { notify_url: string | null } | undefined;
-    const url = row?.notify_url ?? null;
-    notifyUrlCache.set(runId, url);
-    return url;
+    const row = db.prepare("SELECT notify_url, notify_auth FROM runs WHERE id = ?").get(runId) as { notify_url: string | null; notify_auth: string | null } | undefined;
+    if (!row?.notify_url) {
+      notifyCache.set(runId, null);
+      return null;
+    }
+    const config: NotifyConfig = { url: row.notify_url, auth: row.notify_auth };
+    notifyCache.set(runId, config);
+    return config;
   } catch {
     return null;
   }
 }
 
 function fireWebhook(evt: AntfarmEvent): void {
-  const raw = getNotifyUrl(evt.runId);
-  if (!raw) return;
+  const config = getNotifyConfig(evt.runId);
+  if (!config) return;
   try {
-    let url = raw;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    const hashIdx = url.indexOf("#auth=");
-    if (hashIdx !== -1) {
-      headers["Authorization"] = decodeURIComponent(url.slice(hashIdx + 6));
-      url = url.slice(0, hashIdx);
+    if (config.auth) {
+      headers["Authorization"] = config.auth;
     }
-    fetch(url, {
+    fetch(config.url, {
       method: "POST",
       headers,
       body: JSON.stringify(evt),

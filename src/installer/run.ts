@@ -25,11 +25,21 @@ export async function runWorkflow(params: {
 
   db.exec("BEGIN");
   try {
-    const notifyUrl = params.notifyUrl ?? workflow.notifications?.url ?? null;
+    const rawNotifyUrl = params.notifyUrl ?? workflow.notifications?.url ?? null;
+    // Separate auth token from URL - never store credentials in the URL column
+    let notifyUrl: string | null = rawNotifyUrl;
+    let notifyAuth: string | null = null;
+    if (rawNotifyUrl) {
+      const hashIdx = rawNotifyUrl.indexOf("#auth=");
+      if (hashIdx !== -1) {
+        notifyUrl = rawNotifyUrl.slice(0, hashIdx);
+        notifyAuth = decodeURIComponent(rawNotifyUrl.slice(hashIdx + 6));
+      }
+    }
     const insertRun = db.prepare(
-      "INSERT INTO runs (id, run_number, workflow_id, task, status, context, notify_url, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)"
+      "INSERT INTO runs (id, run_number, workflow_id, task, status, context, notify_url, notify_auth, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?)"
     );
-    insertRun.run(runId, runNumber, workflow.id, params.taskTitle, JSON.stringify(initialContext), notifyUrl, now, now);
+    insertRun.run(runId, runNumber, workflow.id, params.taskTitle, JSON.stringify(initialContext), notifyUrl, notifyAuth, now, now);
 
     const insertStep = db.prepare(
       "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
