@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readOpenClawConfig, writeOpenClawConfig } from "./openclaw-config.js";
 import { removeMainAgentGuidance } from "./main-agent-guidance.js";
 import {
@@ -294,7 +294,7 @@ export async function uninstallAllWorkflows(): Promise<void> {
   // Safe because this is the final operation in the function.
   const projectRoot = path.resolve(import.meta.dirname, "..", "..");
   try {
-    execSync("npm unlink -g", { cwd: projectRoot, stdio: "ignore" });
+    execFileSync("npm", ["unlink", "-g"], { cwd: projectRoot, stdio: "ignore" });
   } catch {
     // link may not exist
   }

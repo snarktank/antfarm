@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
-import { execSync, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
@@ -286,10 +286,26 @@ export function cleanupAbandonedSteps(): void {
       try {
         const loopConfig: LoopConfig = JSON.parse(step.loop_config);
         if (loopConfig.verifyEach && loopConfig.verifyStep) {
-          const verifyStatus = db.prepare(
-            "SELECT status FROM steps WHERE run_id = ? AND step_id = ? LIMIT 1"
-          ).get(step.run_id, loopConfig.verifyStep) as { status: string } | undefined;
-          if (verifyStatus?.status === "pending" || verifyStatus?.status === "running") {
+          const verifyRow = db.prepare(
+            "SELECT status, updated_at FROM steps WHERE run_id = ? AND step_id = ? LIMIT 1"
+          ).get(step.run_id, loopConfig.verifyStep) as { status: string; updated_at: string } | undefined;
+          if (verifyRow && (verifyRow.status === "pending" || verifyRow.status === "running")) {
+            // Check if the verify step itself is stale (stuck longer than threshold).
+            // If so, reset BOTH the verify step and the loop step to break the deadlock.
+            const verifyAgeMs = (Date.now() - new Date(verifyRow.updated_at).getTime());
+            if (verifyAgeMs < thresholdMs) {
+              continue; // Verify step still fresh — let it finish
+            }
+            // Verify step is stale — reset it to 'waiting' and set loop step to 'pending'
+            // so the loop can reclaim the next story cleanly.
+            const wfId = getWorkflowId(step.run_id);
+            db.prepare("UPDATE steps SET status = 'waiting', updated_at = datetime('now') WHERE run_id = ? AND step_id = ?")
+              .run(step.run_id, loopConfig.verifyStep);
+            db.prepare("UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?")
+              .run(step.id);
+            emitEvent({ ts: new Date().toISOString(), event: "step.timeout", runId: step.run_id, workflowId: wfId, stepId: step.step_id,
+              detail: `Loop+verify deadlock broken: verify step '${loopConfig.verifyStep}' was stale (${Math.round(verifyAgeMs / 60000)}min), reset both to allow loop to continue` });
+            logger.info(`Loop+verify deadlock broken: verify=${loopConfig.verifyStep}`, { runId: step.run_id, stepId: step.step_id });
             continue;
           }
         }
@@ -383,6 +399,31 @@ export function cleanupAbandonedSteps(): void {
   }
 }
 
+// ── Git input validation ────────────────────────────────────────────
+
+/**
+ * Safe pattern for git branch names.
+ * Allows alphanumeric, hyphens, underscores, dots, and forward slashes.
+ * Rejects: spaces, shell metacharacters, "..", "~", "^", ":", leading "-", etc.
+ */
+const SAFE_BRANCH_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._\-/]*$/;
+
+/**
+ * Validate a git branch name against a safe pattern.
+ * Throws an error if the branch name contains potentially dangerous characters.
+ */
+export function validateBranchName(branch: string): void {
+  if (!branch || branch.length > 255) {
+    throw new Error(`Invalid branch name: must be 1-255 characters, got ${branch?.length ?? 0}`);
+  }
+  if (branch.includes("..")) {
+    throw new Error(`Invalid branch name: contains ".." (${branch})`);
+  }
+  if (!SAFE_BRANCH_PATTERN.test(branch)) {
+    throw new Error(`Invalid branch name: contains unsafe characters (${branch})`);
+  }
+}
+
 // ── Frontend change detection ───────────────────────────────────────
 
 /**
@@ -391,6 +432,7 @@ export function cleanupAbandonedSteps(): void {
  */
 export function computeHasFrontendChanges(repo: string, branch: string): string {
   try {
+    validateBranchName(branch);
     const output = execFileSync("git", ["diff", "--name-only", `main..${branch}`], {
       cwd: repo,
       encoding: "utf-8",

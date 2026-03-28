@@ -27,7 +27,7 @@ import { claimStep, completeStep, failStep, getStories, peekStep } from "../inst
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -144,15 +144,15 @@ async function main() {
     const repoRoot = join(__dirname, "..", "..");
     console.log("Pulling latest...");
     try {
-      execSync("git pull", { cwd: repoRoot, stdio: "inherit" });
+      execFileSync("git", ["pull"], { cwd: repoRoot, stdio: "inherit" });
     } catch {
       process.stderr.write("Failed to git pull. Are you in the antfarm repo?\n");
       process.exit(1);
     }
     console.log("Installing dependencies...");
-    execSync("npm install", { cwd: repoRoot, stdio: "inherit" });
+    execFileSync("npm", ["install"], { cwd: repoRoot, stdio: "inherit" });
     console.log("Building...");
-    execSync("npm run build", { cwd: repoRoot, stdio: "inherit" });
+    execFileSync("npm", ["run", "build"], { cwd: repoRoot, stdio: "inherit" });
 
     // Reinstall workflows
     const workflows = await listBundledWorkflows();
