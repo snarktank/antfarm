@@ -37,6 +37,7 @@ export function checkStuckSteps(): MedicFinding[] {
 
   const stuck = db.prepare(`
     SELECT s.id, s.step_id, s.run_id, s.agent_id, s.updated_at, s.abandoned_count,
+           s.type, s.loop_config, s.current_story_id,
            r.workflow_id, r.task
     FROM steps s
     JOIN runs r ON r.id = s.run_id
@@ -46,9 +47,29 @@ export function checkStuckSteps(): MedicFinding[] {
   `).all(MAX_ROLE_TIMEOUT_MS) as Array<{
     id: string; step_id: string; run_id: string; agent_id: string;
     updated_at: string; abandoned_count: number; workflow_id: string; task: string;
+    type: string; loop_config: string | null; current_story_id: string | null;
   }>;
 
   for (const step of stuck) {
+    // Skip loop steps waiting for their verify_each step — this is normal flow
+    if (step.type === "loop" && !step.current_story_id && step.loop_config) {
+      try {
+        const lc = JSON.parse(step.loop_config);
+        if (lc.verifyEach && lc.verifyStep) {
+          const verifyStatus = db.prepare(
+            "SELECT status FROM steps WHERE run_id = ? AND step_id = ? LIMIT 1"
+          ).get(step.run_id, lc.verifyStep) as { status: string } | undefined;
+          if (verifyStatus?.status === "pending" || verifyStatus?.status === "running") {
+            // Touch updated_at so it doesn't get staler
+            db.prepare("UPDATE steps SET updated_at = datetime('now') WHERE id = ?").run(step.id);
+            continue; // normal verify_each flow, not stuck
+          }
+        }
+      } catch {
+        // malformed config — fall through to stuck detection
+      }
+    }
+
     const ageMin = Math.round(
       (Date.now() - new Date(step.updated_at).getTime()) / 60000
     );

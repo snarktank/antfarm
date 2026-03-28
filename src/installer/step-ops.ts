@@ -502,6 +502,15 @@ export function claimStep(agentId: string): ClaimResult {
          WHERE prev.run_id = s.run_id
            AND prev.step_index < s.step_index
            AND prev.status NOT IN ('done', 'skipped')
+           -- Allow verify_each: a running loop step that targets this step's step_id
+           -- as its verify_step does NOT block claiming
+           AND NOT (
+             prev.type = 'loop'
+             AND prev.status = 'running'
+             AND prev.loop_config IS NOT NULL
+             AND json_extract(prev.loop_config, '$.verifyEach') = 1
+             AND json_extract(prev.loop_config, '$.verifyStep') = s.step_id
+           )
        )
     ORDER BY s.step_index ASC, s.step_id ASC
      LIMIT 1`

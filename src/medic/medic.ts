@@ -44,9 +44,31 @@ async function remediate(finding: MedicFinding): Promise<boolean> {
       if (!finding.stepId) return false;
       // Reset the stuck step to pending so it can be reclaimed
       const step = db.prepare(
-        "SELECT abandoned_count FROM steps WHERE id = ?"
-      ).get(finding.stepId) as { abandoned_count: number } | undefined;
+        "SELECT abandoned_count, type, loop_config, current_story_id, run_id FROM steps WHERE id = ?"
+      ).get(finding.stepId) as { abandoned_count: number; type: string; loop_config: string | null; current_story_id: string | null; run_id: string } | undefined;
       if (!step) return false;
+
+      // Guard: don't reset a loop step that is waiting for its verify_each step
+      // (loop step is "running" with no current_story_id while verify step processes)
+      if (step.type === "loop" && !step.current_story_id && step.loop_config) {
+        try {
+          const lc = JSON.parse(step.loop_config);
+          if (lc.verifyEach && lc.verifyStep) {
+            const verifyStatus = db.prepare(
+              "SELECT status FROM steps WHERE run_id = ? AND step_id = ? LIMIT 1"
+            ).get(step.run_id, lc.verifyStep) as { status: string } | undefined;
+            if (verifyStatus?.status === "pending" || verifyStatus?.status === "running") {
+              // Verify step is active — just touch updated_at to prevent stale detection
+              db.prepare(
+                "UPDATE steps SET updated_at = datetime('now') WHERE id = ?"
+              ).run(finding.stepId);
+              return false; // not remediated — this is normal verify_each flow
+            }
+          }
+        } catch {
+          // malformed config — fall through to normal reset
+        }
+      }
 
       const newCount = (step.abandoned_count ?? 0) + 1;
       // Don't auto-reset if already abandoned too many times — let cleanupAbandonedSteps handle final failure
