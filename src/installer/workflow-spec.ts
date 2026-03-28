@@ -6,7 +6,7 @@ import type { LoopConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowSt
 export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
   const filePath = path.join(workflowDir, "workflow.yml");
   const raw = await fs.readFile(filePath, "utf-8");
-  const parsed = YAML.parse(raw) as WorkflowSpec;
+  const parsed = YAML.parse(raw, { maxAliasCount: 100 }) as WorkflowSpec;
   if (!parsed?.id) {
     throw new Error(`workflow.yml missing id in ${workflowDir}`);
   }

@@ -26,7 +26,7 @@ function loadWorkflows(): WorkflowDef[] {
       if (!entry.isDirectory()) continue;
       const ymlPath = path.join(dir, entry.name, "workflow.yml");
       if (!fs.existsSync(ymlPath)) continue;
-      const parsed = YAML.parse(fs.readFileSync(ymlPath, "utf-8"));
+      const parsed = YAML.parse(fs.readFileSync(ymlPath, "utf-8"), { maxAliasCount: 100 });
       results.push({
         id: parsed.id ?? entry.name,
         name: parsed.name ?? entry.name,
