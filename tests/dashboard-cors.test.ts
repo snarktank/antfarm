@@ -3,12 +3,14 @@
  * Verifies that the dashboard only sets Access-Control-Allow-Origin
  * for localhost origins, rejecting cross-origin requests from other domains.
  */
-import { describe, it, after } from "node:test";
+import { describe, it, after, before } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { startDashboard } from "../dist/server/dashboard.js";
+import { startDashboard, getDashboardToken, _resetDashboardToken } from "../dist/server/dashboard.js";
 
 const TEST_PORT = 3444;
+
+let authToken: string;
 
 function request(
   path: string,
@@ -17,6 +19,10 @@ function request(
   return new Promise((resolve, reject) => {
     const headers: Record<string, string> = {};
     if (origin) headers["Origin"] = origin;
+    // Include auth token so API endpoints don't 401
+    if (path.startsWith("/api/")) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
     const req = http.get(
       { hostname: "127.0.0.1", port: TEST_PORT, path, headers },
       (res) => {
@@ -36,12 +42,21 @@ describe("Dashboard CORS restrictions", () => {
 
   // Start server once before all tests — use a raw callback to wait for listen
   const ready = new Promise<void>((resolve) => {
+    process.env.ANTFARM_DASHBOARD_TOKEN = "cors-test-token";
+    _resetDashboardToken();
     server = startDashboard(TEST_PORT);
     server.on("listening", () => resolve());
   });
 
+  before(async () => {
+    await ready;
+    authToken = getDashboardToken();
+  });
+
   after(() => {
     server?.close();
+    delete process.env.ANTFARM_DASHBOARD_TOKEN;
+    _resetDashboardToken();
   });
 
   it("returns CORS header for localhost origin", async () => {

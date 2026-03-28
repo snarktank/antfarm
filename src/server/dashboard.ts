@@ -1,4 +1,5 @@
 import http from "node:http";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,9 +70,77 @@ function getCorsHeaders(req: http.IncomingMessage): Record<string, string> {
   return {};
 }
 
+const SECURITY_HEADERS: Record<string, string> = {
+  "X-Frame-Options": "DENY",
+  "X-Content-Type-Options": "nosniff",
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'",
+};
+
+/**
+ * Resolve the dashboard auth token.
+ * Priority: ANTFARM_DASHBOARD_TOKEN env var > auto-generated token stored in data dir.
+ */
+let _dashboardToken: string | null = null;
+
+export function getDashboardToken(): string {
+  if (_dashboardToken) return _dashboardToken;
+
+  const envToken = process.env.ANTFARM_DASHBOARD_TOKEN;
+  if (envToken) {
+    _dashboardToken = envToken;
+    return _dashboardToken;
+  }
+
+  // Auto-generate and persist a token
+  const tokenPath = path.join(
+    process.env.ANTFARM_DATA_DIR ?? path.join(process.env.HOME ?? "/tmp", ".antfarm"),
+    ".dashboard-token",
+  );
+  try {
+    if (fs.existsSync(tokenPath)) {
+      _dashboardToken = fs.readFileSync(tokenPath, "utf-8").trim();
+      if (_dashboardToken) return _dashboardToken;
+    }
+  } catch { /* regenerate */ }
+
+  _dashboardToken = crypto.randomBytes(32).toString("hex");
+  try {
+    const dir = path.dirname(tokenPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(tokenPath, _dashboardToken + "\n", { mode: 0o600 });
+  } catch { /* token stays in memory only */ }
+
+  return _dashboardToken;
+}
+
+/** Reset cached token — primarily for testing */
+export function _resetDashboardToken(): void {
+  _dashboardToken = null;
+}
+
+function isAuthenticated(req: http.IncomingMessage): boolean {
+  const token = getDashboardToken();
+
+  // Check Authorization: Bearer <token>
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    const parts = authHeader.split(" ");
+    if (parts.length === 2 && parts[0].toLowerCase() === "bearer" && parts[1] === token) {
+      return true;
+    }
+  }
+
+  // Check ?token= query parameter
+  const url = new URL(req.url ?? "/", "http://localhost");
+  const queryToken = url.searchParams.get("token");
+  if (queryToken === token) return true;
+
+  return false;
+}
+
 function json(res: http.ServerResponse, data: unknown, status = 200, req?: http.IncomingMessage) {
   const cors = req ? getCorsHeaders(req) : {};
-  res.writeHead(status, { "Content-Type": "application/json", ...cors });
+  res.writeHead(status, { "Content-Type": "application/json", ...cors, ...SECURITY_HEADERS });
   res.end(JSON.stringify(data));
 }
 
@@ -80,7 +149,7 @@ function serveHTML(res: http.ServerResponse) {
   // In dist, index.html won't exist—serve from src
   const srcHtmlPath = path.resolve(__dirname, "..", "..", "src", "server", "index.html");
   const filePath = fs.existsSync(htmlPath) ? htmlPath : srcHtmlPath;
-  res.writeHead(200, { "Content-Type": "text/html" });
+  res.writeHead(200, { "Content-Type": "text/html", ...SECURITY_HEADERS });
   res.end(fs.readFileSync(filePath, "utf-8"));
 }
 
@@ -88,6 +157,13 @@ export function startDashboard(port = 3333): http.Server {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
+
+    // All /api/* endpoints require authentication
+    if (p.startsWith("/api/")) {
+      if (!isAuthenticated(req)) {
+        return json(res, { error: "unauthorized" }, 401, req);
+      }
+    }
 
     if (p === "/api/workflows") {
       return json(res, loadWorkflows(), 200, req);
@@ -136,7 +212,7 @@ export function startDashboard(port = 3333): http.Server {
       const resolvedFont = fs.existsSync(fontPath) ? fontPath : srcFontPath;
       if (fs.existsSync(resolvedFont)) {
         const cors = getCorsHeaders(req);
-        res.writeHead(200, { "Content-Type": "font/woff2", "Cache-Control": "public, max-age=31536000", ...cors });
+        res.writeHead(200, { "Content-Type": "font/woff2", "Cache-Control": "public, max-age=31536000", ...cors, ...SECURITY_HEADERS });
         return res.end(fs.readFileSync(resolvedFont));
       }
     }
@@ -147,7 +223,7 @@ export function startDashboard(port = 3333): http.Server {
       const srcLogoPath = path.resolve(__dirname, "..", "..", "src", "..", "assets", "logo.jpeg");
       const resolvedLogo = fs.existsSync(logoPath) ? logoPath : srcLogoPath;
       if (fs.existsSync(resolvedLogo)) {
-        res.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=86400" });
+        res.writeHead(200, { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=86400", ...SECURITY_HEADERS });
         return res.end(fs.readFileSync(resolvedLogo));
       }
     }
