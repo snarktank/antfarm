@@ -5,6 +5,7 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import { execSync, execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
@@ -403,6 +404,77 @@ export function computeHasFrontendChanges(repo: string, branch: string): string 
   }
 }
 
+function inferNodeBuildAndTestCommands(repo: string): Partial<Record<"build_cmd" | "test_cmd", string>> {
+  try {
+    const pkgPath = path.join(repo, "package.json");
+    if (!fs.existsSync(pkgPath)) return {};
+    const require = createRequire(import.meta.url);
+    const pkg = require(pkgPath) as { scripts?: Record<string, string> };
+    const scripts = pkg?.scripts ?? {};
+    const inferred: Partial<Record<"build_cmd" | "test_cmd", string>> = {};
+
+    if (scripts.build) inferred.build_cmd = "npm run build";
+
+    if (scripts.test) {
+      inferred.test_cmd = "npm test";
+    } else {
+      const testsDir = path.join(repo, "tests");
+      const hasNodeTests = fs.existsSync(testsDir) && fs.readdirSync(testsDir).some((name) => /\.test\.(c|m)?(j|t)sx?$/.test(name));
+      if (hasNodeTests) {
+        inferred.test_cmd = "node --test tests/*.test.ts";
+      }
+    }
+
+    return inferred;
+  } catch {
+    return {};
+  }
+}
+
+function extractCommandFromText(text: string, label: string): string | null {
+  const patterns = [
+    new RegExp(`${label}\\s*[:=-]?\\s*([^\\n;]+)`, "i"),
+    new RegExp(`(${label.replace(/_/g, " ")}\\s*[:=-]?\\s*[^\\n;]+)`, "i"),
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const raw = (match[1] ?? "").trim();
+    const command = raw
+      .replace(/^.*?:\s*/, "")
+      .replace(/\s*\((?:pass|fail|failed|ok|success).*$/i, "")
+      .trim();
+    if (command) return command;
+  }
+
+  return null;
+}
+
+function normalizeSetupContext(stepId: string, context: Record<string, string>, parsed: Record<string, string>, output: string): void {
+  if (stepId !== "setup") return;
+
+  if (!context["build_cmd"] && parsed["tests"]) {
+    const buildFromTests = extractCommandFromText(parsed["tests"], "npm run build") || extractCommandFromText(parsed["tests"], "build");
+    if (buildFromTests) context["build_cmd"] = buildFromTests;
+  }
+
+  if (!context["test_cmd"] && parsed["tests"]) {
+    const testFromTests = extractCommandFromText(parsed["tests"], "npm test") || extractCommandFromText(parsed["tests"], "test");
+    if (testFromTests) context["test_cmd"] = testFromTests;
+  }
+
+  if ((!context["build_cmd"] || !context["test_cmd"]) && context["repo"]) {
+    const inferred = inferNodeBuildAndTestCommands(context["repo"]);
+    if (!context["build_cmd"] && inferred.build_cmd) context["build_cmd"] = inferred.build_cmd;
+    if (!context["test_cmd"] && inferred.test_cmd) context["test_cmd"] = inferred.test_cmd;
+  }
+
+  if (!context["baseline"]) {
+    context["baseline"] = parsed["baseline"] ?? parsed["tests"] ?? output.trim();
+  }
+}
+
 function failStepWithMissingInputs(
   stepDbId: string,
   stepPublicId: string,
@@ -655,6 +727,12 @@ export function claimStep(agentId: string): ClaimResult {
     context["progress"] = readProgressFile(step.run_id);
   }
 
+  // Non-loop steps may still reference verify_feedback on first pass.
+  // Default it to empty so initial fix/test steps don't fail template resolution.
+  if (!context["verify_feedback"]) {
+    context["verify_feedback"] = "";
+  }
+
   const missingKeys = findMissingTemplateKeys(step.input_template, context);
   if (missingKeys.length > 0) {
     failStepWithMissingInputs(step.id, step.step_id, step.run_id, missingKeys);
@@ -700,6 +778,7 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   for (const [key, value] of Object.entries(parsed)) {
     context[key] = value;
   }
+  normalizeSetupContext(step.step_id, context, parsed, output);
 
   db.prepare(
     "UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?"

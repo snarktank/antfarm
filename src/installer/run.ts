@@ -6,6 +6,11 @@ import { logger } from "../lib/logger.js";
 import { ensureWorkflowCrons } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 
+function allowRunWithoutCrons(): boolean {
+  const value = process.env.ANTFARM_ALLOW_RUN_WITHOUT_CRONS ?? process.env.ANTFARM_MANUAL_ONLY;
+  return value === "1" || value === "true";
+}
+
 export async function runWorkflow(params: {
   workflowId: string;
   taskTitle: string;
@@ -56,11 +61,14 @@ export async function runWorkflow(params: {
   try {
     await ensureWorkflowCrons(workflow);
   } catch (err) {
-    // Roll back the run since it can't advance without crons
-    const db2 = getDb();
-    db2.prepare("UPDATE runs SET status = 'failed', updated_at = ? WHERE id = ?").run(new Date().toISOString(), runId);
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`Cannot start workflow run: cron setup failed. ${message}`);
+    if (!allowRunWithoutCrons()) {
+      // Roll back the run since it can't advance without crons
+      const db2 = getDb();
+      db2.prepare("UPDATE runs SET status = 'failed', updated_at = ? WHERE id = ?").run(new Date().toISOString(), runId);
+      throw new Error(`Cannot start workflow run: cron setup failed. ${message}`);
+    }
+    logger.warn(`Starting run without crons: ${message}`, { workflowId: workflow.id, runId });
   }
 
   emitEvent({ ts: new Date().toISOString(), event: "run.started", runId, workflowId: workflow.id });
