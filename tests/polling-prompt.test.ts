@@ -14,6 +14,16 @@ describe("buildPollingPrompt", () => {
     assert.ok(prompt.includes("NO_WORK"));
   });
 
+  it("checks step peek before claim and skips claim on NO_WORK", () => {
+    const prompt = buildPollingPrompt("feature-dev", "developer");
+    const peekIndex = prompt.indexOf("step peek");
+    const claimIndex = prompt.indexOf("step claim");
+    assert.ok(peekIndex >= 0, "should include step peek");
+    assert.ok(claimIndex >= 0, "should include step claim");
+    assert.ok(peekIndex < claimIndex, "should peek before claiming");
+    assert.ok(prompt.includes("Do NOT run step claim"), "should stop before claim when no work");
+  });
+
   it("does NOT contain workspace/AGENTS.md/SOUL.md content", () => {
     const prompt = buildPollingPrompt("feature-dev", "developer");
     assert.ok(!prompt.includes("AGENTS.md"));
