@@ -69,15 +69,26 @@ function fireWebhook(evt: AntfarmEvent): void {
   if (raw.startsWith("session://")) {
     const sessionKey = raw.slice("session://".length);
     if (!sessionKey) return;
-    if (evt.event !== "run.completed" && evt.event !== "run.failed") return;
 
     const workflow = evt.workflowId ?? "workflow";
     const shortRun = evt.runId.slice(0, 8);
-    const message = evt.event === "run.completed"
-      ? `Antfarm ${workflow} run ${shortRun} completed.`
-      : `Antfarm ${workflow} run ${shortRun} failed${evt.detail ? `: ${evt.detail}` : "."}`;
+    let message: string | null = null;
 
-    void sendSessionMessage({ sessionKey, message }).catch(() => {});
+    if (evt.event === "run.completed") {
+      message = `Antfarm ${workflow} run ${shortRun} completed.`;
+    } else if (evt.event === "run.failed") {
+      message = `Antfarm ${workflow} run ${shortRun} failed${evt.detail ? `: ${evt.detail}` : "."}`;
+    } else if (evt.event === "step.running" && evt.stepId) {
+      message = `Antfarm ${workflow} run ${shortRun}: ${evt.stepId} started.`;
+    } else if (evt.event === "step.done" && evt.stepId) {
+      message = `Antfarm ${workflow} run ${shortRun}: ${evt.stepId} completed.`;
+    } else if (evt.event === "step.failed" && evt.stepId) {
+      message = `Antfarm ${workflow} run ${shortRun}: ${evt.stepId} failed${evt.detail ? `: ${evt.detail}` : "."}`;
+    }
+
+    if (message) {
+      void sendSessionMessage({ sessionKey, message }).catch(() => {});
+    }
     return;
   }
 
