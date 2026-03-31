@@ -93,7 +93,8 @@ steps:
       2. Explore the codebase to find the affected area
       3. Attempt to reproduce: run tests, check for failing cases, read error logs/stack traces
       4. Classify severity (critical/high/medium/low)
-      5. Document findings
+      5. Propose a NEW clean branch name for this run only (do not reuse an old branch with unrelated commits)
+      6. Document findings
 
       Reply with:
       STATUS: done
@@ -147,17 +148,21 @@ steps:
 
       Instructions:
       1. cd into the repo
-      2. Create the bugfix branch (git checkout -b {{branch}} from main)
-      3. Read package.json, CI config, test config to understand build/test setup
-      4. Ensure .gitignore exists — if missing, create one appropriate for the detected stack (must include .env, node_modules/, *.key, *.pem at minimum)
-      5. Run the build to establish a baseline
-      6. Run the tests to establish a baseline
+      2. Fetch and checkout current main first
+      3. Create the bugfix branch from current main only (git checkout main && git pull --ff-only && git checkout -b {{branch}})
+      4. If {{branch}} already exists and contains unrelated commits or a non-empty diff against main before this run starts, FAIL instead of reusing it
+      5. Run `git merge-base main {{branch}}` and `git diff --stat main..{{branch}}` immediately after branch creation; the diff must be empty or trivially expected baseline only
+      6. Read package.json, CI config, test config to understand build/test setup
+      7. Ensure .gitignore exists — if missing, create one appropriate for the detected stack (must include .env, node_modules/, *.key, *.pem at minimum)
+      8. Run the build to establish a baseline
+      9. Run the tests to establish a baseline
 
       Reply with:
       STATUS: done
       BUILD_CMD: <build command>
       TEST_CMD: <test command>
       BASELINE: <baseline status>
+      BASE_DIFF: <result of git diff --stat main..{{branch}} immediately after branch creation>
     expects: "STATUS: done"
     max_retries: 2
     on_fail:
@@ -185,11 +190,13 @@ steps:
 
       Instructions:
       1. cd into the repo, checkout the branch
-      2. Implement the fix based on the root cause and fix approach
-      3. Write a regression test that would have caught this bug
-      4. Run {{build_cmd}} to verify the build passes
-      5. Run {{test_cmd}} to verify all tests pass
-      6. Commit: fix: brief description of the fix
+      2. Before editing, inspect `git diff --stat main..{{branch}}`; if unrelated changes are already present, FAIL instead of building on a dirty branch
+      3. Implement the fix based on the root cause and fix approach
+      4. Write a regression test that would have caught this bug
+      5. Run {{build_cmd}} to verify the build passes
+      6. Run {{test_cmd}} to verify all tests pass
+      7. Confirm the final diff against main still matches the claimed bug scope before committing
+      8. Commit: fix: brief description of the fix
 
       Reply with:
       STATUS: done
