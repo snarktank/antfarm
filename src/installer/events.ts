@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { getDb } from "../db.js";
+import { sendSessionMessage } from "./gateway-api.js";
 
 const EVENTS_DIR = path.join(os.homedir(), ".openclaw", "antfarm");
 const EVENTS_FILE = path.join(EVENTS_DIR, "events.jsonl");
@@ -64,6 +65,22 @@ function getNotifyUrl(runId: string): string | null {
 function fireWebhook(evt: AntfarmEvent): void {
   const raw = getNotifyUrl(evt.runId);
   if (!raw) return;
+
+  if (raw.startsWith("session://")) {
+    const sessionKey = raw.slice("session://".length);
+    if (!sessionKey) return;
+    if (evt.event !== "run.completed" && evt.event !== "run.failed") return;
+
+    const workflow = evt.workflowId ?? "workflow";
+    const shortRun = evt.runId.slice(0, 8);
+    const message = evt.event === "run.completed"
+      ? `Antfarm ${workflow} run ${shortRun} completed.`
+      : `Antfarm ${workflow} run ${shortRun} failed${evt.detail ? `: ${evt.detail}` : "."}`;
+
+    void sendSessionMessage({ sessionKey, message }).catch(() => {});
+    return;
+  }
+
   try {
     let url = raw;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
