@@ -1,11 +1,9 @@
-import fs from "node:fs/promises";
+import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import type { LoopConfig, PollingConfig, WorkflowAgent, WorkflowSpec, WorkflowStep } from "./types.js";
 
-export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
-  const filePath = path.join(workflowDir, "workflow.yml");
-  const raw = await fs.readFile(filePath, "utf-8");
+function parseWorkflowSpec(raw: string, workflowDir: string): WorkflowSpec {
   const parsed = YAML.parse(raw) as WorkflowSpec;
   if (!parsed?.id) {
     throw new Error(`workflow.yml missing id in ${workflowDir}`);
@@ -35,6 +33,18 @@ export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpe
   }
   validateSteps(parsed.steps, workflowDir);
   return parsed;
+}
+
+export async function loadWorkflowSpec(workflowDir: string): Promise<WorkflowSpec> {
+  const filePath = path.join(workflowDir, "workflow.yml");
+  const raw = await fs.promises.readFile(filePath, "utf-8");
+  return parseWorkflowSpec(raw, workflowDir);
+}
+
+export function loadWorkflowSpecSync(workflowDir: string): WorkflowSpec {
+  const filePath = path.join(workflowDir, "workflow.yml");
+  const raw = fs.readFileSync(filePath, "utf-8");
+  return parseWorkflowSpec(raw, workflowDir);
 }
 
 function validatePollingConfig(polling: PollingConfig, workflowDir: string) {

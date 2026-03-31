@@ -47,7 +47,7 @@ function ensureMainAgentInList(
 }
 
 // ── Shared deny list: things no workflow agent should ever touch ──
-// Note: sessions_spawn is allowed — two-phase polling agents need it to hand off work to opus sessions
+// Note: sessions_spawn remains allowed for workflow-specific use, but Antfarm cron handoffs no longer depend on ACP spawning.
 const ALWAYS_DENY = ["gateway", "cron", "message", "nodes", "canvas", "sessions_send"];
 
 const DEFAULT_CRON_SESSION_RETENTION = "24h";

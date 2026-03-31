@@ -6,49 +6,11 @@ import { readOpenClawConfig } from "./openclaw-config.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
 const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
+const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
+const DEFAULT_POLLING_MODEL = "default";
 
 function buildAgentPrompt(workflowId: string, agentId: string): string {
-  const fullAgentId = `${workflowId}_${agentId}`;
-  const cli = resolveAntfarmCli();
-
-  return `You are an Antfarm workflow agent. Check for pending work and execute it.
-
-⚠️ CRITICAL: You MUST call "step complete" or "step fail" before ending your session. If you don't, the workflow will be stuck forever. This is non-negotiable.
-
-Step 1 — Check for pending work:
-\`\`\`
-node ${cli} step claim "${fullAgentId}"
-\`\`\`
-
-If output is "NO_WORK", reply HEARTBEAT_OK and stop.
-
-Step 2 — If JSON is returned, it contains: {"stepId": "...", "runId": "...", "input": "..."}
-Save the stepId — you'll need it to report completion.
-The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
-
-Step 3 — Do the work described in the input. Format your output with KEY: value lines as specified.
-
-Step 4 — MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
-\`\`\`
-cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
-STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
-ANTFARM_EOF
-cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
-\`\`\`
-
-If the work FAILED:
-\`\`\`
-node ${cli} step fail "<stepId>" "description of what went wrong"
-\`\`\`
-
-RULES:
-1. NEVER end your session without calling step complete or step fail
-2. Write output to a file first, then pipe via stdin (shell escaping breaks direct args)
-3. If you're unsure whether to complete or fail, call step fail with an explanation
-
-The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
+  return buildPollingPrompt(workflowId, agentId);
 }
 
 export function buildWorkPrompt(workflowId: string, agentId: string): string {
@@ -63,14 +25,14 @@ The claimed step JSON is provided below. It contains: {"stepId": "...", "runId":
 Save the stepId — you'll need it to report completion.
 The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
 
-Do the work described in the input. Format your output with KEY: value lines as specified.
+Do the work described in the input. Format your output with KEY: value lines exactly as specified by the claimed step input.
+If the claimed step input says "Reply with" or "Reply ONLY in this format", you must preserve those exact keys and headings in your completion output.
+Do NOT substitute generic headings like CHANGES, TESTS, SUMMARY, or NOTES unless the claimed step input explicitly asks for them.
 
 MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
 cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
-STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
+<paste the exact KEY: value output required by the claimed step input here>
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
@@ -88,8 +50,33 @@ RULES:
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
 }
 
-const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;
-const DEFAULT_POLLING_MODEL = "default";
+export function buildPollingPrompt(workflowId: string, agentId: string, workModel = DEFAULT_POLLING_MODEL): string {
+  const fullAgentId = `${workflowId}_${agentId}`;
+  const cli = resolveAntfarmCli();
+  const workPrompt = buildWorkPrompt(workflowId, agentId);
+
+  return `You are an Antfarm workflow agent. Poll for work, then hand execution to a second session.
+
+Step 1 — Lightweight poll:
+\`\`\`
+node ${cli} step peek "${fullAgentId}"
+\`\`\`
+If the output is "NO_WORK", reply HEARTBEAT_OK and stop immediately. Do NOT run step claim.
+
+Step 2 — Claim only when work exists:
+\`\`\`
+node ${cli} step claim "${fullAgentId}"
+\`\`\`
+If claim returns "NO_WORK", reply HEARTBEAT_OK and stop.
+
+Step 3 — parse the claimed JSON. It contains stepId, runId, and input. Keep the raw payload as CLAIMED STEP JSON.
+
+Step 4 — Start Phase 2 with sessions_spawn using agentId "${fullAgentId}" and model "${workModel}". Give the spawned session the work prompt below plus the exact claimed payload under a heading named CLAIMED STEP JSON.
+
+---START WORK PROMPT---
+${workPrompt}
+---END WORK PROMPT---`;
+}
 
 function extractModel(value: unknown): string | undefined {
   if (!value) return undefined;
@@ -125,38 +112,6 @@ async function resolveAgentCronModel(agentId: string, requestedModel?: string): 
   return requestedModel;
 }
 
-export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
-  const fullAgentId = `${workflowId}_${agentId}`;
-  const cli = resolveAntfarmCli();
-  const model = workModel ?? "default";
-  const workPrompt = buildWorkPrompt(workflowId, agentId);
-
-  return `Step 1 — Quick check for pending work (lightweight, no side effects):
-\`\`\`
-node ${cli} step peek "${fullAgentId}"
-\`\`\`
-If output is "NO_WORK", reply HEARTBEAT_OK and stop immediately. Do NOT run step claim.
-
-Step 2 — If "HAS_WORK", claim the step:
-\`\`\`
-node ${cli} step claim "${fullAgentId}"
-\`\`\`
-If output is "NO_WORK", reply HEARTBEAT_OK and stop.
-
-If JSON is returned, parse it to extract stepId, runId, and input fields.
-Then call sessions_spawn with these parameters:
-- agentId: "${fullAgentId}"
-- model: "${model}"
-- task: The full work prompt below, followed by "\\n\\nCLAIMED STEP JSON:\\n" and the exact JSON output from step claim.
-
-Full work prompt to include in the spawned task:
----START WORK PROMPT---
-${workPrompt}
----END WORK PROMPT---
-
-Reply with a short summary of what you spawned.`;
-}
-
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
   const agents = workflow.agents;
   // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
@@ -171,21 +126,17 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const anchorMs = i * 60_000; // stagger by 1 minute each
     const cronName = `antfarm/${workflow.id}/${agent.id}`;
     const agentId = `${workflow.id}_${agent.id}`;
-
-    // Two-phase: Phase 1 uses cheap polling model + minimal prompt
-    const requestedPollingModel = agent.pollingModel ?? workflowPollingModel;
-    const pollingModel = await resolveAgentCronModel(agentId, requestedPollingModel);
-    const requestedWorkModel = agent.model ?? workflowPollingModel;
-    const workModel = await resolveAgentCronModel(agentId, requestedWorkModel);
-    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
-    const timeoutSeconds = workflowPollingTimeout;
+    const requestedModel = agent.model ?? agent.pollingModel ?? workflowPollingModel;
+    const model = await resolveAgentCronModel(agentId, requestedModel);
+    const prompt = buildPollingPrompt(workflow.id, agent.id, requestedModel ?? DEFAULT_POLLING_MODEL);
+    const timeoutSeconds = Math.max(agent.timeoutSeconds ?? 0, workflowPollingTimeout);
 
     const result = await createAgentCronJob({
       name: cronName,
       schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
       agentId,
-      payload: { kind: "agentTurn", message: prompt, model: pollingModel, timeoutSeconds },
+      payload: { kind: "agentTurn", message: prompt, model, timeoutSeconds },
       delivery: { mode: "none" },
       enabled: true,
     });

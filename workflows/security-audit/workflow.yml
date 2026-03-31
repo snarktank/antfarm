@@ -74,6 +74,8 @@ agents:
     description: Final integration testing and audit re-run after all fixes.
     workspace:
       baseDir: agents/tester
+      skills:
+        - agent-browser
       files:
         AGENTS.md: agents/tester/AGENTS.md
         SOUL.md: agents/tester/SOUL.md

@@ -66,6 +66,8 @@ agents:
     description: Integration and E2E testing after all stories are implemented.
     workspace:
       baseDir: agents/tester
+      skills:
+        - agent-browser
       files:
         AGENTS.md: agents/tester/AGENTS.md
         SOUL.md: agents/tester/SOUL.md
