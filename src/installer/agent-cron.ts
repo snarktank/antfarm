@@ -26,14 +26,14 @@ Step 2 — If JSON is returned, it contains: {"stepId": "...", "runId": "...", "
 Save the stepId — you'll need it to report completion.
 The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
 
-Step 3 — Do the work described in the input. Format your output with KEY: value lines as specified.
+Step 3 — Do the work described in the input. Format your output with KEY: value lines exactly as specified by the claimed step input.
+If the claimed step input says "Reply with" or "Reply ONLY in this format", you must preserve those exact keys and headings in your completion output.
+Do NOT substitute generic headings like CHANGES, TESTS, SUMMARY, or NOTES unless the claimed step input explicitly asks for them.
 
 Step 4 — MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
 cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
-STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
+<paste the exact KEY: value output required by the claimed step input here>
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
@@ -63,14 +63,14 @@ The claimed step JSON is provided below. It contains: {"stepId": "...", "runId":
 Save the stepId — you'll need it to report completion.
 The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
 
-Do the work described in the input. Format your output with KEY: value lines as specified.
+Do the work described in the input. Format your output with KEY: value lines exactly as specified by the claimed step input.
+If the claimed step input says "Reply with" or "Reply ONLY in this format", you must preserve those exact keys and headings in your completion output.
+Do NOT substitute generic headings like CHANGES, TESTS, SUMMARY, or NOTES unless the claimed step input explicitly asks for them.
 
 MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
 cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
-STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
+<paste the exact KEY: value output required by the claimed step input here>
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
@@ -125,38 +125,6 @@ async function resolveAgentCronModel(agentId: string, requestedModel?: string): 
   return requestedModel;
 }
 
-export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
-  const fullAgentId = `${workflowId}_${agentId}`;
-  const cli = resolveAntfarmCli();
-  const model = workModel ?? "default";
-  const workPrompt = buildWorkPrompt(workflowId, agentId);
-
-  return `Step 1 — Quick check for pending work (lightweight, no side effects):
-\`\`\`
-node ${cli} step peek "${fullAgentId}"
-\`\`\`
-If output is "NO_WORK", reply HEARTBEAT_OK and stop immediately. Do NOT run step claim.
-
-Step 2 — If "HAS_WORK", claim the step:
-\`\`\`
-node ${cli} step claim "${fullAgentId}"
-\`\`\`
-If output is "NO_WORK", reply HEARTBEAT_OK and stop.
-
-If JSON is returned, parse it to extract stepId, runId, and input fields.
-Then call sessions_spawn with these parameters:
-- agentId: "${fullAgentId}"
-- model: "${model}"
-- task: The full work prompt below, followed by "\\n\\nCLAIMED STEP JSON:\\n" and the exact JSON output from step claim.
-
-Full work prompt to include in the spawned task:
----START WORK PROMPT---
-${workPrompt}
----END WORK PROMPT---
-
-Reply with a short summary of what you spawned.`;
-}
-
 export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
   const agents = workflow.agents;
   // Allow per-workflow cron interval via cron.interval_ms in workflow.yml
@@ -172,20 +140,19 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const cronName = `antfarm/${workflow.id}/${agent.id}`;
     const agentId = `${workflow.id}_${agent.id}`;
 
-    // Two-phase: Phase 1 uses cheap polling model + minimal prompt
-    const requestedPollingModel = agent.pollingModel ?? workflowPollingModel;
-    const pollingModel = await resolveAgentCronModel(agentId, requestedPollingModel);
-    const requestedWorkModel = agent.model ?? workflowPollingModel;
-    const workModel = await resolveAgentCronModel(agentId, requestedWorkModel);
-    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
-    const timeoutSeconds = workflowPollingTimeout;
+    // Direct execution: claim and execute the step inside the cron agent turn.
+    // This avoids ACP-dependent handoff paths that can deadlock the workflow after claim.
+    const requestedModel = agent.model ?? agent.pollingModel ?? workflowPollingModel;
+    const model = await resolveAgentCronModel(agentId, requestedModel);
+    const prompt = buildAgentPrompt(workflow.id, agent.id);
+    const timeoutSeconds = Math.max(agent.timeoutSeconds ?? 0, workflowPollingTimeout);
 
     const result = await createAgentCronJob({
       name: cronName,
       schedule: { kind: "every", everyMs, anchorMs },
       sessionTarget: "isolated",
       agentId,
-      payload: { kind: "agentTurn", message: prompt, model: pollingModel, timeoutSeconds },
+      payload: { kind: "agentTurn", message: prompt, model, timeoutSeconds },
       delivery: { mode: "none" },
       enabled: true,
     });

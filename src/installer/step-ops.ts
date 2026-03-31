@@ -10,7 +10,7 @@ import { emitEvent } from "./events.js";
 import { logger } from "../lib/logger.js";
 import { sendSessionMessage } from "./gateway-api.js";
 import { getMaxRoleTimeoutSeconds } from "./install.js";
-import { loadWorkflowSpec } from "./workflow-spec.js";
+import { loadWorkflowSpec, loadWorkflowSpecSync } from "./workflow-spec.js";
 import { resolveWorkflowDir } from "./paths.js";
 import { isFrontendChange } from "../lib/frontend-detect.js";
 import type { WorkflowStepFailure } from "./types.js";
@@ -655,6 +655,12 @@ export function claimStep(agentId: string): ClaimResult {
     context["progress"] = readProgressFile(step.run_id);
   }
 
+  // Some workflows reference retry-only feedback fields in first-pass step templates.
+  // Seed them conservatively so initial claims do not fail before any verifier retry exists.
+  if (!context["verify_feedback"]) {
+    context["verify_feedback"] = "";
+  }
+
   const missingKeys = findMissingTemplateKeys(step.input_template, context);
   if (missingKeys.length > 0) {
     failStepWithMissingInputs(step.id, step.step_id, step.run_id, missingKeys);
@@ -763,6 +769,11 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
     }
   }
 
+  const singleStepStatus = (parsed["status"] ?? "").trim().toLowerCase();
+  if (singleStepStatus === "retry") {
+    return handleSingleStepRetry(step, output, context);
+  }
+
   // Single step: mark done and advance
   db.prepare(
     "UPDATE steps SET status = 'done', output = ?, updated_at = datetime('now') WHERE id = ?"
@@ -771,6 +782,71 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   logger.info(`Step completed: ${step.step_id}`, { runId: step.run_id, stepId: step.step_id });
 
   return advancePipeline(step.run_id);
+}
+
+/**
+ * Handle single-step retry output for workflows that use `STATUS: retry` plus `on_fail.retry_step`.
+ */
+function handleSingleStepRetry(
+  step: { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null },
+  output: string,
+  context: Record<string, string>
+): { advanced: boolean; runCompleted: boolean } {
+  const db = getDb();
+  const stepRow = db.prepare(
+    "SELECT retry_count, max_retries FROM steps WHERE id = ?"
+  ).get(step.id) as { retry_count: number; max_retries: number } | undefined;
+
+  if (!stepRow) {
+    throw new Error(`Step not found during retry handling: ${step.id}`);
+  }
+
+  const newRetryCount = stepRow.retry_count + 1;
+  const policy = getOnFailPolicySync(step.run_id, step.step_id);
+  const retryTargetStepId = policy?.retry_step?.trim() || step.step_id;
+  const retryTarget = db.prepare(
+    "SELECT id, step_id FROM steps WHERE run_id = ? AND step_id = ? LIMIT 1"
+  ).get(step.run_id, retryTargetStepId) as { id: string; step_id: string } | undefined;
+
+  if (newRetryCount > stepRow.max_retries || !retryTarget) {
+    const reason = !retryTarget
+      ? `Retry target not found for step \"${step.step_id}\": ${retryTargetStepId}`
+      : output;
+    db.prepare(
+      "UPDATE steps SET status = 'failed', output = ?, retry_count = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(reason, newRetryCount, step.id);
+    db.prepare(
+      "UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?"
+    ).run(step.run_id);
+    const wfId = getWorkflowId(step.run_id);
+    emitEvent({ ts: new Date().toISOString(), event: "step.failed", runId: step.run_id, workflowId: wfId, stepId: step.step_id, detail: reason });
+    emitEvent({ ts: new Date().toISOString(), event: "run.failed", runId: step.run_id, workflowId: wfId, detail: !retryTarget ? "Retry target missing" : "Step retries exhausted" });
+    scheduleRunCronTeardown(step.run_id);
+    if (retryTarget) {
+      notifyFailureExhausted(step.run_id, step.step_id, reason).catch(() => {});
+    }
+    return { advanced: false, runCompleted: false };
+  }
+
+  const feedback = context["issues"]?.trim() || output;
+  if (feedback) {
+    context["verify_feedback"] = feedback;
+    db.prepare("UPDATE runs SET context = ?, updated_at = datetime('now') WHERE id = ?").run(JSON.stringify(context), step.run_id);
+  }
+
+  db.prepare(
+    "UPDATE steps SET status = 'waiting', output = ?, retry_count = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(output, newRetryCount, step.id);
+  db.prepare(
+    "UPDATE steps SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
+  ).run(retryTarget.id);
+
+  logger.info(
+    `Step requested retry: ${step.step_id} -> ${retryTarget.step_id} (retry ${newRetryCount})`,
+    { runId: step.run_id, stepId: step.step_id }
+  );
+
+  return { advanced: false, runCompleted: false };
 }
 
 /**
@@ -966,6 +1042,21 @@ function resolveEscalationTarget(policy: WorkflowStepFailure | null): string | n
   if (normalized === "human" || normalized === "main") return "agent:main:main";
   if (normalized.startsWith("agent:")) return escalateTo;
   return null;
+}
+
+function getOnFailPolicySync(runId: string, stepId: string): WorkflowStepFailure | null {
+  try {
+    const db = getDb();
+    const run = db.prepare("SELECT workflow_id FROM runs WHERE id = ?").get(runId) as { workflow_id: string } | undefined;
+    if (!run) return null;
+
+    const workflowDir = resolveWorkflowDir(run.workflow_id);
+    const workflow = loadWorkflowSpecSync(workflowDir);
+    const step = workflow.steps.find((s) => s.id === stepId);
+    return step?.on_fail ?? null;
+  } catch {
+    return null;
+  }
 }
 
 async function getOnFailPolicy(runId: string, stepId: string): Promise<WorkflowStepFailure | null> {
