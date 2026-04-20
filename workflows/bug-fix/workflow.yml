@@ -103,7 +103,14 @@ steps:
       AFFECTED_AREA: what files/modules are affected
       REPRODUCTION: how to reproduce the bug
       PROBLEM_STATEMENT: clear description of what's wrong
-    expects: "STATUS: done"
+    expects: |
+      STATUS: done
+      REPO:
+      BRANCH:
+      SEVERITY:
+      AFFECTED_AREA:
+      REPRODUCTION:
+      PROBLEM_STATEMENT:
     max_retries: 2
     on_fail:
       escalate_to: human

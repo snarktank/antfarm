@@ -8,7 +8,7 @@ const EVENTS_FILE = path.join(EVENTS_DIR, "events.jsonl");
 const MAX_EVENTS_SIZE = 10 * 1024 * 1024; // 10MB
 
 export type EventType =
-  | "run.started" | "run.completed" | "run.failed"
+  | "run.started" | "run.completed" | "run.failed" | "run.archived"
   | "step.pending" | "step.running" | "step.done" | "step.failed" | "step.timeout"
   | "story.started" | "story.done" | "story.verified" | "story.retry" | "story.failed"
   | "pipeline.advanced";

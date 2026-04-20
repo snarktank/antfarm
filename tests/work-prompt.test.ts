@@ -6,6 +6,7 @@ describe("buildWorkPrompt", () => {
   it("contains step complete instructions", () => {
     const prompt = buildWorkPrompt("feature-dev", "developer");
     assert.ok(prompt.includes("step complete"));
+    assert.ok(prompt.includes("step complete-file"));
   });
 
   it("contains step fail instructions", () => {
@@ -22,6 +23,13 @@ describe("buildWorkPrompt", () => {
     const prompt = buildWorkPrompt("feature-dev", "developer");
     assert.ok(prompt.includes("CRITICAL"));
     assert.ok(prompt.includes("stuck forever"));
+  });
+
+  it("warns agents not to use generic placeholder keys", () => {
+    const prompt = buildWorkPrompt("feature-dev", "developer");
+    assert.ok(prompt.includes("Do NOT use placeholder keys like CHANGES/TESTS"));
+    assert.ok(prompt.includes("EXACT KEY: value output requested by this step"));
+    assert.ok(prompt.includes("Do NOT use heredocs, pipes, cat, or shell substitution"));
   });
 
   it("does not include HEARTBEAT_OK or NO_WORK", () => {

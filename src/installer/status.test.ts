@@ -2,8 +2,7 @@ import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { getDb } from "../db.js";
-import { stopWorkflow } from "./status.js";
-import type { StopWorkflowResult } from "./status.js";
+import { archiveWorkflow, listRuns, stopWorkflow } from "./status.js";
 
 // Helper to create a test run with steps
 function createTestRun(opts: {
@@ -45,16 +44,16 @@ function cleanupTestRun(runId: string) {
   db.prepare("DELETE FROM runs WHERE id = ?").run(runId);
 }
 
+const testRunIds: string[] = [];
+
+afterEach(() => {
+  for (const id of testRunIds) {
+    cleanupTestRun(id);
+  }
+  testRunIds.length = 0;
+});
+
 describe("stopWorkflow", () => {
-  const testRunIds: string[] = [];
-
-  afterEach(() => {
-    for (const id of testRunIds) {
-      cleanupTestRun(id);
-    }
-    testRunIds.length = 0;
-  });
-
   it("stops a running workflow with mixed step statuses and returns correct cancelled count", async () => {
     const runId = crypto.randomUUID();
     testRunIds.push(runId);
@@ -72,19 +71,18 @@ describe("stopWorkflow", () => {
 
     const result = await stopWorkflow(runId);
     assert.equal(result.status, "ok");
-    if (result.status !== "ok") return; // narrow type
+    if (result.status !== "ok") return;
     assert.equal(result.runId, runId);
     assert.equal(result.workflowId, "test-wf-1");
-    assert.equal(result.cancelledSteps, 3); // running + waiting + pending
+    assert.equal(result.cancelledSteps, 3);
 
-    // Verify DB state
     const db = getDb();
     const run = db.prepare("SELECT status FROM runs WHERE id = ?").get(runId) as { status: string };
     assert.equal(run.status, "cancelled");
 
     const steps = db.prepare("SELECT step_id, status, output FROM steps WHERE run_id = ? ORDER BY step_index").all(runId) as Array<{ step_id: string; status: string; output: string | null }>;
-    assert.equal(steps[0].status, "done"); // done step unchanged
-    assert.equal(steps[0].output, "plan output"); // done step output unchanged
+    assert.equal(steps[0].status, "done");
+    assert.equal(steps[0].output, "plan output");
     assert.equal(steps[1].status, "failed");
     assert.equal(steps[1].output, "Cancelled by user");
     assert.equal(steps[2].status, "failed");
@@ -167,9 +165,8 @@ describe("stopWorkflow", () => {
     const result = await stopWorkflow(runId);
     assert.equal(result.status, "ok");
     if (result.status !== "ok") return;
-    assert.equal(result.cancelledSteps, 1); // only the running step
+    assert.equal(result.cancelledSteps, 1);
 
-    // Verify done steps are untouched
     const db = getDb();
     const steps = db.prepare("SELECT step_id, status, output FROM steps WHERE run_id = ? ORDER BY step_index").all(runId) as Array<{ step_id: string; status: string; output: string | null }>;
     assert.equal(steps[0].status, "done");
@@ -178,5 +175,61 @@ describe("stopWorkflow", () => {
     assert.equal(steps[1].output, "also done");
     assert.equal(steps[2].status, "failed");
     assert.equal(steps[2].output, "Cancelled by user");
+  });
+});
+
+describe("archiveWorkflow", () => {
+  it("archives a cancelled run and hides it from the default run list", async () => {
+    const runId = crypto.randomUUID();
+    testRunIds.push(runId);
+    createTestRun({
+      runId,
+      workflowId: "test-wf-archive",
+      status: "cancelled",
+      steps: [{ stepId: "investigate", status: "failed", output: "Cancelled by user" }],
+    });
+
+    const result = await archiveWorkflow(runId);
+    assert.equal(result.status, "ok");
+    if (result.status !== "ok") return;
+
+    const db = getDb();
+    const row = db.prepare("SELECT archived_at FROM runs WHERE id = ?").get(runId) as { archived_at: string | null };
+    assert.ok(row.archived_at, "archived_at should be set");
+
+    assert.equal(listRuns().some((r) => r.id === runId), false);
+    assert.equal(listRuns({ onlyArchived: true }).some((r) => r.id === runId), true);
+  });
+
+  it("rejects archiving an active run", async () => {
+    const runId = crypto.randomUUID();
+    testRunIds.push(runId);
+    createTestRun({
+      runId,
+      workflowId: "test-wf-active",
+      status: "running",
+      steps: [{ stepId: "investigate", status: "running" }],
+    });
+
+    const result = await archiveWorkflow(runId);
+    assert.equal(result.status, "not_archivable");
+    if (result.status !== "not_archivable") return;
+    assert.ok(result.message.includes("Only completed, failed, or cancelled runs can be archived"));
+  });
+
+  it("returns already_archived for a run archived twice", async () => {
+    const runId = crypto.randomUUID();
+    testRunIds.push(runId);
+    createTestRun({
+      runId,
+      workflowId: "test-wf-archived",
+      status: "failed",
+      steps: [{ stepId: "fix", status: "failed", output: "boom" }],
+    });
+
+    const first = await archiveWorkflow(runId);
+    assert.equal(first.status, "ok");
+    const second = await archiveWorkflow(runId);
+    assert.equal(second.status, "already_archived");
   });
 });

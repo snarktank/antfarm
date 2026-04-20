@@ -17,7 +17,7 @@ try {
 
 import { installWorkflow } from "../installer/install.js";
 import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../installer/uninstall.js";
-import { getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.js";
+import { archiveWorkflow, getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
@@ -55,6 +55,7 @@ function formatEventLabel(evt: AntfarmEvent): string {
     "run.started": "Run started",
     "run.completed": "Run completed",
     "run.failed": "Run failed",
+    "run.archived": "Run archived",
     "step.pending": "Step pending",
     "step.running": "Claimed step",
     "step.done": "Step completed",
@@ -95,9 +96,10 @@ function printUsage() {
       "antfarm workflow uninstall --all     Uninstall all workflows (--force to override)",
       "antfarm workflow run <name> <task>   Start a workflow run",
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
-      "antfarm workflow runs                List all workflow runs",
+      "antfarm workflow runs [--all|--archived]  List workflow runs (active by default)",
       "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
       "antfarm workflow stop <run-id>        Stop/cancel a running workflow",
+      "antfarm workflow archive <run-id>     Archive a completed, failed, or cancelled run",
       "antfarm workflow ensure-crons <name>  Recreate agent crons for a workflow",
       "",
       "antfarm dashboard [start] [--port N]   Start dashboard daemon (default: 3333)",
@@ -107,6 +109,7 @@ function printUsage() {
       "antfarm step peek <agent-id>        Lightweight check for pending work (HAS_WORK or NO_WORK)",
       "antfarm step claim <agent-id>       Claim pending step, output resolved input as JSON",
       "antfarm step complete <step-id>      Complete step (reads output from stdin)",
+      "antfarm step complete-file <step-id> <file>  Complete step using output read from a file",
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "antfarm step stories <run-id>       List stories for a run",
       "",
@@ -395,6 +398,16 @@ async function main() {
       process.stdout.write(JSON.stringify(result) + "\n");
       return;
     }
+    if (action === "complete-file") {
+      if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
+      const filePath = args[3];
+      if (!filePath) { process.stderr.write("Missing output-file path.\n"); process.exit(1); }
+      const { readFileSync } = await import("node:fs");
+      const output = readFileSync(filePath, "utf-8").trim();
+      const result = completeStep(target, output);
+      process.stdout.write(JSON.stringify(result) + "\n");
+      return;
+    }
     if (action === "fail") {
       if (!target) { process.stderr.write("Missing step-id.\n"); process.exit(1); }
       const error = args.slice(3).join(" ").trim() || "Unknown error";
@@ -453,12 +466,15 @@ async function main() {
   if (group !== "workflow") { printUsage(); process.exit(1); }
 
   if (action === "runs") {
-    const runs = listRuns();
+    const onlyArchived = args.includes("--archived");
+    const includeArchived = args.includes("--all");
+    const runs = listRuns({ includeArchived, onlyArchived });
     if (runs.length === 0) { console.log("No workflow runs found."); return; }
     console.log("Workflow runs:");
     for (const r of runs) {
       const num = r.run_number != null ? `#${r.run_number}` : r.id.slice(0, 8);
-      console.log(`  [${r.status.padEnd(9)}] ${num.padEnd(6)} ${r.id.slice(0, 8)}  ${r.workflow_id.padEnd(14)}  ${r.task.slice(0, 50)}${r.task.length > 50 ? "..." : ""}`);
+      const archivedMark = r.archived_at ? " (archived)" : "";
+      console.log(`  [${r.status.padEnd(9)}] ${num.padEnd(6)} ${r.id.slice(0, 8)}  ${r.workflow_id.padEnd(14)}  ${r.task.slice(0, 50)}${r.task.length > 50 ? "..." : ""}${archivedMark}`);
     }
     return;
   }
@@ -478,6 +494,17 @@ async function main() {
     if (result.status === "not_found") { process.stderr.write(result.message + "\n"); process.exit(1); }
     if (result.status === "already_done") { process.stderr.write(result.message + "\n"); process.exit(1); }
     console.log(`Cancelled run ${result.runId.slice(0, 8)} (${result.workflowId}). ${result.cancelledSteps} step(s) cancelled.`);
+    return;
+  }
+
+  if (action === "archive") {
+    if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+    const result = await archiveWorkflow(target);
+    if (result.status === "not_found" || result.status === "already_archived" || result.status === "not_archivable") {
+      process.stderr.write(result.message + "\n");
+      process.exit(1);
+    }
+    console.log(`Archived run ${result.runId.slice(0, 8)} (${result.workflowId}) at ${result.archivedAt}.`);
     return;
   }
 
@@ -518,6 +545,7 @@ async function main() {
       `Workflow: ${run.workflow_id}`,
       `Task: ${run.task.slice(0, 120)}${run.task.length > 120 ? "..." : ""}`,
       `Status: ${run.status}`,
+      ...(run.archived_at ? [`Archived: ${run.archived_at}`] : []),
       `Created: ${run.created_at}`,
       `Updated: ${run.updated_at}`,
       "",

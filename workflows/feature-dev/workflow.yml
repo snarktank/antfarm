@@ -108,7 +108,11 @@ steps:
       REPO: /path/to/repo
       BRANCH: feature-branch-name
       STORIES_JSON: [ ... array of story objects ... ]
-    expects: "STATUS: done"
+    expects: |
+      STATUS: done
+      REPO:
+      BRANCH:
+      STORIES_JSON:
     max_retries: 2
     on_fail:
       escalate_to: human
@@ -139,7 +143,12 @@ steps:
       TEST_CMD: <test command>
       CI_NOTES: <brief CI notes>
       BASELINE: <baseline status>
-    expects: "STATUS: done"
+    expects: |
+      STATUS: done
+      BUILD_CMD:
+      TEST_CMD:
+      CI_NOTES:
+      BASELINE:
     max_retries: 2
     on_fail:
       escalate_to: human
@@ -193,7 +202,10 @@ steps:
       STATUS: done
       CHANGES: what you implemented
       TESTS: what tests you wrote
-    expects: "STATUS: done"
+    expects: |
+      STATUS: done
+      CHANGES:
+      TESTS:
     max_retries: 2
     on_fail:
       escalate_to: human
@@ -252,7 +264,9 @@ steps:
       STATUS: retry
       ISSUES:
       - What's missing or incomplete
-    expects: "STATUS: done"
+    expects: |
+      STATUS: done
+      PR:
     on_fail:
       retry_step: implement
       max_retries: 2

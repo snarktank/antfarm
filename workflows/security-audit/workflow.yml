@@ -125,7 +125,12 @@ steps:
       BRANCH: security-audit-YYYY-MM-DD
       VULNERABILITY_COUNT: <number>
       FINDINGS: <detailed list of each vulnerability>
-    expects: "STATUS: done"
+    expects: |
+      STATUS: done
+      REPO:
+      BRANCH:
+      VULNERABILITY_COUNT:
+      FINDINGS:
     max_retries: 2
     on_fail:
       escalate_to: human

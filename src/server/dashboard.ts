@@ -7,6 +7,7 @@ import { resolveBundledWorkflowsDir } from "../installer/paths.js";
 import YAML from "yaml";
 
 import type { RunInfo, StepInfo } from "../installer/status.js";
+import { archiveWorkflow } from "../installer/status.js";
 import { getRunEvents } from "../installer/events.js";
 import { getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 
@@ -40,8 +41,8 @@ function loadWorkflows(): WorkflowDef[] {
 function getRuns(workflowId?: string): Array<RunInfo & { steps: StepInfo[] }> {
   const db = getDb();
   const runs = workflowId
-    ? db.prepare("SELECT * FROM runs WHERE workflow_id = ? ORDER BY created_at DESC").all(workflowId) as RunInfo[]
-    : db.prepare("SELECT * FROM runs ORDER BY created_at DESC").all() as RunInfo[];
+    ? db.prepare("SELECT * FROM runs WHERE workflow_id = ? AND archived_at IS NULL ORDER BY created_at DESC").all(workflowId) as RunInfo[]
+    : db.prepare("SELECT * FROM runs WHERE archived_at IS NULL ORDER BY created_at DESC").all() as RunInfo[];
   return runs.map((r) => {
     const steps = db.prepare("SELECT * FROM steps WHERE run_id = ? ORDER BY step_index ASC").all(r.id) as StepInfo[];
     return { ...r, steps };
@@ -71,9 +72,17 @@ function serveHTML(res: http.ServerResponse) {
 }
 
 export function startDashboard(port = 3333): http.Server {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
+
+    const archiveMatch = p.match(/^\/api\/runs\/([^/]+)\/archive$/);
+    if (archiveMatch && req.method === "POST") {
+      const result = await archiveWorkflow(archiveMatch[1]);
+      if (result.status === "ok") return json(res, result);
+      const status = result.status === "not_found" ? 404 : 409;
+      return json(res, { error: result.message }, status);
+    }
 
     if (p === "/api/workflows") {
       return json(res, loadWorkflows());

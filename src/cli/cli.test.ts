@@ -31,9 +31,12 @@ describe("workflow stop CLI", () => {
     }
     const resumeIndex = output.indexOf("workflow resume");
     const stopIndex = output.indexOf("workflow stop");
+    const archiveIndex = output.indexOf("workflow archive");
     assert.ok(resumeIndex !== -1, "Help text should include 'workflow resume'");
     assert.ok(stopIndex !== -1, "Help text should include 'workflow stop'");
+    assert.ok(archiveIndex !== -1, "Help text should include 'workflow archive'");
     assert.ok(stopIndex > resumeIndex, "'workflow stop' should appear after 'workflow resume'");
+    assert.ok(archiveIndex > stopIndex, "'workflow archive' should appear after 'workflow stop'");
   });
 
   it("'workflow stop' with no run-id prints error and exits with code 1", () => {
@@ -64,6 +67,22 @@ describe("workflow stop CLI", () => {
       assert.ok(
         (err.stderr ?? "").length > 0,
         "Should print error to stderr",
+      );
+    }
+  });
+
+  it("'workflow archive' with no run-id prints error and exits with code 1", () => {
+    try {
+      execFileSync("node", [cliPath, "workflow", "archive"], {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      assert.fail("Should have exited with code 1");
+    } catch (err: any) {
+      assert.equal(err.status, 1, "Should exit with code 1");
+      assert.ok(
+        (err.stderr ?? "").includes("Missing run-id"),
+        "Should print 'Missing run-id' to stderr",
       );
     }
   });

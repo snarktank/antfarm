@@ -54,6 +54,29 @@ export function parseOutputKeyValues(output: string): Record<string, string> {
 }
 
 /**
+ * Structured expects blocks are newline-delimited required snippets.
+ * A single KEY: value line is also treated as structured so guards like
+ * expects: "STATUS: done" cannot silently pass on STATUS: retry output.
+ * Plain one-word expects remain advisory for backwards compatibility.
+ */
+export function getStructuredExpectSnippets(expects: string): string[] {
+  const lines = expects
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length > 1) return lines;
+  if (lines.length === 1 && /^[A-Z_]+:\s*.*$/.test(lines[0])) return lines;
+  return [];
+}
+
+export function findMissingStructuredExpectSnippets(output: string, expects: string): string[] {
+  const required = getStructuredExpectSnippets(expects);
+  if (required.length === 0) return [];
+  return required.filter((snippet) => !output.includes(snippet));
+}
+
+/**
  * Fire-and-forget cron teardown when a run ends.
  * Looks up the workflow_id for the run and tears down crons if no other active runs.
  */
@@ -680,14 +703,43 @@ export function completeStep(stepId: string, output: string): { advanced: boolea
   const db = getDb();
 
   const step = db.prepare(
-    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id FROM steps WHERE id = ?"
-  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null } | undefined;
+    "SELECT id, run_id, step_id, step_index, type, loop_config, current_story_id, expects FROM steps WHERE id = ?"
+  ).get(stepId) as { id: string; run_id: string; step_id: string; step_index: number; type: string; loop_config: string | null; current_story_id: string | null; expects: string } | undefined;
 
   if (!step) throw new Error(`Step not found: ${stepId}`);
 
   // Guard: don't process completions for failed runs
   const runCheck = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
   if (runCheck?.status === "failed") {
+    return { advanced: false, runCompleted: false };
+  }
+
+  const missingExpected = findMissingStructuredExpectSnippets(output, step.expects);
+  if (missingExpected.length > 0) {
+    const wfId = getWorkflowId(step.run_id);
+    const message = `Step output is missing required content: ${missingExpected.join(", ")}`;
+
+    db.prepare(
+      "UPDATE steps SET status = 'failed', output = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(message, step.id);
+    db.prepare("UPDATE runs SET status = 'failed', updated_at = datetime('now') WHERE id = ?").run(step.run_id);
+
+    emitEvent({
+      ts: new Date().toISOString(),
+      event: "step.failed",
+      runId: step.run_id,
+      workflowId: wfId,
+      stepId: step.step_id,
+      detail: message,
+    });
+    emitEvent({
+      ts: new Date().toISOString(),
+      event: "run.failed",
+      runId: step.run_id,
+      workflowId: wfId,
+      detail: message,
+    });
+    scheduleRunCronTeardown(step.run_id);
     return { advanced: false, runCompleted: false };
   }
 

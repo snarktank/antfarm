@@ -151,6 +151,10 @@ select:focus{outline:none;border-color:#8ECFC0}
 .panel-task{font-size:13px;color:var(--text-secondary);margin-bottom:16px;white-space:pre-wrap;word-break:break-word;max-height:120px;overflow-y:auto;line-height:1.5}
 .panel-meta{display:flex;gap:12px;margin-bottom:20px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap}
 .panel-meta span{display:flex;align-items:center;gap:4px}
+.panel-actions{display:flex;gap:8px;flex-wrap:wrap;margin:-8px 0 20px}
+.panel-button{appearance:none;border:1px solid var(--border);background:var(--bg-surface-alt);color:var(--text-primary);border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s}
+.panel-button:hover{border-color:var(--accent-orange);background:var(--bg-column-header)}
+.panel-button.archive{color:var(--accent-orange)}
 
 /* ── Steps ─────────────────────────────────────────────────────── */
 .steps-list{display:flex;flex-direction:column;gap:8px}
@@ -169,7 +173,7 @@ select:focus{outline:none;border-color:#8ECFC0}
 .badge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:4px;text-transform:uppercase}
 .badge-running{background:var(--accent-teal-subtle);color:var(--accent-teal)}
 .badge-done,.badge-completed{background:var(--accent-green-subtle);color:var(--accent-green)}
-.badge-failed,.badge-error{background:var(--accent-orange-subtle);color:var(--accent-orange)}
+.badge-failed,.badge-error,.badge-cancelled,.badge-archived{background:var(--accent-orange-subtle);color:var(--accent-orange)}
 .badge-waiting{background:var(--accent-muted);color:var(--text-secondary)}
 .badge-pending{background:var(--accent-muted);color:var(--text-secondary)}
 .badge-blocked{background:var(--accent-orange-faint);color:var(--accent-orange)}
@@ -251,6 +255,18 @@ function startOpenRunRefresh() {
 async function fetchJSON(url) {
   const r = await fetch(API + url);
   return r.json();
+}
+
+async function archiveRun(id) {
+  if (!confirm('Archive this run? It will disappear from the main board.')) return;
+  const r = await fetch(API + `/api/runs/${id}/archive`, { method: 'POST' });
+  const data = await r.json();
+  if (!r.ok) {
+    alert(data.error || 'Could not archive run.');
+    return;
+  }
+  closePanel();
+  await loadRuns();
 }
 
 async function loadWorkflows() {
@@ -357,6 +373,7 @@ function renderRunPanel(run) {
   const panel = document.getElementById('panel');
   const created = run.created_at ? parseTS(run.created_at)?.toLocaleString() || "" : '';
   const updated = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || "" : '';
+  const canArchive = ['completed', 'failed', 'cancelled'].includes(run.status) && !run.archived_at;
   const stepsHTML = (run.steps || []).map(s => {
     const st = s.status || 'waiting';
     const icon = stepIcons[st] || '○';
@@ -381,9 +398,11 @@ function renderRunPanel(run) {
     <div class="panel-task">${esc(run.task)}</div>
     <div class="panel-meta">
       <span><span class="badge badge-${run.status}">${run.status}</span></span>
+      ${run.archived_at ? `<span>Archived: ${parseTS(run.archived_at)?.toLocaleString() || ''}</span>` : ''}
       <span>Created: ${created}</span>
       <span>Updated: ${updated}</span>
     </div>
+    ${canArchive ? `<div class="panel-actions"><button class="panel-button archive" onclick="archiveRun('${run.id}')">Archive run</button></div>` : ''}
     <div class="steps-list">${stepsHTML}</div>
       <div id="stories-panel"></div>
     <div id="activity-panel"></div>
@@ -397,6 +416,7 @@ function formatEventDesc(evt) {
     case 'run.started': return 'Run started';
     case 'run.completed': return 'Run completed ✅';
     case 'run.failed': return 'Run failed ❌';
+    case 'run.archived': return 'Run archived 📦';
     case 'step.pending': return `Step pending`;
     case 'step.running': return `Claimed step`;
     case 'step.done': return `Step completed`;
