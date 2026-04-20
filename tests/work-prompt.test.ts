@@ -32,6 +32,19 @@ describe("buildWorkPrompt", () => {
     assert.ok(prompt.includes("Do NOT use heredocs, pipes, cat, or shell substitution"));
   });
 
+  it("routes executor-enabled coding agents through the Claude Code wrapper", () => {
+    const prompt = buildWorkPrompt("feature-dev", "developer");
+    assert.ok(prompt.includes("CLAUDE CODE WRAPPER"));
+    assert.ok(prompt.includes('executor run "feature-dev" "developer"'));
+    assert.ok(prompt.includes("executor.started / executor.completed / executor.failed"));
+  });
+
+  it("does not mention the Claude Code wrapper for non-executor agents", () => {
+    const prompt = buildWorkPrompt("feature-dev", "planner");
+    assert.ok(!prompt.includes("CLAUDE CODE WRAPPER"));
+    assert.ok(!prompt.includes('executor run "feature-dev" "planner"'));
+  });
+
   it("does not include HEARTBEAT_OK or NO_WORK", () => {
     const prompt = buildWorkPrompt("feature-dev", "developer");
     assert.ok(!prompt.includes("HEARTBEAT_OK"));

@@ -68,6 +68,20 @@ function validateAgents(agents: WorkflowAgent[], workflowDir: string) {
     if (agent.timeoutSeconds !== undefined && agent.timeoutSeconds <= 0) {
       throw new Error(`workflow.yml agent "${agent.id}" timeoutSeconds must be positive`);
     }
+    if (agent.executor) {
+      if (agent.executor.kind !== "claude-code-wrapper") {
+        throw new Error(`workflow.yml agent "${agent.id}" has unsupported executor kind "${(agent.executor as any).kind}"`);
+      }
+      if (!agent.executor.command?.trim()) {
+        throw new Error(`workflow.yml agent "${agent.id}" executor.command is required`);
+      }
+      if (agent.executor.maxTurns !== undefined && agent.executor.maxTurns <= 0) {
+        throw new Error(`workflow.yml agent "${agent.id}" executor.maxTurns must be positive`);
+      }
+      if (agent.executor.effort !== undefined && !["low", "medium", "high"].includes(agent.executor.effort)) {
+        throw new Error(`workflow.yml agent "${agent.id}" executor.effort must be low, medium, or high`);
+      }
+    }
   }
 }
 

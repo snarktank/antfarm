@@ -50,6 +50,12 @@ agents:
     name: Fixer
     role: coding
     description: Implements the fix and writes regression tests.
+    executor:
+      kind: claude-code-wrapper
+      command: /Users/friday/.openclaw/workspace/claude-code-wrapper/bin/claude-agent.sh
+      model: claude-opus-4-7
+      effort: high
+      maxTurns: 60
     workspace:
       baseDir: agents/fixer
       files:

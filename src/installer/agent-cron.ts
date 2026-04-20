@@ -1,6 +1,9 @@
+import fs from "node:fs";
+import path from "node:path";
+import YAML from "yaml";
 import { createAgentCronJob, deleteAgentCronJobs, listCronJobs, checkCronToolAvailable } from "./gateway-api.js";
 import type { WorkflowSpec } from "./types.js";
-import { resolveAntfarmCli } from "./paths.js";
+import { resolveAntfarmCli, resolveBundledWorkflowDir, resolveWorkflowDir } from "./paths.js";
 import { getDb } from "../db.js";
 import { readOpenClawConfig } from "./openclaw-config.js";
 
@@ -30,6 +33,7 @@ Step 3 — Do the work described in the input. Format your output with KEY: valu
 
 Step 4 — MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
+Write output to a file first using the write tool.
 Use the write tool to create /tmp/antfarm-step-output.txt with the EXACT KEY: value output requested by this step.
 Do NOT use placeholder keys like CHANGES/TESTS unless the step explicitly asked for them.
 
@@ -44,7 +48,7 @@ node ${cli} step fail "<stepId>" "description of what went wrong"
 
 RULES:
 1. NEVER end your session without calling step complete or step fail
-2. Use the write tool to create /tmp/antfarm-step-output.txt, then run step complete-file
+2. Write output to a file first, using the write tool to create /tmp/antfarm-step-output.txt, then run step complete-file
 3. If you're unsure whether to complete or fail, call step fail with an explanation
 4. The output file must contain every required KEY from the step instructions before you call step complete
 5. Do NOT use heredocs, pipes, cat, or shell substitution for step completion
@@ -55,6 +59,7 @@ The workflow cannot advance until you report. Your session ending without report
 export function buildWorkPrompt(workflowId: string, agentId: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
+  const executorInstructions = buildExecutorInstructions(workflowId, agentId, cli);
 
   return `You are an Antfarm workflow agent. Execute the pending work below.
 
@@ -66,8 +71,11 @@ The "input" field contains your FULLY RESOLVED task instructions. Read it carefu
 
 Do the work described in the input. Format your output with KEY: value lines as specified.
 
+${executorInstructions}
+
 MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
+Write output to a file first using the write tool.
 Use the write tool to create /tmp/antfarm-step-output.txt with the EXACT KEY: value output requested by this step.
 Do NOT use placeholder keys like CHANGES/TESTS unless the step explicitly asked for them.
 
@@ -82,12 +90,69 @@ node ${cli} step fail "<stepId>" "description of what went wrong"
 
 RULES:
 1. NEVER end your session without calling step complete or step fail
-2. Use the write tool to create /tmp/antfarm-step-output.txt, then run step complete-file
+2. Write output to a file first, using the write tool to create /tmp/antfarm-step-output.txt, then run step complete-file
 3. If you're unsure whether to complete or fail, call step fail with an explanation
 4. The output file must contain every required KEY from the step instructions before you call step complete
 5. Do NOT use heredocs, pipes, cat, or shell substitution for step completion
 
 The workflow cannot advance until you report. Your session ending without reporting = broken pipeline.`;
+}
+
+type AgentExecutorConfig = {
+  kind: "claude-code-wrapper";
+  command: string;
+  model?: string;
+  effort?: string;
+  maxTurns?: number;
+};
+
+const workflowExecutorCache = new Map<string, Map<string, AgentExecutorConfig>>();
+
+function resolveWorkflowYamls(workflowId: string): string[] {
+  const bundled = path.join(resolveBundledWorkflowDir(workflowId), "workflow.yml");
+  const installed = path.join(resolveWorkflowDir(workflowId), "workflow.yml");
+  return [bundled, installed].filter((filePath, index, all) => fs.existsSync(filePath) && all.indexOf(filePath) === index);
+}
+
+function getAgentExecutorConfig(workflowId: string, agentId: string): AgentExecutorConfig | null {
+  let cached = workflowExecutorCache.get(workflowId);
+  if (!cached) {
+    cached = new Map<string, AgentExecutorConfig>();
+    for (const yamlPath of resolveWorkflowYamls(workflowId)) {
+      try {
+        const parsed = YAML.parse(fs.readFileSync(yamlPath, "utf-8")) as { agents?: Array<{ id?: string; executor?: AgentExecutorConfig }> };
+        for (const agent of parsed.agents ?? []) {
+          if (agent.id && agent.executor?.kind === "claude-code-wrapper") {
+            cached.set(agent.id, agent.executor);
+          }
+        }
+      } catch {
+        // best-effort
+      }
+    }
+    workflowExecutorCache.set(workflowId, cached);
+  }
+  return cached.get(agentId) ?? null;
+}
+
+function buildExecutorInstructions(workflowId: string, agentId: string, cli: string): string {
+  const executor = getAgentExecutorConfig(workflowId, agentId);
+  if (!executor || executor.kind !== "claude-code-wrapper") return "";
+
+  return `THIS AGENT IS CONFIGURED TO USE THE CLAUDE CODE WRAPPER FOR IMPLEMENTATION.
+
+When you have a claimed step:
+1. Use the write tool to save the EXACT claimed step input into /tmp/antfarm-claimed-input.txt.
+2. Run this executor command:
+\`\`\`
+node ${cli} executor run "${workflowId}" "${agentId}" "<runId>" "<stepId>" "/tmp/antfarm-claimed-input.txt" "/tmp/antfarm-step-output.txt"
+\`\`\`
+3. The executor automatically loads this Antfarm agent's real local workspace context before it runs Claude Code.
+4. If that command succeeds, /tmp/antfarm-step-output.txt will already contain the exact KEY: value response from Claude Code.
+5. Immediately report completion with step complete-file.
+6. If the executor command fails or the wrapper is unavailable, call step fail instead of doing the coding work manually.
+
+Antfarm will emit executor.started / executor.completed / executor.failed events so the dashboard activity shows the wrapper flow.`;
 }
 
 const DEFAULT_POLLING_TIMEOUT_SECONDS = 120;

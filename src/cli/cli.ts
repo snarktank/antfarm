@@ -27,6 +27,7 @@ import { claimStep, completeStep, failStep, getStories, peekStep } from "../inst
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
 import { installMedicCron, uninstallMedicCron, isMedicCronInstalled } from "../medic/medic-cron.js";
+import { runConfiguredExecutor } from "../installer/executor.js";
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -56,6 +57,9 @@ function formatEventLabel(evt: AntfarmEvent): string {
     "run.completed": "Run completed",
     "run.failed": "Run failed",
     "run.archived": "Run archived",
+    "executor.started": "Executor started",
+    "executor.completed": "Executor completed",
+    "executor.failed": "Executor failed",
     "step.pending": "Step pending",
     "step.running": "Claimed step",
     "step.done": "Step completed",
@@ -112,6 +116,7 @@ function printUsage() {
       "antfarm step complete-file <step-id> <file>  Complete step using output read from a file",
       "antfarm step fail <step-id> <error>  Fail step with retry logic",
       "antfarm step stories <run-id>       List stories for a run",
+      "antfarm executor run <workflow> <agent> <run-id> <step-id> <input-file> <output-file>  Run configured code executor",
       "",
       "antfarm medic install                Install medic watchdog cron",
       "antfarm medic uninstall              Remove medic cron",
@@ -426,6 +431,29 @@ async function main() {
       return;
     }
     process.stderr.write(`Unknown step action: ${action}\n`);
+    printUsage();
+    process.exit(1);
+  }
+
+  if (group === "executor") {
+    if (action === "run") {
+      const workflowId = target;
+      const agentId = args[3];
+      const runId = args[4];
+      const stepId = args[5];
+      const inputFile = args[6];
+      const outputFile = args[7];
+      if (!workflowId || !agentId || !runId || !stepId || !inputFile || !outputFile) {
+        process.stderr.write("Usage: antfarm executor run <workflow> <agent> <run-id> <step-id> <input-file> <output-file>\n");
+        process.exit(1);
+      }
+      const input = readFileSync(inputFile, "utf-8");
+      const result = await runConfiguredExecutor({ workflowId, agentId, runId, stepId, input, outputFile });
+      process.stdout.write(JSON.stringify(result) + "\n");
+      if (!result.ok) process.exit(1);
+      return;
+    }
+
     printUsage();
     process.exit(1);
   }

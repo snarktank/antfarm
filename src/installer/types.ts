@@ -23,8 +23,17 @@ export type WorkflowAgent = {
   role?: AgentRole;
   model?: string;
   pollingModel?: string;
+  executor?: WorkflowAgentExecutor;
   timeoutSeconds?: number;
   workspace: WorkflowAgentFiles;
+};
+
+export type WorkflowAgentExecutor = {
+  kind: "claude-code-wrapper";
+  command: string;
+  model?: string;
+  effort?: "low" | "medium" | "high";
+  maxTurns?: number;
 };
 
 export type PollingConfig = {

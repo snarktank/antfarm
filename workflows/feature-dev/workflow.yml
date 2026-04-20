@@ -40,6 +40,12 @@ agents:
     name: Developer
     role: coding
     description: Implements features, writes tests, creates PRs.
+    executor:
+      kind: claude-code-wrapper
+      command: /Users/friday/.openclaw/workspace/claude-code-wrapper/bin/claude-agent.sh
+      model: claude-opus-4-7
+      effort: high
+      maxTurns: 60
     workspace:
       baseDir: agents/developer
       files:

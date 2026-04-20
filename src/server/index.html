@@ -417,6 +417,9 @@ function formatEventDesc(evt) {
     case 'run.completed': return 'Run completed ✅';
     case 'run.failed': return 'Run failed ❌';
     case 'run.archived': return 'Run archived 📦';
+    case 'executor.started': return 'Claude Code executor started';
+    case 'executor.completed': return 'Claude Code executor completed';
+    case 'executor.failed': return 'Claude Code executor failed';
     case 'step.pending': return `Step pending`;
     case 'step.running': return `Claimed step`;
     case 'step.done': return `Step completed`;
