@@ -3,6 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { ensureDashboardServe } from "./tailscale-serve.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -29,9 +30,21 @@ export function isRunning(): { running: true; pid: number } | { running: false }
   }
 }
 
+export async function isDashboardHealthy(port = 3333): Promise<boolean> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/healthz`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function startDaemon(port = 3333): Promise<{ pid: number; port: number }> {
   const status = isRunning();
   if (status.running) {
+    await ensureDashboardServe(port);
     return { pid: status.pid, port };
   }
 
@@ -56,7 +69,17 @@ export async function startDaemon(port = 3333): Promise<{ pid: number; port: num
   if (!check.running) {
     throw new Error("Daemon failed to start. Check " + logFile);
   }
+
+  await ensureDashboardServe(port);
   return { pid: check.pid, port };
+}
+
+export async function restartDaemon(port = 3333): Promise<{ pid: number; port: number }> {
+  if (isRunning().running) {
+    stopDaemon();
+    await new Promise((resolve) => setTimeout(resolve, 750));
+  }
+  return startDaemon(port);
 }
 
 export function stopDaemon(): boolean {

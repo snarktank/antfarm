@@ -10,9 +10,12 @@ import { teardownWorkflowCronsIfIdle } from "../installer/agent-cron.js";
 import { listCronJobs } from "../installer/gateway-api.js";
 import {
   runSyncChecks,
+  checkDashboardInfrastructure,
   checkOrphanedCrons,
   type MedicFinding,
 } from "./checks.js";
+import { ensureDashboardServe } from "../server/tailscale-serve.js";
+import { restartDaemon } from "../server/daemonctl.js";
 import crypto from "node:crypto";
 
 // ── DB Migration ────────────────────────────────────────────────────
@@ -119,6 +122,24 @@ async function remediate(finding: MedicFinding): Promise<boolean> {
       }
     }
 
+    case "restart_dashboard": {
+      try {
+        await restartDaemon(3333);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    case "restore_dashboard_proxy": {
+      try {
+        const result = await ensureDashboardServe(3333);
+        return result.ok;
+      } catch {
+        return false;
+      }
+    }
+
     case "none":
     default:
       return false;
@@ -144,6 +165,12 @@ export async function runMedicCheck(): Promise<MedicCheckResult> {
 
   // Gather all findings
   const findings: MedicFinding[] = runSyncChecks();
+
+  try {
+    findings.push(...await checkDashboardInfrastructure());
+  } catch {
+    // skip dashboard checks on failure
+  }
 
   // Async check: orphaned crons
   try {

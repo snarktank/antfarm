@@ -3,12 +3,16 @@
  */
 import { getDb } from "../db.js";
 import { getMaxRoleTimeoutSeconds } from "../installer/install.js";
+import { isRunning, isDashboardHealthy } from "../server/daemonctl.js";
+import { getDashboardServeStatus } from "../server/tailscale-serve.js";
 
 export type MedicSeverity = "info" | "warning" | "critical";
 export type MedicActionType =
   | "reset_step"
   | "fail_run"
   | "teardown_crons"
+  | "restart_dashboard"
+  | "restore_dashboard_proxy"
   | "none";
 
 export interface MedicFinding {
@@ -207,4 +211,37 @@ export function runSyncChecks(): MedicFinding[] {
     ...checkStalledRuns(),
     ...checkDeadRuns(),
   ];
+}
+
+export async function checkDashboardInfrastructure(): Promise<MedicFinding[]> {
+  const findings: MedicFinding[] = [];
+  const running = isRunning();
+  const healthy = running.running ? await isDashboardHealthy() : false;
+
+  if (!running.running || !healthy) {
+    findings.push({
+      check: "dashboard_health",
+      severity: "critical",
+      message: running.running
+        ? "Dashboard daemon is running but /healthz is failing"
+        : "Dashboard daemon is not running",
+      action: "restart_dashboard",
+      remediated: false,
+    });
+  }
+
+  const serve = await getDashboardServeStatus();
+  if (!serve.configured) {
+    findings.push({
+      check: "dashboard_proxy",
+      severity: healthy ? "warning" : "critical",
+      message: serve.error
+        ? `Tailscale serve mapping for the dashboard is missing or unhealthy (${serve.error})`
+        : "Tailscale serve mapping for the dashboard is missing or unhealthy",
+      action: "restore_dashboard_proxy",
+      remediated: false,
+    });
+  }
+
+  return findings;
 }

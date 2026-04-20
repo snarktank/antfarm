@@ -76,6 +76,12 @@ export function startDashboard(port = 3333): http.Server {
     const url = new URL(req.url ?? "/", `http://localhost:${port}`);
     const p = url.pathname;
 
+    if (p === "/healthz") {
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({ ok: true, service: "antfarm-dashboard" }));
+      return;
+    }
+
     const archiveMatch = p.match(/^\/api\/runs\/([^/]+)\/archive$/);
     if (archiveMatch && req.method === "POST") {
       const result = await archiveWorkflow(archiveMatch[1]);

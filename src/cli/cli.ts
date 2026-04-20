@@ -23,6 +23,7 @@ import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
 import { getRecentEvents, getRunEvents, type AntfarmEvent } from "../installer/events.js";
 import { startDaemon, stopDaemon, getDaemonStatus, isRunning } from "../server/daemonctl.js";
+import { getDashboardServeStatus } from "../server/tailscale-serve.js";
 import { claimStep, completeStep, failStep, getStories, peekStep } from "../installer/step-ops.js";
 import { ensureCliSymlink } from "../installer/symlink.js";
 import { runMedicCheck, getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
@@ -249,6 +250,8 @@ async function main() {
       const st = getDaemonStatus();
       if (st && st.running) {
         console.log(`Dashboard running (PID ${st.pid ?? "unknown"})`);
+        const serve = await getDashboardServeStatus();
+        console.log(`Tailscale serve: ${serve.configured ? `ok (${serve.url ?? ":4443 -> 127.0.0.1:3333"})` : "missing"}`);
       } else {
         console.log("Dashboard is not running.");
       }
@@ -267,15 +270,19 @@ async function main() {
     }
 
     if (isRunning().running) {
-      const status = getDaemonStatus();
-      console.log(`Dashboard already running (PID ${status?.pid})`);
+      const result = await startDaemon(port);
+      const serve = await getDashboardServeStatus(port);
+      console.log(`Dashboard already running (PID ${result.pid})`);
       console.log(`  http://localhost:${port}`);
+      if (serve.configured && serve.url) console.log(`  ${serve.url}`);
       return;
     }
 
     const result = await startDaemon(port);
+    const serve = await getDashboardServeStatus(port);
     console.log(`Dashboard started (PID ${result.pid})`);
     console.log(`  http://localhost:${result.port}`);
+    if (serve.configured && serve.url) console.log(`  ${serve.url}`);
     return;
   }
 
