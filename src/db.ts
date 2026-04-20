@@ -24,7 +24,7 @@ export function getDb(): DatabaseSync {
   return _db;
 }
 
-function migrate(db: DatabaseSync): void {
+export function migrate(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS runs (
       id TEXT PRIMARY KEY,
@@ -104,6 +104,27 @@ function migrate(db: DatabaseSync): void {
       ) WHERE run_number IS NULL
     `);
   }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS linear_issue_links (
+      linear_issue_id TEXT PRIMARY KEY,
+      linear_identifier TEXT NOT NULL,
+      linear_url TEXT NOT NULL,
+      linear_title TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      workflow_id TEXT NOT NULL,
+      repo_path TEXT NOT NULL,
+      run_id TEXT REFERENCES runs(id),
+      sync_status TEXT NOT NULL,
+      last_linear_updated_at TEXT,
+      last_synced_run_status TEXT,
+      last_synced_step_id TEXT,
+      last_comment_hash TEXT,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
 }
 
 export function nextRunNumber(): number {
