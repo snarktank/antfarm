@@ -6,10 +6,23 @@ import { logger } from "../lib/logger.js";
 import { ensureWorkflowCrons } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 
+export function buildRunContext(
+  taskTitle: string,
+  workflowContext: Record<string, string> | undefined,
+  initialContext: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  return {
+    task: taskTitle,
+    ...(workflowContext ?? {}),
+    ...(initialContext ?? {}),
+  };
+}
+
 export async function runWorkflow(params: {
   workflowId: string;
   taskTitle: string;
   notifyUrl?: string;
+  initialContext?: Record<string, unknown>;
 }): Promise<{ id: string; runNumber: number; workflowId: string; task: string; status: string }> {
   const workflowDir = resolveWorkflowDir(params.workflowId);
   const workflow = await loadWorkflowSpec(workflowDir);
@@ -18,10 +31,7 @@ export async function runWorkflow(params: {
   const runId = crypto.randomUUID();
   const runNumber = nextRunNumber();
 
-  const initialContext: Record<string, string> = {
-    task: params.taskTitle,
-    ...workflow.context,
-  };
+  const runContext = buildRunContext(params.taskTitle, workflow.context, params.initialContext);
 
   db.exec("BEGIN");
   try {
@@ -29,7 +39,7 @@ export async function runWorkflow(params: {
     const insertRun = db.prepare(
       "INSERT INTO runs (id, run_number, workflow_id, task, status, context, notify_url, created_at, updated_at) VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?)"
     );
-    insertRun.run(runId, runNumber, workflow.id, params.taskTitle, JSON.stringify(initialContext), notifyUrl, now, now);
+    insertRun.run(runId, runNumber, workflow.id, params.taskTitle, JSON.stringify(runContext), notifyUrl, now, now);
 
     const insertStep = db.prepare(
       "INSERT INTO steps (id, run_id, step_id, agent_id, step_index, input_template, expects, status, max_retries, type, loop_config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
