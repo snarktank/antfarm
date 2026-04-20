@@ -104,6 +104,12 @@ export function migrate(db: DatabaseSync): void {
       ) WHERE run_number IS NULL
     `);
   }
+  if (!runColNames.has("pause_requested_at")) {
+    db.exec("ALTER TABLE runs ADD COLUMN pause_requested_at TEXT");
+  }
+  if (!runColNames.has("paused_at")) {
+    db.exec("ALTER TABLE runs ADD COLUMN paused_at TEXT");
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS linear_issue_links (

@@ -3,14 +3,31 @@ import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { archiveRunProgress } from "./step-ops.js";
 
+/**
+ * Lifecycle states a run row in the `runs` table can have.
+ *
+ * `paused` is a resumable parked state distinct from `cancelled` /
+ * `completed` / `failed` — the run keeps its progress and can later be
+ * resumed without being archived.
+ */
+export type RunStatus =
+  | "running"
+  | "paused"
+  | "blocked"
+  | "completed"
+  | "cancelled"
+  | "failed";
+
 export type RunInfo = {
   id: string;
   run_number: number | null;
   workflow_id: string;
   task: string;
-  status: string;
+  status: RunStatus | string;
   context: string;
   archived_at: string | null;
+  pause_requested_at: string | null;
+  paused_at: string | null;
   created_at: string;
   updated_at: string;
 };

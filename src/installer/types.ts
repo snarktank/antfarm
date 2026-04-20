@@ -120,6 +120,10 @@ export type WorkflowRunRecord = {
   stepResults: StepResult[];
   retryCount: number;
   context: Record<string, string>;
+  /** Set when a cooperative pause has been requested but the current step is still running. */
+  pauseRequestedAt?: string | null;
+  /** Set once the run has actually settled into a paused state between steps. */
+  pausedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
