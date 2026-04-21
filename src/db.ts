@@ -85,6 +85,30 @@ export function migrate(db: DatabaseSync): void {
   if (!colNames.has("abandoned_count")) {
     db.exec("ALTER TABLE steps ADD COLUMN abandoned_count INTEGER DEFAULT 0");
   }
+  if (!colNames.has("execution_mode")) {
+    db.exec("ALTER TABLE steps ADD COLUMN execution_mode TEXT");
+  }
+  if (!colNames.has("repo_key")) {
+    db.exec("ALTER TABLE steps ADD COLUMN repo_key TEXT");
+  }
+  if (!colNames.has("repo_path")) {
+    db.exec("ALTER TABLE steps ADD COLUMN repo_path TEXT");
+  }
+  if (!colNames.has("queued_at")) {
+    db.exec("ALTER TABLE steps ADD COLUMN queued_at TEXT");
+  }
+  if (!colNames.has("blocked_by_run_id")) {
+    db.exec("ALTER TABLE steps ADD COLUMN blocked_by_run_id TEXT");
+  }
+  if (!colNames.has("blocked_by_step_id")) {
+    db.exec("ALTER TABLE steps ADD COLUMN blocked_by_step_id TEXT");
+  }
+
+  // Index to make same-repo scheduling lookups fast (look up active
+  // shared_checkout_exclusive steps for a given repo_key).
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_steps_repo_key_status ON steps(repo_key, status)"
+  );
 
   // Add columns to runs table for backwards compat
   const runCols = db.prepare("PRAGMA table_info(runs)").all() as Array<{ name: string }>;

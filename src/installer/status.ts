@@ -44,6 +44,22 @@ export type StepInfo = {
   output: string | null;
   retry_count: number;
   max_retries: number;
+  /**
+   * Scheduling policy for this step against the shared repo checkout.
+   * See `StepExecutionMode` for values. `null` on legacy rows that predate the
+   * same-repo serialization migration.
+   */
+  execution_mode: string | null;
+  /** Normalized repo identity used to key same-checkout scheduling decisions. */
+  repo_key: string | null;
+  /** Raw repo path as supplied by the run context; preserved for operator visibility. */
+  repo_path: string | null;
+  /** When the step first entered the queued/blocked-by-repo-lock state. */
+  queued_at: string | null;
+  /** If queued/blocked, the run id currently holding the shared checkout. */
+  blocked_by_run_id: string | null;
+  /** If queued/blocked, the step id currently holding the shared checkout. */
+  blocked_by_step_id: string | null;
   created_at: string;
   updated_at: string;
 };

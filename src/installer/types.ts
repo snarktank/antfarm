@@ -67,6 +67,22 @@ export type WorkflowStep = {
   on_fail?: WorkflowStepFailure;
 };
 
+/**
+ * How a step must be scheduled against its target repo checkout.
+ *
+ * - `shared_checkout_exclusive`: v1 serialization. The step mutates the shared
+ *   repo checkout, so at most one such step may be active per `repo_key` at a
+ *   time. Other same-repo steps queue until the lock is released.
+ * - `no_lock`: The step does not need exclusive access to the repo checkout
+ *   (read-only analysis, verification of already-committed code, etc.) and
+ *   may run alongside other steps.
+ *
+ * Future modes (e.g. `worktree_isolated`) can be added here once explicit
+ * per-run worktrees exist — the scheduler seam is designed so `no_lock`
+ * behavior is the fallback and exclusivity is opt-in by mode value.
+ */
+export type StepExecutionMode = "shared_checkout_exclusive" | "no_lock";
+
 export type Story = {
   id: string;
   runId: string;
