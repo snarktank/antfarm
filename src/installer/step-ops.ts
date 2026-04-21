@@ -503,6 +503,75 @@ let lastCleanupTime = 0;
 const CLEANUP_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Refresh `blocked_by_*` / `queued_at` metadata on pending
+ * shared_checkout_exclusive steps so operators can see *why* a same-repo
+ * coding step is still queued.
+ *
+ * Scoped by agentId to keep the update set small: we only annotate the
+ * candidates this agent would actually consider on its next poll. The guard
+ * itself (in the claim SELECT) already spans workflows, so this helper is
+ * strictly for visibility.
+ *
+ * Rules:
+ *   - If a pending shared_checkout_exclusive step's repo_key matches any
+ *     currently-running shared_checkout_exclusive step, record the busy
+ *     owner on the pending step. Re-runs safely refresh the annotation.
+ *   - If no running same-repo step exists, clear any stale block metadata.
+ */
+function annotateBlockedCodingSteps(agentId: string): void {
+  const db = getDb();
+
+  const pending = db.prepare(
+    `SELECT s.id, s.repo_key
+       FROM steps s
+       JOIN runs r ON r.id = s.run_id
+      WHERE s.agent_id = ?
+        AND s.status = 'pending'
+        AND s.execution_mode = 'shared_checkout_exclusive'
+        AND s.repo_key IS NOT NULL
+        AND r.status NOT IN ('failed', 'cancelled')`
+  ).all(agentId) as Array<{ id: string; repo_key: string }>;
+
+  if (pending.length === 0) return;
+
+  const findOwner = db.prepare(
+    `SELECT id, run_id
+       FROM steps
+      WHERE status = 'running'
+        AND execution_mode = 'shared_checkout_exclusive'
+        AND repo_key = ?
+      ORDER BY updated_at ASC
+      LIMIT 1`
+  );
+  const markBlocked = db.prepare(
+    `UPDATE steps
+        SET blocked_by_run_id = ?,
+            blocked_by_step_id = ?,
+            queued_at = COALESCE(queued_at, datetime('now')),
+            updated_at = datetime('now')
+      WHERE id = ? AND status = 'pending'`
+  );
+  const clearBlocked = db.prepare(
+    `UPDATE steps
+        SET blocked_by_run_id = NULL,
+            blocked_by_step_id = NULL,
+            queued_at = NULL,
+            updated_at = datetime('now')
+      WHERE id = ? AND status = 'pending'
+        AND (blocked_by_run_id IS NOT NULL OR blocked_by_step_id IS NOT NULL OR queued_at IS NOT NULL)`
+  );
+
+  for (const row of pending) {
+    const owner = findOwner.get(row.repo_key) as { id: string; run_id: string } | undefined;
+    if (owner && owner.id !== row.id) {
+      markBlocked.run(owner.run_id, owner.id, row.id);
+    } else {
+      clearBlocked.run(row.id);
+    }
+  }
+}
+
+/**
  * Find and claim a pending step for an agent, returning the resolved input.
  */
 export function claimStep(agentId: string): ClaimResult {
@@ -515,7 +584,8 @@ export function claimStep(agentId: string): ClaimResult {
   const db = getDb();
 
   const step = db.prepare(
-    `SELECT s.id, s.step_id, s.run_id, s.input_template, s.type, s.loop_config, s.step_index
+    `SELECT s.id, s.step_id, s.run_id, s.input_template, s.type, s.loop_config, s.step_index,
+            s.execution_mode, s.repo_key
      FROM steps s
      JOIN runs r ON r.id = s.run_id
      WHERE s.agent_id = ? AND s.status = 'pending'
@@ -526,15 +596,33 @@ export function claimStep(agentId: string): ClaimResult {
            AND prev.step_index < s.step_index
            AND prev.status NOT IN ('done', 'skipped')
        )
+       AND NOT EXISTS (
+         SELECT 1 FROM steps busy
+         WHERE busy.status = 'running'
+           AND busy.execution_mode = 'shared_checkout_exclusive'
+           AND s.execution_mode = 'shared_checkout_exclusive'
+           AND busy.repo_key IS NOT NULL
+           AND s.repo_key IS NOT NULL
+           AND busy.repo_key = s.repo_key
+           AND busy.id != s.id
+       )
     ORDER BY s.step_index ASC, s.step_id ASC
      LIMIT 1`
   ).get(agentId) as {
     id: string; step_id: string; run_id: string; input_template: string; type: string;
     loop_config: string | null;
     step_index: number;
+    execution_mode: string | null;
+    repo_key: string | null;
   } | undefined;
 
-  if (!step) return { found: false };
+  if (!step) {
+    // Nothing claimable right now — refresh block metadata for any pending
+    // shared_checkout_exclusive steps this agent owns so the dashboard /
+    // status output can explain why later same-repo work is still queued.
+    annotateBlockedCodingSteps(agentId);
+    return { found: false };
+  }
 
   // Guard: don't claim work for a failed run
   const runStatus = db.prepare("SELECT status FROM runs WHERE id = ?").get(step.run_id) as { status: string } | undefined;
@@ -612,7 +700,14 @@ export function claimStep(agentId: string): ClaimResult {
         "UPDATE stories SET status = 'running', updated_at = datetime('now') WHERE id = ?"
       ).run(nextStory.id);
       db.prepare(
-        "UPDATE steps SET status = 'running', current_story_id = ?, updated_at = datetime('now') WHERE id = ?"
+        `UPDATE steps
+            SET status = 'running',
+                current_story_id = ?,
+                blocked_by_run_id = NULL,
+                blocked_by_step_id = NULL,
+                queued_at = NULL,
+                updated_at = datetime('now')
+          WHERE id = ?`
       ).run(nextStory.id, step.id);
 
       const wfId = getWorkflowId(step.run_id);
@@ -663,9 +758,17 @@ export function claimStep(agentId: string): ClaimResult {
     }
   }
 
-  // Single step: existing logic
+  // Single step: existing logic. Clear any stale block metadata recorded while
+  // this step was queued behind a same-repo coding step so the dashboard no
+  // longer shows it as blocked once it's actually running.
   db.prepare(
-    "UPDATE steps SET status = 'running', updated_at = datetime('now') WHERE id = ? AND status = 'pending'"
+    `UPDATE steps
+        SET status = 'running',
+            blocked_by_run_id = NULL,
+            blocked_by_step_id = NULL,
+            queued_at = NULL,
+            updated_at = datetime('now')
+      WHERE id = ? AND status = 'pending'`
   ).run(step.id);
   emitEvent({ ts: new Date().toISOString(), event: "step.running", runId: step.run_id, workflowId: getWorkflowId(step.run_id), stepId: step.step_id, agentId: agentId });
   logger.info(`Step claimed by ${agentId}`, { runId: step.run_id, stepId: step.step_id });
