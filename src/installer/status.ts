@@ -2,6 +2,7 @@ import { getDb } from "../db.js";
 import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { archiveRunProgress } from "./step-ops.js";
+import { releaseRunSteps } from "./repo-scheduler.js";
 
 /**
  * Lifecycle states a run row in the `runs` table can have.
@@ -228,6 +229,11 @@ export async function stopWorkflow(query: string): Promise<StopWorkflowResult> {
     "UPDATE steps SET status = 'failed', output = 'Cancelled by user', updated_at = datetime('now') WHERE run_id = ? AND status IN ('waiting', 'pending', 'running')"
   ).run(run.id);
   const cancelledSteps = Number(result.changes);
+
+  // Release any shared_checkout_exclusive repo leases held by this run so
+  // queued same-repo work resumes immediately instead of waiting for the
+  // next annotateBlockedCodingSteps pass to self-heal.
+  releaseRunSteps(run.id, "cancelled");
 
   // Clean up cron jobs if no other active runs
   await teardownWorkflowCronsIfIdle(run.workflow_id);
