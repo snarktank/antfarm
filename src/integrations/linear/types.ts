@@ -20,8 +20,18 @@
  * is what the sync loop polls to find eligible issues.
  */
 export interface LinearStateMap {
-  /** Linear workflow state id that marks issues eligible for launch. */
-  readyStateId: string;
+  /**
+   * Readiness selector: a Linear workflow state id. Issues in this
+   * state are eligible for launch. Exactly one of `readyStateId` or
+   * `readyLabelId` must be set.
+   */
+  readyStateId?: string;
+  /**
+   * Readiness selector: a Linear label id. Issues carrying this label
+   * are eligible for launch. Exactly one of `readyStateId` or
+   * `readyLabelId` must be set.
+   */
+  readyLabelId?: string;
   /** Applied once the Antfarm run has started. */
   runningStateId: string;
   /** Applied when the run completes successfully (done or review). */
@@ -43,11 +53,6 @@ export interface LinearConfig {
   defaultRepoPath: string;
   /** State id map. */
   states: LinearStateMap;
-  /**
-   * Optional label that must be present on an issue for it to be picked
-   * up. When unset, every issue in the ready state is eligible.
-   */
-  requiredLabel?: string;
 }
 
 // ── Linear API payloads ─────────────────────────────────────────────
