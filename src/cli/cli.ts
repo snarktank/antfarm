@@ -17,7 +17,7 @@ try {
 
 import { installWorkflow } from "../installer/install.js";
 import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../installer/uninstall.js";
-import { archiveWorkflow, getWorkflowStatus, listRuns, stopWorkflow } from "../installer/status.js";
+import { archiveWorkflow, getWorkflowStatus, listRuns, pauseWorkflow, resumeWorkflow, stopWorkflow } from "../installer/status.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
@@ -102,7 +102,8 @@ function printUsage() {
       "antfarm workflow run <name> <task>   Start a workflow run",
       "antfarm workflow status <query>      Check run status (task substring, run ID prefix)",
       "antfarm workflow runs [--all|--archived]  List workflow runs (active by default)",
-      "antfarm workflow resume <run-id>     Resume a failed run from where it left off",
+      "antfarm workflow resume <run-id>     Resume a paused or failed run",
+      "antfarm workflow pause <run-id>       Pause a running workflow (cooperative)",
       "antfarm workflow stop <run-id>        Stop/cancel a running workflow",
       "antfarm workflow archive <run-id>     Archive a completed, failed, or cancelled run",
       "antfarm workflow ensure-crons <name>  Recreate agent crons for a workflow",
@@ -601,121 +602,26 @@ async function main() {
     return;
   }
 
+  if (action === "pause") {
+    if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
+    const result = await pauseWorkflow(target);
+    if (result.status === "not_found") { process.stderr.write(`${result.message}\n`); process.exit(1); }
+    if (result.status === "already_paused") { process.stderr.write(`${result.message}\n`); process.exit(1); }
+    if (result.status === "not_pausable") { process.stderr.write(`${result.message}\n`); process.exit(1); }
+    if (result.mode === "requested") {
+      console.log(`Pause requested for run ${result.runId.slice(0, 8)} — a step is running and will settle between steps.`);
+    } else {
+      console.log(`Paused run ${result.runId.slice(0, 8)}.`);
+    }
+    return;
+  }
+
   if (action === "resume") {
     if (!target) { process.stderr.write("Missing run-id.\n"); printUsage(); process.exit(1); }
-    const db = (await import("../db.js")).getDb();
-
-    // Find the run (support prefix match)
-    // Support run number lookup in addition to UUID prefix
-    let run: { id: string; run_number: number | null; workflow_id: string; status: string } | undefined;
-    if (/^\d+$/.test(target)) {
-      run = db.prepare(
-        "SELECT id, run_number, workflow_id, status FROM runs WHERE run_number = ?"
-      ).get(parseInt(target, 10)) as typeof run;
-    }
-    if (!run) {
-      run = db.prepare(
-        "SELECT id, run_number, workflow_id, status FROM runs WHERE id = ? OR id LIKE ?"
-      ).get(target, `${target}%`) as typeof run;
-    }
-
-    if (!run) { process.stderr.write(`Run not found: ${target}\n`); process.exit(1); }
-    if (run.status !== "failed") {
-      process.stderr.write(`Run ${run.id.slice(0, 8)} is "${run.status}", not "failed". Nothing to resume.\n`);
-      process.exit(1);
-    }
-
-    // Find the failed step (or first non-done step)
-    const failedStep = db.prepare(
-      "SELECT id, step_id, type, current_story_id FROM steps WHERE run_id = ? AND status = 'failed' ORDER BY step_index ASC LIMIT 1"
-    ).get(run.id) as { id: string; step_id: string; type: string; current_story_id: string | null } | undefined;
-
-    if (!failedStep) {
-      process.stderr.write(`No failed step found in run ${run.id.slice(0, 8)}.\n`);
-      process.exit(1);
-    }
-
-    // If it's a loop step with a failed story, reset that story to pending
-    if (failedStep.type === "loop") {
-      const failedStory = db.prepare(
-        "SELECT id FROM stories WHERE run_id = ? AND status = 'failed' ORDER BY story_index ASC LIMIT 1"
-      ).get(run.id) as { id: string } | undefined;
-      if (failedStory) {
-        db.prepare(
-          "UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE id = ?"
-        ).run(failedStory.id);
-      }
-      db.prepare(
-        "UPDATE steps SET retry_count = 0 WHERE run_id = ? AND type = 'loop'"
-      ).run(run.id);
-    }
-
-    // Check if the failed step is a verify step linked to a loop step's verify_each
-    const loopStep = db.prepare(
-      "SELECT id, loop_config FROM steps WHERE run_id = ? AND type = 'loop' AND status IN ('running', 'failed') LIMIT 1"
-    ).get(run.id) as { id: string; loop_config: string | null } | undefined;
-
-    if (loopStep?.loop_config) {
-      const lc = JSON.parse(loopStep.loop_config);
-      if (lc.verifyEach && lc.verifyStep === failedStep.step_id) {
-        // Reset the loop step (developer) to pending so it re-claims the story and populates context
-        db.prepare(
-          "UPDATE steps SET status = 'pending', current_story_id = NULL, retry_count = 0, updated_at = datetime('now') WHERE id = ?"
-        ).run(loopStep.id);
-        // Reset verify step to waiting (fires after developer completes)
-        db.prepare(
-          "UPDATE steps SET status = 'waiting', current_story_id = NULL, retry_count = 0, updated_at = datetime('now') WHERE id = ?"
-        ).run(failedStep.id);
-        // Reset any failed stories to pending
-        db.prepare(
-          "UPDATE stories SET status = 'pending', updated_at = datetime('now') WHERE run_id = ? AND status = 'failed'"
-        ).run(run.id);
-
-        // Reset run to running
-        db.prepare(
-          "UPDATE runs SET status = 'running', updated_at = datetime('now') WHERE id = ?"
-        ).run(run.id);
-
-        // Ensure crons are running for this workflow
-        const { loadWorkflowSpec } = await import("../installer/workflow-spec.js");
-        const { resolveWorkflowDir } = await import("../installer/paths.js");
-        const { ensureWorkflowCrons } = await import("../installer/agent-cron.js");
-        try {
-          const workflowDir = resolveWorkflowDir(run.workflow_id);
-          const workflow = await loadWorkflowSpec(workflowDir);
-          await ensureWorkflowCrons(workflow);
-        } catch (err) {
-          process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
-        }
-
-        console.log(`Resumed run ${run.id.slice(0, 8)} — reset loop step "${loopStep.id.slice(0, 8)}" to pending, verify step "${failedStep.step_id}" to waiting`);
-        process.exit(0);
-      }
-    }
-
-    // Reset step to pending
-    db.prepare(
-      "UPDATE steps SET status = 'pending', current_story_id = NULL, retry_count = 0, updated_at = datetime('now') WHERE id = ?"
-    ).run(failedStep.id);
-
-    // Reset run to running
-    db.prepare(
-      "UPDATE runs SET status = 'running', updated_at = datetime('now') WHERE id = ?"
-    ).run(run.id);
-
-    // Ensure crons are running for this workflow
-    const { loadWorkflowSpec } = await import("../installer/workflow-spec.js");
-    const { resolveWorkflowDir } = await import("../installer/paths.js");
-    const { ensureWorkflowCrons } = await import("../installer/agent-cron.js");
-    try {
-      const workflowDir = resolveWorkflowDir(run.workflow_id);
-      const workflow = await loadWorkflowSpec(workflowDir);
-      await ensureWorkflowCrons(workflow);
-    } catch (err) {
-      process.stderr.write(`Warning: Could not start crons: ${err instanceof Error ? err.message : String(err)}\n`);
-    }
-
-    console.log(`Resumed run ${run.id.slice(0, 8)} from step "${failedStep.step_id}"`);
+    const result = await resumeWorkflow(target);
+    if (result.status === "not_found") { process.stderr.write(`${result.message}\n`); process.exit(1); }
+    if (result.status === "not_resumable") { process.stderr.write(`${result.message}\n`); process.exit(1); }
+    console.log(`Resumed run ${result.runId.slice(0, 8)}${result.detail ? ` — ${result.detail}` : ""}`);
     return;
   }
 
