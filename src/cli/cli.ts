@@ -18,6 +18,7 @@ try {
 import { installWorkflow } from "../installer/install.js";
 import { uninstallAllWorkflows, uninstallWorkflow, checkActiveRuns } from "../installer/uninstall.js";
 import { archiveWorkflow, getWorkflowStatus, listRuns, pauseWorkflow, resumeWorkflow, stopWorkflow } from "../installer/status.js";
+import { formatStepStatusLine } from "../installer/repo-visibility.js";
 import { runWorkflow } from "../installer/run.js";
 import { listBundledWorkflows } from "../installer/workflow-fetch.js";
 import { readRecentLogs } from "../lib/logger.js";
@@ -586,7 +587,7 @@ async function main() {
       `Updated: ${run.updated_at}`,
       "",
       "Steps:",
-      ...steps.map((s) => `  [${s.status}] ${s.step_id} (${s.agent_id})`),
+      ...steps.map((s) => formatStepStatusLine(s, s.queue)),
     ];
     const stories = getStories(run.id);
     if (stories.length > 0) {

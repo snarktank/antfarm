@@ -10,6 +10,10 @@ import type { RunInfo, StepInfo } from "../installer/status.js";
 import { archiveWorkflow } from "../installer/status.js";
 import { getRunEvents } from "../installer/events.js";
 import { getMedicStatus, getRecentMedicChecks } from "../medic/medic.js";
+import {
+  enrichStepsWithQueueContext,
+  type EnrichedStepInfo,
+} from "../installer/repo-visibility.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,23 +42,23 @@ function loadWorkflows(): WorkflowDef[] {
   return results;
 }
 
-function getRuns(workflowId?: string): Array<RunInfo & { steps: StepInfo[] }> {
+export function getRuns(workflowId?: string): Array<RunInfo & { steps: EnrichedStepInfo[] }> {
   const db = getDb();
   const runs = workflowId
     ? db.prepare("SELECT * FROM runs WHERE workflow_id = ? AND archived_at IS NULL ORDER BY created_at DESC").all(workflowId) as RunInfo[]
     : db.prepare("SELECT * FROM runs WHERE archived_at IS NULL ORDER BY created_at DESC").all() as RunInfo[];
   return runs.map((r) => {
     const steps = db.prepare("SELECT * FROM steps WHERE run_id = ? ORDER BY step_index ASC").all(r.id) as StepInfo[];
-    return { ...r, steps };
+    return { ...r, steps: enrichStepsWithQueueContext(steps) };
   });
 }
 
-function getRunById(id: string): (RunInfo & { steps: StepInfo[] }) | null {
+export function getRunById(id: string): (RunInfo & { steps: EnrichedStepInfo[] }) | null {
   const db = getDb();
   const run = db.prepare("SELECT * FROM runs WHERE id = ?").get(id) as RunInfo | undefined;
   if (!run) return null;
   const steps = db.prepare("SELECT * FROM steps WHERE run_id = ? ORDER BY step_index ASC").all(run.id) as StepInfo[];
-  return { ...run, steps };
+  return { ...run, steps: enrichStepsWithQueueContext(steps) };
 }
 
 function json(res: http.ServerResponse, data: unknown, status = 200) {

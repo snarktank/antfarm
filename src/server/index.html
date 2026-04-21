@@ -177,6 +177,11 @@ select:focus{outline:none;border-color:#8ECFC0}
 .badge-waiting{background:var(--accent-muted);color:var(--text-secondary)}
 .badge-pending{background:var(--accent-muted);color:var(--text-secondary)}
 .badge-blocked{background:var(--accent-orange-faint);color:var(--accent-orange)}
+.badge-queued{background:var(--accent-orange-faint);color:var(--accent-orange);border:1px dashed var(--accent-orange)}
+.step-queue-note{padding:0 12px 10px 44px;font-size:11px;color:var(--accent-orange);line-height:1.5}
+.step-queue-note code{font-family:'Geist Mono',monospace;background:var(--bg-code);padding:1px 4px;border-radius:3px}
+.card.queued{border-left:3px dashed var(--accent-orange)}
+.card-queue-note{font-size:10px;color:var(--accent-orange);margin-top:4px;line-height:1.4}
 
 /* ── Misc ──────────────────────────────────────────────────────── */
 .empty{color:var(--text-secondary);font-size:12px;text-align:center;padding:24px 8px}
@@ -325,16 +330,23 @@ function renderBoard(wf, runs) {
       : cards.map(run => {
           const isDone = run.status === 'done';
           const isFailed = run.status === 'failed' || run.status === 'error';
-          const cls = isDone ? 'done' : isFailed ? 'failed' : '';
-          const badge = `badge-${run.status}`;
+          const queuedStep = findQueuedStep(run);
+          const isQueued = !!queuedStep;
+          const cls = isDone ? 'done' : isFailed ? 'failed' : isQueued ? 'queued' : '';
+          const badgeClass = isQueued ? 'badge-queued' : `badge-${run.status}`;
+          const badgeLabel = isQueued ? 'queued' : run.status;
           const time = run.updated_at ? parseTS(run.updated_at)?.toLocaleString() || "" : '';
           const title = run.task.length > 60 ? run.task.slice(0, 57) + '…' : run.task;
+          const queueNote = isQueued
+            ? `<div class="card-queue-note">Waiting on ${esc(queuedStep.queue.repoPath || queuedStep.queue.repoKey)}${formatBlockerHTML(queuedStep.queue)}</div>`
+            : '';
           return `<div class="card ${cls}" onclick="openRun('${run.id}')">
             <div class="card-title" title="${run.task.replace(/"/g, '&quot;')}">${title}</div>
             <div class="card-meta">
-              <span class="badge ${badge}">${run.status}</span>
+              <span class="badge ${badgeClass}">${badgeLabel}</span>
               <span>${time}</span>
             </div>
+            ${queueNote}
           </div>`;
         }).join('');
     return `<div class="column">
@@ -344,8 +356,20 @@ function renderBoard(wf, runs) {
   }).join('');
 }
 
-const stepIcons = {done:'✓',running:'●',pending:'○',waiting:'◌',failed:'✗',error:'✗'};
+const stepIcons = {done:'✓',running:'●',pending:'○',waiting:'◌',failed:'✗',error:'✗',queued:'⏸'};
 function esc(s) { if (!s) return ''; return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function formatBlockerHTML(q) {
+  if (!q) return '';
+  const parts = [];
+  if (q.blockingRunNumber != null) parts.push(`run #${q.blockingRunNumber}`);
+  else if (q.blockingRunId) parts.push(`run ${q.blockingRunId.slice(0,8)}`);
+  if (q.blockingStepId) parts.push(`step "${esc(q.blockingStepId)}"`);
+  return parts.length ? ` — blocked by ${parts.join(' ')}` : '';
+}
+function findQueuedStep(run) {
+  if (!run || !run.steps) return null;
+  return run.steps.find(s => s.queue) || null;
+}
 // Normalize SQLite datetime('now') format (no T/Z) to proper ISO 8601 UTC
 function parseTS(ts) { if (!ts) return null; if (!ts.endsWith('Z') && !ts.includes('+')) ts = ts.replace(' ', 'T') + 'Z'; return new Date(ts); }
 
@@ -378,15 +402,20 @@ function renderRunPanel(run) {
     const st = s.status || 'waiting';
     const icon = stepIcons[st] || '○';
     const hasOutput = !!s.output;
+    const queued = !!s.queue;
+    const badgeLabel = queued ? 'queued' : st;
+    const badgeClass = queued ? 'badge-queued' : `badge-${st}`;
+    const queueNote = queued ? `<div class="step-queue-note">Queued on <code>${esc(s.queue.repoPath || s.queue.repoKey)}</code>${formatBlockerHTML(s.queue)}</div>` : '';
     const toggleAttr = hasOutput ? `onclick="this.querySelector('.step-details').classList.toggle('step-open');this.querySelector('.step-chevron').classList.toggle('step-chevron-open')" style="cursor:pointer"` : '';
     return `<div class="step-row" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden" ${toggleAttr}>
       <div style="display:flex;align-items:center;gap:8px;padding:10px 12px">
         <div class="step-icon ${st}">${icon}</div>
         <div class="step-name" style="flex:1">${s.step_id}</div>
         <div class="step-agent">${s.agent_id || ''}</div>
-        <div class="step-status"><span class="badge badge-${st}">${st}</span></div>
+        <div class="step-status"><span class="badge ${badgeClass}">${badgeLabel}</span></div>
         ${hasOutput ? '<span class="step-chevron" style="color:var(--text-secondary);font-size:10px;transition:transform .15s;display:inline-block">▶</span>' : ''}
       </div>
+      ${queueNote}
       ${hasOutput ? `<div class="step-details" style="display:none;padding:0 12px 12px 44px;font-size:12px;color:var(--text-tertiary);line-height:1.6">
         <details style="margin-top:4px" onclick="event.stopPropagation()"><summary style="font-size:11px;color:var(--text-secondary);cursor:pointer;font-weight:500">Output</summary><pre style="margin-top:6px;padding:8px;background:var(--bg-code);border:1px solid var(--border);border-radius:4px;font-family:'Geist Mono',monospace;font-size:11px;white-space:pre-wrap;word-break:break-word;max-height:300px;overflow-y:auto">${esc(s.output)}</pre></details>
       </div>` : ''}

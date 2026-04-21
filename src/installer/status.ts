@@ -3,6 +3,7 @@ import { teardownWorkflowCronsIfIdle } from "./agent-cron.js";
 import { emitEvent } from "./events.js";
 import { archiveRunProgress } from "./step-ops.js";
 import { releaseRunSteps } from "./repo-scheduler.js";
+import { enrichStepsWithQueueContext, type EnrichedStepInfo } from "./repo-visibility.js";
 
 /**
  * Lifecycle states a run row in the `runs` table can have.
@@ -66,7 +67,7 @@ export type StepInfo = {
 };
 
 export type WorkflowStatusResult =
-  | { status: "ok"; run: RunInfo; steps: StepInfo[] }
+  | { status: "ok"; run: RunInfo; steps: EnrichedStepInfo[] }
   | { status: "not_found"; message: string };
 
 export function getWorkflowStatus(query: string): WorkflowStatusResult {
@@ -107,7 +108,7 @@ export function getWorkflowStatus(query: string): WorkflowStatusResult {
   }
 
   const steps = db.prepare("SELECT * FROM steps WHERE run_id = ? ORDER BY step_index ASC").all(run.id) as StepInfo[];
-  return { status: "ok", run, steps };
+  return { status: "ok", run, steps: enrichStepsWithQueueContext(steps) };
 }
 
 export function listRuns(opts: { includeArchived?: boolean; onlyArchived?: boolean } = {}): RunInfo[] {
