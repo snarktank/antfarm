@@ -102,24 +102,18 @@ export async function provisionAgents(params: {
 }
 
 /**
- * Resolve the source directory for an external skill by checking user skill directories.
+ * Resolve the source directory for an external skill from the canonical user skill library.
  * Returns the path if found, or null if not found.
  */
 async function resolveExternalSkillSource(skillName: string): Promise<string | null> {
   const home = process.env.HOME || process.env.USERPROFILE || "";
-  const candidates = [
-    path.join(home, ".openclaw", "workspace", "skills", skillName),
-    path.join(home, ".openclaw", "skills", skillName),
-  ];
-  for (const candidate of candidates) {
-    try {
-      await fs.access(candidate);
-      return candidate;
-    } catch {
-      // not found, try next
-    }
+  const candidate = path.join(home, ".openclaw", "skills", skillName);
+  try {
+    await fs.access(candidate);
+    return candidate;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 /**

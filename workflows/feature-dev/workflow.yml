@@ -93,19 +93,23 @@ steps:
       TASK:
       {{task}}
 
+      REPO:
+      {{repo}}
+
       Instructions:
-      1. Explore the codebase to understand the stack, conventions, and patterns
-      2. Break the task into small user stories (max 20)
-      3. Order by dependency: schema/DB first, backend, frontend, integration
-      4. Each story must fit in one developer session (one context window)
-      5. Every acceptance criterion must be mechanically verifiable
-      6. Always include "Typecheck passes" as the last criterion in every story
-      7. Every story MUST include test criteria — "Tests for [feature] pass"
-      8. The developer is expected to write tests as part of each story
+      1. Use {{repo}} as the target repository for all code exploration
+      2. Explore the codebase to understand the stack, conventions, and patterns
+      3. Break the task into small user stories (max 20)
+      4. Order by dependency: schema/DB first, backend, frontend, integration
+      5. Each story must fit in one developer session (one context window)
+      6. Every acceptance criterion must be mechanically verifiable
+      7. Always include "Typecheck passes" as the last criterion in every story
+      8. Every story MUST include test criteria — "Tests for [feature] pass"
+      9. The developer is expected to write tests as part of each story
 
       Reply with:
       STATUS: done
-      REPO: /path/to/repo
+      REPO: {{repo}}
       BRANCH: feature-branch-name
       STORIES_JSON: [ ... array of story objects ... ]
     expects: "STATUS: done"
@@ -126,16 +130,16 @@ steps:
 
       Instructions:
       1. cd into the repo
-      2. Create the feature branch (git checkout -b {{branch}})
+      2. Create a git worktree: git worktree add {{repo}}-{{branch}} -b {{branch}} main (if branch exists: git worktree add {{repo}}-{{branch}} {{branch}}). All work happens in the worktree dir, NOT the original repo. Copy .env if it exists. Run npm install. Include WORKTREE_DIR in output.
       3. Read package.json, CI config, test config to understand the build/test setup
       4. Ensure .gitignore exists — if missing, create one appropriate for the detected stack (must include .env, node_modules/, *.key, *.pem at minimum)
-      5. Run the build to establish a baseline
+      5. Run the build/typecheck command to establish a baseline if one exists. If not, record BUILD_CMD as none.
       6. Run the tests to establish a baseline
       7. Report what you found
 
       Reply with:
       STATUS: done
-      BUILD_CMD: <build command>
+      BUILD_CMD: <build command or none>
       TEST_CMD: <test command>
       CI_NOTES: <brief CI notes>
       BASELINE: <baseline status>
@@ -183,7 +187,7 @@ steps:
       2. Pull latest on the branch
       3. Implement this story only
       4. Write tests for this story's functionality
-      5. Run typecheck / build
+      5. If {{build_cmd}} is not "none", run typecheck/build. Otherwise note that no build command exists.
       6. Run tests to confirm they pass
       7. Commit: feat: {{current_story_id}} - {{current_story_title}}
       8. Rewrite progress-{{run_id}}.txt with updated story results and patterns
@@ -209,6 +213,7 @@ steps:
       REPO: {{repo}}
       BRANCH: {{branch}}
       CHANGES: {{changes}}
+      BUILD_CMD: {{build_cmd}}
       TEST_CMD: {{test_cmd}}
 
       CURRENT STORY:
@@ -223,7 +228,7 @@ steps:
       3. Tests were written for this story's functionality
       4. Tests pass (run {{test_cmd}})
       5. No obvious incomplete work
-      6. Typecheck passes
+      6. If {{build_cmd}} is not "none", build/typecheck passes (run {{build_cmd}}). Otherwise confirm there is no build command.
 
       ## Visual Verification (Frontend Changes)
       Has frontend changes: {{has_frontend_changes}}

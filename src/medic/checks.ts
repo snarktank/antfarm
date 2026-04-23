@@ -25,7 +25,7 @@ export interface MedicFinding {
 
 // ── Check: Stuck Steps ──────────────────────────────────────────────
 
-const MAX_ROLE_TIMEOUT_MS = (getMaxRoleTimeoutSeconds() + 5 * 60) * 1000;
+const DEFAULT_TIMEOUT_THRESHOLD_MS = (getMaxRoleTimeoutSeconds() + 5 * 60) * 1000;
 
 /**
  * Find steps that have been "running" longer than the max role timeout.
@@ -37,15 +37,15 @@ export function checkStuckSteps(): MedicFinding[] {
 
   const stuck = db.prepare(`
     SELECT s.id, s.step_id, s.run_id, s.agent_id, s.updated_at, s.abandoned_count,
-           r.workflow_id, r.task
+           s.timeout_seconds, r.workflow_id, r.task
     FROM steps s
     JOIN runs r ON r.id = s.run_id
     WHERE s.status = 'running'
       AND r.status = 'running'
-      AND (julianday('now') - julianday(s.updated_at)) * 86400000 > ?
-  `).all(MAX_ROLE_TIMEOUT_MS) as Array<{
+      AND (julianday('now') - julianday(s.updated_at)) * 86400000 > COALESCE((s.timeout_seconds + 300) * 1000, ?)
+  `).all(DEFAULT_TIMEOUT_THRESHOLD_MS) as Array<{
     id: string; step_id: string; run_id: string; agent_id: string;
-    updated_at: string; abandoned_count: number; workflow_id: string; task: string;
+    updated_at: string; abandoned_count: number; timeout_seconds: number | null; workflow_id: string; task: string;
   }>;
 
   for (const step of stuck) {
@@ -68,8 +68,6 @@ export function checkStuckSteps(): MedicFinding[] {
 
 // ── Check: Stalled Runs ─────────────────────────────────────────────
 
-const STALL_THRESHOLD_MS = MAX_ROLE_TIMEOUT_MS * 2;
-
 /**
  * Find runs where no step has transitioned in 2x the max role timeout.
  * This catches systemic issues (all agents broken, crons failing, etc).
@@ -81,20 +79,23 @@ export function checkStalledRuns(): MedicFinding[] {
   // Get running runs where the most recent step update is stale
   const stalled = db.prepare(`
     SELECT r.id, r.workflow_id, r.task, r.updated_at,
-           MAX(s.updated_at) as last_step_update
+           MAX(s.updated_at) as last_step_update,
+           MAX(COALESCE(s.timeout_seconds, ?)) as max_timeout_seconds
     FROM runs r
     JOIN steps s ON s.run_id = r.id
     WHERE r.status = 'running'
     GROUP BY r.id
-    HAVING (julianday('now') - julianday(MAX(s.updated_at))) * 86400000 > ?
-  `).all(STALL_THRESHOLD_MS) as Array<{
+  `).all(getMaxRoleTimeoutSeconds()) as Array<{
     id: string; workflow_id: string; task: string;
-    updated_at: string; last_step_update: string;
+    updated_at: string; last_step_update: string; max_timeout_seconds: number;
   }>;
 
   for (const run of stalled) {
+    const ageMs = Date.now() - new Date(run.last_step_update).getTime();
+    const stallThresholdMs = (run.max_timeout_seconds + 5 * 60) * 1000 * 2;
+    if (ageMs <= stallThresholdMs) continue;
     const ageMin = Math.round(
-      (Date.now() - new Date(run.last_step_update).getTime()) / 60000
+      ageMs / 60000
     );
     findings.push({
       check: "stalled_runs",

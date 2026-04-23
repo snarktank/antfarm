@@ -161,4 +161,75 @@ describe("cron payload includes polling model (regression #121)", () => {
     assert.equal(capturedJobs[0].payload.timeoutSeconds, 120,
       "cron payload should include timeoutSeconds from workflow polling config");
   });
+
+  it("polling prompt carries per-agent work-session timeout into sessions_spawn", async () => {
+    const { setupAgentCrons } = await import("../dist/installer/agent-cron.js");
+
+    const fakeWorkflow = {
+      id: "test-work-timeout",
+      name: "Test Work Timeout",
+      version: 1,
+      polling: {
+        model: "claude-sonnet-4-20250514",
+        timeoutSeconds: 120,
+      },
+      agents: [
+        {
+          id: "slow-verifier",
+          name: "Slow Verifier",
+          timeoutSeconds: 1800,
+          workspace: { baseDir: "agents/slow", files: {} },
+        },
+      ],
+      steps: [
+        { id: "verify", agent: "slow-verifier", input: "verify", expects: "STATUS: done" },
+      ],
+    };
+
+    await setupAgentCrons(fakeWorkflow as any);
+
+    assert.match(
+      capturedJobs[0].payload.message,
+      /runTimeoutSeconds: 1800/,
+      "sessions_spawn instructions should carry the agent's work timeout"
+    );
+    assert.equal(
+      capturedJobs[0].payload.timeoutSeconds,
+      120,
+      "polling cron itself should stay on the lightweight workflow polling timeout"
+    );
+  });
+
+  it("polling prompt falls back to inferred role timeout when agent timeout is omitted", async () => {
+    const { setupAgentCrons } = await import("../dist/installer/agent-cron.js");
+
+    const fakeWorkflow = {
+      id: "test-default-work-timeout",
+      name: "Test Default Work Timeout",
+      version: 1,
+      polling: {
+        model: "claude-sonnet-4-20250514",
+        timeoutSeconds: 120,
+      },
+      agents: [
+        {
+          id: "fixer",
+          name: "Fixer",
+          workspace: { baseDir: "agents/fixer", files: {} },
+        },
+      ],
+      steps: [
+        { id: "fix", agent: "fixer", input: "fix", expects: "STATUS: done" },
+      ],
+    };
+
+    await setupAgentCrons(fakeWorkflow as any);
+
+    assert.match(
+      capturedJobs[0].payload.message,
+      /runTimeoutSeconds: 1800/,
+      "coding agents without explicit timeout should inherit the role default"
+    );
+    assert.equal(capturedJobs[0].payload.timeoutSeconds, 120);
+  });
 });

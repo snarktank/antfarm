@@ -30,6 +30,13 @@ describe("buildWorkPrompt", () => {
     assert.ok(!prompt.includes("NO_WORK"));
   });
 
+  it("does not hardcode workflow-conflicting output keys", () => {
+    const prompt = buildWorkPrompt("bug-fix", "triager");
+    assert.ok(!prompt.includes("CHANGES: what you did"));
+    assert.ok(!prompt.includes("TESTS: what tests you ran"));
+    assert.ok(prompt.includes("exact KEY: value lines required by the claimed step input"));
+  });
+
   it("works with different workflow/agent ids without errors", () => {
     const p1 = buildWorkPrompt("security-audit", "scanner");
     const p2 = buildWorkPrompt("bug-fix", "fixer");

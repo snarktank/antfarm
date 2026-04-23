@@ -88,17 +88,21 @@ steps:
       BUG REPORT:
       {{task}}
 
+      REPO:
+      {{repo}}
+
       Instructions:
       1. Read the bug report carefully
-      2. Explore the codebase to find the affected area
-      3. Attempt to reproduce: run tests, check for failing cases, read error logs/stack traces
-      4. Classify severity (critical/high/medium/low)
-      5. Document findings
+      2. Use {{repo}} as the target repository for all code exploration and reproduction commands
+      3. Explore the codebase to find the affected area
+      4. Attempt to reproduce: run tests, check for failing cases, read error logs/stack traces
+      5. Classify severity (critical/high/medium/low)
+      6. Document findings
 
       Reply with:
       STATUS: done
-      REPO: /path/to/repo
-      BRANCH: bugfix-branch-name
+      REPO: {{repo}}
+      BRANCH: bugfix-branch-name (must be a new non-main branch name, never "main" or "master")
       SEVERITY: critical|high|medium|low
       AFFECTED_AREA: what files/modules are affected
       REPRODUCTION: how to reproduce the bug
@@ -147,15 +151,17 @@ steps:
 
       Instructions:
       1. cd into the repo
-      2. Create the bugfix branch (git checkout -b {{branch}} from main)
-      3. Read package.json, CI config, test config to understand build/test setup
-      4. Ensure .gitignore exists — if missing, create one appropriate for the detected stack (must include .env, node_modules/, *.key, *.pem at minimum)
-      5. Run the build to establish a baseline
-      6. Run the tests to establish a baseline
+      2. Determine the actual bugfix branch to use. If {{branch}} is empty, "main", or "master", generate a new descriptive branch name like bugfix/fix-add-implementation.
+      3. Check out that bugfix branch from main. Never do bug-fix work on main/master.
+      4. Read package.json, CI config, test config to understand build/test setup
+      5. Ensure .gitignore exists — if missing, create one appropriate for the detected stack (must include .env, node_modules/, *.key, *.pem at minimum)
+      6. Run the build/typecheck command to establish a baseline if one exists. If not, record BUILD_CMD as none.
+      7. Run the tests to establish a baseline
 
       Reply with:
       STATUS: done
-      BUILD_CMD: <build command>
+      BRANCH: <actual bugfix branch checked out>
+      BUILD_CMD: <build command or none>
       TEST_CMD: <test command>
       BASELINE: <baseline status>
     expects: "STATUS: done"
@@ -180,21 +186,18 @@ steps:
       FIX_APPROACH: {{fix_approach}}
       PROBLEM_STATEMENT: {{problem_statement}}
 
-      VERIFY FEEDBACK (if retrying):
-      {{verify_feedback}}
-
       Instructions:
       1. cd into the repo, checkout the branch
       2. Implement the fix based on the root cause and fix approach
       3. Write a regression test that would have caught this bug
-      4. Run {{build_cmd}} to verify the build passes
+      4. If {{build_cmd}} is not "none", run it to verify the build/typecheck passes. Otherwise note that no build command exists.
       5. Run {{test_cmd}} to verify all tests pass
       6. Commit: fix: brief description of the fix
 
       Reply with:
       STATUS: done
       CHANGES: what was changed
-      REGRESSION_TEST: what test was added
+      REGRESSION_TEST: what test was added (or "N/A" if not applicable)
     expects: "STATUS: done"
     max_retries: 2
     on_fail:
@@ -210,18 +213,20 @@ steps:
 
       REPO: {{repo}}
       BRANCH: {{branch}}
+      BUILD_CMD: {{build_cmd}}
       TEST_CMD: {{test_cmd}}
       CHANGES: {{changes}}
-      REGRESSION_TEST: {{regression_test}}
+      REGRESSION_TEST: {{regression_test|N/A — not applicable}}
       ROOT_CAUSE: {{root_cause}}
       PROBLEM_STATEMENT: {{problem_statement}}
 
       Instructions:
       1. Run the full test suite with {{test_cmd}}
-      2. Confirm the regression test exists and tests the right thing
-      3. Review the fix to confirm it addresses the root cause
-      4. Check for unintended side effects
-      5. Verify the regression test would fail without the fix (review the diff logic)
+      2. If {{build_cmd}} is not "none", run the build/typecheck with {{build_cmd}}. Otherwise confirm the repo has no build command.
+      3. Confirm the regression test exists and tests the right thing
+      4. Review the fix to confirm it addresses the root cause
+      5. Check for unintended side effects
+      6. Verify the regression test would fail without the fix (review the diff logic)
 
       MANDATORY first step:
       - Run `git diff main..{{branch}} --stat` and `git diff main..{{branch}}`
@@ -261,7 +266,7 @@ steps:
       SEVERITY: {{severity}}
       ROOT_CAUSE: {{root_cause}}
       CHANGES: {{changes}}
-      REGRESSION_TEST: {{regression_test}}
+      REGRESSION_TEST: {{regression_test|N/A — not applicable}}
       VERIFIED: {{verified}}
 
       PR title format: fix: brief description of what was fixed
@@ -280,7 +285,7 @@ steps:
       {{changes}}
 
       ## Regression Test
-      {{regression_test}}
+      {{regression_test|N/A — not applicable}}
 
       ## Verification
       {{verified}}

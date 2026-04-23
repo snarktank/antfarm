@@ -153,13 +153,19 @@ export function getMaxRoleTimeoutSeconds(): number {
   return Math.max(...Object.values(ROLE_POLICIES).map(r => r.timeoutSeconds));
 }
 
-const SUBAGENT_POLICY = { allowAgents: [] as string[] };
+export function getRoleTimeoutSeconds(role: AgentRole): number {
+  return ROLE_POLICIES[role].timeoutSeconds;
+}
+
+function buildSubagentPolicy(agentId: string): Record<string, unknown> {
+  return { allowAgents: [agentId] };
+}
 
 /**
  * Infer an agent's role from its id when not explicitly set in workflow YAML.
  * Matches common agent id patterns across all bundled workflows.
  */
-function inferRole(agentId: string): AgentRole {
+export function inferRole(agentId: string): AgentRole {
   const id = agentId.toLowerCase();
   if (id.includes("planner") || id.includes("prioritizer") || id.includes("reviewer")
       || id.includes("investigator") || id.includes("triager")) return "analysis";
@@ -169,6 +175,10 @@ function inferRole(agentId: string): AgentRole {
   if (id === "pr" || id.includes("/pr")) return "pr";
   // developer, fixer, setup → coding
   return "coding";
+}
+
+export function getEffectiveAgentTimeoutSeconds(agentId: string, explicitTimeoutSeconds?: number): number {
+  return explicitTimeoutSeconds ?? getRoleTimeoutSeconds(inferRole(agentId));
 }
 
 function buildToolsConfig(role: AgentRole): Record<string, unknown> {
@@ -219,7 +229,7 @@ function upsertAgent(
     workspace: agent.workspaceDir,
     agentDir: agent.agentDir,
     tools: buildToolsConfig(agent.role),
-    subagents: SUBAGENT_POLICY,
+    subagents: buildSubagentPolicy(agent.id),
   };
   if (agent.model) payload.model = agent.model;
   // Note: timeoutSeconds is NOT written to the agent config entry because

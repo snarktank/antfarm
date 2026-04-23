@@ -1,7 +1,6 @@
 ---
 name: antfarm-workflows
-description: "Multi-agent workflow orchestration for OpenClaw. Use when user mentions antfarm, asks to run a multi-step workflow (feature dev, bug fix, security audit), or wants to install/uninstall/check status of antfarm workflows."
-user-invocable: false
+description: Run durable multi-agent workflows in the local Antfarm repo when scope is already defined and the work should continue through a saved workflow like feature-dev, bug-fix, or security-audit. Triggers include requests like run the feature-dev workflow, use Antfarm for this bug, kick off the security-audit workflow, or continue this through a detached workflow. Not for requirement discovery, which belongs to `project-planner`, or simple one-off coding delegation, which belongs to `coding-agent`.
 ---
 
 # Antfarm
@@ -71,9 +70,9 @@ Get the user to confirm the plan and acceptance criteria before running.
 - Context passes between steps via KEY: value pairs in agent output
 - No central orchestrator — agents are autonomous
 
-## Force-Triggering Agents
+## Advancing Work Faster
 
-To skip the 15-min cron wait, use the `cron` tool with `action: "run"` and the agent's job ID. List crons to find them — they're named `antfarm/<workflow-id>/<agent-id>`.
+Some Antfarm installs rely on scheduled polling. If scheduler controls are not exposed in the current session, use the Antfarm CLI for status and log inspection, then let the installed scheduler advance the run or operate from inside the Antfarm repo where its local scripts are available.
 
 ## Workflow Management
 

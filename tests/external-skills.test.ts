@@ -16,12 +16,11 @@ describe("External skill installation", () => {
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "antfarm-skill-test-"));
     fakeHome = path.join(tmpDir, "home");
-    await fs.mkdir(path.join(fakeHome, ".openclaw", "workspace", "skills", "agent-browser"), { recursive: true });
+    await fs.mkdir(path.join(fakeHome, ".openclaw", "skills", "agent-browser"), { recursive: true });
     await fs.writeFile(
-      path.join(fakeHome, ".openclaw", "workspace", "skills", "agent-browser", "SKILL.md"),
+      path.join(fakeHome, ".openclaw", "skills", "agent-browser", "SKILL.md"),
       "# Agent Browser Skill\nTest content"
     );
-    // Also create a skill in the alternate location
     await fs.mkdir(path.join(fakeHome, ".openclaw", "skills", "alt-skill"), { recursive: true });
     await fs.writeFile(
       path.join(fakeHome, ".openclaw", "skills", "alt-skill", "SKILL.md"),
@@ -30,13 +29,12 @@ describe("External skill installation", () => {
     origHome = process.env.HOME || "";
     process.env.HOME = fakeHome;
   });
-
   afterEach(async () => {
     process.env.HOME = origHome;
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
-  it("resolves skill from ~/.openclaw/workspace/skills/", async () => {
+  it("resolves skill from ~/.openclaw/skills/", async () => {
     // Import after setting HOME
     const mod = await import("../dist/installer/agent-provision.js");
     // We can't directly test resolveExternalSkillSource since it's not exported,
@@ -73,7 +71,7 @@ describe("External skill installation", () => {
     assert.ok(content.includes("Agent Browser Skill"), "Skill SKILL.md should be copied");
   });
 
-  it("resolves skill from ~/.openclaw/skills/ (fallback)", async () => {
+  it("resolves another skill from ~/.openclaw/skills/", async () => {
     const mod = await import("../dist/installer/agent-provision.js");
     const workflowDir = path.join(tmpDir, "workflow");
     await fs.mkdir(workflowDir, { recursive: true });

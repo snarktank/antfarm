@@ -161,4 +161,60 @@ describe("E2E: frontend change detection in verify flow", () => {
     assert.ok(result.found);
     assert.ok(result.resolvedInput!.includes("Has frontend changes: false"));
   });
+
+  it("keeps step claim CLI output as clean JSON on the main branch", () => {
+    insertTestRun(tmpDir, "main");
+    const output = execSync(`node ${path.join(process.cwd(), "dist/cli/cli.js")} step claim "${testAgentId}"`, {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    }).trim();
+
+    const parsed = JSON.parse(output) as { stepId: string; runId: string; input: string };
+    assert.ok(parsed.stepId, "should include stepId");
+    assert.ok(parsed.runId, "should include runId");
+    assert.ok(parsed.input.includes("Has frontend changes: false"));
+  });
+
+  it("treats verify_feedback as optional for first-pass single steps", () => {
+    const db = getDb();
+    const runId = randomUUID();
+    const now = new Date().toISOString();
+    const context = JSON.stringify({
+      repo: tmpDir,
+      branch: "main",
+      task: "fix the bug",
+      test_cmd: "npm test",
+      build_cmd: "npm run build",
+      affected_area: "math.ts",
+      root_cause: "bad addition",
+      fix_approach: "return a + b",
+      problem_statement: "add() is wrong",
+    });
+
+    db.prepare(
+      `INSERT INTO runs (id, workflow_id, task, status, context, created_at, updated_at)
+       VALUES (?, 'test-workflow', 'test task', 'running', ?, ?, ?)`
+    ).run(runId, context, now, now);
+
+    const stepId = randomUUID();
+    db.prepare(
+      `INSERT INTO steps (id, step_id, run_id, agent_id, step_index, input_template, expects, status, created_at, updated_at, type)
+       VALUES (?, 'fix', ?, ?, 0, ?, 'STATUS: done', 'pending', ?, ?, 'single')`
+    ).run(
+      stepId,
+      runId,
+      testAgentId,
+      `Implement the fix.\n\nVERIFY FEEDBACK (if retrying):\n{{verify_feedback}}\n\nROOT_CAUSE: {{root_cause}}`,
+      now,
+      now,
+    );
+
+    testRunIds.push(runId);
+    const result = claimStep(testAgentId);
+
+    assert.ok(result.found, "Should find a step to claim");
+    assert.ok(result.resolvedInput, "Should have resolved input");
+    assert.ok(!result.resolvedInput!.includes("[missing: verify_feedback]"), "verify_feedback should resolve to empty string on first pass");
+    assert.ok(result.resolvedInput!.includes("ROOT_CAUSE: bad addition"), "other context keys should still resolve normally");
+  });
 });

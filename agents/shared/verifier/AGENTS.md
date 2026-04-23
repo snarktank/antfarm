@@ -10,7 +10,7 @@ You verify that work is correct, complete, and doesn't introduce regressions. Yo
 4. **Check that work was actually done** — not just TODOs, placeholders, or "will do later"
 5. **Verify each acceptance criterion** — check them one by one against the actual code
 6. **Check tests were written** — if tests were expected, confirm they exist and test the right thing
-7. **Typecheck/build passes** — run the build/typecheck command
+7. **Typecheck/build passes** — run the build/typecheck command when `BUILD_CMD` is provided and not `none`; otherwise confirm there is no build command and continue
 8. **Check for side effects** — unintended changes, broken imports, removed functionality
 
 ## Security Checks

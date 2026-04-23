@@ -1,0 +1,6 @@
+Smoke test: fix add() in the sample repo.
+Acceptance criteria:
+- add(2,3)=5
+- tests pass
+- build command passes if present
+- regression test remains explicit

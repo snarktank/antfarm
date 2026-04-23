@@ -99,12 +99,16 @@ steps:
       TASK:
       {{task}}
 
+      REPO:
+      {{repo}}
+
       Instructions:
-      1. Explore the codebase — understand the stack, framework, dependencies
-      2. Run `npm audit` (or equivalent) if a package manager is present
-      3. Scan for hardcoded secrets: API keys, passwords, tokens, private keys in source
-      4. Check for .env files committed to the repo
-      5. Scan for common vulnerabilities:
+      1. Use {{repo}} as the target repository for all audit commands and code exploration
+      2. Explore the codebase — understand the stack, framework, dependencies
+      3. Run `npm audit` (or equivalent) if a package manager is present
+      4. Scan for hardcoded secrets: API keys, passwords, tokens, private keys in source
+      5. Check for .env files committed to the repo
+      6. Scan for common vulnerabilities:
          - SQL injection (raw queries, string concatenation in queries)
          - XSS (unescaped user input in templates/responses)
          - CSRF (missing CSRF tokens on state-changing endpoints)
@@ -115,13 +119,13 @@ steps:
          - Missing input validation on API endpoints
          - Insecure file permissions
          - Exposed environment variables
-      6. Review auth/session handling (token expiry, session fixation, cookie flags)
-      7. Check security headers (CORS, CSP, HSTS, X-Frame-Options)
+      7. Review auth/session handling (token expiry, session fixation, cookie flags)
+      8. Check security headers (CORS, CSP, HSTS, X-Frame-Options)
       8. Document every finding with severity, file, line, and description
 
       Reply with:
       STATUS: done
-      REPO: /path/to/repo
+      REPO: {{repo}}
       BRANCH: security-audit-YYYY-MM-DD
       VULNERABILITY_COUNT: <number>
       FINDINGS: <detailed list of each vulnerability>
@@ -181,12 +185,12 @@ steps:
       1. cd into the repo
       2. Create the security branch (git checkout -b {{branch}} from main)
       3. Read package.json, CI config, test config to understand build/test setup
-      4. Run the build to establish a baseline
+      4. Run the build/typecheck command to establish a baseline if one exists. If not, record BUILD_CMD as none.
       5. Run the tests to establish a baseline
 
       Reply with:
       STATUS: done
-      BUILD_CMD: <build command>
+      BUILD_CMD: <build command or none>
       TEST_CMD: <test command>
       BASELINE: <baseline status>
     expects: "STATUS: done"
@@ -233,7 +237,7 @@ steps:
       2. Read the vulnerability description carefully
       3. Implement the fix — minimal, targeted changes only
       4. Write a regression test that verifies the vulnerability is patched
-      5. Run {{build_cmd}} to verify the build passes
+      5. If {{build_cmd}} is not "none", run it to verify the build/typecheck passes. Otherwise note that no build command exists.
       6. Run {{test_cmd}} to verify all tests pass
       7. Commit: fix(security): brief description
       8. Rewrite progress-{{run_id}}.txt with updated story results and patterns
@@ -254,6 +258,7 @@ steps:
 
       REPO: {{repo}}
       BRANCH: {{branch}}
+      BUILD_CMD: {{build_cmd}}
       TEST_CMD: {{test_cmd}}
       CHANGES: {{changes}}
       REGRESSION_TEST: {{regression_test}}
@@ -266,10 +271,11 @@ steps:
 
       Instructions:
       1. Run the full test suite with {{test_cmd}}
-      2. Confirm the regression test exists and tests the right thing
-      3. Review the fix — does it actually address the vulnerability?
-      4. Check for unintended side effects
-      5. Verify the regression test would fail without the fix
+      2. If {{build_cmd}} is not "none", run the build/typecheck with {{build_cmd}}. Otherwise confirm the repo has no build command.
+      3. Confirm the regression test exists and tests the right thing
+      4. Review the fix — does it actually address the vulnerability?
+      5. Check for unintended side effects
+      6. Verify the regression test would fail without the fix
 
       Security-specific verification — think about bypass scenarios:
       - SQL Injection: Does it handle all query patterns, not just the one found?
@@ -314,9 +320,9 @@ steps:
 
       Instructions:
       1. Run the full test suite ({{test_cmd}}) — all tests must pass
-      2. Run the build ({{build_cmd}}) — must succeed
+      2. If {{build_cmd}} is not "none", run the build/typecheck ({{build_cmd}}) — it must succeed. Otherwise confirm there is no build command.
       3. Run `npm audit` (or equivalent) again — compare before/after
-      4. Quick smoke test: does the app still start and work?
+      4. Quick smoke test if the repo has an obvious start command or documented local run path
       5. Verify no regressions from the security fixes
       6. Summarize: what improved, what remains
 

@@ -112,6 +112,14 @@ describe("polling config", () => {
     assert.equal(spec.polling.timeoutSeconds, 30);
   });
 
+  it("preserves 120s as the real workflow timeout standard, not the old 30s value", async () => {
+    const bundled = ["bug-fix", "feature-dev", "security-audit"];
+    for (const workflowId of bundled) {
+      const spec = await loadWorkflowSpec(path.resolve(import.meta.dirname, "..", "workflows", workflowId));
+      assert.equal(spec.polling?.timeoutSeconds, 120, `${workflowId} should use polling.timeoutSeconds=120`);
+    }
+  });
+
   it("parses per-agent pollingModel", async () => {
     const dir = path.join(tmpDir, "agent-polling");
     await fs.mkdir(dir, { recursive: true });

@@ -3,10 +3,9 @@ import type { WorkflowSpec } from "./types.js";
 import { resolveAntfarmCli } from "./paths.js";
 import { getDb } from "../db.js";
 import { readOpenClawConfig } from "./openclaw-config.js";
+import { getEffectiveAgentTimeoutSeconds } from "./install.js";
 
 const DEFAULT_EVERY_MS = 300_000; // 5 minutes
-const DEFAULT_AGENT_TIMEOUT_SECONDS = 30 * 60; // 30 minutes
-
 function buildAgentPrompt(workflowId: string, agentId: string): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
@@ -26,14 +25,15 @@ Step 2 — If JSON is returned, it contains: {"stepId": "...", "runId": "...", "
 Save the stepId — you'll need it to report completion.
 The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
 
-Step 3 — Do the work described in the input. Format your output with KEY: value lines as specified.
+Step 3 — Do the work described in the input. Format your output with the exact KEY: value lines required by the claimed step input.
 
 Step 4 — MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
 cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
+# Write the exact KEY: value lines required by the claimed step input.
+# Example only:
 STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
+# ...step-specific required keys go here...
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
@@ -63,14 +63,15 @@ The claimed step JSON is provided below. It contains: {"stepId": "...", "runId":
 Save the stepId — you'll need it to report completion.
 The "input" field contains your FULLY RESOLVED task instructions. Read it carefully and DO the work.
 
-Do the work described in the input. Format your output with KEY: value lines as specified.
+Do the work described in the input. Format your output with the exact KEY: value lines required by the claimed step input.
 
 MANDATORY: Report completion (do this IMMEDIATELY after finishing the work):
 \`\`\`
 cat <<'ANTFARM_EOF' > /tmp/antfarm-step-output.txt
+# Write the exact KEY: value lines required by the claimed step input.
+# Example only:
 STATUS: done
-CHANGES: what you did
-TESTS: what tests you ran
+# ...step-specific required keys go here...
 ANTFARM_EOF
 cat /tmp/antfarm-step-output.txt | node ${cli} step complete "<stepId>"
 \`\`\`
@@ -125,10 +126,11 @@ async function resolveAgentCronModel(agentId: string, requestedModel?: string): 
   return requestedModel;
 }
 
-export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string): string {
+export function buildPollingPrompt(workflowId: string, agentId: string, workModel?: string, workTimeoutSeconds?: number): string {
   const fullAgentId = `${workflowId}_${agentId}`;
   const cli = resolveAntfarmCli();
   const model = workModel ?? "default";
+  const runTimeoutSeconds = workTimeoutSeconds ?? DEFAULT_POLLING_TIMEOUT_SECONDS;
   const workPrompt = buildWorkPrompt(workflowId, agentId);
 
   return `Step 1 — Quick check for pending work (lightweight, no side effects):
@@ -143,10 +145,12 @@ node ${cli} step claim "${fullAgentId}"
 \`\`\`
 If output is "NO_WORK", reply HEARTBEAT_OK and stop.
 
-If JSON is returned, parse it to extract stepId, runId, and input fields.
+If JSON is returned, parse it to extract stepId, runId, input, and cwd fields.
 Then call sessions_spawn with these parameters:
 - agentId: "${fullAgentId}"
 - model: "${model}"
+- runTimeoutSeconds: ${runTimeoutSeconds}
+- cwd: the claimed step cwd field when present, otherwise keep the current workspace
 - task: The full work prompt below, followed by "\\n\\nCLAIMED STEP JSON:\\n" and the exact JSON output from step claim.
 
 Full work prompt to include in the spawned task:
@@ -177,7 +181,8 @@ export async function setupAgentCrons(workflow: WorkflowSpec): Promise<void> {
     const pollingModel = await resolveAgentCronModel(agentId, requestedPollingModel);
     const requestedWorkModel = agent.model ?? workflowPollingModel;
     const workModel = await resolveAgentCronModel(agentId, requestedWorkModel);
-    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel);
+    const workTimeoutSeconds = getEffectiveAgentTimeoutSeconds(agent.id, agent.timeoutSeconds);
+    const prompt = buildPollingPrompt(workflow.id, agent.id, workModel, workTimeoutSeconds);
     const timeoutSeconds = workflowPollingTimeout;
 
     const result = await createAgentCronJob({

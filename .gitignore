@@ -1,5 +1,8 @@
 node_modules/
 dist/
+.env
+*.key
+*.pem
 .DS_Store
 *.db
 *.sqlite

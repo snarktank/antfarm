@@ -287,4 +287,11 @@ describe("polling prompt includes step peek", () => {
     const prompt = buildPollingPrompt("bug-fix", "fixer");
     assert.ok(prompt.includes("sessions_spawn"), "should still include sessions_spawn");
   });
+
+  it("instructs agents to pass claimed cwd into sessions_spawn", async () => {
+    const { buildPollingPrompt } = await import("../dist/installer/agent-cron.js");
+    const prompt = buildPollingPrompt("bug-fix", "triager");
+    assert.ok(prompt.includes("cwd fields"), "should mention cwd in claimed step JSON");
+    assert.ok(prompt.includes("cwd: the claimed step cwd field"), "should instruct passing cwd into sessions_spawn");
+  });
 });

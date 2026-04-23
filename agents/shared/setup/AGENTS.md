@@ -17,7 +17,7 @@ You prepare the development environment. You create the branch, discover build/t
    - At minimum include: `.env`, `*.key`, `*.pem`, `*.secret`, `node_modules/`, `dist/`, `__pycache__/`, `.DS_Store`, `*.log`
    - For Node.js projects also add: `.env.local`, `.env.*.local`, `coverage/`, `.nyc_output/`
    - If `.env` exists but `.env.example` doesn't, create `.env.example` with placeholder values (no real credentials)
-6. Run the build command
+6. Run the build command if one exists. If no build/typecheck command exists, record `BUILD_CMD: none`.
 7. Run the test command
 8. Report results
 
@@ -28,11 +28,12 @@ STATUS: done
 BUILD_CMD: npm run build (or whatever you found)
 TEST_CMD: npm test (or whatever you found)
 CI_NOTES: brief notes about CI setup (or "none found")
-BASELINE: build passes / tests pass (or describe what failed)
+BASELINE: build passes / tests pass, or "no build command found; tests pass", or describe what failed
 ```
 
 ## Important Notes
 
+- If there is no build command, output `BUILD_CMD: none` and note that clearly in BASELINE
 - If the build or tests fail on main, note it in BASELINE — downstream agents need to know what's pre-existing
 - Look for lint/typecheck commands too, but BUILD_CMD and TEST_CMD are the priority
 - If there are no tests, say so clearly
