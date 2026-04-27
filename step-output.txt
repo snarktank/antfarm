@@ -1,0 +1,4 @@
+STATUS: done
+REPO: C:\Users\main\.openclaw\workspace\antfarm
+BRANCH: feature-hello-world
+STORIES_JSON: [{"id":"1","title":"Create hello world function","acceptanceCriteria":["Function exists","Outputs 'Hello World'","Typecheck passes"]}]
