@@ -10,13 +10,17 @@ description: |
   Then integration/E2E testing, PR creation, and code review.
 
 polling:
-  model: default
+  model: anthropic/claude-sonnet-4-6
   timeoutSeconds: 120
+
+cron:
+  interval_ms: 20000
 
 agents:
   - id: planner
     name: Planner
     role: analysis
+    model: anthropic/claude-opus-4-8
     description: Decomposes tasks into ordered user stories.
     workspace:
       baseDir: agents/planner
@@ -28,6 +32,7 @@ agents:
   - id: setup
     name: Setup
     role: coding
+    model: anthropic/claude-opus-4-8
     description: Prepares environment, creates branch, establishes baseline.
     workspace:
       baseDir: agents/setup
@@ -39,6 +44,7 @@ agents:
   - id: developer
     name: Developer
     role: coding
+    model: anthropic/claude-opus-4-8
     description: Implements features, writes tests, creates PRs.
     workspace:
       baseDir: agents/developer
@@ -50,6 +56,7 @@ agents:
   - id: verifier
     name: Verifier
     role: verification
+    model: anthropic/claude-opus-4-8
     description: Quick sanity check - did developer actually do the work?
     workspace:
       baseDir: agents/verifier
@@ -63,6 +70,7 @@ agents:
   - id: tester
     name: Tester
     role: testing
+    model: anthropic/claude-opus-4-8
     description: Integration and E2E testing after all stories are implemented.
     workspace:
       baseDir: agents/tester
@@ -74,6 +82,7 @@ agents:
   - id: reviewer
     name: Reviewer
     role: analysis
+    model: anthropic/claude-opus-4-8
     description: Reviews PRs, requests changes or approves.
     workspace:
       baseDir: agents/reviewer
@@ -152,7 +161,6 @@ steps:
       completion: all_done
       fresh_session: true
       verify_each: true
-      verify_step: verify
     input: |
       Implement the following user story. You are working on ONE story in a fresh session.
 
@@ -283,9 +291,10 @@ steps:
       4. Check cross-cutting concerns: error handling, edge cases across features
       5. Verify the overall feature works as a cohesive whole
 
-      Reply with:
+      Reply with EXACTLY these keys (the downstream pr step consumes RESULTS —
+      you MUST emit a line that begins with "RESULTS:", not TESTS: or CHANGES:):
       STATUS: done
-      RESULTS: What you tested and the outcomes
+      RESULTS: <one line summarizing what you tested and the outcomes, e.g. test counts and pass/fail>
 
       Or if issues found:
       STATUS: retry
@@ -301,7 +310,9 @@ steps:
   - id: pr
     agent: developer
     input: |
-      Create a pull request for your changes.
+      Finalize your changes as a LOCAL git commit. This environment uses LOCAL Git
+      only — there is NO GitHub remote and the `gh` CLI is NOT available. Do NOT run
+      `gh pr create` or push to any remote; it will fail.
 
       TASK:
       {{task}}
@@ -314,16 +325,17 @@ steps:
       PROGRESS LOG:
       {{progress}}
 
-      Create a PR with:
-      - Clear title summarizing the change
-      - Description explaining what and why
-      - Reference to what was tested
+      Do the following with LOCAL git only:
+      1. Ensure you are on the feature branch: git checkout {{branch}} (create it from
+         current HEAD if it does not exist: git checkout -b {{branch}})
+      2. Stage all changes: git add -A
+      3. Commit with a clear message summarizing WHAT changed and WHY, and referencing
+         what was tested. If there is nothing to commit (already committed), that is fine.
+      4. Capture the resulting commit hash: git rev-parse HEAD
 
-      Use: gh pr create
-
-      Reply with:
+      Reply with EXACTLY these keys:
       STATUS: done
-      PR: URL to the pull request
+      PR: local-commit <short-hash> on branch {{branch}}
     expects: "STATUS: done"
     on_fail:
       escalate_to: human
@@ -346,11 +358,15 @@ steps:
       - Test coverage
       - Follows project conventions
 
-      Use: gh pr view, gh pr diff to read the PR.
+      This environment uses LOCAL Git only — there is NO GitHub remote and the `gh`
+      CLI is NOT available. Do NOT run `gh pr view/diff/review`; it will fail.
+      Read the changes with LOCAL git instead:
+      - git log --oneline -n 10 {{branch}}
+      - git diff main...{{branch}}  (or: git show HEAD to inspect the latest commit)
 
-      IMPORTANT: Post your review to the PR on GitHub using:
-      - If approving: gh pr review <number> --approve --body "your review summary"
-      - If requesting changes: gh pr review <number> --request-changes --body "your feedback"
+      Record your review verdict in the STATUS/DECISION reply below (there is no PR to
+      post to). If changes are needed, describe them in FEEDBACK so the implement step
+      can address them.
 
       ## Visual Review (Frontend Changes)
       Has frontend changes: {{has_frontend_changes}}
