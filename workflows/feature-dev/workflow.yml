@@ -10,7 +10,7 @@ description: |
   Then integration/E2E testing, PR creation, and code review.
 
 polling:
-  model: anthropic/claude-sonnet-4-6
+  model: default
   timeoutSeconds: 120
 
 cron:
