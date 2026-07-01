@@ -11,6 +11,20 @@ interface GatewayConfig {
   secret?: string;
 }
 
+/**
+ * Resolve ${ENV_VAR} placeholders the way the gateway does when it loads its own
+ * config. openclaw.json may store secrets as "${OPENCLAW_GATEWAY_TOKEN}"; the gateway
+ * interpolates these at startup, but a plain JSON.parse here does not — which would
+ * send the literal placeholder as the Bearer token and get a 401.
+ */
+function resolveEnvPlaceholders(value: string | undefined): string | undefined {
+  if (typeof value !== "string") return value;
+  return value.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (match, name) => {
+    const resolved = process.env[name];
+    return resolved !== undefined ? resolved : match;
+  });
+}
+
 async function readOpenClawConfig(): Promise<{
   port?: number;
   token?: string;
@@ -23,11 +37,11 @@ async function readOpenClawConfig(): Promise<{
     const config = JSON.parse(content);
     return {
       port: config.gateway?.port,
-      token: config.gateway?.auth?.token,
+      token: resolveEnvPlaceholders(config.gateway?.auth?.token),
       authMode: config.gateway?.auth?.mode as "token" | "password" | undefined,
       password:
         process.env.OPENCLAW_GATEWAY_PASSWORD ??
-        config.gateway?.auth?.password,
+        resolveEnvPlaceholders(config.gateway?.auth?.password),
     };
   } catch {
     return {};
@@ -60,10 +74,29 @@ async function getGatewayConfig(): Promise<GatewayConfig> {
 // ---------------------------------------------------------------------------
 
 let cachedBinary: string | null = null;
+// On Windows this holds the openclaw.mjs path; runCli spawns it via `node <mjs>`.
+let cachedWinMjs: string | null = null;
 
 /** Locate the openclaw binary. Checks PATH, then ~/.npm-global/bin, then npx. */
 async function findOpenclawBinary(): Promise<string> {
   if (cachedBinary) return cachedBinary;
+
+  // On Windows the PATH launcher is `openclaw.cmd`, but invoking it (directly or via
+  // `cmd.exe /c`) corrupts multi-line arguments — cron prompts contain newlines, and
+  // the shell layer drops trailing flags like `--no-deliver`. The .cmd is just a thin
+  // wrapper around `node node_modules/openclaw/openclaw.mjs %*`, so locate that .mjs and
+  // run it directly with `node` (see runCli) for a clean argv array, no shell involved.
+  if (process.platform === "win32") {
+    const mjsCandidates = [
+      path.join(process.env.APPDATA ?? "", "npm", "node_modules", "openclaw", "openclaw.mjs"),
+      path.join(os.homedir(), "AppData", "Roaming", "npm", "node_modules", "openclaw", "openclaw.mjs"),
+    ];
+    for (const c of mjsCandidates) {
+      try { await fs.access(c); cachedWinMjs = c; cachedBinary = c; return cachedBinary; } catch { /* skip */ }
+    }
+    cachedBinary = "openclaw.cmd"; // last resort
+    return cachedBinary;
+  }
 
   // 1. Check PATH via `which`
   const fromPath = await new Promise<string | null>((resolve) => {
@@ -98,6 +131,24 @@ function runCli(args: string[]): Promise<string> {
   return new Promise(async (resolve, reject) => {
     const bin = await findOpenclawBinary();
     const finalArgs = bin === "npx" ? ["openclaw", ...args] : args;
+
+    // Windows: spawn the openclaw.mjs entrypoint directly with `node` and an argv array
+    // so multi-line cron prompts and trailing flags survive (no shell / no .cmd wrapper
+    // to mangle them — a shell string splits on the newlines in cron prompts and drops
+    // flags like --no-deliver).
+    if (process.platform === "win32" && cachedWinMjs) {
+      execFile(
+        process.execPath, // the node binary currently running
+        [cachedWinMjs, ...finalArgs],
+        { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 },
+        (err, stdout, stderr) => {
+          if (err) reject(new Error(stderr || err.message));
+          else resolve(stdout);
+        },
+      );
+      return;
+    }
+
     execFile(bin, finalArgs, { timeout: 30_000 }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr || err.message));
       else resolve(stdout);
@@ -148,16 +199,25 @@ export async function createAgentCronJob(job: {
       args.push("--message", job.payload.message);
     }
 
-    if (job.payload?.timeoutSeconds) {
-      args.push("--timeout", `${job.payload.timeoutSeconds}`);
-    }
+    // NOTE: do NOT pass payload.timeoutSeconds as `--timeout`. For `cron add`,
+    // `--timeout` is the gateway *connect* timeout in MILLISECONDS, not the agent-turn
+    // timeout in seconds. Passing e.g. 120 made the CLI abort with
+    // "gateway timeout after 120ms", so the cron was never created. The agent-turn
+    // timeout is part of the job payload itself, not a CLI connect option.
 
     if (job.payload?.model) {
       args.push("--model", job.payload.model);
     }
 
+    // The openclaw CLI defaults to announce+last-channel when no delivery flag is
+    // given. For antfarm polling crons (mode "none") that means it tries to announce
+    // to the last channel (e.g. Telegram) WITHOUT a chatId, which makes every cron
+    // run fail ("Delivering to Telegram requires target <chatId>") and stalls the
+    // pipeline. Explicitly disable delivery when mode is not "announce".
     if (job.delivery?.mode === "announce") {
       args.push("--announce");
+    } else {
+      args.push("--no-deliver");
     }
 
     if (!job.enabled) {

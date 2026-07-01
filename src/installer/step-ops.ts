@@ -23,7 +23,12 @@ import type { WorkflowStepFailure } from "./types.js";
  */
 export function parseOutputKeyValues(output: string): Record<string, string> {
   const result: Record<string, string> = {};
-  const lines = output.split("\n");
+  // Normalize CRLF/CR line endings. On Windows agent output is CRLF, which leaves a
+  // trailing \r on each line after split("\n"); the `^([A-Z_]+):...$` matcher then
+  // fails on every KEY: line (the `$` sits after the \r the `.*` can't cross), so keys
+  // like BUILD_CMD/TEST_CMD silently vanish and downstream steps fail with
+  // "missing required template key(s)".
+  const lines = output.replace(/\r\n?/g, "\n").split("\n");
   let pendingKey: string | null = null;
   let pendingValue = "";
 
@@ -502,6 +507,16 @@ export function claimStep(agentId: string): ClaimResult {
          WHERE prev.run_id = s.run_id
            AND prev.step_index < s.step_index
            AND prev.status NOT IN ('done', 'skipped')
+           -- verify_each: a running loop step does NOT block the claim of its
+           -- own verify_step. Otherwise the per-story verify (which must run
+           -- WHILE the loop is still running) deadlocks against this ordering
+           -- guard, peek says HAS_WORK but claim returns NO_WORK forever.
+           AND NOT (
+             prev.type = 'loop'
+             AND prev.status = 'running'
+             AND json_extract(prev.loop_config, '$.verifyEach') = 1
+             AND json_extract(prev.loop_config, '$.verifyStep') = s.step_id
+           )
        )
     ORDER BY s.step_index ASC, s.step_id ASC
      LIMIT 1`
