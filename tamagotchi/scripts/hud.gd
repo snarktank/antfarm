@@ -22,6 +22,7 @@ var btn_clean: Button
 var btn_sleep: Button
 
 const MIN_BTN_SIZE: int = 96
+const CRITICAL_THRESHOLD: float = 20.0
 
 func _init() -> void:
 	_build_stats_area()
@@ -94,11 +95,36 @@ func _make_button(parent: HBoxContainer, btn_name: String, label_text: String) -
 	parent.add_child(btn)
 	return btn
 
+# Returns an array of stat name strings that are at or below the critical threshold.
+static func get_critical_stats(stats: PetStats) -> Array:
+	var result: Array = []
+	if stats.hunger <= CRITICAL_THRESHOLD:
+		result.append("hunger")
+	if stats.happiness <= CRITICAL_THRESHOLD:
+		result.append("happiness")
+	if stats.energy <= CRITICAL_THRESHOLD:
+		result.append("energy")
+	if stats.cleanliness <= CRITICAL_THRESHOLD:
+		result.append("cleanliness")
+	return result
+
+func _apply_warning_style(bar: ProgressBar, is_critical: bool) -> void:
+	if is_critical:
+		bar.modulate = Color(1.0, 0.2, 0.2, 1.0)
+	else:
+		bar.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
 func update_display(stats: PetStats, interactions: PetInteractions, now: float) -> void:
 	bar_hunger.value = stats.hunger
 	bar_happiness.value = stats.happiness
 	bar_energy.value = stats.energy
 	bar_cleanliness.value = stats.cleanliness
+
+	var critical := get_critical_stats(stats)
+	_apply_warning_style(bar_hunger, critical.has("hunger"))
+	_apply_warning_style(bar_happiness, critical.has("happiness"))
+	_apply_warning_style(bar_energy, critical.has("energy"))
+	_apply_warning_style(bar_cleanliness, critical.has("cleanliness"))
 
 	btn_feed.disabled = not interactions.can_perform("feed", now)
 	btn_play.disabled = not interactions.can_perform("play", now)
