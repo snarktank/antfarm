@@ -348,9 +348,27 @@ steps:
 
       Use: gh pr view, gh pr diff to read the PR.
 
+      ## Check for Bot Reviews
+      Before approving, check for existing reviews from AI bots (Copilot, Gemini, etc.):
+      ```
+      gh pr view {{pr_number}} --json reviews
+      ```
+      If there are pending comments or suggestions from bot reviews, you MUST either:
+      1. Address them in your review (request changes if significant), OR
+      2. Acknowledge them in your approval if they're minor/optional
+
+      ## Post Your Review
       IMPORTANT: Post your review to the PR on GitHub using:
       - If approving: gh pr review <number> --approve --body "your review summary"
       - If requesting changes: gh pr review <number> --request-changes --body "your feedback"
+
+      ## Merge on Approval
+      After approving the PR, you MUST merge it:
+      1. gh pr review <number> --approve --body "your review summary"
+      2. gh pr merge <number> --squash --delete-branch --admin
+      3. Verify merge succeeded: gh pr view <number> --json state (should be "merged")
+
+      If merge fails (conflicts, checks failing, not authorized), report the failure in your output but still output STATUS: done.
 
       ## Visual Review (Frontend Changes)
       Has frontend changes: {{has_frontend_changes}}
