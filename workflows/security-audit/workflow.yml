@@ -10,7 +10,7 @@ description: |
 
 polling:
   # Use a cost-efficient model for lightweight polling; workflow work uses the flagship model.
-  model: MiniMax-M2.7
+  model: MiniMax-M3.1-Flash
   timeoutSeconds: 120
 
 agents:
