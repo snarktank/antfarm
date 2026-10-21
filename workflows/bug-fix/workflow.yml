@@ -9,7 +9,8 @@ description: |
   PR agent creates the pull request.
 
 polling:
-  model: default
+  # Use a cost-efficient model for lightweight polling; workflow work uses the flagship model.
+  model: MiniMax-M3.1-Flash
   timeoutSeconds: 120
 
 agents:
@@ -17,6 +18,7 @@ agents:
     name: Triager
     role: analysis
     description: Analyzes bug reports, reproduces issues, classifies severity.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/triager
       files:
@@ -28,6 +30,7 @@ agents:
     name: Investigator
     role: analysis
     description: Traces bugs to root cause and proposes fix approach.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/investigator
       files:
@@ -39,6 +42,7 @@ agents:
     name: Setup
     role: coding
     description: Creates bugfix branch and establishes baseline.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/setup
       files:
@@ -50,6 +54,7 @@ agents:
     name: Fixer
     role: coding
     description: Implements the fix and writes regression tests.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/fixer
       files:
@@ -61,6 +66,7 @@ agents:
     name: Verifier
     role: verification
     description: Verifies the fix and regression test correctness.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/verifier
       files:
@@ -72,6 +78,7 @@ agents:
     name: PR Creator
     role: pr
     description: Creates a pull request with bug fix details.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/pr
       files:

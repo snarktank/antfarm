@@ -10,7 +10,8 @@ description: |
   Then integration/E2E testing, PR creation, and code review.
 
 polling:
-  model: default
+  # Use a cost-efficient model for lightweight polling; workflow work uses the flagship model.
+  model: MiniMax-M3.1-Flash
   timeoutSeconds: 120
 
 agents:
@@ -18,6 +19,7 @@ agents:
     name: Planner
     role: analysis
     description: Decomposes tasks into ordered user stories.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/planner
       files:
@@ -29,6 +31,7 @@ agents:
     name: Setup
     role: coding
     description: Prepares environment, creates branch, establishes baseline.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/setup
       files:
@@ -40,6 +43,7 @@ agents:
     name: Developer
     role: coding
     description: Implements features, writes tests, creates PRs.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/developer
       files:
@@ -51,6 +55,7 @@ agents:
     name: Verifier
     role: verification
     description: Quick sanity check - did developer actually do the work?
+    model: MiniMax-M3
     workspace:
       baseDir: agents/verifier
       skills:
@@ -64,6 +69,7 @@ agents:
     name: Tester
     role: testing
     description: Integration and E2E testing after all stories are implemented.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/tester
       files:
@@ -75,6 +81,7 @@ agents:
     name: Reviewer
     role: analysis
     description: Reviews PRs, requests changes or approves.
+    model: MiniMax-M3
     workspace:
       baseDir: agents/reviewer
       skills:

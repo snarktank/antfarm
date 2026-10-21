@@ -14,8 +14,8 @@ describe("gateway-api model parameter support", () => {
     createAgentCronJob = mod.createAgentCronJob;
   });
 
-  it("accepts payload with model parameter", async () => {
-    // Mock fetch to simulate gateway response
+  it("serializes MiniMax-M3.1-Flash at the gateway request boundary", async () => {
+    // Mock fetch to capture the exact request sent to the gateway.
     const originalFetch = globalThis.fetch;
     globalThis.fetch = mock.fn(async () => ({
       ok: true,
@@ -32,7 +32,7 @@ describe("gateway-api model parameter support", () => {
         payload: {
           kind: "agentTurn",
           message: "test prompt",
-          model: "claude-sonnet-4-20250514",
+          model: "MiniMax-M3.1-Flash",
           timeoutSeconds: 60,
         },
         enabled: true,
@@ -41,11 +41,10 @@ describe("gateway-api model parameter support", () => {
       assert.equal(result.ok, true);
       assert.equal(result.id, "test-job-123");
 
-      // Verify fetch was called with model in the payload
       const fetchMock = globalThis.fetch as any;
       const callArgs = fetchMock.mock.calls[0].arguments;
       const body = JSON.parse(callArgs[1].body);
-      assert.equal(body.args.job.payload.model, "claude-sonnet-4-20250514");
+      assert.equal(body.args.job.payload.model, "MiniMax-M3.1-Flash");
     } finally {
       globalThis.fetch = originalFetch;
     }
